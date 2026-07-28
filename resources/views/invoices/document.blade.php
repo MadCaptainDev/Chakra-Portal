@@ -4,157 +4,196 @@
 <meta charset="UTF-8">
 <title>{{ $invoice->invoice_number }} - {{ $settings->company_name }}</title>
 <style>
+    @font-face {
+        font-family: 'Poppins';
+        font-weight: 400;
+        font-style: normal;
+        src: url({{ \App\Support\Fonts::dataUri('Poppins-Regular.ttf') }}) format('truetype');
+    }
+    @font-face {
+        font-family: 'Poppins';
+        font-weight: 400;
+        font-style: italic;
+        src: url({{ \App\Support\Fonts::dataUri('Poppins-Italic.ttf') }}) format('truetype');
+    }
+    @font-face {
+        font-family: 'Poppins';
+        font-weight: 600;
+        font-style: normal;
+        src: url({{ \App\Support\Fonts::dataUri('Poppins-SemiBold.ttf') }}) format('truetype');
+    }
+    @font-face {
+        font-family: 'Poppins';
+        font-weight: 700;
+        font-style: normal;
+        src: url({{ \App\Support\Fonts::dataUri('Poppins-Bold.ttf') }}) format('truetype');
+    }
+    @font-face {
+        font-family: 'Poppins';
+        font-weight: 800;
+        font-style: normal;
+        src: url({{ \App\Support\Fonts::dataUri('Poppins-ExtraBold.ttf') }}) format('truetype');
+    }
+    @font-face {
+        font-family: 'Caveat';
+        font-weight: 600;
+        font-style: normal;
+        src: url({{ \App\Support\Fonts::dataUri('Caveat-SemiBold.ttf') }}) format('truetype');
+    }
+
     @page { size: A4; margin: 0; }
     * { box-sizing: border-box; }
     html, body {
         margin: 0;
         padding: 0;
         background: #e8e8e8;
-        font-family: Arial, Helvetica, sans-serif;
-        color: #222;
+        font-family: 'Poppins', Arial, sans-serif;
+        color: #000000;
     }
     .page {
         position: relative;
         width: 210mm;
-        min-height: 297mm;
         margin: 0 auto;
         background: #ffffff;
-        padding: 16mm 14mm;
-        overflow: hidden;
+    }
+    .page-content {
+        padding: 16mm 14mm 0;
     }
     .watermark {
         position: absolute;
-        top: 18mm;
-        right: 8mm;
-        width: 60mm;
-        height: 60mm;
-        opacity: 0.08;
+        top: 20mm;
+        left: 150mm;
+        width: 46mm;
+        height: 79mm;
+        opacity: 1;
         z-index: 0;
     }
-    .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
+    table.header {
+        width: 100%;
+        border-collapse: collapse;
         position: relative;
         z-index: 1;
     }
-    .logo img { height: 20mm; }
+    table.header td { vertical-align: top; padding: 0; }
+    .header-right { text-align: right; }
+    .logo img { height: 18mm; }
     .invoice-heading {
-        font-size: 34pt;
+        font-family: 'Poppins', Arial, sans-serif;
         font-weight: 800;
-        color: #A9DCE9;
-        letter-spacing: 2px;
+        font-size: 32pt;
+        color: #ABDAE7;
+        letter-spacing: 1px;
         text-align: right;
+        line-height: 1;
     }
     .invoice-date {
         text-align: right;
-        font-weight: bold;
-        margin-top: 4mm;
+        font-weight: 700;
+        font-size: 12pt;
+        margin-top: 5mm;
+        position: relative;
+        z-index: 1;
     }
     hr.divider {
         border: none;
-        border-top: 2px solid #222;
-        margin: 6mm 0 8mm;
+        border-top: 1.5px solid #132A38;
+        margin: 5mm 0 7mm;
         position: relative;
         z-index: 1;
     }
     .quotation-to { position: relative; z-index: 1; }
-    .quotation-to .label { font-weight: bold; margin-bottom: 2mm; }
-    .quotation-to .client-name { font-weight: bold; }
-    .quotation-to .client-address { color: #444; font-size: 10pt; }
+    .quotation-to .label { font-weight: 700; font-size: 12.5pt; margin-bottom: 2mm; }
+    .quotation-to .client-name { font-weight: 600; font-size: 11pt; margin-bottom: 1mm; }
+    .quotation-to .client-address { color: #000000; font-size: 9.5pt; font-weight: 400; }
 
-    .intro { margin-top: 8mm; position: relative; z-index: 1; }
-    .intro h3 { margin: 0 0 2mm; }
-    .intro p { margin: 0; font-size: 10pt; color: #333; line-height: 1.5; }
+    .intro { margin-top: 7mm; position: relative; z-index: 1; }
+    .intro h3 { margin: 0 0 2mm; font-size: 13pt; font-weight: 700; }
+    .intro p { margin: 0; font-size: 9.5pt; font-weight: 400; color: #000000; line-height: 1.5; }
 
     table.items {
         width: 100%;
         border-collapse: collapse;
-        margin-top: 8mm;
-        border: 1px solid #222;
+        margin-top: 6mm;
+        border: 1.5px solid #132A38;
         position: relative;
         z-index: 1;
     }
     table.items thead th {
-        background: #5EB3C7;
+        background: #67BCD4;
         color: #fff;
         text-align: left;
-        padding: 3mm 4mm;
-        font-size: 10pt;
+        padding: 3.5mm 5mm;
+        font-size: 11pt;
+        font-weight: 600;
     }
     table.items thead th.amount { text-align: right; }
     table.items tbody td {
-        padding: 3mm 4mm;
-        font-size: 10pt;
+        padding: 3.5mm 5mm;
+        font-size: 10.5pt;
+        font-weight: 600;
         border-bottom: 1px solid #eee;
     }
-    table.items tbody td.amount { text-align: right; font-weight: bold; }
-    table.items tbody tr.discount td { font-style: italic; border-top: 1px solid #222; }
+    table.items tbody td.amount { text-align: right; font-weight: 700; }
+    table.items tbody tr.discount td { font-style: italic; font-weight: 700; border-top: 1px solid #132A38; }
 
     .total-box {
         margin-top: 4mm;
-        display: flex;
-        justify-content: flex-end;
+        text-align: right;
     }
     .total-box .box {
-        background: #5EB3C7;
-        border: 1px solid #222;
-        color: #10333c;
-        font-weight: bold;
+        display: inline-block;
+        background: #67BCD4;
+        border: 1.5px solid #132A38;
+        color: #000000;
+        font-weight: 700;
         padding: 3mm 6mm;
         font-size: 12pt;
     }
 
-    .signature { margin-top: 30mm; text-align: right; position: relative; z-index: 1; }
+    .signature { margin-top: 16mm; text-align: right; position: relative; z-index: 1; }
     .signature .sig-name {
-        font-family: 'Brush Script MT', cursive;
-        font-style: italic;
-        font-size: 16pt;
-        border-bottom: 1px solid #222;
+        font-family: 'Caveat', cursive;
+        font-weight: 600;
+        font-size: 20pt;
+        color: #000000;
+        border-bottom: 1px solid #132A38;
         display: inline-block;
         padding: 0 4mm 1mm;
     }
-    .signature .sig-label { font-weight: bold; font-size: 9pt; margin-top: 1mm; }
-    .signature .sig-title { font-size: 9pt; color: #555; }
+    .signature .sig-label { font-weight: 600; font-size: 9pt; margin-top: 1mm; color: #284250; }
+    .signature .sig-title { font-size: 9pt; color: #284250; font-weight: 400; }
 
     .footer-bar {
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: #5EB3C7;
+        margin-top: 10mm;
+        background: #67BCD4;
         color: #fff;
         text-align: center;
-        font-weight: bold;
+        font-weight: 700;
+        font-size: 11pt;
         padding: 5mm 0;
     }
 </style>
 </head>
 <body>
 <div class="page">
-    <svg class="watermark" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="60" cy="55" r="38" fill="#999" />
-        <circle cx="140" cy="55" r="38" fill="#999" />
-        <rect x="40" y="60" width="120" height="70" rx="6" fill="#999" />
-        <polygon points="160,80 195,65 195,110 160,95" fill="#999" />
-        <rect x="30" y="130" width="10" height="55" fill="#999" />
-        <rect x="150" y="130" width="10" height="55" fill="#999" />
-        <rect x="10" y="180" width="180" height="8" fill="#999" />
-    </svg>
+    <img class="watermark" src="{{ \App\Support\Assets::image('images/chakra-watermark.png') }}" alt="">
 
-    <div class="header">
-        <div class="logo">
-            @if ($settings->logo_data_uri)
-                <img src="{{ $settings->logo_data_uri }}" alt="{{ $settings->company_name }}">
-            @else
-                <strong>{{ $settings->company_name }}</strong>
-            @endif
-        </div>
-        <div>
-            <div class="invoice-heading">INVOICE</div>
-            <div class="invoice-date">{{ $invoice->invoice_date->format('d/m/Y') }}</div>
-        </div>
-    </div>
+    <div class="page-content">
+    <table class="header">
+        <tr>
+            <td class="logo">
+                @if ($settings->logo_data_uri)
+                    <img src="{{ $settings->logo_data_uri }}" alt="{{ $settings->company_name }}">
+                @else
+                    <strong>{{ $settings->company_name }}</strong>
+                @endif
+            </td>
+            <td class="header-right">
+                <div class="invoice-heading">INVOICE</div>
+                <div class="invoice-date">{{ $invoice->invoice_date->format('d/m/Y') }}</div>
+            </td>
+        </tr>
+    </table>
 
     <hr class="divider">
 
@@ -176,32 +215,28 @@
     <table class="items">
         <thead>
             <tr>
-                <th>Description</th>
-                <th style="text-align:right;">Qty</th>
-                <th style="text-align:right;">Unit Price</th>
-                <th class="amount">Amount</th>
+                <th>Items</th>
+                <th class="amount">Rate</th>
             </tr>
         </thead>
         <tbody>
             @foreach ($invoice->items as $item)
                 <tr>
                     <td>{{ $item->description }}</td>
-                    <td style="text-align:right;">{{ rtrim(rtrim(number_format($item->quantity, 2), '0'), '.') }}</td>
-                    <td style="text-align:right;">{{ number_format($item->unit_price, 2) }}</td>
-                    <td class="amount">{{ number_format($item->line_total, 2) }}</td>
+                    <td class="amount">{{ number_format($item->line_total, fmod((float) $item->line_total, 1.0) === 0.0 ? 0 : 2) }}</td>
                 </tr>
             @endforeach
             @if ($invoice->discount_label)
                 <tr class="discount">
-                    <td colspan="3">{{ $invoice->discount_label }}</td>
-                    <td class="amount">- {{ number_format($invoice->discount_amount, 2) }}</td>
+                    <td>{{ $invoice->discount_label }}</td>
+                    <td class="amount">- {{ number_format($invoice->discount_amount, fmod((float) $invoice->discount_amount, 1.0) === 0.0 ? 0 : 2) }}</td>
                 </tr>
             @endif
         </tbody>
     </table>
 
     <div class="total-box">
-        <div class="box">TOTAL : {{ number_format($invoice->total, 2) }}/-</div>
+        <div class="box">TOTAL :&nbsp;&nbsp;{{ number_format($invoice->total, fmod((float) $invoice->total, 1.0) === 0.0 ? 0 : 2) }}/-</div>
     </div>
 
     <div class="signature">
@@ -210,6 +245,7 @@
         <div class="sig-title">{{ $settings->signature_title }}</div>
     </div>
 
+    </div>
     <div class="footer-bar">{{ $settings->footer_text }}</div>
 </div>
 </body>
