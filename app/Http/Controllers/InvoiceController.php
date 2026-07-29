@@ -117,6 +117,45 @@ class InvoiceController extends Controller
         return redirect()->route('invoices.index')->with('status', 'Invoice deleted.');
     }
 
+    public function duplicate(Request $request, Invoice $invoice): RedirectResponse
+    {
+        $invoice->load('items');
+
+        $copy = DB::transaction(function () use ($request, $invoice) {
+            $settings = CompanySetting::current();
+
+            $copy = Invoice::create([
+                'invoice_number' => Invoice::nextInvoiceNumber($settings->invoice_prefix),
+                'client_id' => $invoice->client_id,
+                'invoice_date' => now()->format('Y-m-d'),
+                'due_date' => null,
+                'intro_text' => $invoice->intro_text,
+                'discount_label' => $invoice->discount_label,
+                'discount_amount' => $invoice->discount_amount,
+                'status' => Invoice::STATUS_UNPAID,
+                'created_by' => $request->user()->id,
+            ]);
+
+            foreach ($invoice->items as $item) {
+                $copy->items()->create([
+                    'description' => $item->description,
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->unit_price,
+                    'line_total' => $item->line_total,
+                    'sort_order' => $item->sort_order,
+                ]);
+            }
+
+            $copy->load('items');
+            $copy->recalculateTotals();
+            $copy->save();
+
+            return $copy;
+        });
+
+        return redirect()->route('invoices.edit', $copy)->with('status', "Duplicated as {$copy->invoice_number}. Adjust and save.");
+    }
+
     public function pdf(Invoice $invoice): Response
     {
         $invoice->load('client', 'items');
