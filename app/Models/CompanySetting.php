@@ -14,6 +14,7 @@ class CompanySetting extends Model
         'signature_title',
         'invoice_prefix',
         'footer_text',
+        'notification_email',
     ];
 
     public static function current(): self

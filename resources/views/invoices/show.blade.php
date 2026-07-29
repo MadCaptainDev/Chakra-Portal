@@ -8,30 +8,56 @@
                 <x-badge :status="$invoice->isOverdue() ? 'overdue' : $invoice->status" />
             </div>
             <div class="flex flex-wrap items-center gap-2">
-                <a href="{{ route('invoices.pdf', $invoice) }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-brand-400 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-brand-500">
-                    Download PDF
-                </a>
-                <a href="{{ route('invoices.edit', $invoice) }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50">
-                    Edit
-                </a>
-                <form method="POST" action="{{ route('invoices.duplicate', $invoice) }}">
-                    @csrf
-                    <button type="submit" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50">
-                        Duplicate
-                    </button>
-                </form>
-                <form method="POST" action="{{ route('invoices.destroy', $invoice) }}" onsubmit="return confirm('Delete this invoice?');">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-red-600 uppercase tracking-widest hover:bg-gray-50">
-                        Delete
-                    </button>
-                </form>
+                @if ($invoice->isPendingApproval())
+                    <form method="POST" action="{{ route('invoices.approve', $invoice) }}">
+                        @csrf
+                        <button type="submit" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-brand-400 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-brand-500">
+                            Approve
+                        </button>
+                    </form>
+                    <a href="{{ route('invoices.edit', $invoice) }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50">
+                        Edit
+                    </a>
+                    <form method="POST" action="{{ route('invoices.discard', $invoice) }}" onsubmit="return confirm('Discard this pending invoice? This cannot be undone.');">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-red-600 uppercase tracking-widest hover:bg-gray-50">
+                            Discard
+                        </button>
+                    </form>
+                @else
+                    <a href="{{ route('invoices.pdf', $invoice) }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-brand-400 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-brand-500">
+                        Download PDF
+                    </a>
+                    <a href="{{ route('invoices.edit', $invoice) }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50">
+                        Edit
+                    </a>
+                    <form method="POST" action="{{ route('invoices.duplicate', $invoice) }}">
+                        @csrf
+                        <button type="submit" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50">
+                            Duplicate
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ route('invoices.destroy', $invoice) }}" onsubmit="return confirm('Delete this invoice?');">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-red-600 uppercase tracking-widest hover:bg-gray-50">
+                            Delete
+                        </button>
+                    </form>
+                @endif
             </div>
         </div>
     </x-slot>
 
     <div class="space-y-6">
+        @if ($invoice->isPendingApproval())
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+                This invoice was generated automatically by a recurring schedule and hasn't been sent anywhere yet.
+                Review the details below, then Approve to assign it an invoice number, or Discard to skip this occurrence.
+            </div>
+        @endif
+
         <x-card class="overflow-hidden p-2 sm:p-4">
             <div
                 x-data="{

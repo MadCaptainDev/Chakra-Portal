@@ -46,10 +46,17 @@
                     <x-input-error :messages="$errors->get('invoice_prefix')" class="mt-2" />
                 </div>
 
-                <div class="mb-6">
+                <div class="mb-4">
                     <x-input-label for="footer_text" value="Footer Thank-You Text" />
                     <x-text-input id="footer_text" name="footer_text" type="text" class="mt-1" value="{{ old('footer_text', $settings->footer_text) }}" required />
                     <x-input-error :messages="$errors->get('footer_text')" class="mt-2" />
+                </div>
+
+                <div class="mb-6">
+                    <x-input-label for="notification_email" value="Notification Email (optional)" />
+                    <x-text-input id="notification_email" name="notification_email" type="email" class="mt-1" value="{{ old('notification_email', $settings->notification_email) }}" />
+                    <x-input-error :messages="$errors->get('notification_email')" class="mt-2" />
+                    <p class="text-xs text-gray-500 mt-1">Where to send alerts when recurring invoices are generated. Leave blank to notify every staff account.</p>
                 </div>
 
                 <x-primary-button>Save</x-primary-button>

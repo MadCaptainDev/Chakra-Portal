@@ -117,6 +117,28 @@ class InvoiceController extends Controller
         return redirect()->route('invoices.index')->with('status', 'Invoice deleted.');
     }
 
+    public function approve(Invoice $invoice): RedirectResponse
+    {
+        if (! $invoice->isPendingApproval()) {
+            return redirect()->route('invoices.show', $invoice)->with('error', 'This invoice is not pending approval.');
+        }
+
+        $invoice->approve();
+
+        return redirect()->route('invoices.show', $invoice)->with('status', "Approved as {$invoice->invoice_number}.");
+    }
+
+    public function discard(Invoice $invoice): RedirectResponse
+    {
+        if (! $invoice->isPendingApproval()) {
+            return redirect()->route('invoices.show', $invoice)->with('error', 'Only a pending-approval invoice can be discarded.');
+        }
+
+        $invoice->delete();
+
+        return redirect()->route('invoices.index', ['status' => 'pending_approval'])->with('status', 'Invoice discarded.');
+    }
+
     public function duplicate(Request $request, Invoice $invoice): RedirectResponse
     {
         $invoice->load('items');
@@ -166,7 +188,7 @@ class InvoiceController extends Controller
             'settings' => $settings,
         ])->setPaper('a4');
 
-        return $pdf->download("{$invoice->invoice_number}.pdf");
+        return $pdf->download(($invoice->invoice_number ?? 'DRAFT').'.pdf');
     }
 
     public function preview(Invoice $invoice): View

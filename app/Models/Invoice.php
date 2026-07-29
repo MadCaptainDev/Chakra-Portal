@@ -52,6 +52,11 @@ class Invoice extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function recurringInvoice(): BelongsTo
+    {
+        return $this->belongsTo(RecurringInvoice::class);
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(InvoiceItem::class)->orderBy('sort_order');

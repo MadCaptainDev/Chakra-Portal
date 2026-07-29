@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>{{ $invoice->invoice_number }} - {{ $settings->company_name }}</title>
+<title>{{ $invoice->invoice_number ?? 'DRAFT' }} - {{ $settings->company_name }}</title>
 <style>
     @font-face {
         font-family: 'Poppins';
