@@ -17,28 +17,35 @@
         discountAmount: {{ Illuminate\Support\Js::from((float) old('discount_amount', $invoice->discount_amount ?? 0)) }},
     })"
 >
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <div>
-            <x-input-label for="client_id" value="Client" />
-            <x-select id="client_id" name="client_id" class="mt-1" required>
-                <option value="">Select a client...</option>
-                @foreach ($clients as $client)
-                    <option value="{{ $client->id }}" @selected(old('client_id', $invoice->client_id ?? null) == $client->id)>
-                        {{ $client->name }}
-                    </option>
-                @endforeach
-            </x-select>
-            <x-input-error :messages="$errors->get('client_id')" class="mt-2" />
-            <p class="text-xs text-gray-500 mt-1">
-                Need a new client? <a href="{{ route('clients.create') }}" class="text-brand-500 underline" target="_blank">Add one here</a>, then refresh this page.
-            </p>
-        </div>
+    <div class="mb-6">
+        <x-input-label for="client_id" value="Client" />
+        <x-select id="client_id" name="client_id" class="mt-1" required>
+            <option value="">Select a client...</option>
+            @foreach ($clients as $client)
+                <option value="{{ $client->id }}" @selected(old('client_id', $invoice->client_id ?? null) == $client->id)>
+                    {{ $client->name }}
+                </option>
+            @endforeach
+        </x-select>
+        <x-input-error :messages="$errors->get('client_id')" class="mt-2" />
+        <p class="text-xs text-gray-500 mt-1">
+            Need a new client? <a href="{{ route('clients.create') }}" class="text-brand-500 underline" target="_blank">Add one here</a>, then refresh this page.
+        </p>
+    </div>
 
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div>
             <x-input-label for="invoice_date" value="Invoice Date" />
             <x-text-input id="invoice_date" name="invoice_date" type="date" class="mt-1"
                 value="{{ old('invoice_date', isset($invoice) ? $invoice->invoice_date->format('Y-m-d') : now()->format('Y-m-d')) }}" required />
             <x-input-error :messages="$errors->get('invoice_date')" class="mt-2" />
+        </div>
+
+        <div>
+            <x-input-label for="due_date" value="Due Date (optional)" />
+            <x-text-input id="due_date" name="due_date" type="date" class="mt-1"
+                value="{{ old('due_date', isset($invoice) && $invoice->due_date ? $invoice->due_date->format('Y-m-d') : '') }}" />
+            <x-input-error :messages="$errors->get('due_date')" class="mt-2" />
         </div>
     </div>
 

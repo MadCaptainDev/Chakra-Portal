@@ -18,6 +18,7 @@ class InvoiceController extends Controller
     public function index(Request $request): View
     {
         $search = $request->string('search')->toString();
+        $status = $request->string('status')->toString();
 
         $invoices = Invoice::query()
             ->with('client')
@@ -25,11 +26,13 @@ class InvoiceController extends Controller
                 $query->where('invoice_number', 'like', "%{$search}%")
                     ->orWhereHas('client', fn ($q) => $q->where('name', 'like', "%{$search}%"));
             })
+            ->when($status === 'overdue', fn ($query) => $query->overdue())
+            ->when($status && $status !== 'overdue', fn ($query) => $query->where('status', $status))
             ->latest('invoice_date')
             ->paginate(20)
             ->withQueryString();
 
-        return view('invoices.index', compact('invoices', 'search'));
+        return view('invoices.index', compact('invoices', 'search', 'status'));
     }
 
     public function create(): View
@@ -48,9 +51,11 @@ class InvoiceController extends Controller
                 'invoice_number' => Invoice::nextInvoiceNumber($settings->invoice_prefix),
                 'client_id' => $request->validated('client_id'),
                 'invoice_date' => $request->validated('invoice_date'),
+                'due_date' => $request->validated('due_date'),
                 'intro_text' => $request->validated('intro_text'),
                 'discount_label' => $request->validated('discount_label'),
                 'discount_amount' => $request->validated('discount_amount'),
+                'status' => Invoice::STATUS_UNPAID,
                 'created_by' => $request->user()->id,
             ]);
 
@@ -68,7 +73,7 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice): View
     {
-        $invoice->load('client', 'items');
+        $invoice->load('client', 'items', 'payments.recordedBy');
         $settings = CompanySetting::current();
 
         return view('invoices.show', compact('invoice', 'settings'));
@@ -88,6 +93,7 @@ class InvoiceController extends Controller
             $invoice->update([
                 'client_id' => $request->validated('client_id'),
                 'invoice_date' => $request->validated('invoice_date'),
+                'due_date' => $request->validated('due_date'),
                 'intro_text' => $request->validated('intro_text'),
                 'discount_label' => $request->validated('discount_label'),
                 'discount_amount' => $request->validated('discount_amount'),

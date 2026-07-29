@@ -21,10 +21,29 @@ class InvoiceFactory extends Factory
             'invoice_number' => 'CP-'.str_pad((string) fake()->unique()->numberBetween(1, 9999), 4, '0', STR_PAD_LEFT),
             'client_id' => Client::factory(),
             'invoice_date' => now()->format('Y-m-d'),
+            'due_date' => null,
             'intro_text' => fake()->sentence(),
             'subtotal' => 0,
             'total' => 0,
+            'status' => Invoice::STATUS_UNPAID,
             'created_by' => User::factory(),
         ];
+    }
+
+    public function pendingApproval(): static
+    {
+        return $this->state(fn () => [
+            'invoice_number' => null,
+            'status' => Invoice::STATUS_PENDING_APPROVAL,
+            'approved_at' => null,
+        ]);
+    }
+
+    public function overdue(): static
+    {
+        return $this->state(fn () => [
+            'status' => Invoice::STATUS_UNPAID,
+            'due_date' => now()->subDays(5)->format('Y-m-d'),
+        ]);
     }
 }

@@ -19,6 +19,7 @@ class InvoiceRequest extends FormRequest
         return [
             'client_id' => ['required', 'exists:clients,id'],
             'invoice_date' => ['required', 'date'],
+            'due_date' => ['nullable', 'date', 'after_or_equal:invoice_date'],
             'intro_text' => ['nullable', 'string'],
             'discount_label' => ['nullable', 'string', 'max:255', 'required_with:discount_amount'],
             'discount_amount' => ['nullable', 'numeric', 'min:0'],
