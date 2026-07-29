@@ -1,16 +1,52 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex justify-between items-center">
-            <h2 class="font-semibold text-xl text-gray-800 leading-tight">Clients</h2>
-            <a href="{{ route('clients.create') }}" class="inline-flex items-center px-4 py-2 bg-teal-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-teal-700">
-                + Add Client
-            </a>
-        </div>
+        <x-page-header title="Clients">
+            <x-slot name="actions">
+                <a href="{{ route('clients.create') }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-brand-400 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-brand-500">
+                    + Add Client
+                </a>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
-    <div class="py-8">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white shadow-sm sm:rounded-lg overflow-hidden">
+    <div class="space-y-4">
+        @if ($clients->isEmpty())
+            <x-empty-state message="No clients yet.">
+                <a href="{{ route('clients.create') }}" class="text-brand-500 font-semibold text-sm hover:text-brand-600">Add your first client &rarr;</a>
+            </x-empty-state>
+        @else
+            {{-- Mobile: card list --}}
+            <div class="md:hidden space-y-3">
+                @foreach ($clients as $client)
+                    <div class="bg-white shadow-sm rounded-lg p-4">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <p class="font-semibold text-gray-900 truncate">{{ $client->name }}</p>
+                                @if ($client->address)
+                                    <p class="text-sm text-gray-500 truncate">{{ $client->address }}</p>
+                                @endif
+                                @if ($client->email)
+                                    <p class="text-sm text-gray-500 truncate">{{ $client->email }}</p>
+                                @endif
+                                @if ($client->phone)
+                                    <p class="text-sm text-gray-500">{{ $client->phone }}</p>
+                                @endif
+                            </div>
+                            <div class="flex flex-col items-end gap-2 shrink-0">
+                                <a href="{{ route('clients.edit', $client) }}" class="text-brand-500 font-semibold text-sm min-h-[44px] flex items-center">Edit</a>
+                                <form method="POST" action="{{ route('clients.destroy', $client) }}" onsubmit="return confirm('Delete this client?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-red-600 font-semibold text-sm min-h-[44px] flex items-center">Delete</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+
+            {{-- Desktop: table --}}
+            <x-card class="hidden md:block overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
@@ -22,33 +58,29 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
-                        @forelse ($clients as $client)
+                        @foreach ($clients as $client)
                             <tr>
                                 <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $client->name }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-500">{{ $client->address }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-500">{{ $client->email }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-500">{{ $client->phone }}</td>
                                 <td class="px-6 py-4 text-right text-sm space-x-3">
-                                    <a href="{{ route('clients.edit', $client) }}" class="text-teal-600 hover:text-teal-900">Edit</a>
+                                    <a href="{{ route('clients.edit', $client) }}" class="text-brand-500 hover:text-brand-600 font-semibold">Edit</a>
                                     <form method="POST" action="{{ route('clients.destroy', $client) }}" class="inline" onsubmit="return confirm('Delete this client?');">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="text-red-600 hover:text-red-900">Delete</button>
+                                        <button type="submit" class="text-red-600 hover:text-red-900 font-semibold">Delete</button>
                                     </form>
                                 </td>
                             </tr>
-                        @empty
-                            <tr>
-                                <td colspan="5" class="px-6 py-4 text-sm text-gray-500 text-center">No clients yet.</td>
-                            </tr>
-                        @endforelse
+                        @endforeach
                     </tbody>
                 </table>
-            </div>
+            </x-card>
+        @endif
 
-            <div class="mt-4">
-                {{ $clients->links() }}
-            </div>
+        <div>
+            {{ $clients->links() }}
         </div>
     </div>
 </x-app-layout>
