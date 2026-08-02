@@ -6,8 +6,11 @@ stages:
 
 1. **Build and test** — installs Composer and npm dependencies, runs `npm run build`
    and the full test suite. A red suite stops the deploy.
-2. **Pull** — calls Hostinger's auto-deployment webhook, which makes the server
-   `git pull` the new commit.
+2. **Pull** — over SSH, resets the server checkout to the pushed commit. Hostinger's
+   own auto-deployment is not used: it runs its own `composer install`, which fails
+   whenever the CLI PHP is older than 8.2, and its webhook rejects anything that
+   is not a full GitHub push payload. The webhook is still supported as a fallback
+   for setups with no SSH access.
 3. **Finish on the server** — uploads the compiled Vite assets over SSH and runs
    [`scripts/deploy.sh`](../scripts/deploy.sh): `composer install --no-dev`,
    migrations, cache rebuild, queue restart, with the site in maintenance mode
@@ -95,5 +98,12 @@ cancelling it, so a migration is never interrupted halfway.
 - **Migration failed** — the deploy stops before the caches are rebuilt and the site
   stays in maintenance mode. Roll the schema back or fix it manually over SSH, then
   re-run the workflow.
-- **Wrong PHP version on the server** — set `PHP_BIN` in the script's environment, or
-  change the PHP version in hPanel. The app needs PHP 8.2+.
+- **`Your requirements could not be resolved to an installable set of packages`** —
+  the PHP running Composer is older than 8.2. `scripts/deploy.sh` looks for a newer
+  binary (`php8.4`, `php8.3`, `php8.2`, the `/opt/alt/phpXX` paths) and fails with a
+  clear message if there is none. Raise the version in hPanel → **PHP Configuration**,
+  or set `PHP_BIN` explicitly. This is also why Hostinger's built-in deployment fails
+  where the pipeline succeeds.
+- **`no .env in ...`** — the deploy directory was re-cloned from scratch. `.env` is
+  untracked by design, so recreate it from `.env.example` and run
+  `php artisan key:generate`.

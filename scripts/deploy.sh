@@ -20,28 +20,74 @@ export COMPOSER_MEMORY_LIMIT=-1
 
 log() { printf '\n==> %s\n' "$1"; }
 
-# Composer is not on the PATH on every Hostinger plan. Fall back to a local
-# composer.phar, fetching it once if it is not there yet.
-resolve_composer() {
-  if command -v composer >/dev/null 2>&1; then
-    COMPOSER=(composer)
-  elif [ -f composer.phar ]; then
-    COMPOSER=("$PHP_BIN" composer.phar)
-  else
-    log "Composer not found - installing composer.phar locally"
-    curl -sS https://getcomposer.org/installer | "$PHP_BIN" -- --install-dir=. --filename=composer.phar
-    COMPOSER=("$PHP_BIN" composer.phar)
+# Hostinger's default CLI php is often older than the version the site runs on,
+# and Laravel 12 needs 8.2+. Find a good binary instead of failing deep inside
+# composer with "your requirements could not be resolved".
+php_is_supported() { "$1" -r 'exit(PHP_VERSION_ID >= 80200 ? 0 : 1);' >/dev/null 2>&1; }
+
+resolve_php() {
+  if php_is_supported "$PHP_BIN"; then
+    return
   fi
+
+  for candidate in php8.4 php8.3 php8.2 \
+    /usr/bin/php8.4 /usr/bin/php8.3 /usr/bin/php8.2 \
+    /opt/alt/php84/usr/bin/php /opt/alt/php83/usr/bin/php /opt/alt/php82/usr/bin/php; do
+    if command -v "$candidate" >/dev/null 2>&1 && php_is_supported "$candidate"; then
+      log "PHP $("$PHP_BIN" -r 'echo PHP_VERSION;' 2>/dev/null || echo '?') is too old - using $candidate"
+      PHP_BIN="$candidate"
+      return
+    fi
+  done
+
+  echo "ERROR: no PHP 8.2+ binary found (PHP_BIN=$PHP_BIN is $("$PHP_BIN" -r 'echo PHP_VERSION;' 2>/dev/null || echo 'missing'))." >&2
+  echo "       Raise the PHP version in hPanel, or set PHP_BIN to a suitable binary." >&2
+  exit 1
+}
+
+# Composer is not on the PATH on every Hostinger plan, and where it is, its
+# shebang picks the default php - which is the too-old one we just worked
+# around. Always drive it with the resolved binary instead.
+resolve_composer() {
+  local candidate
+  for candidate in "$(command -v composer 2>/dev/null)" composer.phar; do
+    [ -n "$candidate" ] && [ -f "$candidate" ] || continue
+    if "$PHP_BIN" "$candidate" --version >/dev/null 2>&1; then
+      COMPOSER=("$PHP_BIN" "$candidate")
+      return
+    fi
+  done
+
+  log "Composer not usable - installing composer.phar locally"
+  curl -sS https://getcomposer.org/installer | "$PHP_BIN" -- --install-dir=. --filename=composer.phar
+  COMPOSER=("$PHP_BIN" composer.phar)
 }
 
 maintenance_off() { "$PHP_BIN" artisan up >/dev/null 2>&1 || true; }
 
 if [ "${DEPLOY_GIT_PULL:-0}" = "1" ]; then
-  log "Pulling latest code"
-  git pull --ff-only
+  branch="${DEPLOY_BRANCH:-main}"
+  log "Fetching origin/$branch"
+  git fetch --prune origin "$branch"
+
+  # This checkout is a deploy target, not somewhere to edit code, so make the
+  # working tree match origin exactly. A merge would wedge the deploy on any
+  # stray server-side change; a reset just replaces it. Untracked files
+  # (.env, storage uploads, public/build) are left alone.
+  git reset --hard FETCH_HEAD
 fi
 
 log "Deploying $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown revision')"
+
+resolve_php
+
+# .env is untracked, so a fresh clone into the deploy directory arrives without
+# one. Say so plainly rather than letting artisan fail on a missing APP_KEY.
+if [ ! -f .env ]; then
+  echo "ERROR: no .env in $(pwd). Copy .env.example, fill in the production" >&2
+  echo "       values, then run: $PHP_BIN artisan key:generate" >&2
+  exit 1
+fi
 
 # Vite output is not in git; the workflow scp's it up as a tarball.
 if [ -f "$ASSET_BUNDLE" ]; then
