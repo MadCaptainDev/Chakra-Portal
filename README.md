@@ -62,6 +62,13 @@ anything else, which stops `RefreshDatabase` from wiping a real database when a 
 config overrides `phpunit.xml`. If it aborts, run `php artisan config:clear` first (and
 `php artisan config:cache` again afterwards).
 
+## Deployment
+
+Pushing to `main` deploys to Hostinger automatically: GitHub Actions builds the
+assets and runs the tests, triggers Hostinger's git pull, then finishes the deploy
+over SSH (`composer install --no-dev`, migrations, cache rebuild). The required
+secrets and the one-time hPanel setup are in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
 ## Scheduled work
 
 Recurring invoice generation runs from the scheduler:

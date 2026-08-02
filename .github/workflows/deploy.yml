@@ -1,0 +1,157 @@
+name: Deploy to Hostinger
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never let two deploys touch the server at the same time. Queue them instead
+# of cancelling: a half-applied migration is worse than a slow pipeline.
+concurrency:
+  group: hostinger-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, bcmath, dom, zip, gd, sqlite3, pdo_sqlite
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer/files
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Build front-end assets
+        run: npm run build
+
+      # The suite runs against in-memory SQLite (phpunit.xml), but Laravel still
+      # needs an APP_KEY to boot.
+      - name: Prepare test environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Run tests
+        run: php artisan test
+
+      # public/build is gitignored, so Hostinger's git pull never brings it.
+      # Ship the compiled assets separately instead of asking shared hosting
+      # to run Vite.
+      - name: Package compiled assets
+        run: tar -czf build-assets.tar.gz -C public build
+
+      - name: Upload compiled assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-assets
+          path: build-assets.tar.gz
+          retention-days: 7
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy to production
+    needs: build
+    runs-on: ubuntu-latest
+
+    # Secrets are not readable from a step-level `if`, so surface them as
+    # job-level env and branch on those.
+    env:
+      DEPLOY_WEBHOOK: ${{ secrets.HOSTINGER_DEPLOY_WEBHOOK }}
+      SSH_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
+      SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
+      SSH_PORT: ${{ secrets.HOSTINGER_SSH_PORT }}
+      SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}
+      APP_PATH: ${{ secrets.HOSTINGER_APP_PATH }}
+
+    steps:
+      - name: Check deployment secrets
+        run: |
+          if [ -z "$DEPLOY_WEBHOOK" ] && [ -z "$SSH_HOST" ]; then
+            echo "::error::Configure HOSTINGER_DEPLOY_WEBHOOK and/or the HOSTINGER_SSH_* secrets. See docs/DEPLOYMENT.md."
+            exit 1
+          fi
+          if [ -z "$SSH_HOST" ]; then
+            echo "::warning::No SSH secrets set - Hostinger will pull the code, but composer install, migrations and asset upload will be skipped. See docs/DEPLOYMENT.md."
+          elif [ -z "$SSH_USER" ] || [ -z "$SSH_KEY" ] || [ -z "$APP_PATH" ]; then
+            echo "::error::HOSTINGER_SSH_HOST is set, so HOSTINGER_SSH_USER, HOSTINGER_SSH_KEY and HOSTINGER_APP_PATH are required too."
+            exit 1
+          fi
+
+      - name: Download compiled assets
+        if: env.SSH_HOST != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: build-assets
+
+      # Hostinger's auto-deployment webhook - this is what makes the server
+      # pull the new commit.
+      - name: Trigger Hostinger pull
+        if: env.DEPLOY_WEBHOOK != ''
+        run: |
+          status=$(curl -sS --retry 3 --retry-delay 5 --max-time 120 \
+            -o /tmp/hostinger-response.txt -w '%{http_code}' \
+            -X POST "$DEPLOY_WEBHOOK")
+          echo "Hostinger responded with HTTP $status"
+          head -c 2000 /tmp/hostinger-response.txt || true
+          case "$status" in
+            2*) ;;
+            *) echo "::error::Hostinger deploy webhook returned HTTP $status"; exit 1 ;;
+          esac
+
+      - name: Configure SSH
+        if: env.SSH_HOST != ''
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -p "${SSH_PORT:-65002}" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload compiled assets to server
+        if: env.SSH_HOST != ''
+        run: |
+          scp -i ~/.ssh/id_deploy -P "${SSH_PORT:-65002}" -o BatchMode=yes \
+            build-assets.tar.gz "$SSH_USER@$SSH_HOST:$APP_PATH/build-assets.tar.gz"
+
+      - name: Run post-deploy steps on server
+        if: env.SSH_HOST != ''
+        run: |
+          ssh -i ~/.ssh/id_deploy -p "${SSH_PORT:-65002}" -o BatchMode=yes \
+            "$SSH_USER@$SSH_HOST" \
+            "cd '$APP_PATH' && bash scripts/deploy.sh"
+
+      - name: Remove SSH key
+        if: always()
+        run: rm -f ~/.ssh/id_deploy

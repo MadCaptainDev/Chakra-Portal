@@ -24,3 +24,7 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Deploy artefacts
+/build-assets.tar.gz
+/composer.phar
