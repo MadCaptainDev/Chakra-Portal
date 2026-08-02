@@ -159,8 +159,30 @@ jobs:
         if: env.SSH_HOST != ''
         run: |
           ssh -i ~/.ssh/id_deploy -p "${SSH_PORT:-65002}" -o BatchMode=yes \
-            "$SSH_USER@$SSH_HOST" \
-            "set -e; cd '$APP_PATH'; git fetch --prune origin '$GITHUB_REF_NAME'; git reset --hard '$GITHUB_SHA'; bash scripts/deploy.sh"
+            "$SSH_USER@$SSH_HOST" bash -s <<EOF
+          set -e
+          cd "$APP_PATH"
+
+          # A misconfigured path would reset some unrelated application to this
+          # repository's contents, so confirm what lives here before writing.
+          git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+            echo "ERROR: $APP_PATH is not a git checkout - check HOSTINGER_APP_PATH." >&2
+            exit 1
+          }
+          remote=\$(git remote get-url origin)
+          case "\$remote" in
+            *${GITHUB_REPOSITORY}*) ;;
+            *)
+              echo "ERROR: $APP_PATH tracks \$remote, not ${GITHUB_REPOSITORY}." >&2
+              echo "       Refusing to reset it - check HOSTINGER_APP_PATH." >&2
+              exit 1
+              ;;
+          esac
+
+          git fetch --prune origin "${GITHUB_REF_NAME}"
+          git reset --hard "${GITHUB_SHA}"
+          bash scripts/deploy.sh
+          EOF
 
       - name: Remove SSH key
         if: always()
