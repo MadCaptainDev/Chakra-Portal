@@ -45,18 +45,22 @@ resolve_php() {
   exit 1
 }
 
-# Composer is not on the PATH on every Hostinger plan. Fall back to a local
-# composer.phar, fetching it once if it is not there yet.
+# Composer is not on the PATH on every Hostinger plan, and where it is, its
+# shebang picks the default php - which is the too-old one we just worked
+# around. Always drive it with the resolved binary instead.
 resolve_composer() {
-  if command -v composer >/dev/null 2>&1; then
-    COMPOSER=(composer)
-  elif [ -f composer.phar ]; then
-    COMPOSER=("$PHP_BIN" composer.phar)
-  else
-    log "Composer not found - installing composer.phar locally"
-    curl -sS https://getcomposer.org/installer | "$PHP_BIN" -- --install-dir=. --filename=composer.phar
-    COMPOSER=("$PHP_BIN" composer.phar)
-  fi
+  local candidate
+  for candidate in "$(command -v composer 2>/dev/null)" composer.phar; do
+    [ -n "$candidate" ] && [ -f "$candidate" ] || continue
+    if "$PHP_BIN" "$candidate" --version >/dev/null 2>&1; then
+      COMPOSER=("$PHP_BIN" "$candidate")
+      return
+    fi
+  done
+
+  log "Composer not usable - installing composer.phar locally"
+  curl -sS https://getcomposer.org/installer | "$PHP_BIN" -- --install-dir=. --filename=composer.phar
+  COMPOSER=("$PHP_BIN" composer.phar)
 }
 
 maintenance_off() { "$PHP_BIN" artisan up >/dev/null 2>&1 || true; }

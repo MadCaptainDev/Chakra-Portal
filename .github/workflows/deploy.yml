@@ -179,7 +179,14 @@ jobs:
               ;;
           esac
 
-          git fetch --prune origin "${GITHUB_REF_NAME}"
+          # Hostinger clones shallow, so the pushed commit has no reachable
+          # ancestry here until the checkout is deepened.
+          if [ -f "\$(git rev-parse --git-dir)/shallow" ]; then
+            git fetch --prune --unshallow origin "${GITHUB_REF_NAME}" \
+              || git fetch --prune origin "${GITHUB_REF_NAME}"
+          else
+            git fetch --prune origin "${GITHUB_REF_NAME}"
+          fi
           git reset --hard "${GITHUB_SHA}"
           bash scripts/deploy.sh
           EOF
