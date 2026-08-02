@@ -110,6 +110,13 @@ trap maintenance_off EXIT
 log "Installing PHP dependencies"
 "${COMPOSER[@]}" install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
 
+# A hand-written .env on a server with no vendor/ yet cannot have been through
+# key:generate - artisan could not boot to run it. Fill it in now that it can.
+if ! grep -qE '^APP_KEY=.+' .env; then
+  log "Generating APP_KEY"
+  "$PHP_BIN" artisan key:generate --force
+fi
+
 if [ "${SKIP_MIGRATIONS:-0}" = "1" ]; then
   log "Skipping migrations (SKIP_MIGRATIONS=1)"
 else
