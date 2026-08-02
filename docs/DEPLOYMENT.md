@@ -32,7 +32,15 @@ Then over SSH, in that same app root, one time only:
 - Create `.env` (copy `.env.example`, set `APP_ENV=production`, `APP_DEBUG=false`,
   the real `APP_URL`, the MySQL credentials and mail settings, then run
   `php artisan key:generate`). `.env` is gitignored — deploys never touch it.
-- Point the domain's document root at `public/`.
+- Check the document root. The app is deployed into `public_html`, which *is* the
+  document root, so the repository root ships an `.htaccess` that routes requests
+  into `public/` and blocks `.env`, `storage/`, `vendor/` and friends. If your
+  plan lets you point the document root at `public_html/public` instead, do that —
+  it is stricter, and the root `.htaccess` then goes unread.
+
+  **First deploy only:** if a hand-written `.htaccess` is already sitting in
+  `public_html`, Hostinger's `git pull` will refuse to overwrite it and the deploy
+  will fail. Rename it first: `mv .htaccess .htaccess.bak`.
 - Add a cron job so recurring invoices generate:
 
   ```
@@ -57,7 +65,7 @@ Add these under **Settings → Secrets and variables → Actions → New reposit
 | `HOSTINGER_DEPLOY_WEBHOOK` | yes | The auto-deployment URL copied from hPanel |
 | `HOSTINGER_SSH_HOST` | yes | SSH host/IP from hPanel → **SSH Access** |
 | `HOSTINGER_SSH_USER` | yes | SSH username (e.g. `u123456789`) |
-| `HOSTINGER_SSH_KEY` | yes | Contents of `~/.ssh/github_deploy`, including the BEGIN/END lines |
+| `HOSTINGER_SSH_KEY` | yes | The **private** key — contents of `~/.ssh/github_deploy` (no `.pub`), including the BEGIN/END lines |
 | `HOSTINGER_APP_PATH` | yes | Absolute path to the app root, e.g. `/home/u123456789/domains/example.com/chakra-portal` |
 | `HOSTINGER_SSH_PORT` | no | Defaults to `65002`, Hostinger's usual SSH port |
 | `HOSTINGER_SSH_KNOWN_HOSTS` | no | Output of `ssh-keyscan -p 65002 <host>`. Without it the workflow trusts the key it sees on first connect |
