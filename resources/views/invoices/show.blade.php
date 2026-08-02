@@ -38,6 +38,12 @@
                             Duplicate
                         </button>
                     </form>
+                    {{-- A plain GET: it only opens the schedule form pre-filled, so it
+                         must not create anything or need a confirmation. --}}
+                    <a href="{{ route('recurring.create', ['from_invoice' => $invoice->id]) }}"
+                       class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50">
+                        Make Recurring
+                    </a>
                     <form method="POST" action="{{ route('invoices.destroy', $invoice) }}" onsubmit="return confirm('Delete this invoice?');">
                         @csrf
                         @method('DELETE')
@@ -59,20 +65,30 @@
         @endif
 
         <x-card class="overflow-hidden p-2 sm:p-4">
+            {{-- Outer div is the measuring reference and is never resized by us --
+                 scaling the same element we measure would feed its own width back
+                 into the calculation and shrink the preview on every resize. --}}
             <div
                 x-data="{
                     scale: 1,
                     resize() { this.scale = Math.min(this.$el.clientWidth / 794, 1); }
                 }"
-                x-init="resize(); window.addEventListener('resize', resize)"
-                class="w-full overflow-hidden mx-auto"
-                :style="{ height: (1123 * scale) + 'px' }"
+                x-init="resize(); window.addEventListener('resize', () => resize())"
+                class="w-full"
             >
-                <iframe
-                    src="{{ route('invoices.preview', $invoice) }}"
-                    style="width: 794px; height: 1123px; border: 0;"
-                    :style="{ transform: 'scale(' + scale + ')', transformOrigin: 'top left' }"
-                ></iframe>
+                {{-- Sized to the scaled page so mx-auto actually centres it; the
+                     iframe itself stays 794x1123 (A4 at 96dpi) and is scaled down. --}}
+                <div
+                    class="overflow-hidden mx-auto rounded-md ring-1 ring-gray-200 shadow-sm bg-white"
+                    :style="{ width: (794 * scale) + 'px', height: (1123 * scale) + 'px' }"
+                >
+                    <iframe
+                        src="{{ route('invoices.preview', $invoice) }}"
+                        title="Invoice preview"
+                        style="width: 794px; height: 1123px; border: 0; display: block;"
+                        :style="{ transform: 'scale(' + scale + ')', transformOrigin: 'top left' }"
+                    ></iframe>
+                </div>
             </div>
         </x-card>
 

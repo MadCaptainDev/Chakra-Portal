@@ -21,7 +21,7 @@
                     <div class="bg-white shadow-sm rounded-lg p-4">
                         <div class="flex items-start justify-between gap-2">
                             <div class="min-w-0">
-                                <p class="font-semibold text-gray-900 truncate">{{ $client->name }}</p>
+                                <a href="{{ route('clients.show', $client) }}" class="font-semibold text-gray-900 truncate hover:text-brand-500 block">{{ $client->name }}</a>
                                 @if ($client->address)
                                     <p class="text-sm text-gray-500 truncate">{{ $client->address }}</p>
                                 @endif
@@ -60,7 +60,9 @@
                     <tbody class="divide-y divide-gray-200">
                         @foreach ($clients as $client)
                             <tr>
-                                <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $client->name }}</td>
+                                <td class="px-6 py-4 text-sm font-medium text-gray-900">
+                                    <a href="{{ route('clients.show', $client) }}" class="hover:text-brand-500">{{ $client->name }}</a>
+                                </td>
                                 <td class="px-6 py-4 text-sm text-gray-500">{{ $client->address }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-500">{{ $client->email }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-500">{{ $client->phone }}</td>

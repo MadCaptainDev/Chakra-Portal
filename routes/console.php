@@ -13,3 +13,9 @@ Artisan::command('inspire', function () {
 // off at the scheduled time, the EnsureRecurringInvoicesGenerated
 // middleware provides a catch-up on the first request of the day.
 Schedule::command('invoices:generate-recurring')->dailyAt('08:00');
+
+// The Notion content module is switched off for now. The sync service, the
+// notion:sync-content command and the synced content_items rows are all still
+// in place -- only the schedule and the UI are disabled, so re-enabling it is
+// uncommenting this line and restoring the routes/views.
+// Schedule::command('notion:sync-content')->everyThirtyMinutes();

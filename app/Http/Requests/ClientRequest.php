@@ -21,6 +21,7 @@ class ClientRequest extends FormRequest
             'address' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
+            'notion_venture' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

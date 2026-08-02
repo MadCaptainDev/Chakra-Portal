@@ -1,59 +1,81 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Chakra-Portal
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Internal business portal for **Chakra Productions** — invoicing, recurring billing,
+client records, and everything the studio pays out each month.
 
-## About Laravel
+Built with Laravel 12, Blade, Alpine.js and Tailwind CSS. Runs on PHP 8.2+ and MySQL.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Modules
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+| Module | What it does |
+|---|---|
+| **Invoices** | Create, approve and download PDF invoices. Status tracking (unpaid / paid / overdue), part-payments, and one-click duplication. |
+| **Recurring** | Billing schedules that generate invoices on their own. Generated invoices always land as *pending approval* with no invoice number — nothing goes out without a human approving it. |
+| **Clients** | Contact records with full invoice history. |
+| **Expenses** | Combined month view of total outflow. |
+| **EMI** | Asset finance: outstanding liability, per-bank exposure, progress against each schedule, and a month-by-month payoff timeline. |
+| **Salaries** | Monthly payroll run plus employee records — role, joining date, contact, and payment history. |
+| **Bills** | Recurring costs tracked as budget vs what was actually paid. |
+| **Users** | Staff logins. Public registration is closed; accounts are created from inside the portal. |
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Getting started
 
-## Learning Laravel
+```bash
+composer install
+npm install
+cp .env.example .env
+php artisan key:generate
+```
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+Point `DB_*` in `.env` at a MySQL database, then:
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+```bash
+php artisan migrate
+php artisan db:seed --class=ExpenseSeeder
+npm run build
+php artisan serve
+```
 
-## Laravel Sponsors
+## Invoice PDFs
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+PDFs are rendered with dompdf, which is far stricter than a browser. If you touch
+`resources/views/invoices/document.blade.php`, be aware:
 
-### Premium Partners
+- No flexbox, and `box-sizing: border-box` is unreliable.
+- `position: absolute` ignores `right` — use `left` plus an explicit `width`.
+- A `height` or `min-height` on the page element silently emits a blank second page.
+- The bottom padding on `.page-content` reserves the strip used by the fixed footer
+  and signature. Raising it pushes a normal invoice onto a second page.
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+`tests/Feature/InvoicePdfLayoutTest.php` guards all of this by decoding the generated
+PDF itself — page count, footer position, and the total box sitting flush against the
+items table — because none of it is visible from the HTML.
 
-## Contributing
+## Testing
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+php artisan test
+```
 
-## Code of Conduct
+The suite runs against in-memory SQLite. `tests/TestCase.php` refuses to run against
+anything else, which stops `RefreshDatabase` from wiping a real database when a cached
+config overrides `phpunit.xml`. If it aborts, run `php artisan config:clear` first (and
+`php artisan config:cache` again afterwards).
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Scheduled work
 
-## Security Vulnerabilities
+Recurring invoice generation runs from the scheduler:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+php artisan schedule:run
+```
 
-## License
+Run that every minute via cron, or Windows Task Scheduler. A catch-up middleware
+regenerates anything missed on the first request of the day, so a machine that was
+switched off does not silently skip a billing run.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## Notion content sync (disabled)
+
+An earlier module pulled content-planner data from Notion. It is switched off — the
+service, the `notion:sync-content` command and the synced rows are all still present;
+only the schedule entry and the UI are disabled.

@@ -2,18 +2,16 @@
 
 namespace Tests\Feature;
 
-// use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
 {
     /**
-     * A basic test example.
+     * The root URL now serves the public landing page rather than bouncing
+     * straight to the login form. Full coverage lives in LandingPageTest.
      */
-    public function test_guest_is_redirected_to_login(): void
+    public function test_root_url_serves_the_landing_page(): void
     {
-        $response = $this->get('/');
-
-        $response->assertRedirect(route('login'));
+        $this->get('/')->assertOk();
     }
 }

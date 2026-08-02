@@ -15,10 +15,16 @@ class Client extends Model
         'address',
         'email',
         'phone',
+        'notion_venture',
     ];
 
     public function invoices(): HasMany
     {
         return $this->hasMany(Invoice::class);
+    }
+
+    public function contentItems(): HasMany
+    {
+        return $this->hasMany(ContentItem::class, 'venture', 'notion_venture');
     }
 }

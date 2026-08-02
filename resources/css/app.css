@@ -37,3 +37,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Without this, elements marked x-cloak render for a frame before Alpine
+   boots and hides them -- collapsible forms flash open on every page load. */
+[x-cloak] {
+    display: none !important;
+}

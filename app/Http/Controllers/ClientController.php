@@ -29,6 +29,13 @@ class ClientController extends Controller
         return redirect()->route('clients.index')->with('status', 'Client created.');
     }
 
+    public function show(Client $client): View
+    {
+        $invoices = $client->invoices()->latest('invoice_date')->get();
+
+        return view('clients.show', compact('client', 'invoices'));
+    }
+
     public function edit(Client $client): View
     {
         return view('clients.edit', compact('client'));

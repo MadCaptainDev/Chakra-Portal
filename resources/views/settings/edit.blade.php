@@ -62,5 +62,6 @@
                 <x-primary-button>Save</x-primary-button>
             </form>
         </x-card>
+
     </div>
 </x-app-layout>
