@@ -95,7 +95,7 @@ jobs:
       - name: Check deployment secrets
         run: |
           if [ -z "$DEPLOY_WEBHOOK" ] && [ -z "$SSH_HOST" ]; then
-            echo "::error::Configure HOSTINGER_DEPLOY_WEBHOOK and/or the HOSTINGER_SSH_* secrets. See docs/DEPLOYMENT.md."
+            echo "::error::Configure the HOSTINGER_SSH_* secrets (preferred) or HOSTINGER_DEPLOY_WEBHOOK. See docs/DEPLOYMENT.md."
             exit 1
           fi
           if [ -z "$SSH_HOST" ]; then
@@ -111,14 +111,19 @@ jobs:
         with:
           name: build-assets
 
-      # Hostinger's auto-deployment webhook - this is what makes the server
-      # pull the new commit.
+      # Fallback for setups without SSH: Hostinger's auto-deployment webhook.
+      # It validates the body as a GitHub push event and answers 400 to a bare
+      # POST, so send a real push payload. When SSH is available the pull
+      # happens there instead - see the post-deploy step below.
       - name: Trigger Hostinger pull
-        if: env.DEPLOY_WEBHOOK != ''
+        if: env.DEPLOY_WEBHOOK != '' && env.SSH_HOST == ''
         run: |
           status=$(curl -sS --retry 3 --retry-delay 5 --max-time 120 \
             -o /tmp/hostinger-response.txt -w '%{http_code}' \
-            -X POST "$DEPLOY_WEBHOOK")
+            -X POST "$DEPLOY_WEBHOOK" \
+            -H 'Content-Type: application/json' \
+            -H 'X-GitHub-Event: push' \
+            -d "{\"ref\":\"refs/heads/${GITHUB_REF_NAME}\",\"after\":\"${GITHUB_SHA}\"}")
           echo "Hostinger responded with HTTP $status"
           head -c 2000 /tmp/hostinger-response.txt || true
           case "$status" in
@@ -145,12 +150,17 @@ jobs:
           scp -i ~/.ssh/id_deploy -P "${SSH_PORT:-65002}" -o BatchMode=yes \
             build-assets.tar.gz "$SSH_USER@$SSH_HOST:$APP_PATH/build-assets.tar.gz"
 
-      - name: Run post-deploy steps on server
+      # The pull runs here rather than inside deploy.sh: the server's checkout
+      # is still on the previous commit, which may not contain the script yet.
+      # Reset rather than merge - this checkout is a deploy target, and a stray
+      # server-side edit should not be able to wedge it. Untracked files (.env,
+      # storage uploads, the asset bundle just uploaded) are left alone.
+      - name: Update code and run post-deploy steps
         if: env.SSH_HOST != ''
         run: |
           ssh -i ~/.ssh/id_deploy -p "${SSH_PORT:-65002}" -o BatchMode=yes \
             "$SSH_USER@$SSH_HOST" \
-            "cd '$APP_PATH' && bash scripts/deploy.sh"
+            "set -e; cd '$APP_PATH'; git fetch --prune origin '$GITHUB_REF_NAME'; git reset --hard '$GITHUB_SHA'; bash scripts/deploy.sh"
 
       - name: Remove SSH key
         if: always()
