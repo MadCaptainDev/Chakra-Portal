@@ -80,7 +80,9 @@
             </div>
 
             <div x-show="adding" x-cloak class="mb-4">
-                @include('emi._form')
+                <x-card class="p-4 sm:p-6">
+                    @include('emi._form')
+                </x-card>
             </div>
 
             @if ($running->isEmpty())
@@ -95,7 +97,7 @@
                             $lastTwo = $emi->remainingInstallments($asOf) <= 2;
                         @endphp
 
-                        <x-card class="p-4">
+                        <x-card class="p-4" x-data="{ editing: false }">
                             <div class="flex items-start justify-between gap-2 mb-2">
                                 <div class="min-w-0">
                                     <p class="font-semibold text-gray-900 truncate">{{ $emi->name }}</p>
@@ -130,6 +132,26 @@
                             <div class="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
                                 <span>Scheduled paid {{ number_format($emi->scheduledPaidAmount($asOf), 0) }} of {{ number_format($emi->totalCommitment(), 0) }}</span>
                                 <span>Recorded {{ number_format($emi->recordedPaid(), 0) }}</span>
+                            </div>
+
+                            <div class="mt-2 flex items-center justify-end gap-3">
+                                <button type="button" @click="editing = ! editing"
+                                        class="min-h-[44px] px-2 text-xs font-semibold text-brand-500 hover:text-brand-600">
+                                    <span x-show="! editing">Edit</span>
+                                    <span x-show="editing" x-cloak>Cancel</span>
+                                </button>
+                                <form method="POST" action="{{ route('emi.destroy', $emi) }}"
+                                      onsubmit="return confirm('Delete {{ $emi->name }}? Any recorded payments against it go too.');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="min-h-[44px] px-2 text-xs font-semibold text-red-600 hover:text-red-800">
+                                        Delete
+                                    </button>
+                                </form>
+                            </div>
+
+                            <div x-show="editing" x-cloak class="mt-3 pt-3 border-t border-gray-200">
+                                @include('emi._form', ['emi' => $emi])
                             </div>
                         </x-card>
                     @endforeach

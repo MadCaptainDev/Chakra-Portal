@@ -33,8 +33,12 @@ class SettingsController extends Controller
         $settings = CompanySetting::current();
 
         if ($request->hasFile('logo')) {
+            $previous = $settings->logo_path;
+
             $path = $request->file('logo')->store('logos', 'public');
             $validated['logo_path'] = 'storage/'.$path;
+
+            $this->deletePreviousLogo($previous);
         }
 
         unset($validated['logo']);
@@ -42,5 +46,21 @@ class SettingsController extends Controller
         $settings->update($validated);
 
         return redirect()->route('settings.edit')->with('status', 'Settings updated.');
+    }
+
+    /**
+     * Remove a replaced logo so uploads don't pile up.
+     *
+     * Only touches files this app wrote under storage/ -- the bundled default
+     * lives at public/images/chakra-logo.png and must survive, or every
+     * invoice loses its logo.
+     */
+    private function deletePreviousLogo(?string $logoPath): void
+    {
+        if (! $logoPath || ! str_starts_with($logoPath, 'storage/')) {
+            return;
+        }
+
+        Storage::disk('public')->delete(substr($logoPath, strlen('storage/')));
     }
 }

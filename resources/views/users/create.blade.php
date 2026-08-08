@@ -5,13 +5,44 @@
 
     <div class="max-w-2xl mx-auto">
         <x-card class="p-4 sm:p-6">
-            <form method="POST" action="{{ route('users.store') }}">
+            <form method="POST" action="{{ route('users.store') }}"
+                  x-data="{ role: '{{ old('role', 'employee') }}' }">
                 @csrf
 
                 <div class="mb-4">
                     <x-input-label for="name" value="Name" />
                     <x-text-input id="name" name="name" type="text" class="mt-1" value="{{ old('name') }}" required autofocus />
                     <x-input-error :messages="$errors->get('name')" class="mt-2" />
+                </div>
+
+                <div class="mb-4">
+                    <x-input-label for="role" value="Access Level" />
+                    <x-select id="role" name="role" class="mt-1" x-model="role" required>
+                        @foreach (\App\Models\User::ROLES as $value => $label)
+                            <option value="{{ $value }}" @selected(old('role', 'employee') === $value)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
+                    <x-input-error :messages="$errors->get('role')" class="mt-2" />
+                    <p class="text-xs text-gray-500 mt-1">
+                        Employees only ever see their own timesheet, calendar and dashboard.
+                    </p>
+                </div>
+
+                <div class="mb-4" x-show="role === 'employee'" x-cloak>
+                    <x-input-label for="employee_id" value="Link to Salaries record (optional)" />
+                    <x-select id="employee_id" name="employee_id" class="mt-1">
+                        <option value="">Not linked</option>
+                        @foreach ($unlinkedEmployees as $employee)
+                            <option value="{{ $employee->id }}" @selected(old('employee_id') == $employee->id)>
+                                {{ $employee->name }}@if ($employee->role) — {{ $employee->role }}@endif
+                            </option>
+                        @endforeach
+                    </x-select>
+                    <x-input-error :messages="$errors->get('employee_id')" class="mt-2" />
+                    <p class="text-xs text-gray-500 mt-1">
+                        Keeps one person in one place, so their salary, role and timesheet stay together.
+                        Only records without a login are listed.
+                    </p>
                 </div>
 
                 <div class="mb-4">

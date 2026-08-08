@@ -23,6 +23,18 @@ class PaymentController extends Controller
             'note' => ['nullable', 'string', 'max:255'],
         ]);
 
+        // Without a ceiling, an over-payment drives balanceDue() negative and
+        // the invoice still reads as paid. Refuse it and name the balance so
+        // the correction is obvious.
+        $balance = $invoice->balanceDue();
+
+        if ((float) $validated['amount'] > $balance + 0.001) {
+            return redirect()->route('invoices.show', $invoice)->with(
+                'error',
+                'That is more than the outstanding balance of '.number_format($balance, 2).'. Record '.number_format($balance, 2).' or less, or edit the invoice first.'
+            );
+        }
+
         $invoice->payments()->create([
             ...$validated,
             'recorded_by' => $request->user()->id,
