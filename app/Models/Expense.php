@@ -18,10 +18,27 @@ class Expense extends Model
 
     public const TYPE_BILL = 'bill';
 
+    public const TYPE_OTHER = 'other';
+
     public const TYPES = [
         self::TYPE_EMI => 'EMI / Finance',
         self::TYPE_SALARY => 'Salary',
         self::TYPE_BILL => 'Bill',
+        self::TYPE_OTHER => 'One-time',
+    ];
+
+    /** Categories for irregular / one-time company spends. */
+    public const OTHER_CATEGORIES = [
+        'Travel',
+        'Fuel',
+        'Equipment',
+        'Software',
+        'Marketing',
+        'Office',
+        'Food & Entertainment',
+        'Professional Services',
+        'Maintenance',
+        'Miscellaneous',
     ];
 
     protected $fillable = [
@@ -30,6 +47,8 @@ class Expense extends Model
         'payee',
         'role',
         'joined_on',
+        'spent_on',
+        'category',
         'phone',
         'amount',
         'start_month',
@@ -42,6 +61,7 @@ class Expense extends Model
         'amount' => 'decimal:2',
         'start_month' => 'date',
         'joined_on' => 'date',
+        'spent_on' => 'date',
         'installments' => 'integer',
         'is_active' => 'boolean',
     ];
@@ -78,16 +98,26 @@ class Expense extends Model
     {
         $month = $month->copy()->startOfMonth();
 
-        if (! $this->isEmi()) {
-            return (bool) $this->is_active;
+        if ($this->type === self::TYPE_OTHER) {
+            return $this->spent_on
+                && $this->spent_on->copy()->startOfMonth()->equalTo($month);
         }
 
-        if (! $this->start_month || ! $this->installments) {
-            return false;
+        if ($this->isEmi()) {
+            if (! $this->start_month || ! $this->installments) {
+                return false;
+            }
+
+            return $month->gte($this->start_month->copy()->startOfMonth())
+                && $month->lte($this->lastMonth());
         }
 
-        return $month->gte($this->start_month->copy()->startOfMonth())
-            && $month->lte($this->lastMonth());
+        return (bool) $this->is_active;
+    }
+
+    public function isOther(): bool
+    {
+        return $this->type === self::TYPE_OTHER;
     }
 
     /**
@@ -116,14 +146,13 @@ class Expense extends Model
      * ---------------------------------------------------------------------
      * EMI progress
      *
-     * Two DIFFERENT facts live here and must not be blended in the UI:
+     * Schedule position (installmentsElapsed) is calendar-only: months that
+     * fell due before asOf. Liability and "finished" also honour the payment
+     * recorded for the asOf month, so a paid final installment shows 0 left
+     * / Cleared instead of still looking unpaid.
      *
-     *  - Schedule position (installmentsElapsed / outstandingAmount /
-     *    progressPercent) -- where the plan says we are. This is what the
-     *    original spreadsheet tracked and it is meaningful immediately.
-     *  - Recorded payments (recordedPaid) -- what has actually been ticked
-     *    off in this app. Currently zero for every EMI, so driving the
-     *    progress bar off it would show everything at 0%.
+     * recordedPaid() is lifetime app-logged payments and may lag the schedule
+     * when older months were never entered here.
      * ---------------------------------------------------------------------
      */
 
@@ -155,16 +184,80 @@ class Expense extends Model
     }
 
     /**
-     * Still owed on the schedule, counting the current month as unpaid.
+     * Amount recorded for a single month (0 when none).
+     */
+    public function recordedPaidFor(?Carbon $month = null): float
+    {
+        $month = ($month ?? now())->copy()->startOfMonth();
+
+        if ($this->relationLoaded('payments')) {
+            $payment = $this->payments->first(
+                fn (ExpensePayment $p) => $p->period?->copy()->startOfMonth()->equalTo($month)
+            );
+
+            return (float) ($payment?->amount_paid ?? 0);
+        }
+
+        return (float) $this->payments()
+            ->whereDate('period', $month->toDateString())
+            ->value('amount_paid');
+    }
+
+    public function isPaidInFullFor(?Carbon $month = null): bool
+    {
+        return $this->recordedPaidFor($month) + 0.001 >= (float) $this->amount;
+    }
+
+    /**
+     * Past installments plus the current month when it is paid in full.
+     */
+    public function installmentsCompleted(?Carbon $asOf = null): int
+    {
+        if (! $this->isEmi() || ! $this->installments) {
+            return 0;
+        }
+
+        $asOf = ($asOf ?? now())->copy()->startOfMonth();
+        $completed = $this->installmentsElapsed($asOf);
+
+        if ($this->isDueIn($asOf) && $this->isPaidInFullFor($asOf)) {
+            $completed = min($completed + 1, $this->installments);
+        }
+
+        return $completed;
+    }
+
+    /**
+     * Still owed: future installments after asOf, plus any unpaid slice of
+     * the current month. Paying this month reduces (or clears) the figure.
      */
     public function outstandingAmount(?Carbon $asOf = null): float
     {
-        return $this->remainingInstallments($asOf) * (float) $this->amount;
+        if (! $this->isEmi() || ! $this->installments) {
+            return 0.0;
+        }
+
+        $asOf = ($asOf ?? now())->copy()->startOfMonth();
+        $amount = (float) $this->amount;
+        $dueThisMonth = $this->isDueIn($asOf);
+
+        $afterCurrent = max(
+            $this->installments - $this->installmentsElapsed($asOf) - ($dueThisMonth ? 1 : 0),
+            0
+        );
+
+        $outstanding = $afterCurrent * $amount;
+
+        if ($dueThisMonth) {
+            $outstanding += max($amount - $this->recordedPaidFor($asOf), 0.0);
+        }
+
+        return $outstanding;
     }
 
     public function scheduledPaidAmount(?Carbon $asOf = null): float
     {
-        return $this->installmentsElapsed($asOf) * (float) $this->amount;
+        return $this->installmentsCompleted($asOf) * (float) $this->amount;
     }
 
     public function progressPercent(?Carbon $asOf = null): int
@@ -173,7 +266,7 @@ class Expense extends Model
             return 0;
         }
 
-        return (int) round($this->installmentsElapsed($asOf) / $this->installments * 100);
+        return (int) round($this->installmentsCompleted($asOf) / $this->installments * 100);
     }
 
     /**
@@ -188,7 +281,21 @@ class Expense extends Model
 
     public function isFinished(?Carbon $asOf = null): bool
     {
-        return $this->isEmi() && $this->remainingInstallments($asOf) === 0;
+        if (! $this->isEmi() || ! $this->installments || ! $this->start_month) {
+            return false;
+        }
+
+        $asOf = ($asOf ?? now())->copy()->startOfMonth();
+
+        // Calendar past the last installment month.
+        if ($this->remainingInstallments($asOf) === 0) {
+            return true;
+        }
+
+        // Final installment month paid in full → cleared now, not next month.
+        return $this->isDueIn($asOf)
+            && $this->installmentNumberFor($asOf) === (int) $this->installments
+            && $this->isPaidInFullFor($asOf);
     }
 
     /**
@@ -204,7 +311,7 @@ class Expense extends Model
     public static function dueIn(Carbon $month): Collection
     {
         return static::query()
-            ->orderByRaw("CASE type WHEN 'emi' THEN 0 WHEN 'salary' THEN 1 ELSE 2 END")
+            ->orderByRaw("CASE type WHEN 'emi' THEN 0 WHEN 'salary' THEN 1 WHEN 'bill' THEN 2 WHEN 'other' THEN 3 ELSE 4 END")
             ->orderBy('name')
             ->get()
             ->filter(fn (Expense $expense) => $expense->isDueIn($month))

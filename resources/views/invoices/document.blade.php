@@ -127,24 +127,61 @@
         position: relative;
         z-index: 1;
     }
-    table.items thead th {
-        background: #67BCD4;
-        color: #fff;
+    table.items thead th.desc,
+    table.items tbody td.desc {
         text-align: left;
-        padding: 2.2mm 5mm;
-        font-size: 11pt;
-        font-weight: 600;
-        line-height: 1.2;
-    }
-    table.items thead th.amount { text-align: right; }
-    table.items tbody td {
         padding: 2.2mm 5mm;
         font-size: 10.5pt;
         font-weight: 600;
         line-height: 1.2;
         border-bottom: 1px solid #eee;
     }
-    table.items tbody td.amount { text-align: right; font-weight: 700; }
+    table.items thead th.desc {
+        background: #67BCD4;
+        color: #fff;
+        font-size: 11pt;
+        border-bottom: none;
+    }
+    table.items thead th.figures-wrap,
+    table.items tbody td.figures-wrap {
+        padding: 0;
+        vertical-align: middle;
+        width: 48mm;
+        border-bottom: 1px solid #eee;
+    }
+    table.item-figures {
+        width: 100%;
+        border-collapse: collapse;
+        border: none;
+    }
+    table.item-figures th,
+    table.item-figures td {
+        border: none;
+        padding: 2.2mm 2mm;
+        font-size: 10.5pt;
+        font-weight: 600;
+        line-height: 1.2;
+    }
+    table.item-figures thead th,
+    table.item-figures th {
+        background: #67BCD4;
+        color: #fff;
+        font-size: 11pt;
+        font-weight: 600;
+    }
+    table.item-figures th.qty,
+    table.item-figures td.qty {
+        text-align: right;
+        padding-right: 1mm;
+        padding-left: 2mm;
+    }
+    table.item-figures th.amount,
+    table.item-figures td.amount {
+        text-align: right;
+        padding-right: 5mm;
+        padding-left: 1mm;
+        font-weight: 700;
+    }
     table.items tbody tr.discount td { font-style: italic; font-weight: 700; border-top: 1px solid #132A38; }
 
     /* No gap: the total box hangs directly off the bottom edge of the items
@@ -248,24 +285,45 @@
         </div>
     @endif
 
-    <table class="items">
+    <table class="items" width="100%" cellspacing="0" cellpadding="0">
         <thead>
             <tr>
-                <th>Items</th>
-                <th class="amount">Rate</th>
+                <th class="desc">Items</th>
+                <th class="figures-wrap" width="48mm">
+                    <table class="item-figures" width="100%" cellspacing="0" cellpadding="0">
+                        <tr>
+                            <th class="qty" width="40%">Qty</th>
+                            <th class="amount" width="60%">Rate</th>
+                        </tr>
+                    </table>
+                </th>
             </tr>
         </thead>
         <tbody>
             @foreach ($invoice->items as $item)
                 <tr>
-                    <td>{{ $item->description }}</td>
-                    <td class="amount">{{ number_format($item->line_total, fmod((float) $item->line_total, 1.0) === 0.0 ? 0 : 2) }}</td>
+                    <td class="desc">{{ $item->description }}</td>
+                    <td class="figures-wrap">
+                        <table class="item-figures" width="100%" cellspacing="0" cellpadding="0">
+                            <tr>
+                                <td class="qty" width="40%">{{ number_format($item->quantity, fmod((float) $item->quantity, 1.0) === 0.0 ? 0 : 2) }}</td>
+                                <td class="amount" width="60%">{{ number_format($item->line_total, fmod((float) $item->line_total, 1.0) === 0.0 ? 0 : 2) }}</td>
+                            </tr>
+                        </table>
+                    </td>
                 </tr>
             @endforeach
             @if ($invoice->discount_label)
                 <tr class="discount">
-                    <td>{{ $invoice->discount_label }}</td>
-                    <td class="amount">- {{ number_format($invoice->discount_amount, fmod((float) $invoice->discount_amount, 1.0) === 0.0 ? 0 : 2) }}</td>
+                    <td class="desc">{{ $invoice->discount_label }}</td>
+                    <td class="figures-wrap">
+                        <table class="item-figures" width="100%" cellspacing="0" cellpadding="0">
+                            <tr>
+                                <td class="qty" width="40%"></td>
+                                <td class="amount" width="60%">- {{ number_format($invoice->discount_amount, fmod((float) $invoice->discount_amount, 1.0) === 0.0 ? 0 : 2) }}</td>
+                            </tr>
+                        </table>
+                    </td>
                 </tr>
             @endif
         </tbody>

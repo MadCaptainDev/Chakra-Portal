@@ -1,27 +1,41 @@
+@php
+    $prev = $asOf->copy()->subMonthNoOverflow()->format('Y-m');
+    $next = $asOf->copy()->addMonthNoOverflow()->format('Y-m');
+@endphp
+
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="EMI & Finance">
-            <x-slot name="actions">
-                <a href="{{ route('expenses.index') }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50">
-                    Month Overview
-                </a>
-            </x-slot>
-        </x-page-header>
+        <x-page-header title="Expenses" />
     </x-slot>
 
-    <div class="space-y-6" x-data="{ adding: false }">
-        {{-- Headline liability --}}
+    <div class="space-y-6" x-data="{ adding: false, editingId: null, payEditId: null }">
+        @include('expenses._tabs')
+
+        <div class="flex items-center justify-between gap-2">
+            <a href="{{ route('emi.index', ['month' => $prev]) }}"
+               class="inline-flex items-center min-h-[44px] px-3 rounded-md bg-white border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">&larr; Prev</a>
+            <div class="text-center">
+                <p class="font-semibold text-gray-900">{{ $asOf->format('F Y') }} EMI</p>
+                <p class="text-xs text-gray-500">Schedules, liability, and this month’s payments</p>
+                @if (! $asOf->isSameMonth(now()))
+                    <a href="{{ route('emi.index') }}" class="text-xs text-brand-500 hover:text-brand-600">Back to this month</a>
+                @endif
+            </div>
+            <a href="{{ route('emi.index', ['month' => $next]) }}"
+               class="inline-flex items-center min-h-[44px] px-3 rounded-md bg-white border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">Next &rarr;</a>
+        </div>
+
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <x-card class="p-4 sm:col-span-1">
+            <x-card class="p-4">
                 <p class="text-xs text-gray-500 uppercase tracking-wide">Total Outstanding</p>
                 <p class="text-2xl sm:text-3xl font-bold text-gray-900">{{ number_format($outstanding, 2) }}</p>
                 <p class="text-xs text-gray-500 mt-1">across {{ $running->count() }} running EMI{{ $running->count() === 1 ? '' : 's' }}</p>
             </x-card>
 
             <x-card class="p-4">
-                <p class="text-xs text-gray-500 uppercase tracking-wide">This Month</p>
+                <p class="text-xs text-gray-500 uppercase tracking-wide">This Month Due</p>
                 <p class="text-2xl sm:text-3xl font-bold text-brand-600">{{ number_format($monthlyLoad, 2) }}</p>
-                <p class="text-xs text-gray-500 mt-1">{{ $asOf->format('F Y') }}</p>
+                <p class="text-xs text-gray-500 mt-1">Paid {{ number_format($monthlyPaid, 2) }}</p>
             </x-card>
 
             <x-card class="p-4">
@@ -39,7 +53,6 @@
             </x-card>
         </div>
 
-        {{-- Payoff timeline --}}
         @if (! empty($timeline))
             <x-card class="p-4 sm:p-6">
                 <h3 class="font-semibold text-gray-900">Payoff Timeline</h3>
@@ -68,11 +81,10 @@
             </x-card>
         @endif
 
-        {{-- Running EMIs --}}
         <div>
             <div class="flex items-center justify-between mb-3">
                 <h3 class="font-semibold text-gray-900">Running ({{ $running->count() }})</h3>
-                <button type="button" @click="adding = ! adding"
+                <button type="button" @click="adding = ! adding; editingId = null; payEditId = null"
                         class="text-sm font-semibold text-brand-500 hover:text-brand-600 min-h-[44px]">
                     <span x-show="! adding">+ Add EMI</span>
                     <span x-show="adding" x-cloak>Cancel</span>
@@ -89,37 +101,60 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
                     @foreach ($running as $emi)
                         @php
-                            $elapsed = $emi->installmentsElapsed($asOf);
+                            $completed = $emi->installmentsCompleted($asOf);
                             $percent = $emi->progressPercent($asOf);
                             $current = $emi->installmentNumberFor($asOf);
-                            $lastTwo = $emi->remainingInstallments($asOf) <= 2;
+                            $outstanding = $emi->outstandingAmount($asOf);
+                            $lastTwo = max($emi->installments - $completed, 0) <= 2;
+                            $row = $payRows->get($emi->id);
+                            $isDue = $emi->isDueIn($asOf);
+                            $paidThisMonth = $row ? (float) $row['paid'] : 0.0;
+                            $dueThisMonth = $row ? (float) $row['due'] : (float) $emi->amount;
+                            $isPaid = $paidThisMonth > 0;
+                            $isPaidFull = $isPaid && $paidThisMonth + 0.001 >= $dueThisMonth;
+                            $isShort = $isPaid && ! $isPaidFull;
                         @endphp
 
-                        <x-card class="p-4">
-                            <div class="flex items-start justify-between gap-2 mb-2">
+                        <x-card class="p-4 space-y-3">
+                            <div class="flex items-start justify-between gap-2">
                                 <div class="min-w-0">
                                     <p class="font-semibold text-gray-900 truncate">{{ $emi->name }}</p>
                                     <p class="text-xs text-gray-500">
-                                        {{ $emi->payee ?: 'No bank set' }} &middot; {{ number_format($emi->amount, 0) }}/mo
+                                        {{ $emi->payee ?: 'No bank set' }}
+                                        &middot; EMI {{ number_format($emi->amount, 0) }}/mo
+                                        <span class="text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded" title="Base EMI rate — change only via Edit schedule → Change amount">Locked</span>
                                     </p>
                                 </div>
                                 <div class="text-right shrink-0">
-                                    <p class="text-sm font-bold text-gray-900">{{ number_format($emi->outstandingAmount($asOf), 0) }}</p>
-                                    <p class="text-[11px] text-gray-500">left</p>
+                                    @if ($outstanding < 0.001)
+                                        <p class="text-sm font-bold text-green-700">0</p>
+                                        <p class="text-[11px] text-green-600 font-semibold">cleared</p>
+                                    @else
+                                        <p class="text-sm font-bold text-gray-900">{{ number_format($outstanding, 0) }}</p>
+                                        <p class="text-[11px] text-gray-500">left</p>
+                                    @endif
+                                    <button type="button"
+                                            @click="editingId = editingId === {{ $emi->id }} ? null : {{ $emi->id }}; adding = false; payEditId = null"
+                                            class="text-xs font-semibold text-brand-500 hover:text-brand-600 mt-1">
+                                        Edit schedule
+                                    </button>
                                 </div>
                             </div>
 
                             <div class="h-2 rounded-full bg-gray-100 overflow-hidden">
-                                <div class="h-full rounded-full {{ $lastTwo ? 'bg-green-500' : 'bg-brand-400' }}"
-                                     style="width: {{ $percent }}%"></div>
+                                <div class="h-full rounded-full {{ $percent >= 100 || $lastTwo ? 'bg-green-500' : 'bg-brand-400' }}"
+                                     style="width: {{ min($percent, 100) }}%"></div>
                             </div>
 
-                            <div class="mt-2 flex items-center justify-between text-xs">
+                            <div class="flex items-center justify-between text-xs">
                                 <span class="text-gray-600">
-                                    @if ($current)
+                                    @if ($isPaidFull && $current)
+                                        Installment <span class="font-semibold">{{ $current }}</span> of {{ $emi->installments }}
+                                        <span class="text-green-700 font-semibold">· paid</span>
+                                    @elseif ($current)
                                         Installment <span class="font-semibold">{{ $current }}</span> of {{ $emi->installments }}
                                     @else
-                                        {{ $elapsed }} of {{ $emi->installments }} done
+                                        {{ $completed }} of {{ $emi->installments }} done
                                     @endif
                                 </span>
                                 <span class="{{ $lastTwo ? 'text-green-600 font-semibold' : 'text-gray-500' }}">
@@ -127,9 +162,73 @@
                                 </span>
                             </div>
 
-                            <div class="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
-                                <span>Scheduled paid {{ number_format($emi->scheduledPaidAmount($asOf), 0) }} of {{ number_format($emi->totalCommitment(), 0) }}</span>
-                                <span>Recorded {{ number_format($emi->recordedPaid(), 0) }}</span>
+                            <div class="pt-2 border-t border-gray-100 text-[11px] text-gray-500 space-y-0.5">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span>Progress {{ number_format($emi->scheduledPaidAmount($asOf), 0) }} of {{ number_format($emi->totalCommitment(), 0) }}</span>
+                                    <span title="Sum of payments logged in this app (may be less than schedule if older months were never entered)">App logged {{ number_format($emi->recordedPaid(), 0) }}</span>
+                                </div>
+                            </div>
+
+                            @if ($isDue && $row)
+                                <div class="pt-2 border-t border-gray-100 space-y-2">
+                                    @if ($isPaidFull)
+                                        <div x-show="payEditId !== {{ $emi->id }}" class="flex items-center justify-between gap-2 rounded-md bg-green-50 px-3 py-2">
+                                            <div class="min-w-0">
+                                                <p class="text-sm font-semibold text-green-800">Paid this month</p>
+                                                <p class="text-xs text-green-700">{{ number_format($paidThisMonth, 0) }} recorded · EMI rate stays {{ number_format($dueThisMonth, 0) }}/mo</p>
+                                            </div>
+                                            <button type="button" @click="payEditId = {{ $emi->id }}"
+                                                    class="shrink-0 text-xs font-semibold text-green-800 hover:text-green-900 min-h-[44px]">
+                                                Adjust
+                                            </button>
+                                        </div>
+                                    @elseif ($isShort)
+                                        <div x-show="payEditId !== {{ $emi->id }}" class="flex items-center justify-between gap-2 rounded-md bg-amber-50 px-3 py-2">
+                                            <div class="min-w-0">
+                                                <p class="text-sm font-semibold text-amber-800">Partial this month</p>
+                                                <p class="text-xs text-amber-700">{{ number_format($paidThisMonth, 0) }} of {{ number_format($dueThisMonth, 0) }} · {{ number_format($dueThisMonth - $paidThisMonth, 0) }} short</p>
+                                            </div>
+                                            <button type="button" @click="payEditId = {{ $emi->id }}"
+                                                    class="shrink-0 text-xs font-semibold text-amber-800 hover:text-amber-900 min-h-[44px]">
+                                                Adjust
+                                            </button>
+                                        </div>
+                                    @endif
+
+                                    <form method="POST" action="{{ route('emi.pay', $emi) }}"
+                                          class="space-y-2"
+                                          @if ($isPaid) x-show="payEditId === {{ $emi->id }}" x-cloak @endif>
+                                        @csrf
+                                        <input type="hidden" name="month" value="{{ $asOf->format('Y-m-d') }}">
+                                        <div class="flex items-end gap-2">
+                                            <div class="min-w-0 flex-1">
+                                                <label class="block text-xs font-semibold text-gray-700 mb-1">
+                                                    This month’s payment
+                                                    <span class="font-normal text-gray-500">(not the locked EMI rate)</span>
+                                                </label>
+                                                <input type="number" step="0.01" min="0" name="amount_paid"
+                                                       value="{{ $isPaid ? number_format($paidThisMonth, 2, '.', '') : number_format($dueThisMonth, 2, '.', '') }}"
+                                                       placeholder="{{ number_format($dueThisMonth, 2, '.', '') }}"
+                                                       class="w-full rounded-md border-gray-300 shadow-sm text-sm text-right focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
+                                            </div>
+                                            <button type="submit"
+                                                    class="min-h-[44px] px-3 rounded-md text-xs font-semibold uppercase tracking-wider shrink-0 {{ $isPaid ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-brand-400 text-white hover:bg-brand-500' }}">
+                                                {{ $isPaid ? 'Save' : 'Record pay' }}
+                                            </button>
+                                        </div>
+                                        @if ($isPaid)
+                                            <button type="button" @click="payEditId = null" class="text-xs font-semibold text-gray-500 hover:text-gray-700">Cancel</button>
+                                        @else
+                                            <p class="text-[11px] text-gray-500">Record what you paid this month. Due {{ number_format($dueThisMonth, 0) }} (locked EMI rate unchanged).</p>
+                                        @endif
+                                    </form>
+                                </div>
+                            @elseif (! $isDue)
+                                <p class="pt-2 border-t border-gray-100 text-xs text-gray-500">Not due in {{ $asOf->format('F Y') }}.</p>
+                            @endif
+
+                            <div x-show="editingId === {{ $emi->id }}" x-cloak>
+                                @include('emi._form', ['emi' => $emi])
                             </div>
                         </x-card>
                     @endforeach
@@ -137,16 +236,22 @@
             @endif
         </div>
 
-        {{-- Finished --}}
         @if ($finished->isNotEmpty())
             <div>
                 <h3 class="font-semibold text-gray-900 mb-3">Cleared ({{ $finished->count() }})</h3>
                 <x-card class="divide-y divide-gray-200">
                     @foreach ($finished as $emi)
+                        @php
+                            $clearedThisMonth = $emi->isDueIn($asOf) && $emi->isPaidInFullFor($asOf);
+                        @endphp
                         <div class="p-3 flex items-center justify-between gap-2">
                             <div class="min-w-0">
                                 <p class="text-sm font-medium text-gray-700 truncate">{{ $emi->name }}</p>
-                                <p class="text-xs text-gray-500">{{ $emi->payee }} &middot; finished {{ $emi->lastMonth()?->format('M Y') }}</p>
+                                <p class="text-xs text-gray-500">
+                                    {{ $emi->payee }}
+                                    &middot; EMI {{ number_format($emi->amount, 0) }}/mo
+                                    &middot; {{ $clearedThisMonth ? 'paid & cleared '.$asOf->format('M Y') : 'finished '.$emi->lastMonth()?->format('M Y') }}
+                                </p>
                             </div>
                             <span class="shrink-0 text-xs font-semibold text-green-700 bg-green-50 px-2 py-1 rounded-full">Cleared</span>
                         </div>

@@ -38,8 +38,16 @@ php artisan serve
 
 ## Invoice PDFs
 
-PDFs are rendered with dompdf, which is far stricter than a browser. If you touch
-`resources/views/invoices/document.blade.php`, be aware:
+PDFs are rendered with dompdf from the active **PDF Template** (sidebar → PDF Template).
+
+You can design the layout in two ways:
+
+1. **Drag blocks** — reorder / toggle sections (header, client, items, total, signature, …)
+2. **HTML editor** — edit the page body with placeholders like `{{client_name}}`, `{{items_table}}`, `{{total}}`
+
+Live preview uses a real invoice when one exists. Company branding (logo, signature, footer text) still comes from **Settings**.
+
+dompdf is far stricter than a browser. If you touch CSS in the template editor, be aware:
 
 - No flexbox, and `box-sizing: border-box` is unreliable.
 - `position: absolute` ignores `right` — use `left` plus an explicit `width`.
@@ -50,6 +58,11 @@ PDFs are rendered with dompdf, which is far stricter than a browser. If you touc
 `tests/Feature/InvoicePdfLayoutTest.php` guards all of this by decoding the generated
 PDF itself — page count, footer position, and the total box sitting flush against the
 items table — because none of it is visible from the HTML.
+
+The classic Blade file `resources/views/invoices/document.blade.php` is kept as a
+reference; live downloads use `App\Services\InvoiceDocumentRenderer` and the block
+partials under `resources/views/invoices/blocks/`.
+
 
 ## Testing
 

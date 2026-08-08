@@ -5,7 +5,7 @@
                 <h2 class="font-semibold text-xl text-gray-800 leading-tight">
                     Invoice {{ $invoice->invoice_number ?? '(pending)' }}
                 </h2>
-                <x-badge :status="$invoice->isOverdue() ? 'overdue' : $invoice->status" />
+                <x-badge :status="$invoice->displayStatus()" />
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 @if ($invoice->isPendingApproval())

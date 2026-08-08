@@ -98,10 +98,9 @@ class InvoicePdfLayoutTest extends TestCase
 
         $invoice->load('client', 'items');
 
-        return Pdf::loadView('invoices.document', [
-            'invoice' => $invoice,
-            'settings' => CompanySetting::current(),
-        ])->setPaper('a4')->output();
+        return Pdf::loadHTML(
+            app(\App\Services\InvoiceDocumentRenderer::class)->render($invoice, CompanySetting::current())
+        )->setPaper('a4')->output();
     }
 
     /**

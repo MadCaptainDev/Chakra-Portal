@@ -14,8 +14,17 @@ class Invoice extends Model
     use HasFactory;
 
     public const STATUS_PENDING_APPROVAL = 'pending_approval';
+
     public const STATUS_UNPAID = 'unpaid';
+
     public const STATUS_PAID = 'paid';
+
+    /**
+     * Tolerance when comparing a float payment sum against the decimal:2
+     * total: split payments land a hair off (9999.999999999998) and must
+     * still settle the invoice. Same convention as Expense/ExpenseLedger.
+     */
+    public const AMOUNT_EPSILON = 0.001;
 
     protected $fillable = [
         'invoice_number',
@@ -82,6 +91,15 @@ class Invoice extends Model
         $query->where('status', self::STATUS_PAID);
     }
 
+    /**
+     * Unpaid invoices carrying at least one payment. "unpaid" already means
+     * paid < total, so an existence check is exact - no SUM needed.
+     */
+    public function scopePartiallyPaid(Builder $query): void
+    {
+        $query->where('status', self::STATUS_UNPAID)->whereHas('payments');
+    }
+
     public function scopeOverdue(Builder $query): void
     {
         $query->where('status', self::STATUS_UNPAID)
@@ -122,7 +140,9 @@ class Invoice extends Model
      */
     public function paidTotal(): float
     {
-        return (float) $this->payments->sum('amount');
+        return (float) ($this->relationLoaded('payments')
+            ? $this->payments->sum('amount')
+            : $this->payments()->sum('amount'));
     }
 
     /**
@@ -143,6 +163,29 @@ class Invoice extends Model
     public function isPendingApproval(): bool
     {
         return $this->status === self::STATUS_PENDING_APPROVAL;
+    }
+
+    /**
+     * Something has been paid, but not the whole invoice.
+     */
+    public function isPartiallyPaid(): bool
+    {
+        return $this->status === self::STATUS_UNPAID && $this->paidTotal() > 0;
+    }
+
+    /**
+     * State for badges and filters, which is richer than the stored status:
+     * "overdue" and "partial" are both derived, never persisted. Overdue
+     * wins - a part-paid invoice past its due date still needs chasing, and
+     * the list prints the balance alongside so nothing is lost.
+     */
+    public function displayStatus(): string
+    {
+        return match (true) {
+            $this->isOverdue() => 'overdue',
+            $this->isPartiallyPaid() => 'partial',
+            default => (string) $this->status,
+        };
     }
 
     /**
@@ -173,7 +216,7 @@ class Invoice extends Model
             return;
         }
 
-        $this->status = $this->paidTotal() >= (float) $this->total
+        $this->status = $this->paidTotal() + self::AMOUNT_EPSILON >= (float) $this->total
             ? self::STATUS_PAID
             : self::STATUS_UNPAID;
 

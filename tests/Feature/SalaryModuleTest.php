@@ -137,4 +137,59 @@ class SalaryModuleTest extends TestCase
     {
         $this->get(route('salaries.index'))->assertRedirect(route('login'));
     }
+
+    public function test_salary_amount_stays_locked_without_unlock(): void
+    {
+        $employee = $this->employee();
+
+        $this->actingAs(User::factory()->create())
+            ->put(route('salaries.update', $employee), [
+                'name' => 'Kanishka',
+                'role' => 'Lead Editor',
+                'amount' => 20000,
+                'is_active' => '1',
+            ])
+            ->assertRedirect(route('salaries.show', $employee));
+
+        $employee->refresh();
+        $this->assertSame(15000.0, (float) $employee->amount);
+        $this->assertSame('Lead Editor', $employee->role);
+    }
+
+    public function test_salary_amount_changes_when_unlocked_and_confirmed(): void
+    {
+        $employee = $this->employee();
+
+        $this->actingAs(User::factory()->create())
+            ->put(route('salaries.update', $employee), [
+                'name' => 'Kanishka',
+                'role' => 'Editor',
+                'amount' => 18000,
+                'is_active' => '1',
+                'unlock_amount' => '1',
+                'confirm_amount_change' => '1',
+            ])
+            ->assertRedirect(route('salaries.show', $employee));
+
+        $this->assertSame(18000.0, (float) $employee->fresh()->amount);
+    }
+
+    public function test_unlock_without_confirmation_is_rejected(): void
+    {
+        $employee = $this->employee();
+
+        $this->actingAs(User::factory()->create())
+            ->from(route('salaries.show', $employee))
+            ->put(route('salaries.update', $employee), [
+                'name' => 'Kanishka',
+                'role' => 'Editor',
+                'amount' => 18000,
+                'is_active' => '1',
+                'unlock_amount' => '1',
+            ])
+            ->assertRedirect(route('salaries.show', $employee))
+            ->assertSessionHasErrors('confirm_amount_change');
+
+        $this->assertSame(15000.0, (float) $employee->fresh()->amount);
+    }
 }

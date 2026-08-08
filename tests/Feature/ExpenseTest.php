@@ -110,11 +110,14 @@ class ExpenseTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('February 2026');
-        $response->assertSee('Gimbal');
+        $response->assertSee('Needs attention');
         $response->assertSee('Rent');
+        $response->assertDontSee('Gimbal');
         $response->assertViewHas('totalDue', 9688.0);   // 2188 + 7500
         $response->assertViewHas('totalPaid', 2188.0);
         $response->assertViewHas('outstanding', 7500.0);
+        $response->assertViewHas('attentionRows', fn ($rows) => $rows->count() === 1 && $rows->first()['expense']->name === 'Rent');
+        $response->assertViewHas('glance', fn ($glance) => $glance['cleared_count'] === 1);
     }
 
     public function test_recording_a_payment_stores_the_actual_amount(): void

@@ -42,17 +42,43 @@ class EmiModuleTest extends TestCase
         $this->assertSame(4, $emi->remainingInstallments(Carbon::create(2026, 5, 1)));
         $this->assertSame(8752.0, $emi->outstandingAmount(Carbon::create(2026, 5, 1)));
 
-        // Final installment month: six behind us, this one still owed.
+        // Final installment month: six behind us, this one still owed until paid.
         $this->assertSame(6, $emi->installmentsElapsed(Carbon::create(2026, 8, 1)));
         $this->assertSame(1, $emi->remainingInstallments(Carbon::create(2026, 8, 1)));
         $this->assertSame(2188.0, $emi->outstandingAmount(Carbon::create(2026, 8, 1)));
         $this->assertFalse($emi->isFinished(Carbon::create(2026, 8, 1)));
 
-        // Cleared.
+        // Cleared on the calendar after the term.
         $this->assertSame(0, $emi->remainingInstallments(Carbon::create(2026, 9, 1)));
         $this->assertSame(0.0, $emi->outstandingAmount(Carbon::create(2026, 9, 1)));
         $this->assertSame(100, $emi->progressPercent(Carbon::create(2026, 9, 1)));
         $this->assertTrue($emi->isFinished(Carbon::create(2026, 9, 1)));
+    }
+
+    public function test_paying_current_month_reduces_outstanding_and_clears_final_emi(): void
+    {
+        $emi = $this->gimbal();
+        $may = Carbon::create(2026, 5, 1);
+        $aug = Carbon::create(2026, 8, 1);
+
+        ExpensePayment::create(['expense_id' => $emi->id, 'period' => '2026-05-01', 'amount_paid' => 2188]);
+        $emi->load('payments');
+
+        // May paid: three future installments remain (Jun–Aug).
+        $this->assertSame(6564.0, $emi->outstandingAmount($may));
+        $this->assertSame(4, $emi->installmentsCompleted($may));
+        $this->assertFalse($emi->isFinished($may));
+
+        ExpensePayment::create(['expense_id' => $emi->id, 'period' => '2026-08-01', 'amount_paid' => 2188]);
+        $emi->unsetRelation('payments');
+        $emi->load('payments');
+
+        // Final month paid in full: nothing left, treated as cleared immediately.
+        $this->assertSame(0.0, $emi->outstandingAmount($aug));
+        $this->assertSame(7, $emi->installmentsCompleted($aug));
+        $this->assertSame(100, $emi->progressPercent($aug));
+        $this->assertSame(15316.0, $emi->scheduledPaidAmount($aug));
+        $this->assertTrue($emi->isFinished($aug));
     }
 
     public function test_elapsed_never_exceeds_the_term(): void
@@ -137,5 +163,80 @@ class EmiModuleTest extends TestCase
     public function test_guest_is_redirected_to_login(): void
     {
         $this->get(route('emi.index'))->assertRedirect(route('login'));
+    }
+
+    public function test_emi_amount_stays_locked_without_unlock(): void
+    {
+        $emi = $this->gimbal();
+
+        $this->actingAs(User::factory()->create())
+            ->put(route('emi.update', $emi), [
+                'name' => 'Gimbal Pro',
+                'payee' => 'BOI',
+                'amount' => 9999,
+                'start_month' => '2026-02',
+                'installments' => 7,
+            ])
+            ->assertRedirect(route('emi.index'));
+
+        $emi->refresh();
+        $this->assertSame(2188.0, (float) $emi->amount);
+        $this->assertSame('Gimbal Pro', $emi->name);
+    }
+
+    public function test_emi_amount_changes_when_unlocked_and_confirmed(): void
+    {
+        $emi = $this->gimbal();
+
+        $this->actingAs(User::factory()->create())
+            ->put(route('emi.update', $emi), [
+                'name' => 'Gimbal',
+                'payee' => 'BOI',
+                'amount' => 2500,
+                'start_month' => '2026-02',
+                'installments' => 7,
+                'unlock_amount' => '1',
+                'confirm_amount_change' => '1',
+            ])
+            ->assertRedirect(route('emi.index'));
+
+        $this->assertSame(2500.0, (float) $emi->fresh()->amount);
+    }
+
+    public function test_can_pay_emi_from_emi_page(): void
+    {
+        Carbon::setTestNow(Carbon::create(2026, 8, 15));
+        $emi = $this->gimbal();
+
+        $this->actingAs(User::factory()->create())
+            ->post(route('emi.pay', $emi), [
+                'month' => '2026-08-01',
+                'amount_paid' => 2188,
+            ])
+            ->assertRedirect(route('emi.index', ['month' => '2026-08']));
+
+        $this->assertDatabaseHas('expense_payments', [
+            'expense_id' => $emi->id,
+            'amount_paid' => 2188.00,
+        ]);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_final_month_paid_emi_moves_to_cleared(): void
+    {
+        Carbon::setTestNow(Carbon::create(2026, 8, 15));
+        $emi = $this->gimbal();
+        ExpensePayment::create(['expense_id' => $emi->id, 'period' => '2026-08-01', 'amount_paid' => 2188]);
+
+        $response = $this->actingAs(User::factory()->create())->get(route('emi.index'));
+
+        $response->assertOk();
+        $this->assertCount(0, $response->viewData('running')->where('id', $emi->id));
+        $this->assertCount(1, $response->viewData('finished')->where('id', $emi->id));
+        $response->assertSee('Cleared');
+        $response->assertDontSee('Scheduled paid');
+
+        Carbon::setTestNow();
     }
 }

@@ -42,6 +42,26 @@ class DashboardTest extends TestCase
         $response->assertSee('waiting for your approval');
     }
 
+    public function test_mobile_tab_strip_and_panel_tagging_are_rendered(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertOk();
+        $response->assertSee('dashboardTabs()', false);
+        $response->assertSee('aria-label="Dashboard sections"', false);
+
+        // The CSS tab filter keys off these two attributes, so the markup
+        // contract matters more than usual: a missing data-panel would leave
+        // that widget permanently hidden on mobile.
+        $response->assertSee('data-tab="overview"', false);
+
+        foreach (['cashflow', 'outstanding', 'overview', 'splits'] as $panel) {
+            $response->assertSee('data-panel="'.$panel.'"', false);
+        }
+    }
+
     public function test_guest_is_redirected_to_login(): void
     {
         $this->get(route('dashboard'))->assertRedirect(route('login'));

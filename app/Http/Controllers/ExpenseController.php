@@ -24,16 +24,68 @@ class ExpenseController extends Controller
         $expenses = Expense::dueIn($month);
         $rows = $this->ledger->rowsFor($month, $expenses);
 
-        $totalDue = $rows->sum('due');
-        $totalPaid = $rows->sum('paid');
+        $totalDue = (float) $rows->sum('due');
+        $totalPaid = (float) $rows->sum('paid');
+        $outstanding = max($totalDue - $totalPaid, 0);
+        $paidPercent = $totalDue > 0 ? min(100, (int) round(($totalPaid / $totalDue) * 100)) : 0;
+
+        $typeOrder = [Expense::TYPE_EMI, Expense::TYPE_SALARY, Expense::TYPE_BILL, Expense::TYPE_OTHER];
+        $grouped = $rows->groupBy(fn ($row) => $row['expense']->type);
+
+        $byType = collect($typeOrder)->map(function (string $type) use ($grouped) {
+            $group = $grouped->get($type, collect());
+            $due = (float) $group->sum('due');
+            $paid = (float) $group->sum('paid');
+
+            return [
+                'type' => $type,
+                'label' => Expense::TYPES[$type] ?? ucfirst($type),
+                'due' => $due,
+                'paid' => $paid,
+                'outstanding' => max($due - $paid, 0),
+                'count' => $group->count(),
+                'unpaid_count' => $group->filter(fn ($row) => $row['paid'] + 0.001 < $row['due'])->count(),
+                'percent' => $due > 0 ? min(100, (int) round(($paid / $due) * 100)) : 0,
+            ];
+        })->keyBy('type');
+
+        $attentionRows = $rows
+            ->filter(fn ($row) => $row['paid'] + 0.001 < $row['due'])
+            ->map(function (array $row) {
+                $row['shortfall'] = max($row['due'] - $row['paid'], 0);
+
+                return $row;
+            })
+            ->sortByDesc('shortfall')
+            ->values();
+
+        $clearedRows = $rows->filter(fn ($row) => $row['paid'] + 0.001 >= $row['due'] && $row['paid'] > 0);
+        $salary = $byType->get(Expense::TYPE_SALARY);
+        $emi = $byType->get(Expense::TYPE_EMI);
+        $bill = $byType->get(Expense::TYPE_BILL);
+        $other = $byType->get(Expense::TYPE_OTHER);
 
         return view('expenses.index', [
             'month' => $month,
             'rows' => $rows,
-            'groups' => $rows->groupBy(fn ($row) => $row['expense']->type),
             'totalDue' => $totalDue,
             'totalPaid' => $totalPaid,
-            'outstanding' => max($totalDue - $totalPaid, 0),
+            'outstanding' => $outstanding,
+            'paidPercent' => $paidPercent,
+            'byType' => $byType,
+            'attentionRows' => $attentionRows,
+            'glance' => [
+                'payroll_pending' => $salary['outstanding'] ?? 0,
+                'payroll_unpaid_count' => $salary['unpaid_count'] ?? 0,
+                'emi_load' => $emi['due'] ?? 0,
+                'emi_unpaid_count' => $emi['unpaid_count'] ?? 0,
+                'bills_pending' => $bill['outstanding'] ?? 0,
+                'bills_unpaid_count' => $bill['unpaid_count'] ?? 0,
+                'other_spent' => $other['due'] ?? 0,
+                'other_count' => $other['count'] ?? 0,
+                'cleared_count' => $clearedRows->count(),
+                'cleared_amount' => (float) $clearedRows->sum('paid'),
+            ],
         ]);
     }
 

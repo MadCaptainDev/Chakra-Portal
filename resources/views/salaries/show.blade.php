@@ -16,8 +16,9 @@
         </x-page-header>
     </x-slot>
 
-    <div class="max-w-3xl space-y-6" x-data="{ editing: false }">
-        {{-- Record card --}}
+    <div class="max-w-3xl space-y-6" x-data="{ editing: {{ $errors->any() ? 'true' : 'false' }} }">
+        @include('expenses._tabs')
+
         <x-card class="p-4 sm:p-6">
             <div class="flex items-start gap-4">
                 <x-avatar :name="$employee->name" size="lg" />
@@ -32,7 +33,10 @@
                     <dl class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 text-sm">
                         <div>
                             <dt class="text-gray-500">Salary</dt>
-                            <dd class="text-gray-900 font-semibold">{{ number_format($employee->amount, 2) }}/mo</dd>
+                            <dd class="text-gray-900 font-semibold">
+                                {{ number_format($employee->amount, 2) }}/mo
+                                <span class="ml-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">Locked</span>
+                            </dd>
                         </div>
                         <div>
                             <dt class="text-gray-500">Joined</dt>
@@ -60,7 +64,6 @@
             @include('salaries._form', ['employee' => $employee])
         </div>
 
-        {{-- Payment history --}}
         <div>
             <h3 class="font-semibold text-gray-900 mb-3">Payment History</h3>
 

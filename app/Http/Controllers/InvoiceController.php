@@ -6,12 +6,18 @@ use App\Http\Requests\InvoiceRequest;
 use App\Models\Client;
 use App\Models\CompanySetting;
 use App\Models\Invoice;
+use App\Services\InvoiceDocumentRenderer;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response as HttpResponse;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
+use ZipArchive;
 
 class InvoiceController extends Controller
 {
@@ -19,20 +25,47 @@ class InvoiceController extends Controller
     {
         $search = $request->string('search')->toString();
         $status = $request->string('status')->toString();
+        $month = $this->resolveMonth($request->query('month'));
 
         $invoices = Invoice::query()
-            ->with('client')
+            ->with(['client', 'payments'])
+            ->whereDate('invoice_date', '>=', $month->copy()->startOfMonth()->toDateString())
+            ->whereDate('invoice_date', '<=', $month->copy()->endOfMonth()->toDateString())
             ->when($search, function ($query, $search) {
-                $query->where('invoice_number', 'like', "%{$search}%")
-                    ->orWhereHas('client', fn ($q) => $q->where('name', 'like', "%{$search}%"));
+                $query->where(function ($inner) use ($search) {
+                    $inner->where('invoice_number', 'like', "%{$search}%")
+                        ->orWhereHas('client', fn ($q) => $q->where('name', 'like', "%{$search}%"));
+                });
             })
             ->when($status === 'overdue', fn ($query) => $query->overdue())
-            ->when($status && $status !== 'overdue', fn ($query) => $query->where('status', $status))
+            ->when($status === 'partial', fn ($query) => $query->partiallyPaid())
+            // "overdue" and "partial" are derived, not stored statuses.
+            ->when($status && ! in_array($status, ['overdue', 'partial'], true),
+                fn ($query) => $query->where('status', $status))
             ->latest('invoice_date')
             ->paginate(20)
             ->withQueryString();
 
-        return view('invoices.index', compact('invoices', 'search', 'status'));
+        $monthTotal = (float) Invoice::query()
+            ->whereDate('invoice_date', '>=', $month->copy()->startOfMonth()->toDateString())
+            ->whereDate('invoice_date', '<=', $month->copy()->endOfMonth()->toDateString())
+            ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PAID])
+            ->sum('total');
+
+        return view('invoices.index', compact('invoices', 'search', 'status', 'month', 'monthTotal'));
+    }
+
+    private function resolveMonth(?string $value): Carbon
+    {
+        if (! $value) {
+            return now()->startOfMonth();
+        }
+
+        try {
+            return Carbon::parse(strlen($value) === 7 ? $value.'-01' : $value)->startOfMonth();
+        } catch (Throwable) {
+            return now()->startOfMonth();
+        }
     }
 
     public function create(): View
@@ -178,25 +211,83 @@ class InvoiceController extends Controller
         return redirect()->route('invoices.edit', $copy)->with('status', "Duplicated as {$copy->invoice_number}. Adjust and save.");
     }
 
-    public function pdf(Invoice $invoice): Response
+    public function pdf(Invoice $invoice, InvoiceDocumentRenderer $renderer): Response
     {
         $invoice->load('client', 'items');
-        $settings = CompanySetting::current();
+        $html = $renderer->render($invoice, CompanySetting::current());
 
-        $pdf = Pdf::loadView('invoices.document', [
-            'invoice' => $invoice,
-            'settings' => $settings,
-        ])->setPaper('a4');
+        $pdf = Pdf::loadHTML($html)->setPaper('a4');
 
         return $pdf->download(($invoice->invoice_number ?? 'DRAFT').'.pdf');
     }
 
-    public function preview(Invoice $invoice): View
+    public function downloadPdfs(Request $request, InvoiceDocumentRenderer $renderer): Response|BinaryFileResponse
+    {
+        $ids = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:50'],
+            'ids.*' => ['integer', 'distinct', 'exists:invoices,id'],
+        ])['ids'];
+
+        $invoices = Invoice::query()
+            ->with(['client', 'items'])
+            ->whereIn('id', $ids)
+            ->orderBy('invoice_date')
+            ->orderBy('id')
+            ->get();
+
+        if ($invoices->isEmpty()) {
+            abort(404);
+        }
+
+        if ($invoices->count() === 1) {
+            return $this->pdf($invoices->first(), $renderer);
+        }
+
+        $settings = CompanySetting::current();
+        $zipPath = tempnam(sys_get_temp_dir(), 'invzip_');
+        if ($zipPath === false) {
+            abort(500, 'Unable to create temporary file for zip download.');
+        }
+
+        // ZipArchive must create the archive file itself.
+        @unlink($zipPath);
+        $zipPath .= '.zip';
+
+        $zip = new ZipArchive;
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            abort(500, 'Unable to create zip archive.');
+        }
+
+        $usedNames = [];
+        foreach ($invoices as $invoice) {
+            $html = $renderer->render($invoice, $settings);
+            $pdfBinary = Pdf::loadHTML($html)->setPaper('a4')->output();
+            $baseName = preg_replace('/[^\w.\-]+/', '_', (string) ($invoice->invoice_number ?? 'DRAFT-'.$invoice->id)) ?: 'invoice-'.$invoice->id;
+            $filename = $baseName.'.pdf';
+            $suffix = 1;
+            while (isset($usedNames[$filename])) {
+                $filename = $baseName.'-'.$suffix.'.pdf';
+                $suffix++;
+            }
+            $usedNames[$filename] = true;
+            $zip->addFromString($filename, $pdfBinary);
+        }
+
+        $zip->close();
+
+        $downloadName = 'invoices-'.now()->format('Y-m-d').'.zip';
+
+        return response()->download($zipPath, $downloadName, [
+            'Content-Type' => 'application/zip',
+        ])->deleteFileAfterSend(true);
+    }
+
+    public function preview(Invoice $invoice, InvoiceDocumentRenderer $renderer): HttpResponse
     {
         $invoice->load('client', 'items');
-        $settings = CompanySetting::current();
+        $html = $renderer->render($invoice, CompanySetting::current());
 
-        return view('invoices.document', compact('invoice', 'settings'));
+        return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
     }
 
     /**

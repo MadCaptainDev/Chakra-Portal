@@ -4,13 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Models\Expense;
 use App\Services\ExpenseLedger;
+use App\Support\LocksExpenseAmount;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
 
 class SalaryController extends Controller
 {
+    use LocksExpenseAmount;
+
     public function __construct(private readonly ExpenseLedger $ledger) {}
 
     /**
@@ -93,9 +97,14 @@ class SalaryController extends Controller
     {
         abort_unless($salary->type === Expense::TYPE_SALARY, 404);
 
-        $salary->update($this->validated($request));
+        $unlocked = $request->boolean('unlock_amount');
+        $salary->update($this->validated($request, isUpdate: true));
 
-        return redirect()->route('salaries.show', $salary)->with('status', 'Employee updated.');
+        $message = $unlocked
+            ? 'Employee updated. Salary amount changed.'
+            : 'Employee updated.';
+
+        return redirect()->route('salaries.show', $salary)->with('status', $message);
     }
 
     public function destroy(Expense $salary): RedirectResponse
@@ -110,17 +119,21 @@ class SalaryController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function validated(Request $request): array
+    private function validated(Request $request, bool $isUpdate = false): array
     {
-        $data = $request->validate([
+        $rules = $this->withLockedAmountRules($request, [
             'name' => ['required', 'string', 'max:255'],
             'role' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'joined_on' => ['nullable', 'date'],
-            'amount' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:255'],
-        ]);
+        ], $isUpdate);
 
+        $validator = Validator::make($request->all(), $rules);
+        $validator->after(fn ($v) => $this->confirmAmountUnlock($request, $v, $isUpdate));
+        $data = $validator->validate();
+
+        $data = $this->withoutLockedAmount($request, $data, $isUpdate);
         $data['type'] = Expense::TYPE_SALARY;
         $data['is_active'] = $request->boolean('is_active', true);
         $data['start_month'] = null;

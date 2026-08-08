@@ -16,11 +16,17 @@ class PaymentController extends Controller
                 ->with('error', 'Approve this invoice before recording a payment.');
         }
 
+        // Cap at what is still owed so a stray zero cannot be recorded and
+        // then silently swallowed by balanceDue()'s max(0, ...).
+        $balance = $invoice->balanceDue();
+
         $validated = $request->validate([
-            'amount' => ['required', 'numeric', 'min:0.01'],
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:'.($balance + Invoice::AMOUNT_EPSILON)],
             'paid_on' => ['required', 'date'],
             'method' => ['nullable', 'string', 'max:255'],
             'note' => ['nullable', 'string', 'max:255'],
+        ], [
+            'amount.max' => 'Payment exceeds the balance due of '.number_format($balance, 2).'.',
         ]);
 
         $invoice->payments()->create([
