@@ -28,6 +28,28 @@
             <x-stat-card label="Pending Approval" value="{{ $pendingApprovalCount }}" accent="gray" />
         </div>
 
+        {{-- Money going out. The dashboard covered only invoices until the EMI,
+             Salaries and Bills modules landed, which left half the product
+             invisible from the home screen. --}}
+        <div>
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="font-semibold text-gray-800">This Month's Outflow &mdash; {{ now()->format('F Y') }}</h3>
+                <a href="{{ route('expenses.index') }}" class="text-sm font-semibold text-brand-500 hover:text-brand-600">
+                    View all &rarr;
+                </a>
+            </div>
+
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <x-stat-card label="Total Due" value="{{ number_format($outflowDue, 2) }}" accent="gray" />
+                <x-stat-card label="Paid" value="{{ number_format($outflowPaid, 2) }}" accent="green" />
+                <x-stat-card label="Still Pending" value="{{ number_format($outflowPending, 2) }}"
+                             accent="{{ $outflowPending > 0 ? 'red' : 'gray' }}" />
+                <x-stat-card label="EMI Portion" value="{{ number_format($emiThisMonth, 2) }}" accent="brand">
+                    <a href="{{ route('emi.index') }}" class="text-brand-500 hover:text-brand-600">EMI detail &rarr;</a>
+                </x-stat-card>
+            </div>
+        </div>
+
         <x-card class="p-4 sm:p-6">
             <h3 class="font-semibold text-gray-800 mb-4">Revenue — Last 6 Months</h3>
             <div class="flex items-end gap-3 h-40">

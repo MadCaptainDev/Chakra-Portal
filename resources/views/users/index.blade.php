@@ -16,8 +16,16 @@
                 <div class="bg-white shadow-sm rounded-lg p-4">
                     <div class="flex items-start justify-between gap-2">
                         <div class="min-w-0">
-                            <p class="font-semibold text-gray-900 truncate">{{ $user->name }}</p>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <p class="font-semibold text-gray-900 truncate">{{ $user->name }}</p>
+                                <x-badge :status="$user->isAdmin() ? 'active' : 'pending'">
+                                    {{ $user->isAdmin() ? 'Admin' : 'Employee' }}
+                                </x-badge>
+                            </div>
                             <p class="text-sm text-gray-500 truncate">{{ $user->email }}</p>
+                            @if ($user->employeeRecord)
+                                <p class="text-xs text-gray-400 truncate">Linked to {{ $user->employeeRecord->name }} in Salaries</p>
+                            @endif
                         </div>
                         @unless ($user->id === auth()->id())
                             <form method="POST" action="{{ route('users.destroy', $user) }}" onsubmit="return confirm('Remove this staff account?');">
@@ -38,6 +46,8 @@
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Access</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
                         <th class="px-6 py-3"></th>
                     </tr>
                 </thead>
@@ -51,6 +61,14 @@
                                 @endif
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-500">{{ $user->email }}</td>
+                            <td class="px-6 py-4 text-sm">
+                                <x-badge :status="$user->isAdmin() ? 'active' : 'pending'">
+                                    {{ $user->isAdmin() ? 'Admin' : 'Employee' }}
+                                </x-badge>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-500">
+                                {{ $user->employeeRecord?->name ?? '—' }}
+                            </td>
                             <td class="px-6 py-4 text-right text-sm">
                                 @unless ($user->id === auth()->id())
                                     <form method="POST" action="{{ route('users.destroy', $user) }}" onsubmit="return confirm('Remove this staff account?');">

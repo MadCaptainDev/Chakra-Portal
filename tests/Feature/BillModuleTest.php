@@ -93,6 +93,34 @@ class BillModuleTest extends TestCase
             ->assertRedirect('/expenses');
     }
 
+    public function test_index_exposes_edit_and_delete_for_each_bill(): void
+    {
+        $bill = Expense::create(['name' => 'Rent', 'type' => Expense::TYPE_BILL, 'amount' => 7500, 'is_active' => true]);
+
+        $response = $this->actingAs(User::factory()->create())->get(route('bills.index'));
+
+        $response->assertOk();
+        $response->assertSee(route('bills.destroy', $bill), false);
+        $response->assertSee(route('bills.update', $bill), false);
+    }
+
+    public function test_a_bill_can_be_edited_and_deleted(): void
+    {
+        $bill = Expense::create(['name' => 'Wifi', 'type' => Expense::TYPE_BILL, 'amount' => 3200, 'is_active' => true]);
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->put(route('bills.update', $bill), [
+            'name' => 'Wifi Bill',
+            'amount' => 3400,
+            'is_active' => '1',
+        ])->assertRedirect(route('bills.index'));
+
+        $this->assertSame('Wifi Bill', $bill->fresh()->name);
+
+        $this->actingAs($user)->delete(route('bills.destroy', $bill))->assertRedirect(route('bills.index'));
+        $this->assertDatabaseMissing('expenses', ['id' => $bill->id]);
+    }
+
     public function test_guest_is_redirected_to_login(): void
     {
         $this->get(route('bills.index'))->assertRedirect(route('login'));

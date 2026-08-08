@@ -47,26 +47,7 @@
 
         <div x-show="adding" x-cloak>
             <x-card class="p-4 sm:p-6">
-                <form method="POST" action="{{ route('bills.store') }}">
-                    @csrf
-                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                        <div class="sm:col-span-2">
-                            <x-input-label for="bill_name" value="Bill" />
-                            <x-text-input id="bill_name" name="name" type="text" class="mt-1 block w-full"
-                                          value="{{ old('name') }}" placeholder="e.g. Electricity" required />
-                            <x-input-error :messages="$errors->get('name')" class="mt-2" />
-                        </div>
-                        <div>
-                            <x-input-label for="bill_amount" value="Monthly Amount" />
-                            <x-text-input id="bill_amount" name="amount" type="number" step="0.01" min="0"
-                                          class="mt-1 block w-full" value="{{ old('amount') }}" required />
-                            <x-input-error :messages="$errors->get('amount')" class="mt-2" />
-                        </div>
-                        <div class="flex items-end">
-                            <x-primary-button>Add Bill</x-primary-button>
-                        </div>
-                    </div>
-                </form>
+                @include('bills._form')
             </x-card>
         </div>
 
@@ -83,31 +64,53 @@
                         $diff = $row['paid'] - $row['due'];
                     @endphp
 
-                    <div class="p-3 sm:p-4 flex items-center gap-3">
-                        <div class="min-w-0 flex-1">
-                            <p class="font-medium text-gray-900 truncate">{{ $bill->name }}</p>
-                            <p class="text-xs text-gray-500">
-                                Budget {{ number_format($row['due'], 0) }}
-                                @if ($isPaid && abs($diff) > 0.001)
-                                    <span class="{{ $diff < 0 ? 'text-green-600' : 'text-amber-600' }} font-semibold">
-                                        &middot; {{ $diff < 0 ? 'under' : 'over' }} by {{ number_format(abs($diff), 0) }}
-                                    </span>
-                                @endif
-                            </p>
+                    <div class="p-3 sm:p-4" x-data="{ editing: false }">
+                        <div class="flex items-center gap-3">
+                            <div class="min-w-0 flex-1">
+                                <p class="font-medium text-gray-900 truncate">{{ $bill->name }}</p>
+                                <p class="text-xs text-gray-500">
+                                    Budget {{ number_format($row['due'], 0) }}
+                                    @if ($isPaid && abs($diff) > 0.001)
+                                        <span class="{{ $diff < 0 ? 'text-green-600' : 'text-amber-600' }} font-semibold">
+                                            &middot; {{ $diff < 0 ? 'under' : 'over' }} by {{ number_format(abs($diff), 0) }}
+                                        </span>
+                                    @endif
+                                </p>
+                            </div>
+
+                            <form method="POST" action="{{ route('bills.pay', $bill) }}" class="flex items-center gap-2 shrink-0">
+                                @csrf
+                                <input type="hidden" name="month" value="{{ $month->format('Y-m-d') }}">
+                                <input type="number" step="0.01" min="0" name="amount_paid"
+                                       value="{{ $isPaid ? number_format($row['paid'], 2, '.', '') : '' }}"
+                                       placeholder="{{ number_format($row['due'], 2, '.', '') }}"
+                                       class="w-24 sm:w-28 rounded-md border-gray-300 shadow-sm text-sm text-right focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
+                                <button type="submit"
+                                        class="min-h-[44px] px-3 rounded-md text-xs font-semibold uppercase tracking-wider {{ $isPaid ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-brand-400 text-white hover:bg-brand-500' }}">
+                                    {{ $isPaid ? 'Paid' : 'Pay' }}
+                                </button>
+                            </form>
                         </div>
 
-                        <form method="POST" action="{{ route('bills.pay', $bill) }}" class="flex items-center gap-2 shrink-0">
-                            @csrf
-                            <input type="hidden" name="month" value="{{ $month->format('Y-m-d') }}">
-                            <input type="number" step="0.01" min="0" name="amount_paid"
-                                   value="{{ $isPaid ? number_format($row['paid'], 2, '.', '') : '' }}"
-                                   placeholder="{{ number_format($row['due'], 2, '.', '') }}"
-                                   class="w-24 sm:w-28 rounded-md border-gray-300 shadow-sm text-sm text-right focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
-                            <button type="submit"
-                                    class="min-h-[44px] px-3 rounded-md text-xs font-semibold uppercase tracking-wider {{ $isPaid ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-brand-400 text-white hover:bg-brand-500' }}">
-                                {{ $isPaid ? 'Paid' : 'Pay' }}
+                        <div class="flex items-center justify-end gap-3">
+                            <button type="button" @click="editing = ! editing"
+                                    class="min-h-[44px] px-2 text-xs font-semibold text-brand-500 hover:text-brand-600">
+                                <span x-show="! editing">Edit</span>
+                                <span x-show="editing" x-cloak>Cancel</span>
                             </button>
-                        </form>
+                            <form method="POST" action="{{ route('bills.destroy', $bill) }}"
+                                  onsubmit="return confirm('Delete {{ $bill->name }}? Any recorded payments against it go too.');">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="min-h-[44px] px-2 text-xs font-semibold text-red-600 hover:text-red-800">
+                                    Delete
+                                </button>
+                            </form>
+                        </div>
+
+                        <div x-show="editing" x-cloak class="mt-2 pt-3 border-t border-gray-200">
+                            @include('bills._form', ['bill' => $bill])
+                        </div>
                     </div>
                 @endforeach
             </x-card>

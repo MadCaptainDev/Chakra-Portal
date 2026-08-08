@@ -44,6 +44,10 @@ class EmiController extends Controller
 
     public function update(Request $request, Expense $emi): RedirectResponse
     {
+        // Without this, PUT /emi/{id} pointed at a salary would rewrite that
+        // employee record into an EMI -- validated() force-sets the type.
+        abort_unless($emi->isEmi(), 404);
+
         $emi->update($this->validated($request));
 
         return redirect()->route('emi.index')->with('status', 'EMI updated.');
@@ -51,6 +55,8 @@ class EmiController extends Controller
 
     public function destroy(Expense $emi): RedirectResponse
     {
+        abort_unless($emi->isEmi(), 404);
+
         $emi->delete();
 
         return redirect()->route('emi.index')->with('status', 'EMI deleted.');

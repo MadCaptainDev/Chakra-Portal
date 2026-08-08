@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\Payment;
+use App\Services\ExpenseLedger;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
+    public function __construct(private readonly ExpenseLedger $ledger) {}
+
     public function index(): View
     {
         $totalInvoiced = Invoice::whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PAID])->sum('total');
@@ -41,6 +45,19 @@ class DashboardController extends Controller
             ];
         });
 
+        // Money going out this month. Reuses Expense::dueIn() and the shared
+        // ledger so the dashboard can never disagree with /expenses.
+        $thisMonth = now()->startOfMonth();
+        $dueThisMonth = Expense::dueIn($thisMonth);
+        $expenseRows = $this->ledger->rowsFor($thisMonth, $dueThisMonth);
+
+        $outflowDue = $expenseRows->sum('due');
+        $outflowPaid = $expenseRows->sum('paid');
+        $outflowPending = max($outflowDue - $outflowPaid, 0);
+        $emiThisMonth = $expenseRows
+            ->filter(fn (array $row) => $row['expense']->isEmi())
+            ->sum('due');
+
         return view('dashboard', compact(
             'totalInvoiced',
             'thisMonthRevenue',
@@ -50,6 +67,10 @@ class DashboardController extends Controller
             'pendingApprovalCount',
             'recentInvoices',
             'monthlyRevenue',
+            'outflowDue',
+            'outflowPaid',
+            'outflowPending',
+            'emiThisMonth',
         ));
     }
 }
