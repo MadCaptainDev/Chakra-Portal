@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Edit user">
     <x-slot name="header">
         <x-page-header :title="'Edit '.$user->name">
             <x-slot name="actions">

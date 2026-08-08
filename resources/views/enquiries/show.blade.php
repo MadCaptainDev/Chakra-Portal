@@ -2,7 +2,7 @@
     $replySubject = rawurlencode('Re: your enquiry to Chakra Productions');
 @endphp
 
-<x-app-layout>
+<x-app-layout title="Enquiry">
     <x-slot name="header">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex items-center gap-3 min-w-0">

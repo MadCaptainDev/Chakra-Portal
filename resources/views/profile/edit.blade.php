@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="My profile">
     <x-slot name="header">
         <x-page-header :title="__('Profile')" />
     </x-slot>

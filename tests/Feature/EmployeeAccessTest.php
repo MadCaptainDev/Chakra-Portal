@@ -38,11 +38,14 @@ class EmployeeAccessTest extends TestCase
             'emi' => ['/emi'],
             'salaries' => ['/salaries'],
             'bills' => ['/bills'],
+            'other' => ['/other'],
             'users' => ['/users'],
             'settings' => ['/settings'],
             'recurring' => ['/recurring'],
             'timesheets (admin view)' => ['/timesheets'],
             'announcements' => ['/announcements'],
+            'enquiries' => ['/enquiries'],
+            'invoice template' => ['/invoice-template'],
         ];
     }
 

@@ -1,41 +1,27 @@
 @php
-    $prev = $month->copy()->subMonthNoOverflow()->format('Y-m');
-    $next = $month->copy()->addMonthNoOverflow()->format('Y-m');
     $byDay = $entries->groupBy(fn ($e) => $e->worked_on->toDateString());
 @endphp
 
-<x-app-layout>
+<x-app-layout title="My timesheet">
     <x-slot name="header">
-        <x-page-header title="My Timesheet">
+        <x-page-header title="My Timesheet" eyebrow="Your work"
+                       subtitle="Log what you did, day by day.">
             <x-slot name="actions">
-                <a href="{{ route('my.calendar', ['month' => $month->format('Y-m')]) }}"
-                   class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50">
-                    Calendar
-                </a>
+                <x-btn :href="route('my.calendar', ['month' => $month->format('Y-m')])"
+                       variant="secondary" icon="calendar">Calendar</x-btn>
             </x-slot>
         </x-page-header>
     </x-slot>
 
     <div class="space-y-4" x-data="{ adding: {{ $errors->any() ? 'true' : 'false' }} }">
-        {{-- Month navigation --}}
-        <div class="flex items-center justify-between gap-2">
-            <a href="{{ route('my.timesheet', ['month' => $prev]) }}"
-               class="inline-flex items-center min-h-[44px] px-3 rounded-md bg-white border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">&larr; Prev</a>
-            <div class="text-center">
-                <p class="font-semibold text-brand-900">{{ $month->format('F Y') }}</p>
-                @if (! $month->isSameMonth(now()))
-                    <a href="{{ route('my.timesheet') }}" class="text-xs text-brand-500 hover:text-brand-600">Back to this month</a>
-                @endif
-            </div>
-            <a href="{{ route('my.timesheet', ['month' => $next]) }}"
-               class="inline-flex items-center min-h-[44px] px-3 rounded-md bg-white border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">Next &rarr;</a>
-        </div>
+        <x-month-nav route="my.timesheet" :month="$month" />
 
-        <x-card class="p-4 sm:p-5 border border-brand-100/60">
-            <p class="text-xs text-brand-600 uppercase tracking-wide font-semibold">Hours this month</p>
-            <p class="text-2xl sm:text-3xl font-bold text-brand-900 mt-1">{{ \App\Models\TimesheetEntry::formatMinutes($totalMinutes) }}</p>
-            <p class="text-xs text-gray-500 mt-1">{{ $stats['daysWorked'] }} {{ Str::plural('day', $stats['daysWorked']) }} with logged work</p>
-        </x-card>
+        <div class="grid grid-cols-2 gap-3 sm:gap-4">
+            <x-stat-card label="Hours this month" accent="brand" icon="clock"
+                         value="{{ \App\Models\TimesheetEntry::formatMinutes($totalMinutes) }}" />
+            <x-stat-card label="Days with work" accent="gray" icon="calendar"
+                         value="{{ $stats['daysWorked'] }}" />
+        </div>
 
         @if ($entries->isNotEmpty())
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -59,15 +45,16 @@
         @endif
 
         <div class="flex justify-end">
-            <button type="button" @click="adding = ! adding"
-                    class="inline-flex items-center min-h-[44px] px-4 rounded-md bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 shadow-sm">
-                <span x-show="! adding">+ Add Entry</span>
+            <x-btn type="button" @click="adding = ! adding">
+                <span x-show="! adding" class="inline-flex items-center gap-1.5">
+                    <x-icon name="plus" class="w-4 h-4" /> Add entry
+                </span>
                 <span x-show="adding" x-cloak>Cancel</span>
-            </button>
+            </x-btn>
         </div>
 
         <div x-show="adding" x-cloak>
-            <x-card class="p-4 sm:p-6 border border-brand-200/80">
+            <x-card padding="md" tone="brand">
                 <h3 class="font-semibold text-brand-900 mb-4">New entry</h3>
                 @include('my._entry-form', ['ventureOptions' => $ventureOptions])
             </x-card>
@@ -75,26 +62,26 @@
 
         @if ($entries->isEmpty())
             <x-empty-state message="Nothing logged for {{ $month->format('F Y') }} yet.">
-                <button type="button" @click="adding = true" class="text-brand-500 font-semibold text-sm hover:text-brand-600">Add your first entry &rarr;</button>
+                <x-btn type="button" size="sm" @click="adding = true">Add your first entry</x-btn>
             </x-empty-state>
         @else
             @foreach ($byDay as $day => $dayEntries)
                 @php $date = \Illuminate\Support\Carbon::parse($day); @endphp
 
                 <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <h3 class="font-semibold text-brand-900">
+                    <div class="flex items-center justify-between mb-2 px-1">
+                        <h3 class="font-semibold text-gray-900 flex items-center gap-2">
                             {{ $date->format('D, d M') }}
                             @if ($date->isToday())
-                                <span class="ml-1 text-xs font-semibold text-brand-500">Today</span>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-brand-100 text-[10px] font-bold uppercase tracking-wide text-brand-700">Today</span>
                             @endif
                         </h3>
-                        <span class="text-sm text-gray-500">
+                        <span class="text-sm font-semibold text-gray-600 tabular-nums">
                             {{ \App\Models\TimesheetEntry::formatMinutes($dayEntries->where('status', '!=', 'cancelled')->sum('minutes')) }}
                         </span>
                     </div>
 
-                    <x-card class="divide-y divide-gray-100 border border-brand-100/40">
+                    <x-card class="divide-y divide-gray-100 overflow-hidden">
                         @foreach ($dayEntries as $entry)
                             <div class="p-3 sm:p-4" x-data="{ editing: false }">
                                 <div class="flex items-start justify-between gap-3">

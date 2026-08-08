@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Add staff">
     <x-slot name="header">
         <x-page-header title="Add Staff Account" />
     </x-slot>

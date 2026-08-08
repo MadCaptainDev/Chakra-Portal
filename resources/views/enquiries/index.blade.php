@@ -6,22 +6,21 @@
     ];
 @endphp
 
-<x-app-layout>
+<x-app-layout title="Enquiries">
     <x-slot name="header">
-        <x-page-header title="Enquiries">
-            <x-slot name="actions">
-                <span class="text-sm text-gray-500">
-                    {{ $enquiries->total() }} {{ Str::plural('enquiry', $enquiries->total()) }} from the website
-                </span>
-            </x-slot>
-        </x-page-header>
+        <x-page-header title="Enquiries" eyebrow="Website inbox"
+                       :subtitle="$enquiries->total().' '.Str::plural('enquiry', $enquiries->total()).' received from the site.'" />
     </x-slot>
 
     <div class="space-y-4">
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap gap-2" role="tablist" aria-label="Filter enquiries">
             @foreach ($filters as $value => $label)
                 <a href="{{ route('enquiries.index', array_filter(['filter' => $value])) }}"
-                   class="px-3 py-1.5 rounded-full text-xs font-semibold {{ $filter === $value ? 'bg-brand-400 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
+                   role="tab" @if ($filter === $value) aria-selected="true" @endif
+                   class="inline-flex items-center min-h-[44px] px-4 rounded-lg text-sm font-semibold transition
+                          {{ $filter === $value
+                                ? 'bg-brand-500 text-white shadow-sm'
+                                : 'bg-white text-gray-600 ring-1 ring-gray-900/10 hover:bg-gray-50 hover:text-gray-900' }}">
                     {{ $label }}
                 </a>
             @endforeach
@@ -34,9 +33,10 @@
             <div class="md:hidden space-y-3">
                 @foreach ($enquiries as $enquiry)
                     <a href="{{ route('enquiries.show', $enquiry) }}"
-                       class="block bg-white shadow-sm rounded-lg p-4 {{ $enquiry->isUnread() ? 'border-l-4 border-brand-400' : '' }}">
+                       class="block bg-white rounded-xl shadow-sm ring-1 ring-gray-900/5 p-4 transition hover:shadow-md
+                              {{ $enquiry->isUnread() ? 'border-l-4 border-brand-400' : '' }}">
                         <div class="flex items-start justify-between gap-2">
-                            <p class="font-semibold text-gray-900 truncate {{ $enquiry->isUnread() ? '' : 'font-medium' }}">
+                            <p class="truncate {{ $enquiry->isUnread() ? 'font-bold text-gray-900' : 'font-medium text-gray-700' }}">
                                 {{ $enquiry->name }}
                             </p>
                             <x-badge :status="$enquiry->displayStatus()" class="shrink-0" />
@@ -52,36 +52,36 @@
             </div>
 
             {{-- Desktop: table --}}
-            <x-card class="hidden md:block overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">From</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Looking for</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Message</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Received</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+            <x-card class="hidden md:block overflow-hidden">
+                <table class="min-w-full">
+                    <thead>
+                        <tr class="border-b border-gray-200 bg-gray-50/80">
+                            <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">From</th>
+                            <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Looking for</th>
+                            <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Message</th>
+                            <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Received</th>
+                            <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-200">
+                    <tbody class="divide-y divide-gray-100">
                         @foreach ($enquiries as $enquiry)
-                            <tr class="hover:bg-gray-50 cursor-pointer"
+                            <tr class="hover:bg-gray-50/70 transition cursor-pointer {{ $enquiry->isUnread() ? 'bg-brand-50/30' : '' }}"
                                 onclick="window.location='{{ route('enquiries.show', $enquiry) }}'">
-                                <td class="px-6 py-4 text-sm">
+                                <td class="px-6 py-3.5 text-sm">
                                     <a href="{{ route('enquiries.show', $enquiry) }}"
-                                       class="{{ $enquiry->isUnread() ? 'font-semibold text-gray-900' : 'font-medium text-gray-700' }}">
+                                       class="{{ $enquiry->isUnread() ? 'font-bold text-gray-900' : 'font-medium text-gray-700' }}">
                                         {{ $enquiry->name }}
                                     </a>
                                     <p class="text-gray-500">{{ $enquiry->email }}</p>
                                 </td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $enquiry->project ?: '—' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-600 max-w-md">
+                                <td class="px-6 py-3.5 text-sm text-gray-500">{{ $enquiry->project ?: '—' }}</td>
+                                <td class="px-6 py-3.5 text-sm text-gray-600 max-w-md">
                                     <span class="line-clamp-2">{{ $enquiry->message }}</span>
                                 </td>
-                                <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
+                                <td class="px-6 py-3.5 text-sm text-gray-500 whitespace-nowrap">
                                     {{ $enquiry->created_at->format('d/m/Y H:i') }}
                                 </td>
-                                <td class="px-6 py-4 text-sm"><x-badge :status="$enquiry->displayStatus()" /></td>
+                                <td class="px-6 py-3.5 text-sm"><x-badge :status="$enquiry->displayStatus()" /></td>
                             </tr>
                         @endforeach
                     </tbody>

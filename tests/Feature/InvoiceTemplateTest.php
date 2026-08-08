@@ -95,7 +95,10 @@ class InvoiceTemplateTest extends TestCase
             ]);
 
         $response->assertOk();
-        $this->assertStringContainsString($invoice->client->name, $response->getContent());
+        // Escaped: the renderer HTML-escapes the substituted name, so a faker
+        // company containing an apostrophe ("Kessler, O'Conner and Champlin")
+        // reaches the page as &#039; and a raw comparison fails at random.
+        $this->assertStringContainsString(e($invoice->client->name), $response->getContent());
         $this->assertStringContainsString('Posts', $response->getContent());
         $this->assertStringNotContainsString('{{client_name}}', $response->getContent());
     }

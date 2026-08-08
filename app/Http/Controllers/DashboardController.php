@@ -76,10 +76,6 @@ class DashboardController extends Controller
         $emiLoad = (float) $emiRows->sum('due');
         $emiPaid = (float) $emiRows->sum('paid');
         $emiUnpaidCount = $emiRows->filter(fn ($row) => $row['paid'] + 0.001 < $row['due'])->count();
-        $emiOutstandingTotal = (float) Expense::where('type', Expense::TYPE_EMI)
-            ->get()
-            ->filter(fn (Expense $e) => ! $e->isFinished($month))
-            ->sum(fn (Expense $e) => $e->outstandingAmount($month));
 
         $billRows = $expenseRows->filter(fn ($row) => $row['expense']->type === Expense::TYPE_BILL);
         $billPending = max((float) $billRows->sum('due') - (float) $billRows->sum('paid'), 0);
@@ -89,17 +85,18 @@ class DashboardController extends Controller
 
         $emiOpen = max($emiLoad - $emiPaid, 0);
 
-        // —— Charts: cashflow (6 months), expense pie, income pie, bottlenecks ——
+        // —— Breakdowns: cashflow (6 months), expense mix, income mix, bottlenecks ——
         $monthlyCashflow = $this->monthlyCashflow(6);
-        $expenseSplit = $this->expenseSplitChart($expenseByType);
-        $incomeSplit = $this->incomeSplitByClient($month, $monthEnd, $monthInvoices);
-        $bottlenecks = $this->bottlenecksChart([
+        $expenseSplit = $this->expenseSplit($expenseByType);
+        $income = $this->incomeSplitByClient($month, $monthEnd, $monthInvoices);
+        $bottlenecks = $this->bottlenecks([
             'overdueAmount' => $overdueAmount,
             'invoiceOutstanding' => $invoiceOutstanding,
             'salaryPending' => $salaryPending,
             'emiOpen' => $emiOpen,
             'billPending' => $billPending,
             'otherSpent' => $otherSpent,
+            'monthKey' => $monthKey,
         ]);
 
         $netCash = $thisMonthRevenue - $expensePaid;
@@ -122,41 +119,26 @@ class DashboardController extends Controller
         ]);
 
         return view('dashboard', [
+            // Twenty further figures used to be passed here, one per row of the
+            // old bottlenecks widget. They are still computed above, because
+            // bottlenecks() and actionItems() take them -- they are just no
+            // longer handed to a view that stopped reading them.
             'month' => $month,
-            'monthKey' => $monthKey,
-            'invoiceDue' => $invoiceDue,
-            'invoicePaid' => $invoicePaidAgainstMonth,
-            'invoiceOutstanding' => $invoiceOutstanding,
             'thisMonthRevenue' => $thisMonthRevenue,
             'outstanding' => $outstanding,
-            'overdueCount' => $overdueCount,
-            'overdueAmount' => $overdueAmount,
-            'pendingApprovalCount' => $pendingApprovalCount,
             'recentUnpaid' => $recentUnpaid,
             'expenseDue' => $expenseDue,
             'expensePaid' => $expensePaid,
-            'expenseOutstanding' => $expenseOutstanding,
-            'expenseByType' => $expenseByType,
-            'salaryDue' => $salaryDue,
-            'salaryPaid' => $salaryPaid,
-            'salaryPending' => $salaryPending,
-            'salaryUnpaidCount' => $salaryUnpaidCount,
-            'emiLoad' => $emiLoad,
-            'emiPaid' => $emiPaid,
-            'emiOpen' => $emiOpen,
-            'emiUnpaidCount' => $emiUnpaidCount,
-            'emiOutstandingTotal' => $emiOutstandingTotal,
-            'billPending' => $billPending,
-            'otherSpent' => $otherSpent,
             'netCash' => $netCash,
             'burnCoverage' => $burnCoverage,
             'monthlyCashflow' => $monthlyCashflow,
             'expenseSplit' => $expenseSplit,
-            'incomeSplit' => $incomeSplit,
+            'incomeSplit' => $income['items'],
+            'incomeMode' => $income['mode'],
             'bottlenecks' => $bottlenecks,
             'actionItems' => $actionItems,
 
-            // Aliases for the outflow widget. The figures above come from the
+            // Aliases for the outflow block. The figures above come from the
             // same month and the same ledger rows, so recomputing them here
             // would only risk the two disagreeing.
             'outflowDue' => $expenseDue,
@@ -192,43 +174,54 @@ class DashboardController extends Controller
     }
 
     /**
+     * Expense mix for the month, as bar-list rows.
+     *
+     * These used to be returned as three parallel arrays because Chart.js wanted
+     * labels/values/colors as separate datasets. Nothing needs that shape now.
+     *
      * @param  Collection<int, array<string, mixed>>  $expenseByType
-     * @return array{labels: list<string>, values: list<float>, colors: list<string>}
+     * @return list<array{label: string, value: float, color: string, href: string}>
      */
-    private function expenseSplitChart(Collection $expenseByType): array
+    private function expenseSplit(Collection $expenseByType): array
     {
         $colors = [
-            'emi' => '#0f766e',
-            'salary' => '#16a34a',
-            'bill' => '#0284c7',
-            'other' => '#ca8a04',
+            Expense::TYPE_EMI => '#0f766e',
+            Expense::TYPE_SALARY => '#16a34a',
+            Expense::TYPE_BILL => '#0284c7',
+            Expense::TYPE_OTHER => '#ca8a04',
         ];
 
-        $ordered = collect([Expense::TYPE_EMI, Expense::TYPE_SALARY, Expense::TYPE_BILL, Expense::TYPE_OTHER])
-            ->map(function (string $type) use ($expenseByType, $colors) {
+        $routes = [
+            Expense::TYPE_EMI => 'emi.index',
+            Expense::TYPE_SALARY => 'salaries.index',
+            Expense::TYPE_BILL => 'bills.index',
+            Expense::TYPE_OTHER => 'other.index',
+        ];
+
+        return collect([Expense::TYPE_EMI, Expense::TYPE_SALARY, Expense::TYPE_BILL, Expense::TYPE_OTHER])
+            ->map(function (string $type) use ($expenseByType, $colors, $routes) {
                 $row = $expenseByType->firstWhere('type', $type);
+                $paid = (float) ($row['paid'] ?? 0);
+                $due = (float) ($row['due'] ?? 0);
 
                 return [
                     'label' => Expense::TYPES[$type] ?? ucfirst($type),
-                    'value' => (float) ($row['due'] ?? 0),
+                    'value' => $due,
                     'color' => $colors[$type] ?? '#6b7280',
+                    'href' => route($routes[$type]),
+                    'hint' => $due > 0 ? number_format($paid, 0).' paid so far' : null,
                 ];
             })
             ->filter(fn (array $row) => $row['value'] > 0)
-            ->values();
-
-        return [
-            'labels' => $ordered->pluck('label')->all(),
-            'values' => $ordered->pluck('value')->all(),
-            'colors' => $ordered->pluck('color')->all(),
-        ];
+            ->values()
+            ->all();
     }
 
     /**
      * Income mix: prefer collections this month by client; fall back to invoiced totals.
      *
      * @param  Collection<int, Invoice>  $monthInvoices
-     * @return array{labels: list<string>, values: list<float>, colors: list<string>, mode: string}
+     * @return array{items: list<array{label: string, value: float, color: string}>, mode: string}
      */
     private function incomeSplitByClient(Carbon $month, Carbon $monthEnd, Collection $monthInvoices): array
     {
@@ -271,11 +264,11 @@ class DashboardController extends Controller
         }
 
         return [
-            'labels' => $collected->pluck('label')->all(),
-            'values' => $collected->pluck('value')->all(),
-            'colors' => $collected->values()->map(
-                fn ($row, $i) => $palette[$i % count($palette)]
-            )->all(),
+            'items' => $collected->values()->map(fn (array $row, int $i) => [
+                'label' => $row['label'],
+                'value' => $row['value'],
+                'color' => $palette[$i % count($palette)],
+            ])->all(),
             'mode' => $mode,
         ];
     }
@@ -283,25 +276,24 @@ class DashboardController extends Controller
     /**
      * Pressure points that block cashflow — amounts still open.
      *
-     * @param  array<string, float>  $ctx
-     * @return array{labels: list<string>, values: list<float>, colors: list<string>}
+     * Each row carries the link to the screen that clears it, so the block is
+     * a work queue rather than a picture of one.
+     *
+     * @param  array<string, mixed>  $ctx
+     * @return list<array{label: string, value: float, color: string, href: string}>
      */
-    private function bottlenecksChart(array $ctx): array
+    private function bottlenecks(array $ctx): array
     {
-        $rows = collect([
-            ['label' => 'Overdue invoices', 'value' => (float) $ctx['overdueAmount'], 'color' => '#dc2626'],
-            ['label' => 'Month invoices open', 'value' => (float) $ctx['invoiceOutstanding'], 'color' => '#ca8a04'],
-            ['label' => 'Payroll pending', 'value' => (float) $ctx['salaryPending'], 'color' => '#16a34a'],
-            ['label' => 'EMI open', 'value' => (float) $ctx['emiOpen'], 'color' => '#0f766e'],
-            ['label' => 'Bills pending', 'value' => (float) $ctx['billPending'], 'color' => '#0284c7'],
-            ['label' => 'One-time spent', 'value' => (float) $ctx['otherSpent'], 'color' => '#64748b'],
-        ])->filter(fn (array $row) => $row['value'] > 0)->values();
+        $monthKey = $ctx['monthKey'];
 
-        return [
-            'labels' => $rows->pluck('label')->all(),
-            'values' => $rows->pluck('value')->all(),
-            'colors' => $rows->pluck('color')->all(),
-        ];
+        return collect([
+            ['label' => 'Overdue invoices', 'value' => (float) $ctx['overdueAmount'], 'color' => '#dc2626', 'href' => route('invoices.index', ['status' => 'unpaid'])],
+            ['label' => 'Month invoices open', 'value' => (float) $ctx['invoiceOutstanding'], 'color' => '#ca8a04', 'href' => route('invoices.index', ['month' => $monthKey])],
+            ['label' => 'Payroll pending', 'value' => (float) $ctx['salaryPending'], 'color' => '#16a34a', 'href' => route('salaries.index', ['month' => $monthKey])],
+            ['label' => 'EMI open', 'value' => (float) $ctx['emiOpen'], 'color' => '#0f766e', 'href' => route('emi.index', ['month' => $monthKey])],
+            ['label' => 'Bills pending', 'value' => (float) $ctx['billPending'], 'color' => '#0284c7', 'href' => route('bills.index', ['month' => $monthKey])],
+            ['label' => 'One-time spent', 'value' => (float) $ctx['otherSpent'], 'color' => '#64748b', 'href' => route('other.index', ['month' => $monthKey])],
+        ])->filter(fn (array $row) => $row['value'] > 0)->values()->all();
     }
 
     /**

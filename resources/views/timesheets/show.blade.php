@@ -4,7 +4,7 @@
     $byDay = $entries->groupBy(fn ($e) => $e->worked_on->toDateString());
 @endphp
 
-<x-app-layout>
+<x-app-layout title="Timesheet">
     <x-slot name="header">
         <x-page-header :title="$employee->name">
             <x-slot name="actions">

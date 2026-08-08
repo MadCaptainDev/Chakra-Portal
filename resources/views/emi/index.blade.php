@@ -1,9 +1,4 @@
-@php
-    $prev = $asOf->copy()->subMonthNoOverflow()->format('Y-m');
-    $next = $asOf->copy()->addMonthNoOverflow()->format('Y-m');
-@endphp
-
-<x-app-layout>
+<x-app-layout title="EMI">
     <x-slot name="header">
         <x-page-header title="Expenses" />
     </x-slot>
@@ -11,19 +6,8 @@
     <div class="space-y-6" x-data="{ adding: false, editingId: null, payEditId: null }">
         @include('expenses._tabs')
 
-        <div class="flex items-center justify-between gap-2">
-            <a href="{{ route('emi.index', ['month' => $prev]) }}"
-               class="inline-flex items-center min-h-[44px] px-3 rounded-md bg-white border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">&larr; Prev</a>
-            <div class="text-center">
-                <p class="font-semibold text-gray-900">{{ $asOf->format('F Y') }} EMI</p>
-                <p class="text-xs text-gray-500">Schedules, liability, and this month’s payments</p>
-                @if (! $asOf->isSameMonth(now()))
-                    <a href="{{ route('emi.index') }}" class="text-xs text-brand-500 hover:text-brand-600">Back to this month</a>
-                @endif
-            </div>
-            <a href="{{ route('emi.index', ['month' => $next]) }}"
-               class="inline-flex items-center min-h-[44px] px-3 rounded-md bg-white border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">Next &rarr;</a>
-        </div>
+        <x-month-nav route="emi.index" :month="$asOf" suffix="EMI"
+                     subtitle="Schedules, liability, and this month’s payments" />
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <x-card class="p-4">

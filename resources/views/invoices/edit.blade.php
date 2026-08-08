@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Edit invoice">
     <x-slot name="header">
         <x-page-header title="Edit Invoice {{ $invoice->invoice_number ?? '(pending)' }}" />
     </x-slot>

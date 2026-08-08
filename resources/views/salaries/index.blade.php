@@ -1,9 +1,4 @@
-@php
-    $prev = $month->copy()->subMonthNoOverflow()->format('Y-m');
-    $next = $month->copy()->addMonthNoOverflow()->format('Y-m');
-@endphp
-
-<x-app-layout>
+<x-app-layout title="Payroll">
     <x-slot name="header">
         <x-page-header title="Expenses">
             <x-slot name="actions">
@@ -23,19 +18,8 @@
     <div class="space-y-4" x-data="{ adding: false }">
         @include('expenses._tabs')
 
-        <div class="flex items-center justify-between gap-2">
-            <a href="{{ route('salaries.index', ['month' => $prev]) }}"
-               class="inline-flex items-center min-h-[44px] px-3 rounded-md bg-white border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">&larr; Prev</a>
-            <div class="text-center">
-                <p class="font-semibold text-gray-900">{{ $month->format('F Y') }} payroll</p>
-                <p class="text-xs text-gray-500">Salaries are locked — change only from the employee record</p>
-                @if (! $month->isSameMonth(now()))
-                    <a href="{{ route('salaries.index') }}" class="text-xs text-brand-500 hover:text-brand-600">Back to this month</a>
-                @endif
-            </div>
-            <a href="{{ route('salaries.index', ['month' => $next]) }}"
-               class="inline-flex items-center min-h-[44px] px-3 rounded-md bg-white border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">Next &rarr;</a>
-        </div>
+        <x-month-nav route="salaries.index" :month="$month" suffix="payroll"
+                     subtitle="Salaries are locked — change only from the employee record" />
 
         <div class="grid grid-cols-3 gap-3">
             <x-card class="p-3 sm:p-4">

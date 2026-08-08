@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Invoice">
     <x-slot name="header">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex items-center gap-3">

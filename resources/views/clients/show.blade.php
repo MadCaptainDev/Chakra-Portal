@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Client">
     <x-slot name="header">
         <x-page-header :title="$client->name">
             <x-slot name="actions">

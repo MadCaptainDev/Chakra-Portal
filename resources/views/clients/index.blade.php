@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Clients">
     <x-slot name="header">
         <x-page-header title="Clients">
             <x-slot name="actions">

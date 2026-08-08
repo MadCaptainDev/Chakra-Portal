@@ -1,24 +1,12 @@
-@php
-    $prev = $month->copy()->subMonthNoOverflow()->format('Y-m');
-    $next = $month->copy()->addMonthNoOverflow()->format('Y-m');
-@endphp
-
-<x-app-layout>
+<x-app-layout title="Timesheets">
     <x-slot name="header">
-        <x-page-header title="Timesheets" />
+        <x-page-header title="Timesheets" eyebrow="Team"
+                       subtitle="Hours logged by everyone with a login, month by month." />
     </x-slot>
 
     <div class="space-y-4">
-        <div class="flex items-center justify-between gap-2">
-            <a href="{{ route('timesheets.index', ['month' => $prev]) }}"
-               class="inline-flex items-center min-h-[44px] px-3 rounded-md bg-white border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">&larr; Prev</a>
-            <div class="text-center">
-                <p class="font-semibold text-brand-900">{{ $month->format('F Y') }}</p>
-                <p class="text-xs text-brand-600">{{ \App\Models\TimesheetEntry::formatMinutes($totalMinutes) }} across the team</p>
-            </div>
-            <a href="{{ route('timesheets.index', ['month' => $next]) }}"
-               class="inline-flex items-center min-h-[44px] px-3 rounded-md bg-white border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">Next &rarr;</a>
-        </div>
+        <x-month-nav route="timesheets.index" :month="$month"
+                     :subtitle="\App\Models\TimesheetEntry::formatMinutes($totalMinutes).' across the team'" />
 
         @if ($rows->isEmpty())
             <x-empty-state message="No employee logins yet.">
@@ -61,14 +49,23 @@
                 @endif
             @endif
 
-            <x-card class="divide-y divide-gray-100 border border-brand-100/40">
-                @foreach ($rows->sortByDesc('minutes') as $row)
+            <x-card class="divide-y divide-gray-100 overflow-hidden">
+                @foreach ($rows->sortByDesc('minutes') as $index => $row)
                     <a href="{{ route('timesheets.show', [$row['employee'], 'month' => $month->format('Y-m')]) }}"
-                       class="p-3 sm:p-4 flex items-center gap-3 hover:bg-brand-50/50">
+                       class="group p-3 sm:p-4 flex items-center gap-3 min-h-[44px] hover:bg-brand-50/40 transition">
+                        {{-- Rank badge: the list is sorted by hours, so make the
+                             order itself readable instead of implied. --}}
+                        <span class="shrink-0 w-6 text-center text-xs font-bold tabular-nums
+                                     {{ $index === 0 ? 'text-brand-600' : 'text-gray-300' }}">
+                            {{ $index + 1 }}
+                        </span>
+
                         <x-avatar :name="$row['employee']->name" :src="$row['employee']->avatarUrl()" />
 
                         <div class="min-w-0 flex-1">
-                            <p class="font-medium text-gray-900 truncate">{{ $row['employee']->name }}</p>
+                            <p class="font-semibold text-gray-900 truncate group-hover:text-brand-700 transition">
+                                {{ $row['employee']->name }}
+                            </p>
                             <p class="text-xs text-gray-500">
                                 {{ $row['entries'] }} {{ Str::plural('entry', $row['entries']) }}
                                 &middot; {{ $row['days'] }} {{ Str::plural('day', $row['days']) }}
@@ -79,11 +76,13 @@
                         </div>
 
                         <div class="text-right shrink-0">
-                            <p class="text-sm font-bold text-brand-900">{{ \App\Models\TimesheetEntry::formatMinutes($row['minutes']) }}</p>
+                            <p class="text-sm font-bold text-gray-900 tabular-nums">{{ \App\Models\TimesheetEntry::formatMinutes($row['minutes']) }}</p>
                             <p class="text-[11px] {{ $row['point'] ? 'text-green-600 font-semibold' : 'text-gray-400' }}">
                                 {{ $row['point'] ? $row['point']->points.' pts' : 'no points' }}
                             </p>
                         </div>
+
+                        <x-icon name="chevron-right" class="w-4 h-4 shrink-0 text-gray-300 group-hover:text-brand-500 transition" />
                     </a>
                 @endforeach
             </x-card>

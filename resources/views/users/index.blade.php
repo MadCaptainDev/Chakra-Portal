@@ -1,100 +1,109 @@
-<x-app-layout>
+<x-app-layout title="Users">
     <x-slot name="header">
-        <x-page-header title="Users">
+        <x-page-header title="Users" eyebrow="Team access"
+                       :subtitle="$users->count().' '.Str::plural('account', $users->count()).' can sign in to the portal.'">
             <x-slot name="actions">
-                <a href="{{ route('users.create') }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-brand-400 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-brand-500">
-                    + Add Staff
-                </a>
+                <x-btn :href="route('users.create')" icon="plus">Add staff</x-btn>
             </x-slot>
         </x-page-header>
     </x-slot>
 
-    <div class="space-y-4">
-        {{-- Mobile: card list --}}
-        <div class="md:hidden space-y-3">
-            @foreach ($users as $user)
-                <div class="bg-white shadow-sm rounded-lg p-4">
-                    <div class="flex items-start justify-between gap-2">
-                        <div class="flex items-start gap-3 min-w-0">
-                            <x-avatar :name="$user->name" :src="$user->avatarUrl()" />
-                            <div class="min-w-0">
-                                <div class="flex items-center gap-2 flex-wrap">
-                                    <p class="font-semibold text-gray-900 truncate">{{ $user->name }}</p>
-                                    <x-badge :status="$user->isAdmin() ? 'active' : 'pending'">
-                                        {{ $user->isAdmin() ? 'Admin' : 'Employee' }}
-                                    </x-badge>
-                                </div>
-                                <p class="text-sm text-gray-500 truncate">{{ $user->email }}</p>
-                                @if ($user->bio)
-                                    <p class="text-xs text-gray-500 mt-1 line-clamp-2">{{ $user->bio }}</p>
-                                @endif
-                            </div>
+    {{-- Mobile: card list --}}
+    <div class="md:hidden space-y-3">
+        @foreach ($users as $user)
+            <x-card padding="sm">
+                <div class="flex items-start gap-3">
+                    <x-avatar :name="$user->name" :src="$user->avatarUrl()" />
+
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <p class="font-semibold text-gray-900 truncate">{{ $user->name }}</p>
+                            @if ($user->id === auth()->id())
+                                <span class="text-[11px] font-medium text-gray-400">(you)</span>
+                            @endif
                         </div>
-                        <div class="flex flex-col items-end gap-1 shrink-0">
-                            <a href="{{ route('users.edit', $user) }}" class="text-brand-500 font-semibold text-sm min-h-[44px] inline-flex items-center">Edit</a>
-                            @unless ($user->id === auth()->id())
-                                <form method="POST" action="{{ route('users.destroy', $user) }}" onsubmit="return confirm('Remove this staff account?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="text-red-600 font-semibold text-sm min-h-[44px]">Remove</button>
-                                </form>
-                            @endunless
+                        <p class="text-sm text-gray-500 truncate">{{ $user->email }}</p>
+
+                        <div class="mt-2">
+                            <x-badge :status="$user->isAdmin() ? 'active' : 'pending'">
+                                {{ $user->isAdmin() ? 'Admin' : 'Employee' }}
+                            </x-badge>
                         </div>
+
+                        @if ($user->bio)
+                            <p class="text-xs text-gray-500 mt-2 line-clamp-2">{{ $user->bio }}</p>
+                        @endif
                     </div>
                 </div>
-            @endforeach
-        </div>
 
-        {{-- Desktop: table --}}
-        <x-card class="hidden md:block overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Access</th>
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200">
-                    @foreach ($users as $user)
-                        <tr>
-                            <td class="px-6 py-4 text-sm font-medium text-gray-900">
-                                <div class="flex items-center gap-3">
-                                    <x-avatar :name="$user->name" :src="$user->avatarUrl()" size="sm" />
-                                    <div class="min-w-0">
-                                        <p class="truncate">
-                                            {{ $user->name }}
-                                            @if ($user->id === auth()->id())
-                                                <span class="text-xs text-gray-400">(you)</span>
-                                            @endif
-                                        </p>
-                                        @if ($user->bio)
-                                            <p class="text-xs text-gray-500 truncate max-w-xs">{{ $user->bio }}</p>
+                <div class="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+                    <x-btn :href="route('users.edit', $user)" variant="secondary" size="sm" class="flex-1">Edit</x-btn>
+                    @unless ($user->id === auth()->id())
+                        <form method="POST" action="{{ route('users.destroy', $user) }}" class="flex-1"
+                              onsubmit="return confirm('Remove this staff account?');">
+                            @csrf
+                            @method('DELETE')
+                            <x-btn variant="secondary" size="sm" class="w-full !text-red-600 hover:!bg-red-50">Remove</x-btn>
+                        </form>
+                    @endunless
+                </div>
+            </x-card>
+        @endforeach
+    </div>
+
+    {{-- Desktop: table --}}
+    <x-card class="hidden md:block overflow-hidden">
+        <table class="min-w-full">
+            <thead>
+                <tr class="border-b border-gray-200 bg-gray-50/80">
+                    <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                    <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Email</th>
+                    <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Access</th>
+                    <th class="px-6 py-3 text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                @foreach ($users as $user)
+                    <tr class="hover:bg-gray-50/70 transition">
+                        <td class="px-6 py-3.5">
+                            <div class="flex items-center gap-3">
+                                <x-avatar :name="$user->name" :src="$user->avatarUrl()" size="sm" />
+                                <div class="min-w-0">
+                                    <p class="text-sm font-semibold text-gray-900 truncate">
+                                        {{ $user->name }}
+                                        @if ($user->id === auth()->id())
+                                            <span class="text-xs font-normal text-gray-400">(you)</span>
                                         @endif
-                                    </div>
+                                    </p>
+                                    @if ($user->bio)
+                                        <p class="text-xs text-gray-500 truncate max-w-xs">{{ $user->bio }}</p>
+                                    @endif
                                 </div>
-                            </td>
-                            <td class="px-6 py-4 text-sm text-gray-500">{{ $user->email }}</td>
-                            <td class="px-6 py-4 text-sm">
-                                <x-badge :status="$user->isAdmin() ? 'active' : 'pending'">
-                                    {{ $user->isAdmin() ? 'Admin' : 'Employee' }}
-                                </x-badge>
-                            </td>
-                            <td class="px-6 py-4 text-right text-sm space-x-3">
-                                <a href="{{ route('users.edit', $user) }}" class="text-brand-500 hover:text-brand-600 font-semibold">Edit</a>
+                            </div>
+                        </td>
+                        <td class="px-6 py-3.5 text-sm text-gray-500">{{ $user->email }}</td>
+                        <td class="px-6 py-3.5">
+                            <x-badge :status="$user->isAdmin() ? 'active' : 'pending'">
+                                {{ $user->isAdmin() ? 'Admin' : 'Employee' }}
+                            </x-badge>
+                        </td>
+                        <td class="px-6 py-3.5">
+                            <div class="flex items-center justify-end gap-3">
+                                <a href="{{ route('users.edit', $user) }}"
+                                   class="text-sm font-semibold text-brand-600 hover:text-brand-700">Edit</a>
                                 @unless ($user->id === auth()->id())
-                                    <form method="POST" action="{{ route('users.destroy', $user) }}" class="inline" onsubmit="return confirm('Remove this staff account?');">
+                                    <form method="POST" action="{{ route('users.destroy', $user) }}"
+                                          onsubmit="return confirm('Remove this staff account?');">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="text-red-600 hover:text-red-900 font-semibold">Remove</button>
+                                        <button type="submit" class="text-sm font-semibold text-red-600 hover:text-red-800">Remove</button>
                                     </form>
                                 @endunless
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </x-card>
-    </div>
+                            </div>
+                        </td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </x-card>
 </x-app-layout>

@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="New invoice">
     <x-slot name="header">
         <x-page-header title="New Invoice" />
     </x-slot>
