@@ -15,25 +15,31 @@
             @foreach ($users as $user)
                 <div class="bg-white shadow-sm rounded-lg p-4">
                     <div class="flex items-start justify-between gap-2">
-                        <div class="min-w-0">
-                            <div class="flex items-center gap-2 flex-wrap">
-                                <p class="font-semibold text-gray-900 truncate">{{ $user->name }}</p>
-                                <x-badge :status="$user->isAdmin() ? 'active' : 'pending'">
-                                    {{ $user->isAdmin() ? 'Admin' : 'Employee' }}
-                                </x-badge>
+                        <div class="flex items-start gap-3 min-w-0">
+                            <x-avatar :name="$user->name" :src="$user->avatarUrl()" />
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <p class="font-semibold text-gray-900 truncate">{{ $user->name }}</p>
+                                    <x-badge :status="$user->isAdmin() ? 'active' : 'pending'">
+                                        {{ $user->isAdmin() ? 'Admin' : 'Employee' }}
+                                    </x-badge>
+                                </div>
+                                <p class="text-sm text-gray-500 truncate">{{ $user->email }}</p>
+                                @if ($user->bio)
+                                    <p class="text-xs text-gray-500 mt-1 line-clamp-2">{{ $user->bio }}</p>
+                                @endif
                             </div>
-                            <p class="text-sm text-gray-500 truncate">{{ $user->email }}</p>
-                            @if ($user->employeeRecord)
-                                <p class="text-xs text-gray-400 truncate">Linked to {{ $user->employeeRecord->name }} in Salaries</p>
-                            @endif
                         </div>
-                        @unless ($user->id === auth()->id())
-                            <form method="POST" action="{{ route('users.destroy', $user) }}" onsubmit="return confirm('Remove this staff account?');">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="text-red-600 font-semibold text-sm min-h-[44px]">Remove</button>
-                            </form>
-                        @endunless
+                        <div class="flex flex-col items-end gap-1 shrink-0">
+                            <a href="{{ route('users.edit', $user) }}" class="text-brand-500 font-semibold text-sm min-h-[44px] inline-flex items-center">Edit</a>
+                            @unless ($user->id === auth()->id())
+                                <form method="POST" action="{{ route('users.destroy', $user) }}" onsubmit="return confirm('Remove this staff account?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-red-600 font-semibold text-sm min-h-[44px]">Remove</button>
+                                </form>
+                            @endunless
+                        </div>
                     </div>
                 </div>
             @endforeach
@@ -47,18 +53,27 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Access</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
-                        <th class="px-6 py-3"></th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
                     @foreach ($users as $user)
                         <tr>
                             <td class="px-6 py-4 text-sm font-medium text-gray-900">
-                                {{ $user->name }}
-                                @if ($user->id === auth()->id())
-                                    <span class="text-xs text-gray-400">(you)</span>
-                                @endif
+                                <div class="flex items-center gap-3">
+                                    <x-avatar :name="$user->name" :src="$user->avatarUrl()" size="sm" />
+                                    <div class="min-w-0">
+                                        <p class="truncate">
+                                            {{ $user->name }}
+                                            @if ($user->id === auth()->id())
+                                                <span class="text-xs text-gray-400">(you)</span>
+                                            @endif
+                                        </p>
+                                        @if ($user->bio)
+                                            <p class="text-xs text-gray-500 truncate max-w-xs">{{ $user->bio }}</p>
+                                        @endif
+                                    </div>
+                                </div>
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-500">{{ $user->email }}</td>
                             <td class="px-6 py-4 text-sm">
@@ -66,12 +81,10 @@
                                     {{ $user->isAdmin() ? 'Admin' : 'Employee' }}
                                 </x-badge>
                             </td>
-                            <td class="px-6 py-4 text-sm text-gray-500">
-                                {{ $user->employeeRecord?->name ?? '—' }}
-                            </td>
-                            <td class="px-6 py-4 text-right text-sm">
+                            <td class="px-6 py-4 text-right text-sm space-x-3">
+                                <a href="{{ route('users.edit', $user) }}" class="text-brand-500 hover:text-brand-600 font-semibold">Edit</a>
                                 @unless ($user->id === auth()->id())
-                                    <form method="POST" action="{{ route('users.destroy', $user) }}" onsubmit="return confirm('Remove this staff account?');">
+                                    <form method="POST" action="{{ route('users.destroy', $user) }}" class="inline" onsubmit="return confirm('Remove this staff account?');">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="text-red-600 hover:text-red-900 font-semibold">Remove</button>

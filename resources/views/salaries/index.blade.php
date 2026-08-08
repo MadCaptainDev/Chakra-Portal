@@ -78,7 +78,7 @@
                     @endphp
 
                     <div class="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-                        <x-avatar :name="$employee->name" />
+                        <x-avatar :name="$employee->name" :src="$employee->user?->avatarUrl()" />
 
                         <div class="min-w-0 flex-1">
                             <a href="{{ route('salaries.show', $employee) }}" class="font-medium text-gray-900 hover:text-brand-500 truncate block">
@@ -116,7 +116,7 @@
                 <x-card class="divide-y divide-gray-200">
                     @foreach ($left as $employee)
                         <div class="p-3 flex items-center gap-3">
-                            <x-avatar :name="$employee->name" size="sm" class="opacity-60" />
+                            <x-avatar :name="$employee->name" :src="$employee->user?->avatarUrl()" size="sm" class="opacity-60" />
                             <a href="{{ route('salaries.show', $employee) }}" class="text-sm text-gray-600 hover:text-brand-500 flex-1 truncate">{{ $employee->name }}</a>
                             <span class="text-xs text-gray-400 shrink-0">{{ number_format($employee->amount, 0) }}/mo</span>
                         </div>

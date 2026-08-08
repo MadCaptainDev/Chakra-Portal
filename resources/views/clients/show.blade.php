@@ -11,8 +11,8 @@
 
     <div class="space-y-6">
         {{-- Contact info --}}
-        <x-card class="p-4 sm:p-6">
-            <h3 class="font-semibold text-gray-900 mb-3">Contact Info</h3>
+        <x-card class="p-4 sm:p-6 border border-brand-100/40">
+            <h3 class="font-semibold text-brand-900 mb-3">Contact Info</h3>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
                     <dt class="text-gray-500">Address</dt>
@@ -26,19 +26,45 @@
                     <dt class="text-gray-500">Phone</dt>
                     <dd class="text-gray-900">{{ $client->phone ?: '—' }}</dd>
                 </div>
+                @if ($ventureLabel)
+                    <div>
+                        <dt class="text-gray-500">Timesheet venture</dt>
+                        <dd class="text-gray-900">{{ $ventureLabel }}</dd>
+                    </div>
+                @endif
             </dl>
         </x-card>
 
+        {{-- Production hours against this client --}}
+        <div>
+            <h3 class="font-semibold text-brand-900 mb-3">Timesheet hours</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <x-card class="p-4 sm:p-5 border border-brand-100/60">
+                    <p class="text-xs text-brand-600 uppercase tracking-wide font-semibold">Total logged</p>
+                    <p class="text-2xl font-bold text-brand-900 mt-1">{{ \App\Models\TimesheetEntry::formatMinutes($timesheet['minutes']) }}</p>
+                    <p class="text-xs text-gray-500 mt-1">{{ $timesheet['entries'] }} {{ Str::plural('entry', $timesheet['entries']) }}</p>
+                </x-card>
+                <x-charts.horizontal-bars
+                    :items="collect($timesheet['byType'])->map(fn ($row) => ['label' => $row['label'], 'minutes' => $row['minutes']])->all()"
+                    :max-minutes="max(1, collect($timesheet['byType'])->max('minutes') ?: 0)"
+                    title="By type"
+                    :limit="4"
+                    :linkable="false"
+                    empty="No timesheet hours for this client yet."
+                />
+            </div>
+        </div>
+
         {{-- Invoice history --}}
         <div>
-            <h3 class="font-semibold text-gray-900 mb-3">Invoice History</h3>
+            <h3 class="font-semibold text-brand-900 mb-3">Invoice History</h3>
             @if ($invoices->isEmpty())
                 <x-empty-state message="No invoices for this client yet." />
             @else
                 {{-- Mobile: card list --}}
                 <div class="md:hidden space-y-3">
                     @foreach ($invoices as $invoice)
-                        <a href="{{ route('invoices.show', $invoice) }}" class="block bg-white shadow-sm rounded-lg p-4">
+                        <a href="{{ route('invoices.show', $invoice) }}" class="block bg-white shadow-sm rounded-lg p-4 border border-brand-100/40">
                             <div class="flex items-center justify-between gap-2">
                                 <span class="font-semibold text-gray-900">{{ $invoice->invoice_number ?? 'Pending' }}</span>
                                 <x-badge :status="$invoice->displayStatus()" />
@@ -52,9 +78,9 @@
                 </div>
 
                 {{-- Desktop: table --}}
-                <x-card class="hidden md:block overflow-x-auto">
+                <x-card class="hidden md:block overflow-x-auto border border-brand-100/40">
                     <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
+                        <thead class="bg-brand-50/50">
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>

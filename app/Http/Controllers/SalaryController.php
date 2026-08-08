@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Expense;
 use App\Services\ExpenseLedger;
 use App\Support\LocksExpenseAmount;
+use App\Support\ManagesAvatars;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -14,6 +15,7 @@ use Illuminate\View\View;
 class SalaryController extends Controller
 {
     use LocksExpenseAmount;
+    use ManagesAvatars;
 
     public function __construct(private readonly ExpenseLedger $ledger) {}
 
@@ -24,7 +26,7 @@ class SalaryController extends Controller
     {
         $month = $this->ledger->resolveMonth($request->query('month'));
 
-        $employees = Expense::where('type', Expense::TYPE_SALARY)->orderBy('name')->get();
+        $employees = Expense::where('type', Expense::TYPE_SALARY)->with('user')->orderBy('name')->get();
         [$active, $left] = $employees->partition(fn (Expense $e) => (bool) $e->is_active);
 
         $rows = $this->ledger->rowsFor($month, $active);
@@ -42,6 +44,8 @@ class SalaryController extends Controller
     public function show(Expense $salary): View
     {
         abort_unless($salary->type === Expense::TYPE_SALARY, 404);
+
+        $salary->loadMissing('user');
 
         $history = $salary->payments()->orderByDesc('period')->get();
 
@@ -98,7 +102,29 @@ class SalaryController extends Controller
         abort_unless($salary->type === Expense::TYPE_SALARY, 404);
 
         $unlocked = $request->boolean('unlock_amount');
-        $salary->update($this->validated($request, isUpdate: true));
+        $data = $this->validated($request, isUpdate: true);
+
+        $salary->loadMissing('user');
+        $profile = [];
+        if ($salary->user) {
+            $profile = $request->validate([
+                'bio' => ['nullable', 'string', 'max:1000'],
+                'avatar' => ['nullable', 'image', 'max:2048'],
+                'remove_avatar' => ['sometimes', 'boolean'],
+            ]);
+        }
+
+        $salary->update($data);
+
+        if ($salary->user) {
+            $salary->user->fill([
+                'name' => $data['name'],
+                'phone' => $data['phone'] ?? null,
+                'bio' => $profile['bio'] ?? null,
+            ]);
+            $this->applyAvatarUpload($request, $salary->user);
+            $salary->user->save();
+        }
 
         $message = $unlocked
             ? 'Employee updated. Salary amount changed.'

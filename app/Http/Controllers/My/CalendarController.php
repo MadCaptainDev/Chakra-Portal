@@ -17,6 +17,7 @@ class CalendarController extends Controller
 
         $entries = TimesheetEntry::where('user_id', $request->user()->id)
             ->forMonth($month)
+            ->orderByRaw('started_at IS NULL')
             ->orderBy('started_at')
             ->get()
             ->groupBy(fn (TimesheetEntry $entry) => $entry->worked_on->toDateString());

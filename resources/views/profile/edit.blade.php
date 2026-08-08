@@ -16,10 +16,12 @@
             </div>
         </x-card>
 
-        <x-card class="p-4 sm:p-8">
-            <div class="max-w-xl">
-                @include('profile.partials.delete-user-form')
-            </div>
-        </x-card>
+        @if ($user->isAdmin())
+            <x-card class="p-4 sm:p-8">
+                <div class="max-w-xl">
+                    @include('profile.partials.delete-user-form')
+                </div>
+            </x-card>
+        @endif
     </div>
 </x-app-layout>

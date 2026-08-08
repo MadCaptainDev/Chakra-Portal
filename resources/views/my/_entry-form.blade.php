@@ -2,16 +2,43 @@
     // Renders bare -- the caller supplies the card chrome.
     $entry = $entry ?? null;
     $uid = $entry?->id ?? 'new';
-    $ventures = $ventures ?? [];
+    $knownValues = collect($ventureOptions)->pluck('value')->all();
+    $currentVenture = old('venture', $entry->venture ?? '');
+    $currentType = old('task_type', $entry->task_type ?? '');
+    $initialTask = old('task', $entry->task ?? '');
+    // Prefer stored/posted type; otherwise suggest from task text for new rows.
+    if ($currentType === '' || ! array_key_exists($currentType, \App\Models\TimesheetEntry::TASK_TYPES)) {
+        $currentType = $entry
+            ? ($entry->task_type ?: \App\Models\TimesheetEntry::TASK_OTHER)
+            : \App\Models\TimesheetEntry::inferTaskType($initialTask);
+    }
 @endphp
 
-<form method="POST" action="{{ $entry ? route('my.timesheet.update', $entry) : route('my.timesheet.store') }}">
+<form method="POST" action="{{ $entry ? route('my.timesheet.update', $entry) : route('my.timesheet.store') }}"
+      x-data="{
+          task: @js($initialTask),
+          taskType: @js($currentType),
+          typeTouched: {{ $entry || old('task_type') ? 'true' : 'false' }},
+          suggestType() {
+              if (this.typeTouched) return;
+              const t = (this.task || '').toLowerCase();
+              if (/\b(shoot|shooting|photo\s*shoot)\b/.test(t)) {
+                  this.taskType = 'shooting';
+              } else if (/\b(edit|editing|edits)\b/.test(t)) {
+                  this.taskType = 'editing';
+              } else if (/\b(post|posting|upload|uploading|schedule|scheduling|publish|publishing)\b/.test(t)) {
+                  this.taskType = 'posting';
+              } else if (t.trim() !== '') {
+                  this.taskType = 'other';
+              }
+          }
+      }">
     @csrf
     @if ($entry)
         @method('PUT')
     @endif
 
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <div>
             <x-input-label :for="'ts_date_'.$uid" value="Date" />
             <x-text-input :id="'ts_date_'.$uid" name="worked_on" type="date" class="mt-1 block w-full"
@@ -20,28 +47,45 @@
         </div>
 
         <div>
-            <x-input-label :for="'ts_task_'.$uid" value="Task" />
-            <x-text-input :id="'ts_task_'.$uid" name="task" type="text" class="mt-1 block w-full"
-                          value="{{ old('task', $entry->task ?? '') }}" placeholder="e.g. Shoot" required />
-            <x-input-error :messages="$errors->get('task')" class="mt-2" />
-        </div>
-
-        <div>
-            <x-input-label :for="'ts_venture_'.$uid" value="Venture / Project" />
-            <x-text-input :id="'ts_venture_'.$uid" name="venture" type="text" class="mt-1 block w-full"
-                          value="{{ old('venture', $entry->venture ?? '') }}" placeholder="e.g. SVA Website"
-                          list="venture-suggestions" />
+            <x-input-label :for="'ts_venture_'.$uid" value="Client / Venture" />
+            @php
+                $allClientsValue = \App\Support\TimesheetVenture::ALL_CLIENTS;
+                $clientOptions = collect($ventureOptions)->reject(fn ($o) => $o['value'] === $allClientsValue);
+            @endphp
+            <x-select :id="'ts_venture_'.$uid" name="venture" class="mt-1" required>
+                <option value="">Select client</option>
+                @foreach ($clientOptions as $option)
+                    <option value="{{ $option['value'] }}" @selected($currentVenture === $option['value'])>{{ $option['label'] }}</option>
+                @endforeach
+                <option value="{{ $allClientsValue }}" @selected($currentVenture === $allClientsValue)>{{ $allClientsValue }}</option>
+            </x-select>
+            @if ($currentVenture !== '' && ! in_array($currentVenture, $knownValues, true))
+                <p class="mt-1 text-xs text-amber-700">Current value “{{ $currentVenture }}” is not a client — pick one below to fix it.</p>
+            @endif
             <x-input-error :messages="$errors->get('venture')" class="mt-2" />
         </div>
     </div>
 
-    @if (! empty($ventures))
-        <datalist id="venture-suggestions">
-            @foreach ($ventures as $venture)
-                <option value="{{ $venture }}"></option>
-            @endforeach
-        </datalist>
-    @endif
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div>
+            <x-input-label :for="'ts_type_'.$uid" value="Type" />
+            <x-select :id="'ts_type_'.$uid" name="task_type" class="mt-1" required
+                      x-model="taskType" @change="typeTouched = true">
+                @foreach (\App\Models\TimesheetEntry::TASK_TYPES as $value => $label)
+                    <option value="{{ $value }}">{{ $label }}</option>
+                @endforeach
+            </x-select>
+            <x-input-error :messages="$errors->get('task_type')" class="mt-2" />
+        </div>
+
+        <div>
+            <x-input-label :for="'ts_task_'.$uid" value="Task name" />
+            <x-text-input :id="'ts_task_'.$uid" name="task" type="text" class="mt-1 block w-full"
+                          x-model="task" @input="suggestType()"
+                          value="{{ $initialTask }}" placeholder="e.g. Shoot, Editing, Upload" required />
+            <x-input-error :messages="$errors->get('task')" class="mt-2" />
+        </div>
+    </div>
 
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4"
          x-data="{
@@ -78,7 +122,7 @@
                    x-model="end" @change="recompute()"
                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
             <x-input-error :messages="$errors->get('ended_at')" class="mt-2" />
-            <p class="text-[11px] text-gray-500 mt-1">Use 24-hour time, so 10:30 PM is 22:30.</p>
+            <p class="text-[11px] text-gray-500 mt-1">24-hour time (e.g. 22:30).</p>
         </div>
 
         <div>

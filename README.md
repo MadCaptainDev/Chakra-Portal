@@ -17,6 +17,7 @@ Built with Laravel 12, Blade, Alpine.js and Tailwind CSS. Runs on PHP 8.2+ and M
 | **Salaries** | Monthly payroll run plus employee records — role, joining date, contact, and payment history. |
 | **Bills** | Recurring costs tracked as budget vs what was actually paid. |
 | **Users** | Staff logins. Public registration is closed; accounts are created from inside the portal. |
+| **Timesheets** | Employees log daily work under `/my/timesheet`. Admins review everyone under `/timesheets` and can award monthly points. |
 
 ## Getting started
 
@@ -35,6 +36,20 @@ php artisan db:seed --class=ExpenseSeeder
 npm run build
 php artisan serve
 ```
+
+### Daily Timesheet import
+
+Place the messy `Daily Timesheet .xlsx` in the project root, then:
+
+```bash
+php artisan timesheet:clean
+php artisan timesheet:import --fresh
+```
+
+`timesheet:clean` rewrites every row (dates, times, effort, status) into
+`Daily Timesheet Clean.xlsx` / `storage/app/timesheets/Daily Timesheet Clean.xlsx`.
+Review that file, then import. Employee logins are `aron@chakragroups.in` etc.
+(temporary password `Chakra@2026`).
 
 ## Invoice PDFs
 

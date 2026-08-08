@@ -65,6 +65,7 @@ class EmployeeAccessTest extends TestCase
         $this->actingAs($employee)->get(route('my.dashboard'))->assertOk();
         $this->actingAs($employee)->get(route('my.timesheet'))->assertOk();
         $this->actingAs($employee)->get(route('my.calendar'))->assertOk();
+        $this->actingAs($employee)->get(route('profile.edit'))->assertOk();
     }
 
     public function test_employees_cannot_touch_each_others_entries(): void

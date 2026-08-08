@@ -25,6 +25,11 @@
         'published' => 'bg-green-100 text-green-800',
         'canceled' => 'bg-red-100 text-red-800',
         'cancelled' => 'bg-red-100 text-red-800',
+        'shooting' => 'bg-brand-100 text-brand-800',
+        'editing' => 'bg-indigo-100 text-indigo-800',
+        'posting' => 'bg-teal-100 text-teal-800',
+        'other' => 'bg-slate-100 text-slate-700',
+        'other_task' => 'bg-slate-100 text-slate-700',
     ];
 
     $labels = [
@@ -49,6 +54,11 @@
         'scheduled' => 'Scheduled',
         'published' => 'Published',
         'canceled' => 'Canceled',
+        'shooting' => 'Shooting',
+        'editing' => 'Editing',
+        'posting' => 'Posting',
+        'other' => 'Other Task',
+        'other_task' => 'Other Task',
     ];
 
     // Invoice/recurring statuses arrive as snake_case; Notion statuses arrive as

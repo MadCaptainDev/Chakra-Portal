@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Support\ManagesAvatars;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -11,13 +12,18 @@ use Illuminate\View\View;
 
 class ProfileController extends Controller
 {
+    use ManagesAvatars;
+
     /**
      * Display the user's profile form.
      */
     public function edit(Request $request): View
     {
+        $user = $request->user();
+        $user->loadMissing('employeeRecord');
+
         return view('profile.edit', [
-            'user' => $request->user(),
+            'user' => $user,
         ]);
     }
 
@@ -26,22 +32,35 @@ class ProfileController extends Controller
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
-        $request->user()->fill($request->validated());
+        $user = $request->user();
+        $validated = $request->safe()->except(['avatar', 'remove_avatar']);
 
-        if ($request->user()->isDirty('email')) {
-            $request->user()->email_verified_at = null;
+        $user->fill($validated);
+
+        if ($user->isDirty('email')) {
+            $user->email_verified_at = null;
         }
 
-        $request->user()->save();
+        $this->applyAvatarUpload($request, $user);
+        $user->save();
+
+        // Keep the payroll phone in sync when this login is linked to a salary row.
+        if ($user->employeeRecord && array_key_exists('phone', $validated)) {
+            $user->employeeRecord->update(['phone' => $validated['phone']]);
+        }
 
         return Redirect::route('profile.edit')->with('status', 'profile-updated');
     }
 
     /**
      * Delete the user's account.
+     *
+     * Employee logins are issued by admins — only admins may self-delete.
      */
     public function destroy(Request $request): RedirectResponse
     {
+        abort_unless($request->user()->isAdmin(), 403);
+
         $request->validateWithBag('userDeletion', [
             'password' => ['required', 'current_password'],
         ]);
@@ -50,6 +69,7 @@ class ProfileController extends Controller
 
         Auth::logout();
 
+        $this->deleteAvatarFile($user->avatar_path);
         $user->delete();
 
         $request->session()->invalidate();
