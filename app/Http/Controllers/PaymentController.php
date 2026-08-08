@@ -16,8 +16,9 @@ class PaymentController extends Controller
                 ->with('error', 'Approve this invoice before recording a payment.');
         }
 
-        // Cap at what is still owed so a stray zero cannot be recorded and
-        // then silently swallowed by balanceDue()'s max(0, ...).
+        // Cap at what is still owed: without a ceiling an over-payment drives
+        // balanceDue() negative and the invoice still reads as paid. The rule
+        // carries the ceiling so the message lands on the amount field itself.
         $balance = $invoice->balanceDue();
 
         $validated = $request->validate([

@@ -283,6 +283,37 @@
                     </div>
                 </div>
             </div>
+
+            {{-- Money going out. The dashboard covered only invoices until the
+                 EMI, Salaries and Bills modules landed, which left half the
+                 product invisible from the home screen. --}}
+            <div class="grid-stack-item" data-panel="overview" gs-id="outflow" gs-x="0" gs-y="12" gs-w="12" gs-h="3" gs-min-w="4" gs-min-h="3">
+                <div class="grid-stack-item-content">
+                    <div class="dashboard-widget p-4 sm:p-5">
+                        <div class="flex items-center justify-between gap-2 mb-3">
+                            <div class="flex items-start gap-2 min-w-0">
+                                <span class="dashboard-drag-handle mt-1 text-gray-300 hover:text-gray-500" title="Drag">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a1 1 0 100-2 1 1 0 000 2zm6 0a1 1 0 100-2 1 1 0 000 2zM7 11a1 1 0 100-2 1 1 0 000 2zm6 0a1 1 0 100-2 1 1 0 000 2zM7 18a1 1 0 100-2 1 1 0 000 2zm6 0a1 1 0 100-2 1 1 0 000 2z"/></svg>
+                                </span>
+                                <h3 class="font-semibold text-gray-800">This Month's Outflow &mdash; {{ $month->format('F Y') }}</h3>
+                            </div>
+                            <a href="{{ route('expenses.index') }}" class="shrink-0 text-sm font-semibold text-brand-500 hover:text-brand-600">
+                                View all &rarr;
+                            </a>
+                        </div>
+
+                        <div class="dashboard-widget-body grid grid-cols-2 lg:grid-cols-4 gap-4">
+                            <x-stat-card label="Total Due" value="{{ number_format($outflowDue, 2) }}" accent="gray" />
+                            <x-stat-card label="Paid" value="{{ number_format($outflowPaid, 2) }}" accent="green" />
+                            <x-stat-card label="Still Pending" value="{{ number_format($outflowPending, 2) }}"
+                                         accent="{{ $outflowPending > 0 ? 'red' : 'gray' }}" />
+                            <x-stat-card label="EMI Portion" value="{{ number_format($emiThisMonth, 2) }}" accent="brand">
+                                <a href="{{ route('emi.index') }}" class="text-brand-500 hover:text-brand-600">EMI detail &rarr;</a>
+                            </x-stat-card>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

@@ -155,6 +155,14 @@ class DashboardController extends Controller
             'incomeSplit' => $incomeSplit,
             'bottlenecks' => $bottlenecks,
             'actionItems' => $actionItems,
+
+            // Aliases for the outflow widget. The figures above come from the
+            // same month and the same ledger rows, so recomputing them here
+            // would only risk the two disagreeing.
+            'outflowDue' => $expenseDue,
+            'outflowPaid' => $expensePaid,
+            'outflowPending' => $expenseOutstanding,
+            'emiThisMonth' => $emiLoad,
         ]);
     }
 
@@ -310,7 +318,7 @@ class DashboardController extends Controller
             $items[] = [
                 'tone' => 'amber',
                 'title' => $ctx['pendingApprovalCount'].' invoice(s) need approval',
-                'detail' => 'Nothing goes out until these are approved.',
+                'detail' => 'These are waiting for your approval — nothing goes out until then.',
                 'href' => route('invoices.index', ['status' => 'pending_approval']),
                 'cta' => 'Review',
             ];

@@ -30,7 +30,18 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
+            // A factory user represents staff. The database column defaults to
+            // the least-privileged value instead, so a row created outside the
+            // app never silently gains admin rights.
+            'role' => User::ROLE_ADMIN,
         ];
+    }
+
+    public function employee(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => User::ROLE_EMPLOYEE,
+        ]);
     }
 
     /**

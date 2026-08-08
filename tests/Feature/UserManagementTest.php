@@ -26,10 +26,28 @@ class UserManagementTest extends TestCase
             'email' => 'new-staff@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
+            'role' => \App\Models\User::ROLE_ADMIN,
         ]);
 
         $response->assertRedirect(route('users.index'));
-        $this->assertDatabaseHas('users', ['email' => 'new-staff@example.com']);
+        $this->assertDatabaseHas('users', [
+            'email' => 'new-staff@example.com',
+            'role' => \App\Models\User::ROLE_ADMIN,
+        ]);
+    }
+
+    public function test_an_access_level_must_be_chosen(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->post(route('users.store'), [
+            'name' => 'No Role',
+            'email' => 'no-role@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertSessionHasErrors('role');
+
+        $this->assertDatabaseMissing('users', ['email' => 'no-role@example.com']);
     }
 
     public function test_staff_can_remove_another_user(): void

@@ -20,7 +20,9 @@
 
             <!-- Mobile top bar -->
             <div class="lg:hidden sticky top-0 z-30 flex items-center justify-between h-16 px-4 bg-brand-900">
-                <a href="{{ route('dashboard') }}" class="flex items-center">
+                {{-- Role-aware: an employee tapping the logo must not land on
+                     the admin dashboard and get a 403. --}}
+                <a href="{{ route(auth()->user()?->homeRoute() ?? 'home') }}" class="flex items-center">
                     <x-application-logo class="h-8 w-auto" />
                 </a>
                 <button @click="sidebarOpen = true" class="p-2 -mr-2 text-brand-100 hover:text-white" aria-label="Open menu">

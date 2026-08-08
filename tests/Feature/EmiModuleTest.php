@@ -160,6 +160,20 @@ class EmiModuleTest extends TestCase
         $this->assertSame('2027-08-01', $emi->lastMonth()->toDateString());
     }
 
+    public function test_index_exposes_edit_and_delete_for_each_emi(): void
+    {
+        // These routes and controller methods existed but nothing linked to
+        // them, so an EMI added with a typo could never be corrected.
+        $emi = $this->gimbal();
+
+        $response = $this->actingAs(User::factory()->create())->get(route('emi.index'));
+
+        $response->assertOk();
+        $response->assertSee(route('emi.destroy', $emi), false);
+        $response->assertSee(route('emi.update', $emi), false);
+        $response->assertSee('Delete');
+    }
+
     public function test_guest_is_redirected_to_login(): void
     {
         $this->get(route('emi.index'))->assertRedirect(route('login'));

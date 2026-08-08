@@ -92,7 +92,9 @@
             </div>
 
             <div x-show="adding" x-cloak class="mb-4">
-                @include('emi._form')
+                <x-card class="p-4 sm:p-6">
+                    @include('emi._form')
+                </x-card>
             </div>
 
             @if ($running->isEmpty())
@@ -229,6 +231,17 @@
 
                             <div x-show="editingId === {{ $emi->id }}" x-cloak>
                                 @include('emi._form', ['emi' => $emi])
+                            </div>
+
+                            <div class="mt-2 flex items-center justify-end gap-3">
+                                <form method="POST" action="{{ route('emi.destroy', $emi) }}"
+                                      onsubmit="return confirm('Delete {{ $emi->name }}? Any recorded payments against it go too.');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="min-h-[44px] px-2 text-xs font-semibold text-red-600 hover:text-red-800">
+                                        Delete
+                                    </button>
+                                </form>
                             </div>
                         </x-card>
                     @endforeach

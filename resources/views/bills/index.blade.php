@@ -49,7 +49,9 @@
         </div>
 
         <div x-show="adding" x-cloak>
-            @include('bills._form')
+            <x-card class="p-4 sm:p-6">
+                @include('bills._form')
+            </x-card>
         </div>
 
         @if ($rows->isEmpty())

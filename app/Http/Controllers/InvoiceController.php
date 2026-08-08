@@ -145,6 +145,14 @@ class InvoiceController extends Controller
 
     public function destroy(Invoice $invoice): RedirectResponse
     {
+        // payments.invoice_id is cascadeOnDelete, so deleting an invoice takes
+        // its payment records with it. Clients and users are already protected
+        // from destructive deletes; the accounting record should be too.
+        if ($invoice->payments()->exists()) {
+            return redirect()->route('invoices.show', $invoice)
+                ->with('error', 'This invoice has payments recorded against it. Remove those first if you really need to delete it.');
+        }
+
         $invoice->delete();
 
         return redirect()->route('invoices.index')->with('status', 'Invoice deleted.');

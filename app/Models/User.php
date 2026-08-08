@@ -5,6 +5,8 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -12,6 +14,19 @@ class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
+
+    /**
+     * Access level. Not to be confused with Expense::$role, which is an
+     * employee's job title ("Editor") and grants nothing.
+     */
+    public const ROLE_ADMIN = 'admin';
+
+    public const ROLE_EMPLOYEE = 'employee';
+
+    public const ROLES = [
+        self::ROLE_ADMIN => 'Admin — full access',
+        self::ROLE_EMPLOYEE => 'Employee — timesheet only',
+    ];
 
     /**
      * The attributes that are mass assignable.
@@ -22,6 +37,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role',
     ];
 
     /**
@@ -45,5 +61,42 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === self::ROLE_ADMIN;
+    }
+
+    public function isEmployee(): bool
+    {
+        return ! $this->isAdmin();
+    }
+
+    /**
+     * The Salaries record for this person, if their login has been linked to
+     * one. Admins normally have none.
+     */
+    public function employeeRecord(): HasOne
+    {
+        return $this->hasOne(Expense::class)->where('type', Expense::TYPE_SALARY);
+    }
+
+    public function timesheetEntries(): HasMany
+    {
+        return $this->hasMany(TimesheetEntry::class);
+    }
+
+    public function points(): HasMany
+    {
+        return $this->hasMany(EmployeePoint::class);
+    }
+
+    /**
+     * Where this user belongs after signing in.
+     */
+    public function homeRoute(): string
+    {
+        return $this->isAdmin() ? 'dashboard' : 'my.dashboard';
     }
 }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -42,6 +43,7 @@ class Expense extends Model
     ];
 
     protected $fillable = [
+        'user_id',
         'name',
         'type',
         'payee',
@@ -69,6 +71,15 @@ class Expense extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(ExpensePayment::class);
+    }
+
+    /**
+     * The login belonging to this employee, when one has been issued.
+     * Only meaningful for type = salary.
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     public function isEmi(): bool

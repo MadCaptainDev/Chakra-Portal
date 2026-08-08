@@ -62,6 +62,32 @@ class DashboardTest extends TestCase
         }
     }
 
+    public function test_dashboard_shows_this_months_outflow_alongside_invoices(): void
+    {
+        $user = User::factory()->create();
+        Invoice::factory()->create(['subtotal' => 10000, 'total' => 10000]);
+
+        // Due every month, so they land in the current month whenever this runs.
+        \App\Models\Expense::create(['name' => 'Rent', 'type' => \App\Models\Expense::TYPE_BILL, 'amount' => 7500, 'is_active' => true]);
+        \App\Models\Expense::create(['name' => 'Kanishka', 'type' => \App\Models\Expense::TYPE_SALARY, 'amount' => 15000, 'is_active' => true]);
+        \App\Models\Expense::create([
+            'name' => 'Gimbal', 'type' => \App\Models\Expense::TYPE_EMI, 'amount' => 2188,
+            'start_month' => now()->startOfMonth()->toDateString(), 'installments' => 12,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertOk();
+        $response->assertSee("This Month's Outflow", false);
+        $response->assertViewHas('outflowDue', 24688.0);   // 7500 + 15000 + 2188
+        $response->assertViewHas('outflowPaid', 0.0);
+        $response->assertViewHas('outflowPending', 24688.0);
+        $response->assertViewHas('emiThisMonth', 2188.0);
+
+        // The invoice figures must survive the addition.
+        $response->assertSee('10,000.00');
+    }
+
     public function test_guest_is_redirected_to_login(): void
     {
         $this->get(route('dashboard'))->assertRedirect(route('login'));
