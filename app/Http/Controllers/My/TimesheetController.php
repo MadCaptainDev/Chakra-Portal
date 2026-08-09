@@ -4,9 +4,12 @@ namespace App\Http\Controllers\My;
 
 use App\Http\Controllers\Controller;
 use App\Models\TimesheetEntry;
+use App\Support\TimesheetStats;
+use App\Support\TimesheetVenture;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Throwable;
 
@@ -25,6 +28,7 @@ class TimesheetController extends Controller
         $entries = TimesheetEntry::where('user_id', $request->user()->id)
             ->forMonth($month)
             ->orderByDesc('worked_on')
+            ->orderByRaw('started_at IS NULL')
             ->orderBy('started_at')
             ->get();
 
@@ -32,7 +36,8 @@ class TimesheetController extends Controller
             'month' => $month,
             'entries' => $entries,
             'totalMinutes' => $entries->where('status', '!=', TimesheetEntry::STATUS_CANCELLED)->sum('minutes'),
-            'ventures' => $this->ventureSuggestions($request),
+            'ventureOptions' => TimesheetStats::ventureOptions(),
+            'stats' => TimesheetStats::forEntries($entries, $month),
         ]);
     }
 
@@ -86,7 +91,8 @@ class TimesheetController extends Controller
         $data = $request->validate([
             'worked_on' => ['required', 'date'],
             'task' => ['required', 'string', 'max:255'],
-            'venture' => ['nullable', 'string', 'max:255'],
+            'task_type' => ['required', Rule::in(array_keys(TimesheetEntry::TASK_TYPES))],
+            'venture' => TimesheetVenture::validationRules(),
             'started_at' => ['nullable', 'date_format:H:i'],
             'ended_at' => ['nullable', 'date_format:H:i'],
             'minutes' => ['nullable', 'integer', 'min:0', 'max:1440'],
@@ -99,23 +105,11 @@ class TimesheetController extends Controller
         $derived = TimesheetEntry::minutesBetween($data['started_at'] ?? null, $data['ended_at'] ?? null);
 
         $data['minutes'] = $derived ?? (int) ($data['minutes'] ?? 0);
+        $data['venture'] = TimesheetVenture::normalize(trim((string) $data['venture']))
+            ?? trim((string) $data['venture']);
+        $data['task_type'] = $data['task_type'] ?? TimesheetEntry::inferTaskType($data['task']);
 
         return $data;
-    }
-
-    /**
-     * Ventures this person has already logged, to speed up repeat entry.
-     *
-     * @return array<int, string>
-     */
-    private function ventureSuggestions(Request $request): array
-    {
-        return TimesheetEntry::where('user_id', $request->user()->id)
-            ->whereNotNull('venture')
-            ->distinct()
-            ->orderBy('venture')
-            ->pluck('venture')
-            ->all();
     }
 
     private function resolveMonth(?string $value): Carbon

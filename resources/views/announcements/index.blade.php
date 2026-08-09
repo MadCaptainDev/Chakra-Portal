@@ -1,19 +1,21 @@
-<x-app-layout>
+<x-app-layout title="Announcements">
     <x-slot name="header">
-        <x-page-header title="Announcements" />
+        <x-page-header title="Announcements" eyebrow="Team"
+                       subtitle="Active announcements appear on every employee's dashboard." />
     </x-slot>
 
     <div class="max-w-3xl space-y-4" x-data="{ adding: false }">
-        <div class="flex items-center justify-between">
-            <p class="text-sm text-gray-500">Active announcements appear on every employee's dashboard.</p>
-            <button type="button" @click="adding = ! adding" class="text-sm font-semibold text-brand-500 hover:text-brand-600 min-h-[44px]">
-                <span x-show="! adding">+ New</span>
+        <div class="flex justify-end">
+            <x-btn type="button" variant="secondary" @click="adding = ! adding">
+                <span x-show="! adding" class="inline-flex items-center gap-1.5">
+                    <x-icon name="plus" class="w-4 h-4" /> New announcement
+                </span>
                 <span x-show="adding" x-cloak>Cancel</span>
-            </button>
+            </x-btn>
         </div>
 
         <div x-show="adding" x-cloak>
-            <x-card class="p-4 sm:p-6">
+            <x-card padding="md">
                 @include('announcements._form')
             </x-card>
         </div>

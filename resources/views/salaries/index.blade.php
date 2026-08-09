@@ -1,9 +1,4 @@
-@php
-    $prev = $month->copy()->subMonthNoOverflow()->format('Y-m');
-    $next = $month->copy()->addMonthNoOverflow()->format('Y-m');
-@endphp
-
-<x-app-layout>
+<x-app-layout title="Payroll">
     <x-slot name="header">
         <x-page-header title="Expenses">
             <x-slot name="actions">
@@ -23,19 +18,8 @@
     <div class="space-y-4" x-data="{ adding: false }">
         @include('expenses._tabs')
 
-        <div class="flex items-center justify-between gap-2">
-            <a href="{{ route('salaries.index', ['month' => $prev]) }}"
-               class="inline-flex items-center min-h-[44px] px-3 rounded-md bg-white border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">&larr; Prev</a>
-            <div class="text-center">
-                <p class="font-semibold text-gray-900">{{ $month->format('F Y') }} payroll</p>
-                <p class="text-xs text-gray-500">Salaries are locked — change only from the employee record</p>
-                @if (! $month->isSameMonth(now()))
-                    <a href="{{ route('salaries.index') }}" class="text-xs text-brand-500 hover:text-brand-600">Back to this month</a>
-                @endif
-            </div>
-            <a href="{{ route('salaries.index', ['month' => $next]) }}"
-               class="inline-flex items-center min-h-[44px] px-3 rounded-md bg-white border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">Next &rarr;</a>
-        </div>
+        <x-month-nav route="salaries.index" :month="$month" suffix="payroll"
+                     subtitle="Salaries are locked — change only from the employee record" />
 
         <div class="grid grid-cols-3 gap-3">
             <x-card class="p-3 sm:p-4">
@@ -78,7 +62,7 @@
                     @endphp
 
                     <div class="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-                        <x-avatar :name="$employee->name" />
+                        <x-avatar :name="$employee->name" :src="$employee->user?->avatarUrl()" />
 
                         <div class="min-w-0 flex-1">
                             <a href="{{ route('salaries.show', $employee) }}" class="font-medium text-gray-900 hover:text-brand-500 truncate block">
@@ -116,7 +100,7 @@
                 <x-card class="divide-y divide-gray-200">
                     @foreach ($left as $employee)
                         <div class="p-3 flex items-center gap-3">
-                            <x-avatar :name="$employee->name" size="sm" class="opacity-60" />
+                            <x-avatar :name="$employee->name" :src="$employee->user?->avatarUrl()" size="sm" class="opacity-60" />
                             <a href="{{ route('salaries.show', $employee) }}" class="text-sm text-gray-600 hover:text-brand-500 flex-1 truncate">{{ $employee->name }}</a>
                             <span class="text-xs text-gray-400 shrink-0">{{ number_format($employee->amount, 0) }}/mo</span>
                         </div>

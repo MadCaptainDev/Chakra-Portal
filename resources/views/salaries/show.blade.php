@@ -21,7 +21,7 @@
 
         <x-card class="p-4 sm:p-6">
             <div class="flex items-start gap-4">
-                <x-avatar :name="$employee->name" size="lg" />
+                <x-avatar :name="$employee->name" :src="$employee->user?->avatarUrl()" size="lg" />
 
                 <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2 flex-wrap">
@@ -29,6 +29,9 @@
                         <x-badge :status="$employee->is_active ? 'active' : 'inactive'" />
                     </div>
                     <p class="text-sm text-gray-500">{{ $employee->role ?: 'No role set' }}</p>
+                    @if ($employee->user?->bio)
+                        <p class="text-sm text-gray-600 mt-2 whitespace-pre-line">{{ $employee->user->bio }}</p>
+                    @endif
 
                     <dl class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 text-sm">
                         <div>
@@ -44,7 +47,7 @@
                         </div>
                         <div>
                             <dt class="text-gray-500">Phone</dt>
-                            <dd class="text-gray-900">{{ $employee->phone ?: '—' }}</dd>
+                            <dd class="text-gray-900">{{ $employee->user?->phone ?: $employee->phone ?: '—' }}</dd>
                         </div>
                         <div>
                             <dt class="text-gray-500">Paid to date</dt>
@@ -58,6 +61,13 @@
                     <span x-show="editing" x-cloak>Cancel</span>
                 </button>
             </div>
+            @if ($employee->user)
+                <div class="mt-3 pt-3 border-t border-gray-100">
+                    <a href="{{ route('users.edit', $employee->user) }}" class="text-sm font-semibold text-brand-500 hover:text-brand-600">
+                        Edit full login profile &rarr;
+                    </a>
+                </div>
+            @endif
         </x-card>
 
         <div x-show="editing" x-cloak>

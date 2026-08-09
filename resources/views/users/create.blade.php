@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Add staff">
     <x-slot name="header">
         <x-page-header title="Add Staff Account" />
     </x-slot>
@@ -29,9 +29,9 @@
                 </div>
 
                 <div class="mb-4" x-show="role === 'employee'" x-cloak>
-                    <x-input-label for="employee_id" value="Link to Salaries record (optional)" />
+                    <x-input-label for="employee_id" value="Employee (optional)" />
                     <x-select id="employee_id" name="employee_id" class="mt-1">
-                        <option value="">Not linked</option>
+                        <option value="">None</option>
                         @foreach ($unlinkedEmployees as $employee)
                             <option value="{{ $employee->id }}" @selected(old('employee_id') == $employee->id)>
                                 {{ $employee->name }}@if ($employee->role) — {{ $employee->role }}@endif
@@ -39,10 +39,6 @@
                         @endforeach
                     </x-select>
                     <x-input-error :messages="$errors->get('employee_id')" class="mt-2" />
-                    <p class="text-xs text-gray-500 mt-1">
-                        Keeps one person in one place, so their salary, role and timesheet stay together.
-                        Only records without a login are listed.
-                    </p>
                 </div>
 
                 <div class="mb-4">

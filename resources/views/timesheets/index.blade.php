@@ -1,96 +1,88 @@
-@php
-    $prev = $month->copy()->subMonthNoOverflow()->format('Y-m');
-    $next = $month->copy()->addMonthNoOverflow()->format('Y-m');
-
-    $loggedRows = $rows->filter(fn ($row) => $row['entries'] > 0);
-    $silentRows = $rows->filter(fn ($row) => $row['entries'] === 0);
-    $pendingTotal = $rows->sum('pending');
-    $awardedCount = $rows->filter(fn ($row) => $row['point'])->count();
-@endphp
-
-<x-app-layout>
+<x-app-layout title="Timesheets">
     <x-slot name="header">
-        <x-page-header title="Timesheets" />
+        <x-page-header title="Timesheets" eyebrow="Team"
+                       subtitle="Hours logged by everyone with a login, month by month." />
     </x-slot>
 
-    <div class="space-y-4" x-data="{ search: '' }">
-        <x-month-nav
-            :label="$month->format('F Y')"
-            :subtitle="\App\Models\TimesheetEntry::formatMinutes($totalMinutes).' across the team'"
-            :prev-url="route('timesheets.index', ['month' => $prev])"
-            :next-url="route('timesheets.index', ['month' => $next])"
-            :today-url="$month->isSameMonth(now()) ? null : route('timesheets.index')" />
-
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <x-stat-card label="Team hours" value="{{ \App\Models\TimesheetEntry::formatMinutes($totalMinutes) }}" accent="brand" />
-            <x-stat-card label="Logged this month" value="{{ $loggedRows->count() }}/{{ $rows->count() }}" :accent="$silentRows->isEmpty() ? 'green' : 'amber'">
-                {{ $silentRows->isEmpty() ? 'Everyone has filed something' : $silentRows->count().' with nothing logged' }}
-            </x-stat-card>
-            <x-stat-card label="Pending entries" value="{{ $pendingTotal }}" :accent="$pendingTotal > 0 ? 'amber' : 'gray'">
-                {{ $pendingTotal > 0 ? 'Work marked started, not finished' : 'Nothing left open' }}
-            </x-stat-card>
-            <x-stat-card label="Points awarded" value="{{ $awardedCount }}/{{ $rows->count() }}" :accent="$awardedCount === $rows->count() && $rows->isNotEmpty() ? 'green' : 'gray'" />
-        </div>
+    <div class="space-y-4">
+        <x-month-nav route="timesheets.index" :month="$month"
+                     :subtitle="\App\Models\TimesheetEntry::formatMinutes($totalMinutes).' across the team'" />
 
         @if ($rows->isEmpty())
             <x-empty-state message="No employee logins yet.">
                 <a href="{{ route('users.create') }}" class="text-brand-500 font-semibold text-sm hover:text-brand-600">Create one &rarr;</a>
             </x-empty-state>
         @else
-            @if ($rows->count() > 5)
-                <div>
-                    <label for="timesheet-search" class="sr-only">Find someone</label>
-                    <input id="timesheet-search" type="search" x-model="search" placeholder="Find someone…"
-                           class="w-full sm:max-w-xs rounded-md border-gray-300 shadow-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
+            @if ($totalMinutes > 0)
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <x-charts.horizontal-bars
+                        :items="$ranking"
+                        :max-minutes="max(1, collect($ranking)->max('minutes') ?: 0)"
+                        title="Who worked most"
+                        :limit="12"
+                        empty="No hours logged this month."
+                        :linkable="false"
+                    />
+                    <x-charts.horizontal-bars
+                        :items="$teamStats['ventures']"
+                        :max-minutes="$teamStats['maxVenture']"
+                        title="By client"
+                        :limit="10"
+                        empty="No client hours yet."
+                    />
                 </div>
+
+                <x-charts.daily-bars
+                    :days="$teamStats['daily']"
+                    :max-minutes="$teamStats['maxDaily']"
+                    title="Team hours by day"
+                />
+
+                @if (collect($teamStats['taskTypes'])->sum('minutes') > 0)
+                    <x-charts.horizontal-bars
+                        :items="collect($teamStats['taskTypes'])->map(fn ($row) => ['label' => $row['label'], 'minutes' => $row['minutes']])->all()"
+                        :max-minutes="$teamStats['maxTaskType']"
+                        title="By type"
+                        :limit="4"
+                        :linkable="false"
+                    />
+                @endif
             @endif
 
-            <x-card class="divide-y divide-gray-200">
-                @foreach ($rows as $row)
-                    @php
-                        $employee = $row['employee'];
-                        $share = $peakMinutes > 0 ? (int) round($row['minutes'] / $peakMinutes * 100) : 0;
-                    @endphp
+            <x-card class="divide-y divide-gray-100 overflow-hidden">
+                @foreach ($rows->sortByDesc('minutes') as $index => $row)
+                    <a href="{{ route('timesheets.show', [$row['employee'], 'month' => $month->format('Y-m')]) }}"
+                       class="group p-3 sm:p-4 flex items-center gap-3 min-h-[44px] hover:bg-brand-50/40 transition">
+                        {{-- Rank badge: the list is sorted by hours, so make the
+                             order itself readable instead of implied. --}}
+                        <span class="shrink-0 w-6 text-center text-xs font-bold tabular-nums
+                                     {{ $index === 0 ? 'text-brand-600' : 'text-gray-300' }}">
+                            {{ $index + 1 }}
+                        </span>
 
-                    <a href="{{ route('timesheets.show', [$employee, 'month' => $month->format('Y-m')]) }}"
-                       x-show="! search || @js(Str::lower($employee->name)).includes(search.toLowerCase())"
-                       class="block p-3 sm:p-4 hover:bg-gray-50">
-                        <div class="flex items-center gap-3">
-                            <x-avatar :name="$employee->name" />
+                        <x-avatar :name="$row['employee']->name" :src="$row['employee']->avatarUrl()" />
 
-                            <div class="min-w-0 flex-1">
-                                <div class="flex items-baseline justify-between gap-3">
-                                    <p class="font-medium text-gray-900 truncate">{{ $employee->name }}</p>
-                                    <p class="text-sm font-bold text-gray-900 shrink-0">
-                                        {{ \App\Models\TimesheetEntry::formatMinutes($row['minutes']) }}
-                                    </p>
-                                </div>
-
-                                {{-- Relative workload. Inline width: the JIT never
-                                     sees a class built from a variable. --}}
-                                <div class="mt-1.5 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                                    <div class="h-full rounded-full {{ $row['minutes'] > 0 ? 'bg-brand-400' : '' }}"
-                                         style="width: {{ min(100, $share) }}%"></div>
-                                </div>
-
-                                <div class="mt-1.5 flex items-center justify-between gap-3">
-                                    <p class="text-xs text-gray-500 truncate">
-                                        @if ($row['entries'] === 0)
-                                            <span class="text-amber-600 font-semibold">Nothing logged</span>
-                                        @else
-                                            {{ $row['entries'] }} {{ Str::plural('entry', $row['entries']) }}
-                                            &middot; {{ $row['days'] }} {{ Str::plural('day', $row['days']) }}
-                                            @if ($row['pending'] > 0)
-                                                <span class="text-amber-600 font-semibold">&middot; {{ $row['pending'] }} pending</span>
-                                            @endif
-                                        @endif
-                                    </p>
-                                    <p class="text-[11px] shrink-0 {{ $row['point'] ? 'text-green-600 font-semibold' : 'text-gray-400' }}">
-                                        {{ $row['point'] ? $row['point']->points.' pts' : 'no points' }}
-                                    </p>
-                                </div>
-                            </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="font-semibold text-gray-900 truncate group-hover:text-brand-700 transition">
+                                {{ $row['employee']->name }}
+                            </p>
+                            <p class="text-xs text-gray-500">
+                                {{ $row['entries'] }} {{ Str::plural('entry', $row['entries']) }}
+                                &middot; {{ $row['days'] }} {{ Str::plural('day', $row['days']) }}
+                                @if ($row['pending'] > 0)
+                                    <span class="text-amber-600 font-semibold">&middot; {{ $row['pending'] }} pending</span>
+                                @endif
+                            </p>
                         </div>
+
+                        <div class="text-right shrink-0">
+                            <p class="text-sm font-bold text-gray-900 tabular-nums">{{ \App\Models\TimesheetEntry::formatMinutes($row['minutes']) }}</p>
+                            <p class="text-[11px] {{ $row['point'] ? 'text-green-600 font-semibold' : 'text-gray-400' }}">
+                                {{ $row['point'] ? $row['point']->points.' pts' : 'no points' }}
+                            </p>
+                        </div>
+
+                        <x-icon name="chevron-right" class="w-4 h-4 shrink-0 text-gray-300 group-hover:text-brand-500 transition" />
                     </a>
                 @endforeach
             </x-card>

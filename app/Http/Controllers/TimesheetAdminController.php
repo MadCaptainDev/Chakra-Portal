@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\EmployeePoint;
 use App\Models\TimesheetEntry;
 use App\Models\User;
+use App\Support\TimesheetStats;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -22,10 +23,11 @@ class TimesheetAdminController extends Controller
 
         $employees = User::where('role', User::ROLE_EMPLOYEE)->orderBy('name')->get();
 
-        $entries = TimesheetEntry::forMonth($month)
+        $allEntries = TimesheetEntry::forMonth($month)
             ->whereIn('user_id', $employees->pluck('id'))
-            ->get()
-            ->groupBy('user_id');
+            ->get();
+
+        $entries = $allEntries->groupBy('user_id');
 
         $points = EmployeePoint::whereDate('period', $month->toDateString())
             ->get()
@@ -45,21 +47,24 @@ class TimesheetAdminController extends Controller
             ];
         });
 
-        // Busiest first: the point of this screen is spotting who logged what,
-        // and a name-ordered list buries that. Ties fall back to the name so
-        // the order is stable between months.
-        $rows = $rows->sortBy([
-            fn (array $a, array $b) => $b['minutes'] <=> $a['minutes'],
-            fn (array $a, array $b) => $a['employee']->name <=> $b['employee']->name,
-        ])->values();
+        $ranking = $rows
+            ->filter(fn (array $row) => $row['minutes'] > 0)
+            ->sortByDesc('minutes')
+            ->values()
+            ->map(fn (array $row) => [
+                'label' => $row['employee']->name,
+                'minutes' => (int) $row['minutes'],
+            ])
+            ->all();
+
+        $teamStats = TimesheetStats::forEntries($allEntries, $month);
 
         return view('timesheets.index', [
             'month' => $month,
             'rows' => $rows,
             'totalMinutes' => $rows->sum('minutes'),
-            // Scale for the per-person bars, against a nominal 40-hour month so
-            // one busy week does not make everyone else look idle.
-            'peakMinutes' => max(2400, (int) $rows->max('minutes')),
+            'ranking' => $ranking,
+            'teamStats' => $teamStats,
         ]);
     }
 
@@ -72,6 +77,7 @@ class TimesheetAdminController extends Controller
         $entries = TimesheetEntry::where('user_id', $employee->id)
             ->forMonth($month)
             ->orderByDesc('worked_on')
+            ->orderByRaw('started_at IS NULL')
             ->orderBy('started_at')
             ->get();
 
@@ -83,6 +89,7 @@ class TimesheetAdminController extends Controller
             'point' => EmployeePoint::where('user_id', $employee->id)
                 ->whereDate('period', $month->toDateString())
                 ->first(),
+            'stats' => TimesheetStats::forEntries($entries, $month),
         ]);
     }
 

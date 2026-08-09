@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ClientRequest;
 use App\Models\Client;
+use App\Support\TimesheetStats;
+use App\Support\TimesheetVenture;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -60,8 +62,10 @@ class ClientController extends Controller
     public function show(Client $client): View
     {
         $invoices = $client->invoices()->with('payments')->latest('invoice_date')->get();
+        $timesheet = TimesheetStats::forClient($client);
+        $ventureLabel = TimesheetVenture::canonicalForClient($client);
 
-        return view('clients.show', compact('client', 'invoices'));
+        return view('clients.show', compact('client', 'invoices', 'timesheet', 'ventureLabel'));
     }
 
     public function edit(Client $client): View

@@ -24,10 +24,26 @@ class TimesheetEntry extends Model
         self::STATUS_CANCELLED => 'Cancelled',
     ];
 
+    public const TASK_SHOOTING = 'shooting';
+
+    public const TASK_EDITING = 'editing';
+
+    public const TASK_POSTING = 'posting';
+
+    public const TASK_OTHER = 'other';
+
+    public const TASK_TYPES = [
+        self::TASK_SHOOTING => 'Shooting',
+        self::TASK_EDITING => 'Editing',
+        self::TASK_POSTING => 'Posting',
+        self::TASK_OTHER => 'Other Task',
+    ];
+
     protected $fillable = [
         'user_id',
         'worked_on',
         'task',
+        'task_type',
         'venture',
         'started_at',
         'ended_at',
@@ -116,5 +132,37 @@ class TimesheetEntry extends Model
     public function statusLabel(): string
     {
         return self::STATUSES[$this->status] ?? ucfirst((string) $this->status);
+    }
+
+    public function taskTypeLabel(): string
+    {
+        return self::TASK_TYPES[$this->task_type] ?? 'Other Task';
+    }
+
+    /**
+     * Guess shooting / editing / posting / other from a free-text task name.
+     * Used for import backfill and optional form suggestions.
+     */
+    public static function inferTaskType(?string $task): string
+    {
+        $haystack = mb_strtolower(trim((string) $task));
+
+        if ($haystack === '') {
+            return self::TASK_OTHER;
+        }
+
+        if (preg_match('/\b(shoot|shooting|photo\s*shoot)\b/u', $haystack)) {
+            return self::TASK_SHOOTING;
+        }
+
+        if (preg_match('/\b(edit|editing|edits)\b/u', $haystack)) {
+            return self::TASK_EDITING;
+        }
+
+        if (preg_match('/\b(post|posting|upload|uploading|schedule|scheduling|publish|publishing)\b/u', $haystack)) {
+            return self::TASK_POSTING;
+        }
+
+        return self::TASK_OTHER;
     }
 }

@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Recurring">
     <x-slot name="header">
         <x-page-header title="Recurring Invoices">
             <x-slot name="actions">

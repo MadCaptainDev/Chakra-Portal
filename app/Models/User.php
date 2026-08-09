@@ -25,7 +25,7 @@ class User extends Authenticatable
 
     public const ROLES = [
         self::ROLE_ADMIN => 'Admin — full access',
-        self::ROLE_EMPLOYEE => 'Employee — timesheet only',
+        self::ROLE_EMPLOYEE => 'Employee — timesheet & profile',
     ];
 
     /**
@@ -38,6 +38,9 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'avatar_path',
+        'bio',
+        'phone',
     ];
 
     /**
@@ -98,5 +101,13 @@ class User extends Authenticatable
     public function homeRoute(): string
     {
         return $this->isAdmin() ? 'dashboard' : 'my.dashboard';
+    }
+
+    /**
+     * Public URL for the uploaded profile photo, when one exists.
+     */
+    public function avatarUrl(): ?string
+    {
+        return $this->avatar_path ? asset($this->avatar_path) : null;
     }
 }

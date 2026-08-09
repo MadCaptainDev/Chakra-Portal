@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="New recurring invoice">
     <x-slot name="header">
         <x-page-header :title="($sourceInvoice ?? null)
             ? 'New Recurring Schedule from '.($sourceInvoice->invoice_number ?? 'invoice')

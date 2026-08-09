@@ -23,7 +23,6 @@ class DashboardController extends Controller
             'month' => $month,
             'employee' => $user->employeeRecord,
             'totalMinutes' => $counted->sum('minutes'),
-            'entryCount' => $counted->count(),
             'pendingCount' => $entries->where('status', TimesheetEntry::STATUS_PENDING)->count(),
             'daysLogged' => $counted->pluck('worked_on')->map->toDateString()->unique()->count(),
             'point' => EmployeePoint::where('user_id', $user->id)
@@ -36,6 +35,8 @@ class DashboardController extends Controller
             'announcements' => Announcement::active()->latest()->take(5)->get(),
             'recentEntries' => TimesheetEntry::where('user_id', $user->id)
                 ->orderByDesc('worked_on')
+                ->orderByRaw('started_at IS NULL')
+                ->orderBy('started_at')
                 ->take(5)
                 ->get(),
         ]);

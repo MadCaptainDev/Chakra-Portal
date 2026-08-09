@@ -1,4 +1,4 @@
-@props(['name' => '', 'size' => 'md'])
+@props(['name' => '', 'size' => 'md', 'src' => null])
 
 @php
     // Deterministic colour so the same person always looks the same everywhere.
@@ -19,9 +19,19 @@
         'md' => 'w-10 h-10 text-sm',
         'lg' => 'w-16 h-16 text-xl',
     ];
+    $sizeClass = $sizes[$size] ?? $sizes['md'];
 @endphp
 
-<span {{ $attributes->merge(['class' => "inline-flex items-center justify-center rounded-full text-white font-bold shrink-0 {$colour} {$sizes[$size]}"]) }}
-      title="{{ $name }}">
-    {{ $initials ?: '?' }}
-</span>
+@if ($src)
+    <img
+        src="{{ $src }}"
+        alt="{{ $name }}"
+        title="{{ $name }}"
+        {{ $attributes->merge(['class' => "inline-block rounded-full object-cover shrink-0 {$sizeClass}"]) }}
+    >
+@else
+    <span {{ $attributes->merge(['class' => "inline-flex items-center justify-center rounded-full text-white font-bold shrink-0 {$colour} {$sizeClass}"]) }}
+          title="{{ $name }}">
+        {{ $initials ?: '?' }}
+    </span>
+@endif

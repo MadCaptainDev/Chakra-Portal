@@ -40,6 +40,15 @@ Route::post('/enquiry', [EnquiryController::class, 'store'])
     ->name('enquiry.store');
 
 /*
+ * Shared account area — admins and employees both manage their own profile.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
+
+/*
  * Employee area. Employees have logins only so they can fill in their own
  * timesheet -- every query inside is scoped to the signed-in user.
  */
@@ -158,11 +167,8 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
     Route::put('announcements/{announcement}', [AnnouncementController::class, 'update'])->name('announcements.update');
     Route::delete('announcements/{announcement}', [AnnouncementController::class, 'destroy'])->name('announcements.destroy');
 
-    Route::resource('users', UserController::class)->except(['show', 'edit', 'update']);
-
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::resource('users', UserController::class)->except(['show']);
+    Route::put('users/{user}/password', [UserController::class, 'updatePassword'])->name('users.password');
 });
 
 require __DIR__.'/auth.php';

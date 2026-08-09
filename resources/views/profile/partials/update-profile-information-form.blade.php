@@ -5,7 +5,7 @@
         </h2>
 
         <p class="mt-1 text-sm text-gray-600">
-            {{ __("Update your account's profile information and email address.") }}
+            {{ __('Update your photo, bio, and account details.') }}
         </p>
     </header>
 
@@ -13,9 +13,33 @@
         @csrf
     </form>
 
-    <form method="post" action="{{ route('profile.update') }}" class="mt-6 space-y-6">
+    <form method="post" action="{{ route('profile.update') }}" enctype="multipart/form-data" class="mt-6 space-y-6">
         @csrf
         @method('patch')
+
+        <div>
+            <x-input-label value="{{ __('Profile Photo') }}" />
+            <div class="mt-2 flex items-center gap-4">
+                <x-avatar :name="$user->name" :src="$user->avatarUrl()" size="lg" />
+                <div class="min-w-0 flex-1 space-y-2">
+                    <input
+                        id="avatar"
+                        name="avatar"
+                        type="file"
+                        accept="image/*"
+                        class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
+                    />
+                    <p class="text-xs text-gray-500">JPG, PNG or WebP. Max 2 MB.</p>
+                    @if ($user->avatar_path)
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" name="remove_avatar" value="1" class="rounded border-gray-300 text-brand-500 shadow-sm focus:ring-brand-400">
+                            {{ __('Remove current photo') }}
+                        </label>
+                    @endif
+                    <x-input-error class="mt-1" :messages="$errors->get('avatar')" />
+                </div>
+            </div>
+        </div>
 
         <div>
             <x-input-label for="name" :value="__('Name')" />
@@ -45,6 +69,33 @@
                     @endif
                 </div>
             @endif
+        </div>
+
+        <div>
+            <x-input-label for="phone" :value="__('Phone')" />
+            <x-text-input
+                id="phone"
+                name="phone"
+                type="tel"
+                class="mt-1 block w-full"
+                :value="old('phone', $user->phone ?: $user->employeeRecord?->phone)"
+                autocomplete="tel"
+            />
+            <x-input-error class="mt-2" :messages="$errors->get('phone')" />
+        </div>
+
+        <div>
+            <x-input-label for="bio" :value="__('Bio')" />
+            <textarea
+                id="bio"
+                name="bio"
+                rows="4"
+                maxlength="1000"
+                class="mt-1 block w-full border-gray-300 focus:border-brand-400 focus:ring-brand-400 rounded-md shadow-sm"
+                placeholder="{{ __('A short introduction about yourself…') }}"
+            >{{ old('bio', $user->bio) }}</textarea>
+            <p class="mt-1 text-xs text-gray-500">Up to 1000 characters.</p>
+            <x-input-error class="mt-2" :messages="$errors->get('bio')" />
         </div>
 
         <div class="flex items-center gap-4">

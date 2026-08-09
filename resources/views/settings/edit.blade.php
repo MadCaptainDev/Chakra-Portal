@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Settings">
     <x-slot name="header">
         <x-page-header title="Company Settings" />
     </x-slot>

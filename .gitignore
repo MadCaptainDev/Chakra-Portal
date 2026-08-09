@@ -30,3 +30,11 @@ Thumbs.db
 # Deploy artefacts
 /build-assets.tar.gz
 /composer.phar
+
+# Source spreadsheet for timesheet:import (kept on server, not in git)
+/Daily Timesheet .xlsx
+/Daily Timesheet Clean.xlsx
+/storage/app/timesheets/*.xlsx
+
+# Apache stray log on Hostinger
+/error_log

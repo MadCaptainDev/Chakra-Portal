@@ -5,7 +5,7 @@
     $pdfUrls = $invoices->mapWithKeys(fn ($invoice) => [$invoice->id => route('invoices.pdf', $invoice)])->all();
 @endphp
 
-<x-app-layout>
+<x-app-layout title="Invoices">
     <x-slot name="header">
         <x-page-header title="Invoices">
             <x-slot name="actions">

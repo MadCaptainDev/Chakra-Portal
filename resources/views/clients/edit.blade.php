@@ -1,4 +1,4 @@
-<x-app-layout>
+<x-app-layout title="Edit client">
     <x-slot name="header">
         <x-page-header title="Edit Client" />
     </x-slot>

@@ -42,73 +42,49 @@ class DashboardTest extends TestCase
         $response->assertSee('waiting for your approval');
     }
 
-    public function test_the_work_list_is_ranked_with_the_most_urgent_first(): void
+    public function test_dashboard_pulls_in_no_external_scripts_or_styles(): void
     {
+        // The dashboard used to fetch GridStack and Chart.js from jsdelivr for a
+        // draggable widget grid. Both are gone, and the brief forbids a CDN, so
+        // this asserts the absence rather than trusting nobody re-adds one.
         $user = User::factory()->create();
 
-        // Registered in the opposite order to how they must be shown, so a
-        // list that simply follows the code order fails this.
-        Invoice::factory()->pendingApproval()->create();
-        Invoice::factory()->overdue()->create(['subtotal' => 9000, 'total' => 9000]);
+        $response = $this->actingAs($user)->get(route('dashboard'));
 
-        $items = $this->actingAs($user)->get(route('dashboard'))
-            ->assertOk()
-            ->viewData('actionItems');
-
-        $this->assertStringContainsString('overdue', $items[0]['title']);
-        $this->assertSame('red', $items[0]['tone']);
-        $this->assertSame(9000.0, $items[0]['amount']);
-
-        $titles = array_column($items, 'title');
-        $this->assertLessThan(
-            array_search('1 invoice(s) need approval', $titles, true),
-            array_search('1 overdue invoice(s)', $titles, true)
-        );
+        $response->assertOk();
+        $response->assertDontSee('cdn.jsdelivr.net', false);
+        $response->assertDontSee('gridstack', false);
+        $response->assertDontSee('<canvas', false);
     }
 
-    public function test_the_stuck_cash_chart_leads_with_the_biggest_blocker(): void
-    {
-        $user = User::factory()->create();
-
-        Invoice::factory()->overdue()->create(['subtotal' => 4000, 'total' => 4000]);
-        \App\Models\Expense::create([
-            'name' => 'Kanishka', 'type' => \App\Models\Expense::TYPE_SALARY,
-            'amount' => 25000, 'is_active' => true,
-        ]);
-
-        $bottlenecks = $this->actingAs($user)->get(route('dashboard'))
-            ->assertOk()
-            ->viewData('bottlenecks');
-
-        // Payroll (25,000) outweighs the overdue invoice (4,000).
-        $this->assertSame('Payroll pending', $bottlenecks['labels'][0]);
-
-        $values = $bottlenecks['values'];
-        $sorted = $values;
-        rsort($sorted);
-
-        $this->assertSame($sorted, $values, 'Bars must run biggest to smallest.');
-        $this->assertSame(array_sum($values), $bottlenecks['total']);
-    }
-
-    public function test_mobile_tab_strip_and_panel_tagging_are_rendered(): void
+    public function test_dashboard_renders_the_headline_blocks(): void
     {
         $user = User::factory()->create();
 
         $response = $this->actingAs($user)->get(route('dashboard'));
 
         $response->assertOk();
-        $response->assertSee('dashboardTabs()', false);
-        $response->assertSee('aria-label="Dashboard sections"', false);
+        $response->assertSee('Needs attention');
+        $response->assertSee('Collected vs paid out');
+        $response->assertSee('Unpaid invoices');
+    }
 
-        // The CSS tab filter keys off these two attributes, so the markup
-        // contract matters more than usual: a missing data-panel would leave
-        // that widget permanently hidden on mobile.
-        $response->assertSee('data-tab="overview"', false);
+    public function test_bottleneck_rows_link_to_the_screen_that_clears_them(): void
+    {
+        $user = User::factory()->create();
 
-        foreach (['cashflow', 'outstanding', 'overview', 'splits'] as $panel) {
-            $response->assertSee('data-panel="'.$panel.'"', false);
-        }
+        // An unpaid salary is a bottleneck, and its row should deep-link to the
+        // salaries month that settles it.
+        \App\Models\Expense::create([
+            'name' => 'Kanishka', 'type' => \App\Models\Expense::TYPE_SALARY,
+            'amount' => 15000, 'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertOk();
+        $response->assertSee('Where cash is stuck');
+        $response->assertSee(route('salaries.index', ['month' => now()->format('Y-m')]), false);
     }
 
     public function test_dashboard_shows_this_months_outflow_alongside_invoices(): void
@@ -127,7 +103,9 @@ class DashboardTest extends TestCase
         $response = $this->actingAs($user)->get(route('dashboard'));
 
         $response->assertOk();
-        $response->assertSee("This Month's Outflow", false);
+        // Escaped, not raw: the heading now renders through x-section-heading,
+        // so the apostrophe reaches the page as &#039;. Same text on screen.
+        $response->assertSee("This Month's Outflow");
         $response->assertViewHas('outflowDue', 24688.0);   // 7500 + 15000 + 2188
         $response->assertViewHas('outflowPaid', 0.0);
         $response->assertViewHas('outflowPending', 24688.0);
@@ -135,6 +113,26 @@ class DashboardTest extends TestCase
 
         // The invoice figures must survive the addition.
         $response->assertSee('10,000.00');
+    }
+
+    public function test_expense_mix_bars_are_drawn_from_real_amounts(): void
+    {
+        // The bar widths are computed in Blade now that Chart.js is gone, so the
+        // arithmetic is worth pinning: the largest row is the 100% baseline and
+        // a smaller row scales against it.
+        $user = User::factory()->create();
+
+        \App\Models\Expense::create(['name' => 'Kanishka', 'type' => \App\Models\Expense::TYPE_SALARY, 'amount' => 20000, 'is_active' => true]);
+        \App\Models\Expense::create(['name' => 'Rent', 'type' => \App\Models\Expense::TYPE_BILL, 'amount' => 5000, 'is_active' => true]);
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertOk();
+        $response->assertSee('Expense mix');
+
+        // Salary is the largest, so it sets the baseline; bills are a quarter of it.
+        $response->assertSee('width: 100%; background-color: #16a34a', false);
+        $response->assertSee('width: 25%; background-color: #0284c7', false);
     }
 
     public function test_guest_is_redirected_to_login(): void

@@ -38,11 +38,14 @@ class EmployeeAccessTest extends TestCase
             'emi' => ['/emi'],
             'salaries' => ['/salaries'],
             'bills' => ['/bills'],
+            'other' => ['/other'],
             'users' => ['/users'],
             'settings' => ['/settings'],
             'recurring' => ['/recurring'],
             'timesheets (admin view)' => ['/timesheets'],
             'announcements' => ['/announcements'],
+            'enquiries' => ['/enquiries'],
+            'invoice template' => ['/invoice-template'],
         ];
     }
 
@@ -65,6 +68,7 @@ class EmployeeAccessTest extends TestCase
         $this->actingAs($employee)->get(route('my.dashboard'))->assertOk();
         $this->actingAs($employee)->get(route('my.timesheet'))->assertOk();
         $this->actingAs($employee)->get(route('my.calendar'))->assertOk();
+        $this->actingAs($employee)->get(route('profile.edit'))->assertOk();
     }
 
     public function test_employees_cannot_touch_each_others_entries(): void

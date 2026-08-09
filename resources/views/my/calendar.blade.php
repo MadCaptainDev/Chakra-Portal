@@ -1,32 +1,17 @@
-@php
-    $prev = $month->copy()->subMonthNoOverflow()->format('Y-m');
-    $next = $month->copy()->addMonthNoOverflow()->format('Y-m');
-@endphp
-
-<x-app-layout>
+<x-app-layout title="Calendar">
     <x-slot name="header">
-        <x-page-header title="My Calendar">
+        <x-page-header title="My Calendar" eyebrow="Your work"
+                       subtitle="Every logged day this month at a glance.">
             <x-slot name="actions">
-                <a href="{{ route('my.timesheet', ['month' => $month->format('Y-m')]) }}"
-                   class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50">
-                    Timesheet
-                </a>
+                <x-btn :href="route('my.timesheet', ['month' => $month->format('Y-m')])"
+                       variant="secondary" icon="clock">Timesheet</x-btn>
             </x-slot>
         </x-page-header>
     </x-slot>
 
     <div class="space-y-4" x-data="{ open: null }">
-        {{-- Month navigation --}}
-        <div class="flex items-center justify-between gap-2">
-            <a href="{{ route('my.calendar', ['month' => $prev]) }}"
-               class="inline-flex items-center min-h-[44px] px-3 rounded-md bg-white border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">&larr; Prev</a>
-            <div class="text-center">
-                <p class="font-semibold text-gray-900">{{ $month->format('F Y') }}</p>
-                <p class="text-xs text-gray-500">{{ \App\Models\TimesheetEntry::formatMinutes($totalMinutes) }} logged</p>
-            </div>
-            <a href="{{ route('my.calendar', ['month' => $next]) }}"
-               class="inline-flex items-center min-h-[44px] px-3 rounded-md bg-white border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">Next &rarr;</a>
-        </div>
+        <x-month-nav route="my.calendar" :month="$month"
+                     :subtitle="\App\Models\TimesheetEntry::formatMinutes($totalMinutes).' logged'" />
 
         {{-- Month grid. Scrolls sideways on a narrow phone rather than
              squeezing seven columns into 420px and becoming unreadable. --}}
@@ -44,9 +29,9 @@
                             @foreach ($week as $day)
                                 @php $key = $day['date']->toDateString(); @endphp
 
-                                <div class="min-h-[92px] rounded-lg border p-1.5 text-left
-                                    {{ $day['inMonth'] ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-100' }}
-                                    {{ $day['isToday'] ? 'ring-2 ring-brand-400' : '' }}">
+                                <div class="min-h-[92px] rounded-xl p-1.5 text-left transition
+                                    {{ $day['inMonth'] ? 'bg-white ring-1 ring-gray-900/5 shadow-sm' : 'bg-gray-50/60 ring-1 ring-gray-900/[0.03]' }}
+                                    {{ $day['isToday'] ? 'ring-2 ring-brand-400 shadow-md' : '' }}">
 
                                     <div class="flex items-center justify-between mb-1">
                                         <span class="text-xs font-semibold {{ $day['inMonth'] ? 'text-gray-700' : 'text-gray-300' }}">
@@ -85,7 +70,7 @@
 
             @forelse ($entriesByDay as $day => $dayEntries)
                 @php $date = \Illuminate\Support\Carbon::parse($day); @endphp
-                <x-card class="p-3 mb-2">
+                <x-card padding="sm" class="mb-2">
                     <div class="flex items-center justify-between mb-1">
                         <p class="font-medium text-gray-900">{{ $date->format('D, d M') }}</p>
                         <span class="text-xs text-gray-500">

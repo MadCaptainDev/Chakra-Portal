@@ -3,10 +3,54 @@
 {{-- x-data must live on a plain element; @if inside <x-card> breaks Blade component compilation. --}}
 <div @if ($employee) x-data="{ unlocking: {{ old('unlock_amount') ? 'true' : 'false' }} }" @endif>
     <x-card class="p-4 sm:p-6">
-        <form method="POST" action="{{ $employee ? route('salaries.update', $employee) : route('salaries.store') }}">
+        <form method="POST" action="{{ $employee ? route('salaries.update', $employee) : route('salaries.store') }}" enctype="multipart/form-data">
             @csrf
             @if ($employee)
                 @method('PUT')
+            @endif
+
+            @if ($employee?->user)
+                <div class="mb-6 pb-6 border-b border-gray-100">
+                    <h4 class="text-sm font-semibold text-gray-900 mb-3">Profile</h4>
+                    <div class="flex items-start gap-4 mb-4">
+                        <x-avatar :name="$employee->user->name" :src="$employee->user->avatarUrl()" size="lg" />
+                        <div class="min-w-0 flex-1 space-y-2">
+                            <x-input-label for="emp_avatar" value="Profile Photo" />
+                            <input
+                                id="emp_avatar"
+                                name="avatar"
+                                type="file"
+                                accept="image/*"
+                                class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
+                            />
+                            <p class="text-xs text-gray-500">JPG, PNG or WebP. Max 2 MB.</p>
+                            @if ($employee->user->avatar_path)
+                                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                                    <input type="checkbox" name="remove_avatar" value="1" class="rounded border-gray-300 text-brand-500 shadow-sm focus:ring-brand-400">
+                                    Remove current photo
+                                </label>
+                            @endif
+                            <x-input-error :messages="$errors->get('avatar')" class="mt-1" />
+                        </div>
+                    </div>
+                    <div>
+                        <x-input-label for="emp_bio" value="Bio" />
+                        <textarea
+                            id="emp_bio"
+                            name="bio"
+                            rows="3"
+                            maxlength="1000"
+                            class="mt-1 block w-full border-gray-300 focus:border-brand-400 focus:ring-brand-400 rounded-md shadow-sm"
+                            placeholder="A short introduction…"
+                        >{{ old('bio', $employee->user->bio) }}</textarea>
+                        <x-input-error :messages="$errors->get('bio')" class="mt-2" />
+                    </div>
+                </div>
+            @elseif ($employee)
+                <p class="mb-4 text-sm text-gray-500">
+                    No login linked yet — photo and bio need a staff account.
+                    <a href="{{ route('users.create') }}" class="font-semibold text-brand-500 hover:text-brand-600">Create one</a>
+                </p>
             @endif
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
@@ -70,7 +114,7 @@
                 <div>
                     <x-input-label for="emp_phone" value="Phone" />
                     <x-text-input id="emp_phone" name="phone" type="text" class="mt-1 block w-full"
-                                  value="{{ old('phone', $employee->phone ?? '') }}" />
+                                  value="{{ old('phone', $employee?->user?->phone ?? $employee->phone ?? '') }}" />
                     <x-input-error :messages="$errors->get('phone')" class="mt-2" />
                 </div>
 
