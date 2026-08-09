@@ -7,7 +7,6 @@
     ];
     $hasExpenseSplit = count($expenseSplit['values'] ?? []) > 0;
     $hasIncomeSplit = count($incomeSplit['values'] ?? []) > 0;
-    $hasBottlenecks = count($bottlenecks['values'] ?? []) > 0;
 @endphp
 
 @push('styles')
@@ -133,7 +132,7 @@
                                 </span>
                                 <div>
                                     <h3 class="font-semibold text-gray-900" id="mainChartTitle">Overall cashflow</h3>
-                                    <p class="text-xs text-gray-500" id="mainChartSubtitle">Collections vs expense payments — last 6 months</p>
+                                    <p class="text-xs text-gray-500" id="mainChartSubtitle">Collected vs paid out, last 6 months</p>
                                 </div>
                             </div>
                             <label class="shrink-0 text-xs font-semibold text-gray-600">
@@ -142,7 +141,7 @@
                                     <option value="cashflow">Cashflow</option>
                                     <option value="expense">Expense split</option>
                                     <option value="income">Income split</option>
-                                    <option value="bottlenecks">Bottlenecks</option>
+                                    <option value="bottlenecks">Where cash is stuck</option>
                                 </select>
                             </label>
                         </div>
@@ -157,19 +156,45 @@
             <div class="grid-stack-item" data-panel="outstanding" gs-id="bottlenecks" gs-x="0" gs-y="5" gs-w="6" gs-h="3" gs-min-w="4" gs-min-h="3">
                 <div class="grid-stack-item-content">
                     <div class="dashboard-widget p-4 sm:p-5">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="dashboard-drag-handle text-gray-300 hover:text-gray-500">
+                        <div class="flex items-start gap-2 mb-3">
+                            <span class="dashboard-drag-handle mt-1 text-gray-300 hover:text-gray-500">
                                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a1 1 0 100-2 1 1 0 000 2zm6 0a1 1 0 100-2 1 1 0 000 2zM7 11a1 1 0 100-2 1 1 0 000 2zm6 0a1 1 0 100-2 1 1 0 000 2zM7 18a1 1 0 100-2 1 1 0 000 2zm6 0a1 1 0 100-2 1 1 0 000 2z"/></svg>
                             </span>
-                            <h3 class="font-semibold text-gray-900">Bottlenecks</h3>
+                            <div class="min-w-0">
+                                <h3 class="font-semibold text-gray-900">Where cash is stuck</h3>
+                                <p class="text-xs text-gray-500">
+                                    {{ number_format($bottlenecks['total'] ?? 0, 0) }} open in total — biggest first
+                                </p>
+                            </div>
                         </div>
-                        <div class="space-y-2 overflow-y-auto">
-                            <div class="flex justify-between text-sm"><span class="text-gray-600">Overdue invoices</span><span class="font-semibold text-red-600">{{ number_format($overdueAmount, 0) }}</span></div>
-                            <div class="flex justify-between text-sm"><span class="text-gray-600">Month invoices open</span><span class="font-semibold text-amber-600">{{ number_format($invoiceOutstanding, 0) }}</span></div>
-                            <div class="flex justify-between text-sm"><span class="text-gray-600">Payroll pending</span><span class="font-semibold {{ $salaryPending > 0 ? 'text-amber-600' : 'text-gray-900' }}">{{ number_format($salaryPending, 0) }}</span></div>
-                            <div class="flex justify-between text-sm"><span class="text-gray-600">EMI open</span><span class="font-semibold {{ $emiOpen > 0 ? 'text-red-600' : 'text-gray-900' }}">{{ number_format($emiOpen, 0) }}</span></div>
-                            <div class="flex justify-between text-sm"><span class="text-gray-600">Bills pending</span><span class="font-semibold {{ $billPending > 0 ? 'text-amber-600' : 'text-gray-900' }}">{{ number_format($billPending, 0) }}</span></div>
-                            <div class="flex justify-between text-sm"><span class="text-gray-600">One-time spent</span><span class="font-semibold text-gray-900">{{ number_format($otherSpent, 0) }}</span></div>
+
+                        {{-- Same order and colours as the Bottlenecks graph, so
+                             reading one teaches you the other. --}}
+                        <div class="space-y-2.5 overflow-y-auto">
+                            @forelse ($bottlenecks['labels'] ?? [] as $index => $label)
+                                @php
+                                    $value = $bottlenecks['values'][$index] ?? 0;
+                                    $largest = max($bottlenecks['values'] ?: [1]);
+                                    $share = $largest > 0 ? max(2, (int) round($value / $largest * 100)) : 0;
+                                @endphp
+                                <div>
+                                    <div class="flex items-baseline justify-between gap-2 text-sm">
+                                        <span class="text-gray-600 truncate">{{ $label }}</span>
+                                        <span class="font-semibold text-gray-900 shrink-0">{{ number_format($value, 0) }}</span>
+                                    </div>
+                                    {{-- Inline width and colour: both come from
+                                         data, and the JIT cannot see either. --}}
+                                    <div class="mt-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                                        <div class="h-full rounded-full"
+                                             style="width: {{ $share }}%; background-color: {{ $bottlenecks['colors'][$index] ?? '#64748b' }}"></div>
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="rounded-lg border border-green-200 bg-green-50 p-3">
+                                    <p class="text-sm font-semibold text-green-800">Nothing is stuck</p>
+                                    <p class="text-xs text-green-700 mt-0.5">No overdue invoices and no unpaid outflow this month.</p>
+                                </div>
+                            @endforelse
                         </div>
                     </div>
                 </div>
@@ -179,24 +204,58 @@
             <div class="grid-stack-item" data-panel="overview" gs-id="actions" gs-x="6" gs-y="5" gs-w="6" gs-h="3" gs-min-w="4" gs-min-h="3">
                 <div class="grid-stack-item-content">
                     <div class="dashboard-widget p-4 sm:p-5">
-                        <div class="flex items-center justify-between mb-3">
-                            <div class="flex items-center gap-2">
-                                <span class="dashboard-drag-handle text-gray-300 hover:text-gray-500">
+                        @php
+                            // "All clear" is the one item that is not a job to
+                            // do, so it must not be counted as one.
+                            $jobCount = collect($actionItems)->where('tone', '!=', 'green')->count();
+                        @endphp
+
+                        <div class="flex items-start justify-between gap-2 mb-3">
+                            <div class="flex items-start gap-2 min-w-0">
+                                <span class="dashboard-drag-handle mt-1 text-gray-300 hover:text-gray-500">
                                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a1 1 0 100-2 1 1 0 000 2zm6 0a1 1 0 100-2 1 1 0 000 2zM7 11a1 1 0 100-2 1 1 0 000 2zm6 0a1 1 0 100-2 1 1 0 000 2zM7 18a1 1 0 100-2 1 1 0 000 2zm6 0a1 1 0 100-2 1 1 0 000 2z"/></svg>
                                 </span>
-                                <h3 class="font-semibold text-gray-900">What needs work</h3>
+                                <div class="min-w-0">
+                                    <h3 class="font-semibold text-gray-900">What needs work</h3>
+                                    <p class="text-xs text-gray-500">
+                                        {{ $jobCount > 0 ? 'Most urgent first' : 'Nothing outstanding' }}
+                                    </p>
+                                </div>
                             </div>
+                            @if ($jobCount > 0)
+                                <span class="shrink-0 inline-flex items-center justify-center min-w-[24px] h-6 px-2 rounded-full bg-gray-900 text-white text-xs font-bold">
+                                    {{ $jobCount }}
+                                </span>
+                            @endif
                         </div>
+
+                        {{-- Ranked by the controller: the first card is always
+                             the thing to deal with first. --}}
                         <div class="space-y-2 overflow-y-auto">
-                            @foreach ($actionItems as $item)
-                                <div class="rounded-lg border p-3 flex items-start justify-between gap-3 {{ $toneClasses[$item['tone']] ?? $toneClasses['brand'] }}">
-                                    <div class="min-w-0">
-                                        <p class="text-sm font-semibold">{{ $item['title'] }}</p>
-                                        <p class="text-xs mt-1 opacity-90">{{ $item['detail'] }}</p>
+                            @foreach ($actionItems as $index => $item)
+                                <div class="rounded-lg border p-3 {{ $toneClasses[$item['tone']] ?? $toneClasses['brand'] }}">
+                                    <div class="flex items-start gap-3">
+                                        @if ($item['tone'] !== 'green')
+                                            <span class="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/70 text-xs font-bold">
+                                                {{ $index + 1 }}
+                                            </span>
+                                        @endif
+
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex items-baseline justify-between gap-3">
+                                                <p class="text-sm font-semibold">{{ $item['title'] }}</p>
+                                                @if ($item['amount'] !== null)
+                                                    <p class="text-base font-bold shrink-0 tabular-nums">{{ number_format($item['amount'], 0) }}</p>
+                                                @endif
+                                            </div>
+                                            <p class="text-xs mt-1 opacity-90">{{ $item['detail'] }}</p>
+
+                                            <a href="{{ $item['href'] }}"
+                                               class="mt-1 text-xs font-semibold underline min-h-[44px] inline-flex items-center">
+                                                {{ $item['cta'] }} &rarr;
+                                            </a>
+                                        </div>
                                     </div>
-                                    <a href="{{ $item['href'] }}" class="shrink-0 text-xs font-semibold underline min-h-[44px] inline-flex items-center">
-                                        {{ $item['cta'] }} &rarr;
-                                    </a>
                                 </div>
                             @endforeach
                         </div>
@@ -383,26 +442,118 @@
                 const incomeSplit = @json($incomeSplit);
                 const bottlenecks = @json($bottlenecks);
 
-                const money = (v) => Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 });
+                // Indian grouping, because every figure in this product is INR
+                // and 12,34,567 is what the team reads without stopping.
+                const money = (v) => Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+                const sum = (values) => (values || []).reduce((a, b) => a + Number(b), 0);
+                const percent = (part, whole) => (whole > 0 ? Math.round((part / whole) * 100) : 0);
+
+                const latest = cashflow[cashflow.length - 1] || { income: 0, expense: 0, net: 0 };
+
                 const meta = {
                     cashflow: {
                         title: 'Overall cashflow',
-                        subtitle: 'Collections vs expense payments — last 6 months',
+                        subtitle: 'Collected vs paid out, last 6 months. '
+                            + @json(now()->format('M')) + ' net: '
+                            + (latest.net < 0 ? '−' : '+') + money(Math.abs(latest.net)),
                     },
                     expense: {
                         title: 'Expense split',
-                        subtitle: 'This month’s due mix — EMI / Salary / Bills / One-time',
+                        subtitle: 'This month’s due mix — ' + money(sum(expenseSplit.values)) + ' across EMI, salary, bills and one-time',
                     },
                     income: {
                         title: 'Income split',
                         subtitle: @json(($incomeSplit['mode'] ?? '') === 'collected'
                             ? 'Collections this month by client'
-                            : 'Invoiced this month by client (no collections recorded yet)'),
+                            : 'Invoiced this month by client (no collections recorded yet)')
+                            + ' — ' + money(sum(incomeSplit.values)) + ' total',
                     },
                     bottlenecks: {
-                        title: 'Bottlenecks',
-                        subtitle: 'Where cash is stuck — overdue, unpaid outflow, open liabilities',
+                        title: 'Where cash is stuck',
+                        subtitle: money(sum(bottlenecks.values)) + ' open — biggest blocker first',
                     },
+                };
+
+                /*
+                 * Prints each bar's value at its end. Chart.js ships no data
+                 * labels and the brief forbids adding a plugin package, so this
+                 * is a local plugin object rather than chartjs-plugin-datalabels.
+                 */
+                const barValueLabels = {
+                    id: 'barValueLabels',
+                    afterDatasetsDraw(chart) {
+                        const { ctx } = chart;
+                        ctx.save();
+                        ctx.font = '600 11px Poppins, sans-serif';
+                        ctx.fillStyle = '#334155';
+                        ctx.textBaseline = 'middle';
+
+                        chart.data.datasets.forEach((dataset, i) => {
+                            const drawn = chart.getDatasetMeta(i);
+                            if (drawn.hidden || drawn.type === 'line') return;
+
+                            drawn.data.forEach((bar, index) => {
+                                const value = dataset.data[index];
+                                if (! value) return;
+
+                                if (chart.options.indexAxis === 'y') {
+                                    ctx.textAlign = 'left';
+                                    ctx.fillText(money(value), bar.x + 6, bar.y);
+                                } else {
+                                    ctx.textAlign = 'center';
+                                    ctx.fillText(money(value), bar.x, bar.y - 8);
+                                }
+                            });
+                        });
+
+                        ctx.restore();
+                    },
+                };
+
+                /* The total in the hole of a doughnut, so the slices have
+                   something to be a share of. */
+                const doughnutTotal = {
+                    id: 'doughnutTotal',
+                    afterDraw(chart) {
+                        const total = sum(chart.data.datasets[0]?.data);
+                        if (! total) return;
+
+                        const { ctx, chartArea } = chart;
+                        if (! chartArea) return;
+
+                        const x = (chartArea.left + chartArea.right) / 2;
+                        const y = (chartArea.top + chartArea.bottom) / 2;
+
+                        ctx.save();
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillStyle = '#0f172a';
+                        ctx.font = '700 15px Poppins, sans-serif';
+                        ctx.fillText(money(total), x, y - 2);
+                        ctx.fillStyle = '#94a3b8';
+                        ctx.font = '600 10px Poppins, sans-serif';
+                        ctx.fillText('TOTAL', x, y + 14);
+                        ctx.restore();
+                    },
+                };
+
+                // Legend entries carry their own share, so the chart reads
+                // without hovering every slice.
+                const shareLegend = {
+                    generateLabels(chart) {
+                        const data = chart.data.datasets[0]?.data || [];
+                        const total = sum(data);
+
+                        return (chart.data.labels || []).map((label, i) => ({
+                            text: `${label} — ${percent(data[i], total)}%`,
+                            fillStyle: chart.data.datasets[0].backgroundColor[i],
+                            strokeStyle: '#fff',
+                            lineWidth: 1,
+                            index: i,
+                        }));
+                    },
+                    boxWidth: 12,
+                    font: { size: 11 },
                 };
 
                 let mainChart = null;
@@ -453,35 +604,59 @@
                                 labels: cashflow.map((p) => p.label),
                                 datasets: [
                                     {
-                                        label: 'Income',
+                                        label: 'Collected',
                                         data: cashflow.map((p) => p.income),
                                         backgroundColor: '#4FA9C4',
                                         borderRadius: 4,
                                         maxBarThickness: 28,
+                                        order: 2,
                                     },
                                     {
-                                        label: 'Expenses',
+                                        label: 'Paid out',
                                         data: cashflow.map((p) => p.expense),
                                         backgroundColor: '#f59e0b',
                                         borderRadius: 4,
                                         maxBarThickness: 28,
+                                        order: 2,
+                                    },
+                                    {
+                                        // The month that ends below zero is the
+                                        // whole question, and two bars side by
+                                        // side never answered it on their own.
+                                        label: 'Net',
+                                        type: 'line',
+                                        data: cashflow.map((p) => p.net),
+                                        borderColor: '#0f172a',
+                                        backgroundColor: '#0f172a',
+                                        borderWidth: 2,
+                                        pointRadius: 3,
+                                        pointHoverRadius: 5,
+                                        tension: 0.25,
+                                        order: 1,
                                     },
                                 ],
                             },
                             options: {
                                 ...common,
+                                interaction: { mode: 'index', intersect: false },
                                 plugins: {
                                     legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
                                     tooltip: {
                                         callbacks: {
-                                            label: (ctx) => `${ctx.dataset.label}: ${money(ctx.parsed.y)}`,
+                                            label: (ctx) => {
+                                                const value = ctx.parsed.y;
+                                                const sign = ctx.dataset.label === 'Net' && value < 0 ? '−' : '';
+
+                                                return `${ctx.dataset.label}: ${sign}${money(Math.abs(value))}`;
+                                            },
                                         },
                                     },
                                 },
                                 scales: {
                                     x: { grid: { display: false } },
                                     y: {
-                                        beginAtZero: true,
+                                        // Not beginAtZero: a negative net month
+                                        // has to be visible below the axis.
                                         ticks: { callback: (v) => money(v) },
                                         grid: { color: 'rgba(15, 23, 42, 0.06)' },
                                     },
@@ -492,8 +667,16 @@
                     }
 
                     if (metric === 'bottlenecks') {
+                        if (! bottlenecks.values?.length) {
+                            renderNothing(el, 'Nothing is stuck — no overdue invoices and no unpaid outflow.');
+                            return;
+                        }
+
+                        const openTotal = sum(bottlenecks.values);
+
                         mainChart = new Chart(el, {
                             type: 'bar',
+                            plugins: [barValueLabels],
                             data: {
                                 labels: bottlenecks.labels,
                                 datasets: [{
@@ -507,11 +690,14 @@
                             options: {
                                 ...common,
                                 indexAxis: 'y',
+                                // Headroom on the right, or the printed value
+                                // on the longest bar runs off the canvas.
+                                layout: { padding: { right: 56 } },
                                 plugins: {
                                     legend: { display: false },
                                     tooltip: {
                                         callbacks: {
-                                            label: (ctx) => money(ctx.parsed.x),
+                                            label: (ctx) => `${money(ctx.parsed.x)} (${percent(ctx.parsed.x, openTotal)}% of what is open)`,
                                         },
                                     },
                                 },
@@ -521,7 +707,7 @@
                                         ticks: { callback: (v) => money(v) },
                                         grid: { color: 'rgba(15, 23, 42, 0.06)' },
                                     },
-                                    y: { grid: { display: false } },
+                                    y: { grid: { display: false }, ticks: { font: { size: 11 } } },
                                 },
                             },
                         });
@@ -530,13 +716,15 @@
 
                     const pie = metric === 'expense' ? expenseSplit : incomeSplit;
                     if (!pie.values?.length) {
-                        const ctx = el.getContext('2d');
-                        ctx.clearRect(0, 0, el.width, el.height);
+                        renderNothing(el, metric === 'expense'
+                            ? 'No expenses due this month.'
+                            : 'Nothing invoiced or collected this month.');
                         return;
                     }
 
                     mainChart = new Chart(el, {
                         type: 'doughnut',
+                        plugins: [doughnutTotal],
                         data: {
                             labels: pie.labels,
                             datasets: [{
@@ -548,14 +736,14 @@
                         },
                         options: {
                             ...common,
+                            cutout: '58%',
                             plugins: {
-                                legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+                                legend: { position: 'bottom', labels: shareLegend },
                                 tooltip: {
                                     callbacks: {
                                         label: (ctx) => {
-                                            const total = ctx.dataset.data.reduce((a, b) => a + b, 0) || 1;
-                                            const pct = Math.round((ctx.parsed / total) * 100);
-                                            return `${ctx.label}: ${money(ctx.parsed)} (${pct}%)`;
+                                            const total = sum(ctx.dataset.data);
+                                            return `${ctx.label}: ${money(ctx.parsed)} (${percent(ctx.parsed, total)}%)`;
                                         },
                                     },
                                 },
@@ -564,19 +752,42 @@
                     });
                 }
 
+                /**
+                 * An empty metric used to clear the canvas and leave a blank
+                 * rectangle, which reads as a broken chart. Say why instead.
+                 */
+                function renderNothing(el, message) {
+                    const ctx = el.getContext('2d');
+                    const width = el.clientWidth || el.width;
+                    const height = el.clientHeight || el.height;
+
+                    // Canvas pixels are scaled by devicePixelRatio; reset the
+                    // transform so the text lands where CSS says it should.
+                    ctx.setTransform(1, 0, 0, 1, 0, 0);
+                    ctx.clearRect(0, 0, el.width, el.height);
+
+                    ctx.save();
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.font = '500 13px Poppins, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(message, width / 2, height / 2);
+                    ctx.restore();
+                }
+
                 function renderSecondary() {
                     if (typeof Chart === 'undefined') return;
                     const pieOptions = {
                         responsive: true,
                         maintainAspectRatio: false,
+                        cutout: '58%',
                         plugins: {
                             legend: { display: false },
                             tooltip: {
                                 callbacks: {
                                     label: (ctx) => {
-                                        const total = ctx.dataset.data.reduce((a, b) => a + b, 0) || 1;
-                                        const pct = Math.round((ctx.parsed / total) * 100);
-                                        return `${ctx.label}: ${money(ctx.parsed)} (${pct}%)`;
+                                        const total = sum(ctx.dataset.data);
+                                        return `${ctx.label}: ${money(ctx.parsed)} (${percent(ctx.parsed, total)}%)`;
                                     },
                                 },
                             },
@@ -588,6 +799,7 @@
                         if (secondaryExpense) secondaryExpense.destroy();
                         secondaryExpense = new Chart(expEl, {
                             type: 'doughnut',
+                            plugins: [doughnutTotal],
                             data: {
                                 labels: expenseSplit.labels,
                                 datasets: [{
@@ -606,6 +818,7 @@
                         if (secondaryIncome) secondaryIncome.destroy();
                         secondaryIncome = new Chart(incEl, {
                             type: 'doughnut',
+                            plugins: [doughnutTotal],
                             data: {
                                 labels: incomeSplit.labels,
                                 datasets: [{

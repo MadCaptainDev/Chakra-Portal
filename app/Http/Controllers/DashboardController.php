@@ -283,8 +283,12 @@ class DashboardController extends Controller
     /**
      * Pressure points that block cashflow — amounts still open.
      *
+     * Ordered biggest first: the chart is read to answer "what is holding the
+     * most money", and a fixed order buries that under whichever category
+     * happens to be listed first.
+     *
      * @param  array<string, float>  $ctx
-     * @return array{labels: list<string>, values: list<float>, colors: list<string>}
+     * @return array{labels: list<string>, values: list<float>, colors: list<string>, total: float}
      */
     private function bottlenecksChart(array $ctx): array
     {
@@ -295,70 +299,100 @@ class DashboardController extends Controller
             ['label' => 'EMI open', 'value' => (float) $ctx['emiOpen'], 'color' => '#0f766e'],
             ['label' => 'Bills pending', 'value' => (float) $ctx['billPending'], 'color' => '#0284c7'],
             ['label' => 'One-time spent', 'value' => (float) $ctx['otherSpent'], 'color' => '#64748b'],
-        ])->filter(fn (array $row) => $row['value'] > 0)->values();
+        ])
+            ->filter(fn (array $row) => $row['value'] > 0)
+            ->sortByDesc('value')
+            ->values();
 
         return [
             'labels' => $rows->pluck('label')->all(),
             'values' => $rows->pluck('value')->all(),
             'colors' => $rows->pluck('color')->all(),
+            'total' => (float) $rows->sum('value'),
         ];
     }
 
     /**
      * Prioritized work list for the company this month.
      *
+     * Every item carries a rank, and the list is sorted by it, so the top card
+     * is always the most urgent thing rather than whichever check happens to
+     * run first. 'amount' is what is at stake, rendered as the headline figure.
+     *
      * @param  array<string, mixed>  $ctx
-     * @return list<array{tone: string, title: string, detail: string, href: string, cta: string}>
+     * @return list<array{tone: string, rank: int, title: string, detail: string, amount: float|null, href: string, cta: string}>
      */
     private function actionItems(array $ctx): array
     {
         $items = [];
 
-        if ($ctx['pendingApprovalCount'] > 0) {
-            $items[] = [
-                'tone' => 'amber',
-                'title' => $ctx['pendingApprovalCount'].' invoice(s) need approval',
-                'detail' => 'These are waiting for your approval — nothing goes out until then.',
-                'href' => route('invoices.index', ['status' => 'pending_approval']),
-                'cta' => 'Review',
-            ];
-        }
-
         if ($ctx['overdueCount'] > 0) {
             $items[] = [
                 'tone' => 'red',
+                'rank' => 1,
                 'title' => $ctx['overdueCount'].' overdue invoice(s)',
-                'detail' => number_format($ctx['overdueAmount'], 2).' waiting to be collected.',
+                'detail' => 'Past their due date and still unpaid.',
+                'amount' => (float) $ctx['overdueAmount'],
                 'href' => route('invoices.index', ['status' => 'unpaid']),
                 'cta' => 'Chase',
             ];
         }
 
-        if ($ctx['salaryPending'] > 0) {
+        if ($ctx['netCash'] < 0) {
             $items[] = [
-                'tone' => 'amber',
-                'title' => 'Payroll incomplete',
-                'detail' => number_format($ctx['salaryPending'], 2).' pending across '.$ctx['salaryUnpaidCount'].' staff.',
-                'href' => route('salaries.index', ['month' => $ctx['monthKey']]),
-                'cta' => 'Pay staff',
+                'tone' => 'red',
+                'rank' => 2,
+                'title' => 'Paying out faster than collecting',
+                'detail' => 'This month has paid out more than it collected. Prioritize receivables.',
+                'amount' => abs((float) $ctx['netCash']),
+                'href' => route('invoices.index', ['status' => 'unpaid']),
+                'cta' => 'Collections',
             ];
         }
 
         if ($ctx['emiUnpaidCount'] > 0) {
             $items[] = [
                 'tone' => 'red',
+                'rank' => 3,
                 'title' => $ctx['emiUnpaidCount'].' EMI payment(s) open',
                 'detail' => 'Keep finance schedules current to avoid penalties.',
+                'amount' => null,
                 'href' => route('emi.index', ['month' => $ctx['monthKey']]),
                 'cta' => 'Pay EMI',
+            ];
+        }
+
+        if ($ctx['pendingApprovalCount'] > 0) {
+            $items[] = [
+                'tone' => 'amber',
+                'rank' => 4,
+                'title' => $ctx['pendingApprovalCount'].' invoice(s) need approval',
+                'detail' => 'These are waiting for your approval — nothing goes out until then.',
+                'amount' => null,
+                'href' => route('invoices.index', ['status' => 'pending_approval']),
+                'cta' => 'Review',
+            ];
+        }
+
+        if ($ctx['salaryPending'] > 0) {
+            $items[] = [
+                'tone' => 'amber',
+                'rank' => 5,
+                'title' => 'Payroll incomplete',
+                'detail' => 'Pending across '.$ctx['salaryUnpaidCount'].' staff.',
+                'amount' => (float) $ctx['salaryPending'],
+                'href' => route('salaries.index', ['month' => $ctx['monthKey']]),
+                'cta' => 'Pay staff',
             ];
         }
 
         if ($ctx['billPending'] > 0) {
             $items[] = [
                 'tone' => 'amber',
+                'rank' => 6,
                 'title' => 'Bills still open',
-                'detail' => number_format($ctx['billPending'], 2).' budgeted but not fully paid.',
+                'detail' => 'Budgeted for this month but not fully paid.',
+                'amount' => (float) $ctx['billPending'],
                 'href' => route('bills.index', ['month' => $ctx['monthKey']]),
                 'cta' => 'Pay bills',
             ];
@@ -367,32 +401,28 @@ class DashboardController extends Controller
         if ($ctx['invoiceOutstanding'] > 0 && $ctx['overdueCount'] === 0) {
             $items[] = [
                 'tone' => 'brand',
+                'rank' => 7,
                 'title' => 'Month invoice balance open',
-                'detail' => number_format($ctx['invoiceOutstanding'], 2).' of this month’s invoices not yet collected.',
+                'detail' => 'Invoiced this month, not yet collected. Nothing overdue.',
+                'amount' => (float) $ctx['invoiceOutstanding'],
                 'href' => route('invoices.index', ['month' => $ctx['monthKey']]),
                 'cta' => 'Follow up',
-            ];
-        }
-
-        if ($ctx['netCash'] < 0) {
-            $items[] = [
-                'tone' => 'red',
-                'title' => 'Cash outflow ahead of collections',
-                'detail' => 'This month paid out '.number_format(abs($ctx['netCash']), 2).' more than collected. Prioritize receivables.',
-                'href' => route('invoices.index', ['status' => 'unpaid']),
-                'cta' => 'Collections',
             ];
         }
 
         if ($items === []) {
             $items[] = [
                 'tone' => 'green',
+                'rank' => 99,
                 'title' => 'Nothing urgent right now',
                 'detail' => 'Payroll, EMIs, bills and approvals look under control for this month.',
+                'amount' => null,
                 'href' => route('expenses.index', ['month' => $ctx['monthKey']]),
                 'cta' => 'Overview',
             ];
         }
+
+        usort($items, fn (array $a, array $b) => $a['rank'] <=> $b['rank']);
 
         return $items;
     }

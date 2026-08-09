@@ -45,10 +45,21 @@ class TimesheetAdminController extends Controller
             ];
         });
 
+        // Busiest first: the point of this screen is spotting who logged what,
+        // and a name-ordered list buries that. Ties fall back to the name so
+        // the order is stable between months.
+        $rows = $rows->sortBy([
+            fn (array $a, array $b) => $b['minutes'] <=> $a['minutes'],
+            fn (array $a, array $b) => $a['employee']->name <=> $b['employee']->name,
+        ])->values();
+
         return view('timesheets.index', [
             'month' => $month,
             'rows' => $rows,
             'totalMinutes' => $rows->sum('minutes'),
+            // Scale for the per-person bars, against a nominal 40-hour month so
+            // one busy week does not make everyone else look idle.
+            'peakMinutes' => max(2400, (int) $rows->max('minutes')),
         ]);
     }
 

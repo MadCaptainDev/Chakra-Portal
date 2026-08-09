@@ -18,6 +18,8 @@
 /public/build
 /public/hot
 /public/storage
+# Portfolio videos, thumbnails and team photos uploaded from the admin panel.
+/public/uploads
 /storage/*.key
 /storage/pail
 /vendor

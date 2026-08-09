@@ -178,6 +178,82 @@ class TimesheetTest extends TestCase
         $this->actingAs($employee)->get(route('my.dashboard'))->assertSee('Strong month');
     }
 
+    public function test_the_team_list_leads_with_whoever_logged_the_most(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $quiet = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'name' => 'Aaron Quiet']);
+        $busy = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'name' => 'Zara Busy']);
+
+        foreach ([[$quiet, 60], [$busy, 600]] as [$employee, $minutes]) {
+            TimesheetEntry::create([
+                'user_id' => $employee->id,
+                'worked_on' => now()->startOfMonth()->toDateString(),
+                'task' => 'Edit',
+                'minutes' => $minutes,
+                'status' => 'completed',
+            ]);
+        }
+
+        $response = $this->actingAs($admin)->get(route('timesheets.index'))->assertOk();
+
+        // Alphabetical order would put Aaron first, which hides the thing this
+        // screen exists to show.
+        $this->assertSame('Zara Busy', $response->viewData('rows')->first()['employee']->name);
+
+        $body = $response->getContent();
+        $this->assertLessThan(strpos($body, 'Aaron Quiet'), strpos($body, 'Zara Busy'));
+    }
+
+    public function test_an_employee_with_nothing_logged_is_called_out(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $this->employee();
+
+        $this->actingAs($admin)->get(route('timesheets.index'))
+            ->assertOk()
+            ->assertSee('Nothing logged');
+    }
+
+    public function test_a_persons_month_is_broken_down_by_venture(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $employee = $this->employee();
+
+        foreach ([['SVA Website', 120], ['SVA Website', 60], ['Thor Gym', 240]] as [$venture, $minutes]) {
+            TimesheetEntry::create([
+                'user_id' => $employee->id,
+                'worked_on' => now()->startOfMonth()->toDateString(),
+                'task' => 'Edit',
+                'venture' => $venture,
+                'minutes' => $minutes,
+                'status' => 'completed',
+            ]);
+        }
+
+        // Cancelled work is logged but must not show up in the breakdown.
+        TimesheetEntry::create([
+            'user_id' => $employee->id,
+            'worked_on' => now()->startOfMonth()->toDateString(),
+            'task' => 'Scrapped shoot',
+            'venture' => 'Dropped Client',
+            'minutes' => 300,
+            'status' => 'cancelled',
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->get(route('timesheets.show', [$employee, 'month' => now()->format('Y-m')]))
+            ->assertOk();
+
+        $response->assertSee('Where the time went');
+        $response->assertSee('SVA Website');
+        $response->assertSee('Thor Gym');
+
+        // 4 hrs on Thor Gym beats 3 hrs on SVA, so it is listed first.
+        $body = $response->getContent();
+        $breakdown = substr($body, strpos($body, 'Where the time went'));
+        $this->assertLessThan(strpos($breakdown, 'SVA Website'), strpos($breakdown, 'Thor Gym'));
+    }
+
     public function test_an_employee_login_can_be_linked_to_a_salaries_record(): void
     {
         $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);

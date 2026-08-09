@@ -9,6 +9,11 @@ use App\Http\Controllers\EnquiryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\OtherExpenseController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\LandingController;
+use App\Http\Controllers\PortfolioCategoryController;
+use App\Http\Controllers\PortfolioItemController;
+use App\Http\Controllers\PublicPortfolioController;
+use App\Http\Controllers\TeamMemberController;
 use App\Http\Controllers\My\CalendarController as MyCalendarController;
 use App\Http\Controllers\My\DashboardController as MyDashboardController;
 use App\Http\Controllers\My\TimesheetController as MyTimesheetController;
@@ -23,11 +28,11 @@ use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 // Public landing page. Signed-in users go to whichever home their role has.
-Route::get('/', function () {
-    return auth()->check()
-        ? redirect()->route(auth()->user()->homeRoute())
-        : view('landing');
-})->name('home');
+Route::get('/', LandingController::class)->name('home');
+
+// Public portfolio screen. Kept off the /portfolio-items admin path so the two
+// can never shadow each other.
+Route::get('/portfolio', [PublicPortfolioController::class, 'index'])->name('portfolio');
 
 // Public enquiry form. Throttled because it is unauthenticated and sends mail.
 Route::post('/enquiry', [EnquiryController::class, 'store'])
@@ -126,6 +131,27 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
     Route::get('timesheets', [TimesheetAdminController::class, 'index'])->name('timesheets.index');
     Route::get('timesheets/{employee}', [TimesheetAdminController::class, 'show'])->name('timesheets.show');
     Route::post('timesheets/{employee}/points', [TimesheetAdminController::class, 'award'])->name('timesheets.award');
+
+    /*
+     * Website content: what the public landing page and /portfolio show.
+     * The paths are prefixed so neither can shadow the public /portfolio route.
+     */
+    Route::get('portfolio-items', [PortfolioItemController::class, 'index'])->name('portfolio.index');
+    Route::get('portfolio-items/create', [PortfolioItemController::class, 'create'])->name('portfolio.create');
+    Route::post('portfolio-items', [PortfolioItemController::class, 'store'])->name('portfolio.store');
+    Route::get('portfolio-items/{portfolio}/edit', [PortfolioItemController::class, 'edit'])->name('portfolio.edit');
+    Route::put('portfolio-items/{portfolio}', [PortfolioItemController::class, 'update'])->name('portfolio.update');
+    Route::delete('portfolio-items/{portfolio}', [PortfolioItemController::class, 'destroy'])->name('portfolio.destroy');
+
+    Route::get('portfolio-categories', [PortfolioCategoryController::class, 'index'])->name('portfolio-categories.index');
+    Route::post('portfolio-categories', [PortfolioCategoryController::class, 'store'])->name('portfolio-categories.store');
+    Route::put('portfolio-categories/{portfolioCategory}', [PortfolioCategoryController::class, 'update'])->name('portfolio-categories.update');
+    Route::delete('portfolio-categories/{portfolioCategory}', [PortfolioCategoryController::class, 'destroy'])->name('portfolio-categories.destroy');
+
+    Route::get('team', [TeamMemberController::class, 'index'])->name('team.index');
+    Route::post('team', [TeamMemberController::class, 'store'])->name('team.store');
+    Route::put('team/{team}', [TeamMemberController::class, 'update'])->name('team.update');
+    Route::delete('team/{team}', [TeamMemberController::class, 'destroy'])->name('team.destroy');
 
     Route::get('announcements', [AnnouncementController::class, 'index'])->name('announcements.index');
     Route::post('announcements', [AnnouncementController::class, 'store'])->name('announcements.store');

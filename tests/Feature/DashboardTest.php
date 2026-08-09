@@ -42,6 +42,55 @@ class DashboardTest extends TestCase
         $response->assertSee('waiting for your approval');
     }
 
+    public function test_the_work_list_is_ranked_with_the_most_urgent_first(): void
+    {
+        $user = User::factory()->create();
+
+        // Registered in the opposite order to how they must be shown, so a
+        // list that simply follows the code order fails this.
+        Invoice::factory()->pendingApproval()->create();
+        Invoice::factory()->overdue()->create(['subtotal' => 9000, 'total' => 9000]);
+
+        $items = $this->actingAs($user)->get(route('dashboard'))
+            ->assertOk()
+            ->viewData('actionItems');
+
+        $this->assertStringContainsString('overdue', $items[0]['title']);
+        $this->assertSame('red', $items[0]['tone']);
+        $this->assertSame(9000.0, $items[0]['amount']);
+
+        $titles = array_column($items, 'title');
+        $this->assertLessThan(
+            array_search('1 invoice(s) need approval', $titles, true),
+            array_search('1 overdue invoice(s)', $titles, true)
+        );
+    }
+
+    public function test_the_stuck_cash_chart_leads_with_the_biggest_blocker(): void
+    {
+        $user = User::factory()->create();
+
+        Invoice::factory()->overdue()->create(['subtotal' => 4000, 'total' => 4000]);
+        \App\Models\Expense::create([
+            'name' => 'Kanishka', 'type' => \App\Models\Expense::TYPE_SALARY,
+            'amount' => 25000, 'is_active' => true,
+        ]);
+
+        $bottlenecks = $this->actingAs($user)->get(route('dashboard'))
+            ->assertOk()
+            ->viewData('bottlenecks');
+
+        // Payroll (25,000) outweighs the overdue invoice (4,000).
+        $this->assertSame('Payroll pending', $bottlenecks['labels'][0]);
+
+        $values = $bottlenecks['values'];
+        $sorted = $values;
+        rsort($sorted);
+
+        $this->assertSame($sorted, $values, 'Bars must run biggest to smallest.');
+        $this->assertSame(array_sum($values), $bottlenecks['total']);
+    }
+
     public function test_mobile_tab_strip_and_panel_tagging_are_rendered(): void
     {
         $user = User::factory()->create();
