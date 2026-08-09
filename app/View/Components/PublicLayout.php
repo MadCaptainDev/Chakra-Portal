@@ -2,6 +2,7 @@
 
 namespace App\View\Components;
 
+use App\Models\PortfolioItem;
 use Illuminate\View\Component;
 use Illuminate\View\View;
 
@@ -21,6 +22,10 @@ class PublicLayout extends Component
 
     public function render(): View
     {
-        return view('layouts.public');
+        // Nothing published means no Work tab: an empty portfolio is worse
+        // than no portfolio, so the studio can simply not have one yet.
+        return view('layouts.public', [
+            'hasPortfolio' => PortfolioItem::published()->exists(),
+        ]);
     }
 }

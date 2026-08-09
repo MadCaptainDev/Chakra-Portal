@@ -7,22 +7,22 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmiController;
 use App\Http\Controllers\EnquiryController;
 use App\Http\Controllers\ExpenseController;
-use App\Http\Controllers\OtherExpenseController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\InvoiceTemplateController;
 use App\Http\Controllers\LandingController;
-use App\Http\Controllers\PortfolioCategoryController;
-use App\Http\Controllers\PortfolioItemController;
-use App\Http\Controllers\PublicPortfolioController;
-use App\Http\Controllers\TeamMemberController;
 use App\Http\Controllers\My\CalendarController as MyCalendarController;
 use App\Http\Controllers\My\DashboardController as MyDashboardController;
 use App\Http\Controllers\My\TimesheetController as MyTimesheetController;
+use App\Http\Controllers\OtherExpenseController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\PortfolioCategoryController;
+use App\Http\Controllers\PortfolioItemController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicPortfolioController;
 use App\Http\Controllers\RecurringInvoiceController;
 use App\Http\Controllers\SalaryController;
-use App\Http\Controllers\InvoiceTemplateController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\TeamMemberController;
 use App\Http\Controllers\TimesheetAdminController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -33,6 +33,10 @@ Route::get('/', LandingController::class)->name('home');
 // Public portfolio screen. Kept off the /portfolio-items admin path so the two
 // can never shadow each other.
 Route::get('/portfolio', [PublicPortfolioController::class, 'index'])->name('portfolio');
+
+// The case study for one piece. Named portfolio.detail rather than
+// portfolio.show because the portfolio.* names belong to the admin CRUD.
+Route::get('/portfolio/{portfolioItem}', [PublicPortfolioController::class, 'show'])->name('portfolio.detail');
 
 // Public enquiry form. Throttled because it is unauthenticated and sends mail.
 Route::post('/enquiry', [EnquiryController::class, 'store'])

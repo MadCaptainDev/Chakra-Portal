@@ -138,6 +138,8 @@
             </div>
         </div>
 
+        @include('portfolio._case-study-fields', ['item' => $item])
+
         {{-- Visibility --}}
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label class="flex items-start gap-3 rounded-lg border border-gray-200 p-3 min-h-[44px] cursor-pointer hover:bg-gray-50">

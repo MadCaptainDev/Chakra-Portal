@@ -56,7 +56,7 @@
         <img src="{{ asset('images/chakra-watermark.png') }}" alt=""
              class="pointer-events-none select-none absolute -right-24 -top-16 w-[28rem] max-w-none opacity-[0.06]">
 
-        <div class="relative max-w-6xl mx-auto px-5 sm:px-8 py-20 sm:py-28">
+        <div class="relative max-w-7xl mx-auto px-5 sm:px-8 py-20 sm:py-28">
             <p class="text-brand-300 text-xs font-semibold uppercase tracking-[0.25em] mb-5">
                 Chakra Productions
             </p>
@@ -87,7 +87,7 @@
 
     {{-- Services --}}
     <section id="services" class="bg-brand-800/40 border-y border-white/10 scroll-mt-20">
-        <div class="max-w-6xl mx-auto px-5 sm:px-8 py-20 sm:py-24">
+        <div class="max-w-7xl mx-auto px-5 sm:px-8 py-20 sm:py-24">
             <p class="text-brand-300 text-xs font-semibold uppercase tracking-[0.25em] mb-3">What we do</p>
             <h2 class="text-3xl sm:text-4xl font-bold max-w-2xl">Everything between the brief and the upload.</h2>
 
@@ -106,7 +106,7 @@
          panel, so an empty grid can never reach a visitor. --}}
     @if ($portfolioItems->isNotEmpty())
         <section id="work" class="scroll-mt-20">
-            <div class="max-w-6xl mx-auto px-5 sm:px-8 py-20 sm:py-24">
+            <div class="max-w-7xl mx-auto px-5 sm:px-8 py-20 sm:py-24">
                 <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
                     <div>
                         <p class="text-brand-300 text-xs font-semibold uppercase tracking-[0.25em] mb-3">Selected work</p>
@@ -138,7 +138,7 @@
 
     {{-- Process --}}
     <section id="process" class="bg-brand-800/40 border-y border-white/10 scroll-mt-20">
-        <div class="max-w-6xl mx-auto px-5 sm:px-8 py-20 sm:py-24">
+        <div class="max-w-7xl mx-auto px-5 sm:px-8 py-20 sm:py-24">
             <p class="text-brand-300 text-xs font-semibold uppercase tracking-[0.25em] mb-3">How we work</p>
             <h2 class="text-3xl sm:text-4xl font-bold max-w-2xl">Six steps, and you see it at every one.</h2>
             <p class="mt-4 text-brand-100/60 max-w-2xl leading-relaxed">
@@ -163,7 +163,7 @@
     {{-- Team. Same rule as Work: nothing published, nothing rendered. --}}
     @if ($teamMembers->isNotEmpty())
         <section id="team" class="scroll-mt-20">
-            <div class="max-w-6xl mx-auto px-5 sm:px-8 py-20 sm:py-24">
+            <div class="max-w-7xl mx-auto px-5 sm:px-8 py-20 sm:py-24">
                 <p class="text-brand-300 text-xs font-semibold uppercase tracking-[0.25em] mb-3">Who you work with</p>
                 <h2 class="text-3xl sm:text-4xl font-bold max-w-2xl">The people behind the work.</h2>
 
@@ -198,7 +198,7 @@
 
     {{-- Contact --}}
     <section id="contact" class="{{ $teamMembers->isNotEmpty() ? 'bg-brand-800/40 border-y border-white/10' : '' }} scroll-mt-20">
-        <div class="max-w-6xl mx-auto px-5 sm:px-8 py-20 sm:py-24">
+        <div class="max-w-7xl mx-auto px-5 sm:px-8 py-20 sm:py-24">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16">
                 <div>
                     <p class="text-brand-300 text-xs font-semibold uppercase tracking-[0.25em] mb-3">Get in touch</p>

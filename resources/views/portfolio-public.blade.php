@@ -3,7 +3,7 @@
     description="Films, series and short-form work from Chakra Productions, by category.">
 
     <section class="border-b border-white/10">
-        <div class="max-w-6xl mx-auto px-5 sm:px-8 py-16 sm:py-20">
+        <div class="max-w-7xl mx-auto px-5 sm:px-8 py-16 sm:py-20">
             <p class="text-brand-300 text-xs font-semibold uppercase tracking-[0.25em] mb-4">Portfolio</p>
             <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.05] max-w-3xl">
                 Everything we have made, in one place.
@@ -15,7 +15,7 @@
     </section>
 
     <section class="scroll-mt-20">
-        <div class="max-w-6xl mx-auto px-5 sm:px-8 py-12 sm:py-16">
+        <div class="max-w-7xl mx-auto px-5 sm:px-8 py-12 sm:py-16">
             @if ($items->isEmpty())
                 <div class="text-center py-20">
                     <p class="text-xl font-semibold">Nothing published yet.</p>
@@ -36,7 +36,7 @@
     </section>
 
     <section class="bg-brand-800/40 border-t border-white/10">
-        <div class="max-w-6xl mx-auto px-5 sm:px-8 py-16 sm:py-20 text-center">
+        <div class="max-w-7xl mx-auto px-5 sm:px-8 py-16 sm:py-20 text-center">
             <h2 class="text-3xl sm:text-4xl font-bold">Want something like this?</h2>
             <p class="mt-4 text-brand-100/60 max-w-xl mx-auto leading-relaxed">
                 Tell us roughly what you have in mind and we will come back with how we would approach it.

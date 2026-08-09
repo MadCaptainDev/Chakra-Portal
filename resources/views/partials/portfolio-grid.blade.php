@@ -93,19 +93,42 @@
                         @endif
                     </div>
 
-                    <div class="p-5">
-                        @if ($item->category)
-                            <p class="text-[11px] font-semibold uppercase tracking-widest text-brand-300 mb-1">{{ $item->category->name }}</p>
-                        @endif
-                        <p class="font-semibold">{{ $item->title }}</p>
-                        @if ($item->client_name)
-                            <p class="text-sm text-brand-100/50 mt-0.5">{{ $item->client_name }}</p>
-                        @endif
-                        @if ($item->description)
-                            <p class="text-sm text-brand-100/60 mt-2 leading-relaxed">{{ $item->description }}</p>
-                        @endif
-                    </div>
                 </button>
+
+                {{-- The caption sits outside the play button so a piece with a
+                     case study behind it can link there without nesting a link
+                     inside a button. --}}
+                @php $detail = $item->hasCaseStudy() ? route('portfolio.detail', $item) : null; @endphp
+
+                @if ($detail)
+                    <a href="{{ $detail }}" class="block p-5">
+                @else
+                    <div class="p-5">
+                @endif
+                    @if ($item->category)
+                        <p class="text-[11px] font-semibold uppercase tracking-widest text-brand-300 mb-1">{{ $item->category->name }}</p>
+                    @endif
+                    <p class="font-semibold">{{ $item->title }}</p>
+                    @if ($item->client_name)
+                        <p class="text-sm text-brand-100/50 mt-0.5">{{ $item->client_name }}</p>
+                    @endif
+                    @if ($item->description)
+                        <p class="text-sm text-brand-100/60 mt-2 leading-relaxed">{{ $item->description }}</p>
+                    @endif
+
+                    @if ($detail)
+                        <span class="mt-3 inline-flex items-center gap-1.5 min-h-[44px] text-xs font-semibold uppercase tracking-widest text-brand-300 group-hover:text-brand-200">
+                            Read the case study
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </span>
+                    @endif
+                @if ($detail)
+                    </a>
+                @else
+                    </div>
+                @endif
             </article>
         @endforeach
     </div>

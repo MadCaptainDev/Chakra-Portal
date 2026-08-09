@@ -10,12 +10,13 @@
     $onHome = request()->routeIs('home');
     $anchor = fn (string $hash) => $onHome ? $hash : route('home').$hash;
 
-    $navLinks = [
+    // Work only appears once there is work to show -- see PublicLayout.
+    $navLinks = array_filter([
         'Services' => $anchor('#services'),
-        'Work' => route('portfolio'),
+        'Work' => ($hasPortfolio ?? false) ? route('portfolio') : null,
         'Team' => $anchor('#team'),
         'Contact' => $anchor('#contact'),
-    ];
+    ]);
 @endphp
 
 <!DOCTYPE html>
@@ -38,7 +39,7 @@
 <body class="antialiased bg-brand-900 text-white" x-data="{ menuOpen: false }">
 
     <header class="sticky top-0 z-40 bg-brand-900/90 backdrop-blur border-b border-white/10">
-        <div class="max-w-6xl mx-auto px-5 sm:px-8">
+        <div class="max-w-7xl mx-auto px-5 sm:px-8">
             <div class="flex items-center justify-between h-16 sm:h-20">
                 <a href="{{ $onHome ? '#top' : route('home') }}" class="flex items-center shrink-0">
                     <x-application-logo class="h-8 sm:h-10 w-auto" />
@@ -86,7 +87,7 @@
     </main>
 
     <footer class="border-t border-white/10">
-        <div class="max-w-6xl mx-auto px-5 sm:px-8 py-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div class="max-w-7xl mx-auto px-5 sm:px-8 py-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <p class="text-xs text-brand-100/40">
                 &copy; {{ date('Y') }} Chakra Productions. All rights reserved.
             </p>

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PortfolioCategory;
 use App\Models\PortfolioItem;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -13,8 +14,15 @@ use Illuminate\View\View;
  */
 class PublicPortfolioController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|RedirectResponse
     {
+        // With nothing published there is no portfolio to show, so the screen
+        // steps aside rather than advertising an empty one. The nav drops its
+        // Work tab under the same rule.
+        if (! PortfolioItem::published()->exists()) {
+            return redirect()->route('home');
+        }
+
         $categories = PortfolioCategory::visible()->ordered()->get();
 
         $items = PortfolioItem::visible()
@@ -35,6 +43,41 @@ class PublicPortfolioController extends Controller
             'categories' => $categories,
             'items' => $items,
             'activeCategory' => $active,
+        ]);
+    }
+
+    /**
+     * The case study for one piece: what we made, how far it went, and what it
+     * did for the client.
+     */
+    public function show(PortfolioItem $portfolioItem): View
+    {
+        // A hidden piece has no public screen, and neither has one filed under
+        // a hidden category -- the same rule the grid applies.
+        abort_unless($portfolioItem->is_visible, 404);
+
+        $portfolioItem->loadMissing('category');
+
+        if ($portfolioItem->category && ! $portfolioItem->category->is_visible) {
+            abort(404);
+        }
+
+        // "More for this client" first, falling back to the same category so
+        // the screen never dead-ends.
+        $related = PortfolioItem::visible()
+            ->whereKeyNot($portfolioItem->getKey())
+            ->when(
+                filled($portfolioItem->client_name),
+                fn ($query) => $query->where('client_name', $portfolioItem->client_name),
+                fn ($query) => $query->where('portfolio_category_id', $portfolioItem->portfolio_category_id)
+            )
+            ->ordered()
+            ->take(4)
+            ->get();
+
+        return view('portfolio-detail', [
+            'item' => $portfolioItem,
+            'related' => $related,
         ]);
     }
 }

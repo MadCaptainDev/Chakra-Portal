@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\PortfolioCategory;
 use App\Models\PortfolioItem;
 use App\Models\User;
+use App\Support\PublicUpload;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
@@ -206,7 +207,8 @@ class PortfolioTest extends TestCase
             'is_visible' => true,
         ]);
 
-        $this->get(route('portfolio'))->assertOk()->assertDontSee('Staff party reel');
+        // Nothing is left to show, so the screen steps aside entirely.
+        $this->get(route('portfolio'))->assertRedirect(route('home'));
         $this->get('/')->assertOk()->assertDontSee('Staff party reel');
     }
 
@@ -252,8 +254,8 @@ class PortfolioTest extends TestCase
     public function test_uploads_never_land_outside_the_uploads_folder(): void
     {
         // A hand-edited path must not be able to remove a bundled asset.
-        \App\Support\PublicUpload::delete('images/chakra-logo.png');
-        \App\Support\PublicUpload::delete('uploads/../images/chakra-logo.png');
+        PublicUpload::delete('images/chakra-logo.png');
+        PublicUpload::delete('uploads/../images/chakra-logo.png');
 
         $this->assertTrue(File::exists(public_path('images/chakra-logo.png')));
     }

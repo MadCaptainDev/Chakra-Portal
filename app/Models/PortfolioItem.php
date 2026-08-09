@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Metric;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -17,6 +18,31 @@ class PortfolioItem extends Model
     /** Kilobytes. 512 MB -- the host allows 1.5 GB per request. */
     public const VIDEO_MAX_KB = 512000;
 
+    /** Case-study numbers, in the order the detail screen reads them. */
+    public const PERFORMANCE_FIELDS = [
+        'views', 'reach', 'likes', 'comments', 'shares', 'saves', 'profile_visits', 'enquiries',
+        'engagement_rate', 'completion_rate', 'watch_hours', 'avg_watch_seconds',
+    ];
+
+    public const BUSINESS_FIELDS = [
+        'leads', 'whatsapp_enquiries', 'calls', 'store_visits', 'orders',
+        'sales_amount', 'sales_before_amount', 'roi',
+    ];
+
+    public const BENCHMARK_FIELDS = [
+        'benchmark_views', 'benchmark_reach', 'benchmark_engagements',
+        'benchmark_enquiries', 'benchmark_sales_amount',
+    ];
+
+    public const CREATIVE_FIELDS = [
+        'creative_hook' => 'Hook',
+        'creative_concept' => 'Concept',
+        'creative_storytelling' => 'Storytelling',
+        'creative_cta' => 'Call to action',
+        'creative_offer' => 'Offer',
+        'creative_audience' => 'Audience',
+    ];
+
     protected $fillable = [
         'portfolio_category_id',
         'title',
@@ -28,12 +54,58 @@ class PortfolioItem extends Model
         'sort_order',
         'is_featured',
         'is_visible',
+        'show_business_impact',
+        'summary',
+        'platform',
+        'format',
+        'duration_seconds',
+        'objective',
+        'published_on',
+        'before_after',
+        ...self::PERFORMANCE_FIELDS,
+        ...self::BUSINESS_FIELDS,
+        ...self::BENCHMARK_FIELDS,
+        'creative_hook',
+        'creative_concept',
+        'creative_storytelling',
+        'creative_cta',
+        'creative_offer',
+        'creative_audience',
     ];
 
     protected $casts = [
         'sort_order' => 'integer',
         'is_featured' => 'boolean',
         'is_visible' => 'boolean',
+        'show_business_impact' => 'boolean',
+        'published_on' => 'date',
+        'duration_seconds' => 'integer',
+        'views' => 'integer',
+        'reach' => 'integer',
+        'likes' => 'integer',
+        'comments' => 'integer',
+        'shares' => 'integer',
+        'saves' => 'integer',
+        'profile_visits' => 'integer',
+        'enquiries' => 'integer',
+        'engagement_rate' => 'float',
+        'completion_rate' => 'float',
+        'watch_hours' => 'float',
+        'avg_watch_seconds' => 'float',
+        'leads' => 'integer',
+        'whatsapp_enquiries' => 'integer',
+        'calls' => 'integer',
+        'store_visits' => 'integer',
+        'orders' => 'integer',
+        'sales_amount' => 'float',
+        'sales_before_amount' => 'float',
+        'roi' => 'float',
+        'benchmark_views' => 'integer',
+        'benchmark_reach' => 'integer',
+        'benchmark_engagements' => 'integer',
+        'benchmark_enquiries' => 'integer',
+        'benchmark_sales_amount' => 'float',
+        'before_after' => 'array',
     ];
 
     public function category(): BelongsTo
@@ -49,6 +121,18 @@ class PortfolioItem extends Model
     public function scopeOrdered(Builder $query): void
     {
         $query->orderBy('sort_order')->orderByDesc('created_at');
+    }
+
+    /**
+     * Everything a visitor can actually reach: visible, and not filed under a
+     * category that has been hidden.
+     */
+    public function scopePublished(Builder $query): void
+    {
+        $query->visible()->where(function (Builder $query) {
+            $query->whereNull('portfolio_category_id')
+                ->orWhereHas('category', fn (Builder $query) => $query->where('is_visible', true));
+        });
     }
 
     /**
@@ -75,5 +159,147 @@ class PortfolioItem extends Model
     public function thumbnailUrl(): ?string
     {
         return $this->thumbnail_path ? asset($this->thumbnail_path) : null;
+    }
+
+    /**
+     * Total interactions -- the figure the platforms call "engagements".
+     */
+    public function engagements(): ?int
+    {
+        $parts = array_filter([$this->likes, $this->comments, $this->shares, $this->saves]);
+
+        return $parts === [] ? null : (int) array_sum($parts);
+    }
+
+    /**
+     * How much monthly sales moved, as a percentage. Null unless both the
+     * before and after figures are on record.
+     */
+    public function salesGrowth(): ?float
+    {
+        if (! $this->hasBusinessImpact() || ! $this->sales_amount || ! $this->sales_before_amount) {
+            return null;
+        }
+
+        return ($this->sales_amount - $this->sales_before_amount) / $this->sales_before_amount * 100;
+    }
+
+    /**
+     * The comparison table: this piece against the client's average one.
+     * Rows without a benchmark are dropped rather than shown as blanks.
+     *
+     * @return array<int, array{label: string, actual: string, benchmark: string, multiple: string}>
+     */
+    public function benchmarkRows(): array
+    {
+        $rows = [
+            ['Views', $this->views, $this->benchmark_views, false],
+            ['Reach', $this->reach, $this->benchmark_reach, false],
+            ['Engagement', $this->engagements(), $this->benchmark_engagements, false],
+            ['Enquiries', $this->enquiries, $this->benchmark_enquiries, false],
+        ];
+
+        // Money only joins the comparison when the money side is public.
+        if ($this->hasBusinessImpact()) {
+            $rows[] = ['Sales', $this->sales_amount, $this->benchmark_sales_amount, true];
+        }
+
+        $out = [];
+
+        foreach ($rows as [$label, $actual, $benchmark, $isMoney]) {
+            $multiple = Metric::multiple($actual, $benchmark);
+
+            if ($multiple === null) {
+                continue;
+            }
+
+            $out[] = [
+                'label' => $label,
+                'actual' => $isMoney ? Metric::money($actual) : Metric::count($actual),
+                'benchmark' => $isMoney ? Metric::money($benchmark) : Metric::count($benchmark),
+                'multiple' => $multiple,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * The before/after strip, with any half-filled row left out.
+     *
+     * @return array<int, array{label: string, before: string, after: string}>
+     */
+    public function beforeAfterRows(): array
+    {
+        return collect($this->before_after ?? [])
+            ->filter(fn ($row) => filled($row['label'] ?? null)
+                && filled($row['before'] ?? null)
+                && filled($row['after'] ?? null))
+            ->map(fn ($row) => [
+                'label' => (string) $row['label'],
+                'before' => (string) $row['before'],
+                'after' => (string) $row['after'],
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The creative thinking, keyed by its display label, blanks removed.
+     *
+     * @return array<string, string>
+     */
+    public function creativeNotes(): array
+    {
+        $notes = [];
+
+        foreach (self::CREATIVE_FIELDS as $field => $label) {
+            if (filled($this->{$field})) {
+                $notes[$label] = (string) $this->{$field};
+            }
+        }
+
+        return $notes;
+    }
+
+    /**
+     * True once there is enough on record to be worth a case-study screen --
+     * otherwise the grid keeps opening the player, as it always has.
+     */
+    public function hasCaseStudy(): bool
+    {
+        return $this->hasPerformance()
+            || $this->hasBusinessImpact()
+            || $this->creativeNotes() !== []
+            || filled($this->summary);
+    }
+
+    public function hasPerformance(): bool
+    {
+        return $this->anyOf(self::PERFORMANCE_FIELDS);
+    }
+
+    /**
+     * Business figures exist AND we are allowed to print them. Sales and
+     * return on spend are often the client's private numbers, so recording
+     * them and publishing them are two separate decisions.
+     */
+    public function hasBusinessImpact(): bool
+    {
+        return $this->show_business_impact !== false && $this->anyOf(self::BUSINESS_FIELDS);
+    }
+
+    /**
+     * @param  array<int, string>  $fields
+     */
+    private function anyOf(array $fields): bool
+    {
+        foreach ($fields as $field) {
+            if ($this->{$field} !== null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
