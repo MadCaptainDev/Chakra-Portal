@@ -104,7 +104,13 @@
             {{-- On a phone the title leads and the cover follows it, so the
                  first screen says what this is rather than filling itself with
                  a 9:16 still. On a desktop the cover takes the left column. --}}
-            <div class="mt-6 flex flex-col gap-8 lg:grid lg:grid-cols-[minmax(0,360px)_1fr] lg:grid-rows-[auto_auto] lg:gap-x-14 lg:gap-y-8 lg:items-start">
+            {{-- Row 2 is 1fr, not auto. The cover spans both rows and is taller
+                 than the text beside it, and two auto rows split that slack
+                 evenly -- which pushed the numbers half a cover down the page,
+                 away from the title they belong to. Giving row 2 the free space
+                 keeps the numbers directly under the title and lets the gap
+                 fall below them instead. --}}
+            <div class="mt-6 flex flex-col gap-8 lg:grid lg:grid-cols-[minmax(0,360px)_1fr] lg:grid-rows-[auto_1fr] lg:gap-x-14 lg:gap-y-8 lg:items-start">
                 {{-- Cover --}}
                 <div class="order-2 lg:order-none lg:col-start-1 lg:row-start-1 lg:row-span-2">
                     <div class="relative {{ $coverRatio }} rounded-xl overflow-hidden bg-brand-800 border border-white/10">
