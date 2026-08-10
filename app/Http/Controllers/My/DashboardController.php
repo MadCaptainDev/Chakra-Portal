@@ -19,6 +19,11 @@ class DashboardController extends Controller
         $entries = TimesheetEntry::where('user_id', $user->id)->forMonth($month)->get();
         $counted = $entries->where('status', '!=', TimesheetEntry::STATUS_CANCELLED);
 
+        /*
+         * No per-type or per-day breakdown here on purpose. The timesheet screen
+         * owns those charts; the dashboard links to it rather than repeating
+         * them, which TimesheetTest pins.
+         */
         return view('my.dashboard', [
             'month' => $month,
             'employee' => $user->employeeRecord,

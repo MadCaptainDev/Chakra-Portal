@@ -43,3 +43,49 @@
 [x-cloak] {
     display: none !important;
 }
+
+/* Entrance and ambient motion for the staff screens. Kept here rather than in
+   a <style> block so the sign-in page and the dashboard share one definition.
+
+   Everything is switched off under prefers-reduced-motion: the halo in
+   particular loops forever, and a permanent drifting glow is exactly what that
+   setting exists to silence. */
+@keyframes riseIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes haloDrift {
+    0%, 100% { opacity: .45; transform: translate3d(0, 0, 0); }
+    50% { opacity: .8; transform: translate3d(0, -18px, 0); }
+}
+
+.animate-rise-in { animation: riseIn .7s cubic-bezier(.2, .8, .2, 1) both; }
+.animate-rise-in-slow { animation: riseIn .7s cubic-bezier(.2, .8, .2, 1) .1s both; }
+.animate-halo { animation: haloDrift 11s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+    .animate-rise-in,
+    .animate-rise-in-slow,
+    .animate-halo {
+        animation: none;
+    }
+}
+
+/* Chrome paints an autofilled input with its own near-white background and
+   near-black text, which turns the dark sign-in fields into light boxes the
+   moment a saved password is offered. There is no property that clears it --
+   the inset shadow covering the field is the only reliable override, and the
+   absurd transition delay stops Chrome re-applying its colour on blur.
+
+   Scoped to the dark auth screens: the rest of the admin is light forms, where
+   Chrome's default autofill styling is already correct. */
+[data-dark-forms] input:-webkit-autofill,
+[data-dark-forms] input:-webkit-autofill:hover,
+[data-dark-forms] input:-webkit-autofill:focus,
+[data-dark-forms] input:-webkit-autofill:active {
+    -webkit-text-fill-color: #ffffff;
+    -webkit-box-shadow: 0 0 0 1000px #1b3040 inset;
+    caret-color: #67bcd4;
+    transition: background-color 9999s ease-out 0s;
+}

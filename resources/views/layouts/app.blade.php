@@ -19,7 +19,8 @@
             Skip to content
         </a>
 
-        <div class="min-h-screen bg-gray-50" x-data="{ sidebarOpen: false }" @keydown.escape.window="sidebarOpen = false">
+        <div class="min-h-screen {{ $dark ? 'bg-brand-900 text-white' : 'bg-gray-50' }}"
+             x-data="{ sidebarOpen: false }" @keydown.escape.window="sidebarOpen = false">
 
             <!-- Desktop sidebar -->
             <div class="hidden lg:flex lg:fixed lg:inset-y-0 lg:w-64 lg:flex-col bg-brand-900">
@@ -88,16 +89,20 @@
 
                 <main id="main" class="flex-1 w-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
                     @if (session('status'))
-                        <div class="mb-4 flex items-start gap-3 p-4 rounded-xl bg-green-50 ring-1 ring-green-200 text-green-800"
+                        <div class="mb-4 flex items-start gap-3 p-4 rounded-xl {{ $dark
+                                ? 'bg-brand-400/15 ring-1 ring-brand-400/40 text-brand-200'
+                                : 'bg-green-50 ring-1 ring-green-200 text-green-800' }}"
                              role="status">
-                            <x-icon name="check-circle" class="w-5 h-5 shrink-0 mt-0.5 text-green-600" />
+                            <x-icon name="check-circle" class="w-5 h-5 shrink-0 mt-0.5 {{ $dark ? 'text-brand-300' : 'text-green-600' }}" />
                             <p class="text-sm font-medium">{{ session('status') }}</p>
                         </div>
                     @endif
                     @if (session('error'))
-                        <div class="mb-4 flex items-start gap-3 p-4 rounded-xl bg-red-50 ring-1 ring-red-200 text-red-800"
+                        <div class="mb-4 flex items-start gap-3 p-4 rounded-xl {{ $dark
+                                ? 'bg-red-400/15 ring-1 ring-red-400/40 text-red-200'
+                                : 'bg-red-50 ring-1 ring-red-200 text-red-800' }}"
                              role="alert">
-                            <x-icon name="alert" class="w-5 h-5 shrink-0 mt-0.5 text-red-600" />
+                            <x-icon name="alert" class="w-5 h-5 shrink-0 mt-0.5 {{ $dark ? 'text-red-300' : 'text-red-600' }}" />
                             <p class="text-sm font-medium">{{ session('error') }}</p>
                         </div>
                     @endif
