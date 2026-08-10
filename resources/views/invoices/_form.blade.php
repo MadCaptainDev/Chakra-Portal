@@ -50,7 +50,7 @@
 
             <div class="flex gap-2">
                 <button type="button" @click="openCreate()"
-                        class="inline-flex items-center justify-center min-h-[44px] px-3 rounded-md bg-brand-400 text-xs font-semibold uppercase tracking-widest text-white hover:bg-brand-500 whitespace-nowrap">
+                        class="inline-flex items-center justify-center min-h-[44px] px-3 rounded-md bg-brand-400 text-xs font-semibold uppercase tracking-widest text-brand-900 hover:bg-brand-500 whitespace-nowrap">
                     + New
                 </button>
                 <button type="button" @click="openEdit()" x-show="selected()" x-cloak
@@ -124,7 +124,7 @@
                         Cancel
                     </button>
                     <button type="button" @click="submit()" :disabled="saving"
-                            class="inline-flex items-center justify-center min-h-[44px] px-4 rounded-md bg-brand-400 text-xs font-semibold uppercase tracking-widest text-white hover:bg-brand-500 disabled:opacity-50">
+                            class="inline-flex items-center justify-center min-h-[44px] px-4 rounded-md bg-brand-400 text-xs font-semibold uppercase tracking-widest text-brand-900 hover:bg-brand-500 disabled:opacity-50">
                         <span x-text="saving ? 'Saving...' : (mode === 'edit' ? 'Save client' : 'Add client')"></span>
                     </button>
                 </div>

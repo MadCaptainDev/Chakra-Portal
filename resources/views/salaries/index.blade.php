@@ -6,7 +6,7 @@
                     <form method="POST" action="{{ route('salaries.pay-all') }}" onsubmit="return confirm('Mark everyone unpaid this month as paid in full?');">
                         @csrf
                         <input type="hidden" name="month" value="{{ $month->format('Y-m') }}">
-                        <button type="submit" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-brand-400 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-brand-500">
+                        <button type="submit" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-brand-400 border border-transparent rounded-md font-semibold text-xs text-brand-900 uppercase tracking-widest hover:bg-brand-500">
                             Pay Everyone
                         </button>
                     </form>
@@ -85,7 +85,7 @@
                                    placeholder="{{ number_format($row['due'], 2, '.', '') }}"
                                    class="w-24 sm:w-28 rounded-md border-gray-300 shadow-sm text-sm text-right focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
                             <button type="submit"
-                                    class="min-h-[44px] px-3 rounded-md text-xs font-semibold uppercase tracking-wider {{ $isPaid ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-brand-400 text-white hover:bg-brand-500' }}">
+                                    class="min-h-[44px] px-3 rounded-md text-xs font-semibold uppercase tracking-wider {{ $isPaid ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-brand-400 text-brand-900 hover:bg-brand-500' }}">
                                 {{ $isPaid ? 'Update' : 'Pay' }}
                             </button>
                         </form>

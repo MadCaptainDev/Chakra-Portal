@@ -79,7 +79,7 @@
                         </a>
                     @endforeach
                     <a href="{{ $anchor('#contact') }}"
-                       class="ml-2 inline-flex items-center min-h-[44px] px-5 rounded-md bg-brand-400 text-white text-xs font-semibold uppercase tracking-widest hover:bg-brand-500 transition-colors">
+                       class="ml-2 inline-flex items-center min-h-[44px] px-5 rounded-md bg-brand-400 text-brand-900 text-xs font-semibold uppercase tracking-widest hover:bg-brand-500 transition-colors">
                         Start a project
                     </a>
                 </nav>
@@ -100,7 +100,7 @@
                         {{ $label }}
                     </a>
                 @endforeach
-                <a href="{{ route('login') }}" class="flex items-center min-h-[44px] px-2 rounded-md text-sm text-brand-100/50 hover:bg-white/5 hover:text-white">
+                <a href="{{ route('login') }}" class="flex items-center min-h-[44px] px-2 rounded-md text-sm text-brand-100/70 hover:bg-white/5 hover:text-white">
                     Staff sign in
                 </a>
             </nav>

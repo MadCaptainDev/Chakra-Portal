@@ -9,7 +9,7 @@
     <x-slot name="header">
         <x-page-header title="Invoices">
             <x-slot name="actions">
-                <a href="{{ route('invoices.create') }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-brand-400 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-brand-500">
+                <a href="{{ route('invoices.create') }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-brand-400 border border-transparent rounded-md font-semibold text-xs text-brand-900 uppercase tracking-widest hover:bg-brand-500">
                     + New Invoice
                 </a>
             </x-slot>
@@ -59,7 +59,7 @@
         <div class="flex flex-wrap gap-2">
             @foreach ($statusFilters as $value => $label)
                 <a href="{{ route('invoices.index', array_filter(['month' => $monthParam, 'search' => $search, 'status' => $value])) }}"
-                   class="px-3 py-1.5 rounded-full text-xs font-semibold {{ $status === $value ? 'bg-brand-400 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
+                   class="px-3 py-1.5 rounded-full text-xs font-semibold {{ $status === $value ? 'bg-brand-400 text-brand-900' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
                     {{ $label }}
                 </a>
             @endforeach
@@ -159,7 +159,7 @@
                         </div>
                         <div class="mt-3 flex justify-end gap-2 border-t border-gray-100 pt-3">
                             <a href="{{ route('invoices.pdf', $invoice) }}"
-                               class="inline-flex items-center justify-center min-h-[44px] px-3 rounded-md bg-brand-400 text-xs font-semibold uppercase tracking-widest text-white hover:bg-brand-500">
+                               class="inline-flex items-center justify-center min-h-[44px] px-3 rounded-md bg-brand-400 text-xs font-semibold uppercase tracking-widest text-brand-900 hover:bg-brand-500">
                                 PDF
                             </a>
                             <a href="{{ route('invoices.show', $invoice) }}"

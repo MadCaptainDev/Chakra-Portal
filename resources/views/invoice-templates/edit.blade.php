@@ -57,7 +57,7 @@
                             <button
                                 type="button"
                                 @click="setMode('blocks')"
-                                :class="mode === 'blocks' ? 'bg-brand-400 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                                :class="mode === 'blocks' ? 'bg-brand-400 text-brand-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
                                 class="inline-flex items-center min-h-[40px] px-4 rounded-md text-xs font-semibold uppercase tracking-widest transition"
                             >
                                 Drag blocks
@@ -65,7 +65,7 @@
                             <button
                                 type="button"
                                 @click="setMode('html')"
-                                :class="mode === 'html' ? 'bg-brand-400 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                                :class="mode === 'html' ? 'bg-brand-400 text-brand-900' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
                                 class="inline-flex items-center min-h-[40px] px-4 rounded-md text-xs font-semibold uppercase tracking-widest transition"
                             >
                                 HTML editor

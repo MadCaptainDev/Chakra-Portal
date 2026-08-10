@@ -13,12 +13,22 @@ class Client extends Model
 
     protected $fillable = [
         'name',
+        'logo_path',
         'address',
         'email',
         'phone',
         'notion_venture',
         'industry_id',
     ];
+
+    /**
+     * The client's logo, or null. Stored relative to public/, so asset()
+     * resolves it without touching the storage symlink.
+     */
+    public function logoUrl(): ?string
+    {
+        return $this->logo_path ? asset($this->logo_path) : null;
+    }
 
     public function invoices(): HasMany
     {

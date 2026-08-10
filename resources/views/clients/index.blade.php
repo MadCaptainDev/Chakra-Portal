@@ -2,7 +2,7 @@
     <x-slot name="header">
         <x-page-header title="Clients">
             <x-slot name="actions">
-                <a href="{{ route('clients.create') }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-brand-400 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-brand-500">
+                <a href="{{ route('clients.create') }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-brand-400 border border-transparent rounded-md font-semibold text-xs text-brand-900 uppercase tracking-widest hover:bg-brand-500">
                     + Add Client
                 </a>
             </x-slot>
@@ -61,7 +61,13 @@
                         @foreach ($clients as $client)
                             <tr>
                                 <td class="px-6 py-4 text-sm font-medium text-gray-900">
-                                    <a href="{{ route('clients.show', $client) }}" class="hover:text-brand-500">{{ $client->name }}</a>
+                                    <span class="flex items-center gap-3">
+                                        @if ($client->logoUrl())
+                                            <img src="{{ $client->logoUrl() }}" alt="" loading="lazy"
+                                                 class="w-8 h-8 shrink-0 rounded object-contain bg-gray-50 border border-gray-200">
+                                        @endif
+                                        <a href="{{ route('clients.show', $client) }}" class="hover:text-brand-500">{{ $client->name }}</a>
+                                    </span>
                                 </td>
                                 <td class="px-6 py-4 text-sm text-gray-500">{{ $client->address }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-500">{{ $client->email }}</td>

@@ -33,7 +33,7 @@
                         :aria-selected="active === 'all' ? 'true' : 'false'"
                         class="shrink-0 inline-flex items-center min-h-[44px] px-5 rounded-full text-sm font-semibold border transition-colors"
                         :class="active === 'all'
-                            ? 'bg-brand-400 border-brand-400 text-white'
+                            ? 'bg-brand-400 border-brand-400 text-brand-900'
                             : 'bg-white/5 border-white/15 text-brand-100/70 hover:text-white hover:border-white/30'">
                     All work
                 </button>
@@ -43,7 +43,7 @@
                             :aria-selected="active === @js($category->slug) ? 'true' : 'false'"
                             class="shrink-0 inline-flex items-center min-h-[44px] px-5 rounded-full text-sm font-semibold border transition-colors"
                             :class="active === @js($category->slug)
-                                ? 'bg-brand-400 border-brand-400 text-white'
+                                ? 'bg-brand-400 border-brand-400 text-brand-900'
                                 : 'bg-white/5 border-white/15 text-brand-100/70 hover:text-white hover:border-white/30'">
                         {{ $category->name }}
                     </button>
@@ -54,7 +54,7 @@
                             :aria-selected="active === 'other' ? 'true' : 'false'"
                             class="shrink-0 inline-flex items-center min-h-[44px] px-5 rounded-full text-sm font-semibold border transition-colors"
                             :class="active === 'other'
-                                ? 'bg-brand-400 border-brand-400 text-white'
+                                ? 'bg-brand-400 border-brand-400 text-brand-900'
                                 : 'bg-white/5 border-white/15 text-brand-100/70 hover:text-white hover:border-white/30'">
                         Other
                     </button>
@@ -116,7 +116,7 @@
                     @endif
                     <p class="font-semibold">{{ $item->title }}</p>
                     @if ($item->clientLabel())
-                        <p class="text-sm text-brand-100/50 mt-0.5">{{ $item->clientLabel() }}</p>
+                        <p class="text-sm text-brand-100/70 mt-0.5">{{ $item->clientLabel() }}</p>
                     @endif
                     @if ($item->description)
                         <p class="text-sm text-brand-100/60 mt-2 leading-relaxed">{{ $item->description }}</p>
@@ -140,7 +140,7 @@
     </div>
 
     {{-- Every piece is hidden when a tab holds nothing the visitor can see. --}}
-    <p x-show="! (counts[active] ?? 0)" x-cloak class="text-center text-brand-100/50 py-12">
+    <p x-show="! (counts[active] ?? 0)" x-cloak class="text-center text-brand-100/70 py-12">
         Nothing here yet — try another category.
     </p>
 

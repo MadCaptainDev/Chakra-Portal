@@ -74,7 +74,7 @@
 
             <div class="mt-10 flex flex-col sm:flex-row gap-3">
                 <a href="#contact"
-                   class="inline-flex items-center justify-center min-h-[52px] px-8 rounded-md bg-brand-400 text-white text-sm font-semibold uppercase tracking-widest hover:bg-brand-500 transition-colors">
+                   class="inline-flex items-center justify-center min-h-[52px] px-8 rounded-md bg-brand-400 text-brand-900 text-sm font-semibold uppercase tracking-widest hover:bg-brand-500 transition-colors">
                     Start a project
                 </a>
                 <a href="{{ $portfolioItems->isNotEmpty() ? '#work' : '#process' }}"
@@ -128,7 +128,7 @@
 
                 <div class="mt-10 text-center">
                     <a href="{{ route('portfolio') }}"
-                       class="inline-flex items-center justify-center min-h-[52px] px-8 rounded-md bg-brand-400 text-white text-sm font-semibold uppercase tracking-widest hover:bg-brand-500 transition-colors">
+                       class="inline-flex items-center justify-center min-h-[52px] px-8 rounded-md bg-brand-400 text-brand-900 text-sm font-semibold uppercase tracking-widest hover:bg-brand-500 transition-colors">
                         See the full portfolio
                     </a>
                 </div>
@@ -220,7 +220,7 @@
                                 <p><a href="https://wa.me/{{ $contact['whatsapp'] }}" target="_blank" rel="noopener" class="text-brand-200 hover:text-white transition-colors">WhatsApp us</a></p>
                             @endif
                             @if ($contact['address'])
-                                <p class="text-brand-100/50">{{ $contact['address'] }}</p>
+                                <p class="text-brand-100/70">{{ $contact['address'] }}</p>
                             @endif
 
                             @if (array_filter($social))
@@ -325,7 +325,7 @@
                         @error('website') <p class="text-sm text-red-300">{{ $message }}</p> @enderror
 
                         <button type="submit"
-                                class="w-full inline-flex items-center justify-center min-h-[52px] px-8 rounded-md bg-brand-400 text-white text-sm font-semibold uppercase tracking-widest hover:bg-brand-500 transition-colors">
+                                class="w-full inline-flex items-center justify-center min-h-[52px] px-8 rounded-md bg-brand-400 text-brand-900 text-sm font-semibold uppercase tracking-widest hover:bg-brand-500 transition-colors">
                             Send enquiry
                         </button>
                     </form>

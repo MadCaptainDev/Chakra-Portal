@@ -58,6 +58,42 @@
     $barMax = $bars ? max($bars) : 0;
     $barWidth = fn ($value) => $barMax > 0 ? round(sqrt($value / $barMax) * 100) : 0;
 
+    // The engagement section is two columns of cards, and either column can be
+    // empty. Only ask for two columns when both have something in them --
+    // otherwise a lone card sat at half width beside an empty half.
+    /*
+    | The closing figure leads with the biggest audience number the piece
+    | actually has, rather than always views. A reel that reached 2.1K people
+    | but logged 212 views was printing "212" at 128px, which undersells the
+    | work; whichever number is larger makes the case, and the other one falls
+    | back into the supporting line beneath it.
+    */
+    $headline = collect([
+        ['value' => $item->reach, 'label' => 'Reach'],
+        ['value' => $item->views, 'label' => 'Views'],
+    ])->reject(fn ($m) => $m['value'] === null)->sortByDesc('value')->first();
+
+    // The supporting line picks up whichever audience figure lost the headline
+    // slot, then the outcomes that matter more than either of them.
+    $runnerUp = $headline
+        ? collect([
+            ['value' => $item->reach, 'label' => 'reach'],
+            ['value' => $item->views, 'label' => 'views'],
+        ])->first(fn ($m) => $m['value'] !== null && $m['label'] !== strtolower($headline['label']))
+        : null;
+
+    $closing = array_filter([
+        $runnerUp ? Metric::count($runnerUp['value']).' '.$runnerUp['label'] : null,
+        $item->enquiries !== null ? Metric::count($item->enquiries).' enquiries' : null,
+        $showsSales ? Metric::money($item->sales_amount).' attributed sales' : null,
+    ]);
+
+    $ratePanel = $item->engagement_rate !== null || $bars;
+    $watchPanel = $item->completion_rate !== null
+        || $item->watch_hours !== null
+        || $item->avg_watch_seconds !== null;
+    $engagementCols = ($ratePanel && $watchPanel) ? 'lg:grid-cols-2' : 'max-w-3xl';
+
     // The funnel narrows from views to sales, so each stage is measured
     // against the widest one above it.
     $funnel = array_filter([
@@ -162,10 +198,20 @@
                     @if ($clientName || $item->published_on)
                         <div class="mt-4">
                             @if ($clientName)
-                                <p class="font-semibold">{{ $clientName }}</p>
+                                {{-- The client's own mark where we have it. The
+                                     name still prints beside it: a logo alone
+                                     is only recognisable to people who already
+                                     know the brand. --}}
+                                <div class="flex items-center gap-3">
+                                    @if ($item->client?->logoUrl())
+                                        <img src="{{ $item->client->logoUrl() }}" alt=""
+                                             class="h-9 w-9 shrink-0 rounded-md object-contain bg-white/90 p-1">
+                                    @endif
+                                    <p class="font-semibold">{{ $clientName }}</p>
+                                </div>
                             @endif
                             @if ($item->published_on)
-                                <p class="text-sm text-brand-100/50">Published {{ $item->published_on->format('j F Y') }}</p>
+                                <p class="text-sm text-brand-100/70">Published {{ $item->published_on->format('j F Y') }}</p>
                             @endif
                         </div>
                     @endif
@@ -217,13 +263,13 @@
                             @if ($item->views !== null)
                                 <div class="col-span-2 rounded-xl bg-white/5 border border-white/10 p-5">
                                     <p class="text-4xl sm:text-5xl font-extrabold tabular-nums leading-none">{{ Metric::count($item->views) }}</p>
-                                    <p class="mt-2 text-[10px] font-semibold uppercase tracking-widest text-brand-100/50">Views</p>
+                                    <p class="mt-2 text-[10px] font-semibold uppercase tracking-widest text-brand-100/70">Views</p>
                                 </div>
                             @endif
                             @if ($item->reach !== null)
                                 <div class="col-span-2 rounded-xl bg-white/5 border border-white/10 p-5">
                                     <p class="text-4xl sm:text-5xl font-extrabold tabular-nums leading-none">{{ Metric::count($item->reach) }}</p>
-                                    <p class="mt-2 text-[10px] font-semibold uppercase tracking-widest text-brand-100/50">Reach</p>
+                                    <p class="mt-2 text-[10px] font-semibold uppercase tracking-widest text-brand-100/70">Reach</p>
                                 </div>
                             @endif
 
@@ -236,7 +282,7 @@
                             ], fn ($value) => $value !== null) as $label => $value)
                                 <div class="rounded-xl bg-white/5 border border-white/10 p-4">
                                     <p class="text-2xl font-bold tabular-nums leading-none">{{ Metric::count($value) }}</p>
-                                    <p class="mt-2 text-[10px] font-semibold uppercase tracking-widest text-brand-100/50">{{ $label }}</p>
+                                    <p class="mt-2 text-[10px] font-semibold uppercase tracking-widest text-brand-100/70">{{ $label }}</p>
                                 </div>
                             @endforeach
 
@@ -289,10 +335,10 @@
                     Watch behaviour and interaction, as the platform reported them.
                 </p>
 
-                <div class="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-5">
-                    @if ($item->engagement_rate !== null || $bars)
+                <div class="mt-10 grid grid-cols-1 {{ $engagementCols }} gap-5">
+                    @if ($ratePanel)
                         <div class="rounded-xl bg-white/5 border border-white/10 p-6 sm:p-8">
-                            <p class="text-[10px] font-semibold uppercase tracking-widest text-brand-100/50">Engagement rate</p>
+                            <p class="text-[10px] font-semibold uppercase tracking-widest text-brand-100/70">Engagement rate</p>
 
                             @if ($item->engagement_rate !== null)
                                 <p class="mt-3 text-5xl sm:text-6xl font-extrabold tabular-nums leading-none">
@@ -306,7 +352,7 @@
                                         <div>
                                             <div class="flex items-baseline justify-between text-sm mb-2">
                                                 <span>{{ $label }}</span>
-                                                <span class="text-brand-100/50 tabular-nums">{{ Metric::count($value) }}</span>
+                                                <span class="text-brand-100/70 tabular-nums">{{ Metric::count($value) }}</span>
                                             </div>
                                             <div class="h-2 rounded-full bg-white/10 overflow-hidden">
                                                 <div class="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-300"
@@ -319,6 +365,7 @@
                         </div>
                     @endif
 
+                    @if ($watchPanel)
                     <div class="grid grid-cols-1 gap-5 content-start">
                         @if ($item->completion_rate !== null)
                             @php $ring = 327 * (1 - min(100, max(0, $item->completion_rate)) / 100); @endphp
@@ -334,7 +381,7 @@
                                     </div>
                                 </div>
                                 <div>
-                                    <p class="text-[10px] font-semibold uppercase tracking-widest text-brand-100/50">Completion rate</p>
+                                    <p class="text-[10px] font-semibold uppercase tracking-widest text-brand-100/70">Completion rate</p>
                                     <p class="mt-2 text-sm text-brand-100/60 leading-relaxed">
                                         Viewers who stayed to the final frame, where the call to action sits.
                                     </p>
@@ -347,18 +394,19 @@
                                 @if ($item->watch_hours !== null)
                                     <div class="rounded-xl bg-white/5 border border-white/10 p-6">
                                         <p class="text-3xl font-bold tabular-nums leading-none">{{ Metric::count($item->watch_hours) }} hrs</p>
-                                        <p class="mt-3 text-[10px] font-semibold uppercase tracking-widest text-brand-100/50">Total watch time</p>
+                                        <p class="mt-3 text-[10px] font-semibold uppercase tracking-widest text-brand-100/70">Total watch time</p>
                                     </div>
                                 @endif
                                 @if ($item->avg_watch_seconds !== null)
                                     <div class="rounded-xl bg-white/5 border border-white/10 p-6">
                                         <p class="text-3xl font-bold tabular-nums leading-none">{{ rtrim(rtrim(number_format($item->avg_watch_seconds, 1), '0'), '.') }}s</p>
-                                        <p class="mt-3 text-[10px] font-semibold uppercase tracking-widest text-brand-100/50">Avg. watch duration</p>
+                                        <p class="mt-3 text-[10px] font-semibold uppercase tracking-widest text-brand-100/70">Avg. watch duration</p>
                                     </div>
                                 @endif
                             </div>
                         @endif
                     </div>
+                    @endif
                 </div>
             </div>
         </section>
@@ -386,7 +434,7 @@
                                          style="width: {{ $funnelWidth($value) }}%">
                                         <span class="text-lg sm:text-xl font-bold tabular-nums">{{ Metric::count($value) }}</span>
                                     </div>
-                                    <span class="text-[11px] font-semibold uppercase tracking-widest {{ $last ? 'text-brand-200' : 'text-brand-100/50' }}">
+                                    <span class="text-[11px] font-semibold uppercase tracking-widest {{ $last ? 'text-brand-200' : 'text-brand-100/70' }}">
                                         {{ $label }}
                                     </span>
                                 </div>
@@ -454,7 +502,7 @@
 
                     <div class="mt-8 grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-5 md:gap-7 items-center">
                         <div class="rounded-xl bg-white/5 border border-white/10 p-6 sm:p-8">
-                            <p class="text-[10px] font-semibold uppercase tracking-widest text-brand-100/50">Before</p>
+                            <p class="text-[10px] font-semibold uppercase tracking-widest text-brand-100/70">Before</p>
                             <p class="mt-4 text-4xl font-extrabold tabular-nums leading-none text-brand-100/60">{{ Metric::money($item->sales_before_amount) }}</p>
                             <p class="mt-2 text-xs text-brand-100/40">Monthly sales</p>
                             <div class="mt-6 h-2 rounded-full bg-white/10 overflow-hidden">
@@ -465,7 +513,7 @@
                         @if ($growth !== null)
                             <div class="text-center">
                                 <p class="text-3xl font-extrabold tabular-nums text-brand-300">{{ ($growth >= 0 ? '+' : '').Metric::percent($growth) }}</p>
-                                <p class="mt-1.5 text-[10px] font-semibold uppercase tracking-widest text-brand-100/50">Growth</p>
+                                <p class="mt-1.5 text-[10px] font-semibold uppercase tracking-widest text-brand-100/70">Growth</p>
                             </div>
                         @endif
 
@@ -484,7 +532,7 @@
                     <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                         @foreach ($beforeAfter as $row)
                             <div class="rounded-lg bg-white/5 border border-white/10 p-5">
-                                <p class="text-[10px] font-semibold uppercase tracking-widest text-brand-100/50">{{ $row['label'] }}</p>
+                                <p class="text-[10px] font-semibold uppercase tracking-widest text-brand-100/70">{{ $row['label'] }}</p>
                                 <p class="mt-3 flex items-baseline gap-2">
                                     <span class="text-brand-100/40">{{ $row['before'] }}</span>
                                     <span class="text-brand-100/30" aria-hidden="true">&rarr;</span>
@@ -519,7 +567,7 @@
                                     'Objective' => $objective,
                                 ]) as $label => $value)
                                     <div class="flex items-baseline justify-between gap-4 py-3 border-b border-white/10 last:border-0">
-                                        <dt class="text-sm text-brand-100/50">{{ $label }}</dt>
+                                        <dt class="text-sm text-brand-100/70">{{ $label }}</dt>
                                         <dd class="text-sm text-right">{{ $value }}</dd>
                                     </div>
                                 @endforeach
@@ -548,30 +596,29 @@
     {{-- ------------------------------------------------------------------ --}}
     {{-- Headline figure                                                     --}}
     {{-- ------------------------------------------------------------------ --}}
-    @if ($item->views !== null)
+    @if ($headline)
         <section class="relative overflow-hidden border-b border-white/10">
             <div aria-hidden="true"
                  class="pointer-events-none absolute -right-24 -bottom-40 w-[520px] h-[520px] rounded-full bg-brand-400/15 blur-3xl"></div>
 
             <div class="relative max-w-7xl mx-auto px-5 sm:px-8 py-16 sm:py-24">
-                @if ($clientName)
-                    {{-- "SVA Jewels'" rather than "SVA Jewels's". --}}
-                    @php $possessive = $clientName.(str_ends_with($clientName, 's') ? "'" : "'s"); @endphp
-                    <p class="max-w-md text-xl sm:text-2xl font-semibold leading-snug text-brand-200">
+                {{-- The figure never appears bare. Without a linked client there
+                     is no one to claim a superlative for, so the fallback frames
+                     the number without inventing a ranking we cannot stand up. --}}
+                <p class="max-w-md text-xl sm:text-2xl font-semibold leading-snug text-brand-200">
+                    @if ($clientName)
+                        {{-- "SVA Jewels'" rather than "SVA Jewels's". --}}
+                        @php $possessive = $clientName.(str_ends_with($clientName, 's') ? "'" : "'s"); @endphp
                         One of {{ $possessive }} highest-performing pieces of content.
-                    </p>
-                @endif
-                <p class="mt-8 text-6xl sm:text-8xl lg:text-9xl font-extrabold tabular-nums leading-none tracking-tight">
-                    {{ Metric::count($item->views) }}
+                    @else
+                        How far this piece travelled.
+                    @endif
                 </p>
-                <p class="mt-3 text-sm font-semibold uppercase tracking-[0.35em] text-brand-100/60">Views</p>
 
-                @php
-                    $closing = array_filter([
-                        $item->enquiries !== null ? Metric::count($item->enquiries).' enquiries' : null,
-                        $showsSales ? Metric::money($item->sales_amount).' attributed sales' : null,
-                    ]);
-                @endphp
+                <p class="mt-8 text-6xl sm:text-8xl lg:text-9xl font-extrabold tabular-nums leading-none tracking-tight">
+                    {{ Metric::count($headline['value']) }}
+                </p>
+                <p class="mt-3 text-sm font-semibold uppercase tracking-[0.35em] text-brand-100/60">{{ $headline['label'] }}</p>
 
                 @if ($closing)
                     <p class="mt-7 text-base sm:text-lg text-brand-100/80">{{ implode(' · ', $closing) }}</p>
@@ -613,7 +660,7 @@
                     <div class="hidden lg:block rounded-xl bg-white/5 border border-white/10 overflow-hidden">
                         <table class="min-w-full text-sm">
                             <thead>
-                                <tr class="border-b border-white/10 text-[10px] font-semibold uppercase tracking-widest text-brand-100/50">
+                                <tr class="border-b border-white/10 text-[10px] font-semibold uppercase tracking-widest text-brand-100/70">
                                     <th class="px-6 py-4 text-left">Metric</th>
                                     <th class="px-6 py-4 text-right">This film</th>
                                     <th class="px-6 py-4 text-right">Average</th>
@@ -625,7 +672,7 @@
                                     <tr>
                                         <td class="px-6 py-4">{{ $row['label'] }}</td>
                                         <td class="px-6 py-4 text-right font-semibold tabular-nums">{{ $row['actual'] }}</td>
-                                        <td class="px-6 py-4 text-right text-brand-100/50 tabular-nums">{{ $row['benchmark'] }}</td>
+                                        <td class="px-6 py-4 text-right text-brand-100/70 tabular-nums">{{ $row['benchmark'] }}</td>
                                         <td class="px-6 py-4 text-right font-bold text-brand-300 tabular-nums">{{ $row['multiple'] }}</td>
                                     </tr>
                                 @endforeach
@@ -684,7 +731,7 @@
                                             ? Metric::money($other->sales_amount) : null,
                                     ]);
                                 @endphp
-                                <p class="mt-1 text-sm text-brand-100/50 tabular-nums">
+                                <p class="mt-1 text-sm text-brand-100/70 tabular-nums">
                                     {{ $line ? implode(' · ', $line) : ($other->category?->name ?? 'View case study') }}
                                 </p>
                             </div>
@@ -705,7 +752,7 @@
                 Tell us roughly what you have in mind and we will come back with how we would approach it.
             </p>
             <a href="{{ route('home', ['from' => 'case-study']) }}#contact"
-               class="mt-8 inline-flex items-center justify-center min-h-[52px] px-8 rounded-md bg-brand-400 text-white text-sm font-semibold uppercase tracking-widest hover:bg-brand-500 transition-colors">
+               class="mt-8 inline-flex items-center justify-center min-h-[52px] px-8 rounded-md bg-brand-400 text-brand-900 text-sm font-semibold uppercase tracking-widest hover:bg-brand-500 transition-colors">
                 Start a project
             </a>
         </div>

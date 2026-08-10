@@ -5,7 +5,7 @@
 
     <div class="max-w-2xl mx-auto">
         <x-card class="p-4 sm:p-6">
-            <form method="POST" action="{{ route('clients.update', $client) }}">
+            <form method="POST" action="{{ route('clients.update', $client) }}" enctype="multipart/form-data">
                 @method('PUT')
                 @include('clients._form')
             </form>

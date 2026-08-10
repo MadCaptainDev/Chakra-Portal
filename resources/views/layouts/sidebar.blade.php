@@ -116,7 +116,7 @@
             <x-avatar :name="$user->name" :src="$user->avatarUrl()" size="sm" />
             <div class="min-w-0 flex-1">
                 <p class="text-sm font-semibold text-white truncate leading-tight">{{ $user->name }}</p>
-                <p class="text-[11px] text-brand-100/50 truncate">{{ $user->email }}</p>
+                <p class="text-[11px] text-brand-100/70 truncate">{{ $user->email }}</p>
             </div>
         </a>
 
