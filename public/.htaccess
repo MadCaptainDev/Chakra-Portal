@@ -23,3 +23,18 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# The manifest is served as text/plain without this, which some installability
+# checks reject outright.
+<IfModule mod_mime.c>
+    AddType application/manifest+json .webmanifest
+</IfModule>
+
+# The service worker must be revalidated on every load. A stale copy sitting in
+# the HTTP cache is what keeps a broken worker alive on people's devices, and a
+# worker is otherwise very hard to dislodge.
+<IfModule mod_headers.c>
+    <Files "sw.js">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </Files>
+</IfModule>

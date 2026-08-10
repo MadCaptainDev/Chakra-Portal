@@ -12,3 +12,11 @@
 <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('apple-touch-icon.png') }}">
 <link rel="manifest" href="{{ asset('site.webmanifest') }}">
 <meta name="theme-color" content="#132A38">
+
+{{-- iOS reads none of the manifest's display or colour fields, so the
+     standalone behaviour has to be declared again in its own tags. Without
+     these an installed icon opens in a Safari tab with browser chrome. --}}
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Chakra">

@@ -1,11 +1,37 @@
 {
+    "id": "/",
     "name": "Chakra Productions",
     "short_name": "Chakra",
-    "icons": [
-        { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-        { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
-    ],
+    "description": "Chakra Productions — a video content studio, and the staff portal for logging work.",
+    "lang": "en",
+    "dir": "ltr",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "any",
     "theme_color": "#132A38",
     "background_color": "#132A38",
-    "display": "standalone"
+    "categories": ["business", "productivity"],
+    "icons": [
+        { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+        { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+        { "src": "/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+        { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    ],
+    "shortcuts": [
+        {
+            "name": "My timesheet",
+            "short_name": "Timesheet",
+            "description": "Log hours against a client",
+            "url": "/my/timesheet",
+            "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+        },
+        {
+            "name": "Our work",
+            "short_name": "Work",
+            "description": "The public portfolio",
+            "url": "/portfolio",
+            "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+        }
+    ]
 }
