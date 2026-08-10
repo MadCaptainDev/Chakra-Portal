@@ -20,7 +20,7 @@
                 <div class="text-center py-20">
                     <p class="text-xl font-semibold">Nothing published yet.</p>
                     <p class="mt-2 text-brand-100/60">Our latest work is on its way here.</p>
-                    <a href="{{ route('home') }}#contact"
+                    <a href="{{ route('home', ['from' => 'portfolio']) }}#contact"
                        class="mt-8 inline-flex items-center justify-center min-h-[52px] px-8 rounded-md bg-brand-400 text-white text-sm font-semibold uppercase tracking-widest hover:bg-brand-500 transition-colors">
                         Start a project
                     </a>
@@ -41,7 +41,7 @@
             <p class="mt-4 text-brand-100/60 max-w-xl mx-auto leading-relaxed">
                 Tell us roughly what you have in mind and we will come back with how we would approach it.
             </p>
-            <a href="{{ route('home') }}#contact"
+            <a href="{{ route('home', ['from' => 'portfolio']) }}#contact"
                class="mt-8 inline-flex items-center justify-center min-h-[52px] px-8 rounded-md bg-brand-400 text-white text-sm font-semibold uppercase tracking-widest hover:bg-brand-500 transition-colors">
                 Start a project
             </a>

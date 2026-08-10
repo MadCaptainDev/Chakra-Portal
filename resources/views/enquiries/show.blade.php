@@ -70,6 +70,16 @@
                     <dt class="text-xs text-gray-500 uppercase">Received</dt>
                     <dd class="mt-0.5 font-medium text-gray-900">{{ $enquiry->created_at->format('d/m/Y \a\t H:i') }}</dd>
                 </div>
+                <div>
+                    <dt class="text-xs text-gray-500 uppercase">Came from</dt>
+                    <dd class="mt-0.5 font-medium text-gray-900">{{ $enquiry->sourceLabel() }}</dd>
+                </div>
+                @if ($enquiry->prompted_by)
+                    <div class="sm:col-span-2">
+                        <dt class="text-xs text-gray-500 uppercase">What prompted them</dt>
+                        <dd class="mt-0.5 font-medium text-gray-900 break-words">{{ $enquiry->prompted_by }}</dd>
+                    </div>
+                @endif
             </dl>
         </x-card>
 

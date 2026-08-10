@@ -22,6 +22,7 @@ use App\Http\Controllers\PublicPortfolioController;
 use App\Http\Controllers\RecurringInvoiceController;
 use App\Http\Controllers\SalaryController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\TaxonomyTermController;
 use App\Http\Controllers\TeamMemberController;
 use App\Http\Controllers\TimesheetAdminController;
 use App\Http\Controllers\UserController;
@@ -160,6 +161,13 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
     Route::post('portfolio-categories', [PortfolioCategoryController::class, 'store'])->name('portfolio-categories.store');
     Route::put('portfolio-categories/{portfolioCategory}', [PortfolioCategoryController::class, 'update'])->name('portfolio-categories.update');
     Route::delete('portfolio-categories/{portfolioCategory}', [PortfolioCategoryController::class, 'destroy'])->name('portfolio-categories.destroy');
+
+    // Master lists shared across the app -- platforms, formats, objectives,
+    // service types, industries and tags, all one screen switched by ?type=.
+    Route::get('master-data', [TaxonomyTermController::class, 'index'])->name('taxonomy.index');
+    Route::post('master-data', [TaxonomyTermController::class, 'store'])->name('taxonomy.store');
+    Route::put('master-data/{taxonomyTerm}', [TaxonomyTermController::class, 'update'])->name('taxonomy.update');
+    Route::delete('master-data/{taxonomyTerm}', [TaxonomyTermController::class, 'destroy'])->name('taxonomy.destroy');
 
     Route::get('team', [TeamMemberController::class, 'index'])->name('team.index');
     Route::post('team', [TeamMemberController::class, 'store'])->name('team.store');

@@ -46,6 +46,7 @@
                         <p class="text-xs text-gray-400 mt-2">
                             {{ $enquiry->created_at->format('d/m/Y H:i') }}
                             @if ($enquiry->project) &middot; {{ $enquiry->project }} @endif
+                            @if ($enquiry->hasSource()) &middot; from {{ $enquiry->sourceLabel() }} @endif
                         </p>
                     </a>
                 @endforeach
@@ -58,6 +59,7 @@
                         <tr class="border-b border-gray-200 bg-gray-50/80">
                             <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">From</th>
                             <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Looking for</th>
+                            <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Came from</th>
                             <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Message</th>
                             <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Received</th>
                             <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
@@ -75,6 +77,15 @@
                                     <p class="text-gray-500">{{ $enquiry->email }}</p>
                                 </td>
                                 <td class="px-6 py-3.5 text-sm text-gray-500">{{ $enquiry->project ?: '—' }}</td>
+                                <td class="px-6 py-3.5 text-sm whitespace-nowrap">
+                                    @if ($enquiry->hasSource())
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-50 text-brand-700">
+                                            {{ $enquiry->sourceLabel() }}
+                                        </span>
+                                    @else
+                                        <span class="text-gray-400">—</span>
+                                    @endif
+                                </td>
                                 <td class="px-6 py-3.5 text-sm text-gray-600 max-w-md">
                                     <span class="line-clamp-2">{{ $enquiry->message }}</span>
                                 </td>

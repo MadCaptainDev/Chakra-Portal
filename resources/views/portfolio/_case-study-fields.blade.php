@@ -68,17 +68,35 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <x-input-label for="platform" value="Platform" />
-                    <x-text-input id="platform" name="platform" type="text" class="mt-1"
-                                  value="{{ old('platform', $item->platform) }}" placeholder="Instagram Reels" />
-                    <x-input-error :messages="$errors->get('platform')" class="mt-2" />
+                    <x-input-label for="platform_id" value="Platform" />
+                    <x-select id="platform_id" name="platform_id" class="mt-1">
+                        <option value="">Not set</option>
+                        @foreach ($lists['platform'] as $term)
+                            <option value="{{ $term->id }}" @selected((int) old('platform_id', $item->platform_id) === $term->id)>
+                                {{ $term->name }}@unless ($term->is_active) (retired)@endunless
+                            </option>
+                        @endforeach
+                    </x-select>
+                    @if ($item->platform_id === null && filled($item->platform))
+                        <p class="mt-1 text-xs text-amber-700">Currently showing “{{ $item->platform }}”, typed before this became a list.</p>
+                    @endif
+                    <x-input-error :messages="$errors->get('platform_id')" class="mt-2" />
                 </div>
                 <div>
-                    <x-input-label for="format" value="Format" />
-                    <x-text-input id="format" name="format" type="text" class="mt-1"
-                                  value="{{ old('format', $item->format) }}" placeholder="9:16 vertical" />
-                    <p class="mt-1 text-xs text-gray-500">A 9:16 format shows the cover vertically.</p>
-                    <x-input-error :messages="$errors->get('format')" class="mt-2" />
+                    <x-input-label for="format_id" value="Format" />
+                    <x-select id="format_id" name="format_id" class="mt-1">
+                        <option value="">Not set</option>
+                        @foreach ($lists['format'] as $term)
+                            <option value="{{ $term->id }}" @selected((int) old('format_id', $item->format_id) === $term->id)>
+                                {{ $term->name }}@unless ($term->is_active) (retired)@endunless
+                            </option>
+                        @endforeach
+                    </x-select>
+                    <p class="mt-1 text-xs text-gray-500">A format containing “9:16” shows the cover vertically.</p>
+                    @if ($item->format_id === null && filled($item->format))
+                        <p class="mt-1 text-xs text-amber-700">Currently showing “{{ $item->format }}”, typed before this became a list.</p>
+                    @endif
+                    <x-input-error :messages="$errors->get('format_id')" class="mt-2" />
                 </div>
                 <div>
                     <x-input-label for="duration_seconds" value="Duration (seconds)" />
@@ -93,10 +111,24 @@
                     <x-input-error :messages="$errors->get('published_on')" class="mt-2" />
                 </div>
                 <div class="sm:col-span-2">
-                    <x-input-label for="objective" value="Objective" />
-                    <x-text-input id="objective" name="objective" type="text" class="mt-1"
-                                  value="{{ old('objective', $item->objective) }}" placeholder="Awareness + sales" />
-                    <x-input-error :messages="$errors->get('objective')" class="mt-2" />
+                    <x-input-label for="objective_id" value="Objective" />
+                    <x-select id="objective_id" name="objective_id" class="mt-1">
+                        <option value="">Not set</option>
+                        @foreach ($lists['objective'] as $term)
+                            <option value="{{ $term->id }}" @selected((int) old('objective_id', $item->objective_id) === $term->id)>
+                                {{ $term->name }}@unless ($term->is_active) (retired)@endunless
+                            </option>
+                        @endforeach
+                    </x-select>
+                    @if ($item->objective_id === null && filled($item->objective))
+                        <p class="mt-1 text-xs text-amber-700">Currently showing “{{ $item->objective }}”, typed before this became a list.</p>
+                    @endif
+                    <p class="mt-1 text-xs text-gray-500">
+                        Platform, format and objective come from the
+                        <a href="{{ route('taxonomy.index') }}" target="_blank" rel="noopener"
+                           class="text-brand-500 hover:text-brand-600 font-semibold">master lists</a>.
+                    </p>
+                    <x-input-error :messages="$errors->get('objective_id')" class="mt-2" />
                 </div>
             </div>
         </div>

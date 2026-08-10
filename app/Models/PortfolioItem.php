@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class PortfolioItem extends Model
 {
@@ -43,8 +44,21 @@ class PortfolioItem extends Model
         'creative_audience' => 'Audience',
     ];
 
+    /** Single-value lists a piece points at, as field => taxonomy type. */
+    public const TERM_FIELDS = [
+        'platform_id' => TaxonomyTerm::TYPE_PLATFORM,
+        'format_id' => TaxonomyTerm::TYPE_FORMAT,
+        'objective_id' => TaxonomyTerm::TYPE_OBJECTIVE,
+        'service_type_id' => TaxonomyTerm::TYPE_SERVICE,
+    ];
+
     protected $fillable = [
         'portfolio_category_id',
+        'client_id',
+        'platform_id',
+        'format_id',
+        'objective_id',
+        'service_type_id',
         'title',
         'client_name',
         'description',
@@ -111,6 +125,99 @@ class PortfolioItem extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(PortfolioCategory::class, 'portfolio_category_id');
+    }
+
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
+    }
+
+    /*
+     * Named *Term rather than platform()/format()/objective(): the legacy text
+     * columns of those names still exist, and Eloquent hands back the column
+     * rather than the relation when the two collide -- which reads as null and
+     * silently blanks the field on the public page.
+     */
+
+    public function platformTerm(): BelongsTo
+    {
+        return $this->belongsTo(TaxonomyTerm::class, 'platform_id');
+    }
+
+    public function formatTerm(): BelongsTo
+    {
+        return $this->belongsTo(TaxonomyTerm::class, 'format_id');
+    }
+
+    public function objectiveTerm(): BelongsTo
+    {
+        return $this->belongsTo(TaxonomyTerm::class, 'objective_id');
+    }
+
+    public function serviceType(): BelongsTo
+    {
+        return $this->belongsTo(TaxonomyTerm::class, 'service_type_id');
+    }
+
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(TaxonomyTerm::class, 'portfolio_item_tag')
+            ->orderBy('sort_order')
+            ->orderBy('name');
+    }
+
+    /**
+     * Who the work was for.
+     *
+     * The linked client wins; a typed name covers the piece that has no CRM
+     * record -- a wedding filed as "Private", or work for a business nobody
+     * has invoiced yet. Both being empty is legitimate: not every piece is
+     * client work.
+     */
+    public function clientLabel(): ?string
+    {
+        return $this->client?->name ?: ($this->client_name ?: null);
+    }
+
+    /**
+     * The list value, falling back to whatever was typed before this field
+     * had a list. Anything the backfill could not match still reads.
+     */
+    public function termLabel(string $field): ?string
+    {
+        $relation = match ($field) {
+            'platform_id' => $this->platformTerm,
+            'format_id' => $this->formatTerm,
+            'objective_id' => $this->objectiveTerm,
+            'service_type_id' => $this->serviceType,
+            default => null,
+        };
+
+        if ($relation) {
+            return $relation->name;
+        }
+
+        // The legacy text column, named without the _id.
+        $legacy = substr($field, 0, -3);
+
+        return in_array($legacy, ['platform', 'format', 'objective'], true) && filled($this->{$legacy})
+            ? $this->{$legacy}
+            : null;
+    }
+
+    public function platformLabel(): ?string
+    {
+        return $this->termLabel('platform_id');
+    }
+
+    public function formatLabel(): ?string
+    {
+        return $this->termLabel('format_id');
+    }
+
+    public function objectiveLabel(): ?string
+    {
+        return $this->termLabel('objective_id');
     }
 
     public function scopeVisible(Builder $query): void

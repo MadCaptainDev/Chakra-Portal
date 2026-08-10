@@ -109,8 +109,8 @@
                         <p class="text-[11px] font-semibold uppercase tracking-widest text-brand-300 mb-1">{{ $item->category->name }}</p>
                     @endif
                     <p class="font-semibold">{{ $item->title }}</p>
-                    @if ($item->client_name)
-                        <p class="text-sm text-brand-100/50 mt-0.5">{{ $item->client_name }}</p>
+                    @if ($item->clientLabel())
+                        <p class="text-sm text-brand-100/50 mt-0.5">{{ $item->clientLabel() }}</p>
                     @endif
                     @if ($item->description)
                         <p class="text-sm text-brand-100/60 mt-2 leading-relaxed">{{ $item->description }}</p>

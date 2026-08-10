@@ -1,7 +1,6 @@
 @php
-    $visibleCount = $items->where('is_visible', true)->count();
-    $featuredCount = $items->where('is_featured', true)->count();
-    $missingVideo = $items->filter(fn ($item) => ! $item->playbackUrl())->count();
+    $missingVideo = $totals['noVideo'];
+    $isFiltered = $filters['q'] !== '' || $filters['category'] !== '' || $filters['status'] !== '';
 @endphp
 
 <x-app-layout>
@@ -11,6 +10,10 @@
                 <a href="{{ route('portfolio-categories.index') }}"
                    class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50">
                     Categories
+                </a>
+                <a href="{{ route('taxonomy.index') }}"
+                   class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50">
+                    Master data
                 </a>
                 <a href="{{ route('portfolio') }}" target="_blank" rel="noopener"
                    class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50">
@@ -26,13 +29,62 @@
 
     <div class="space-y-4">
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <x-stat-card label="Pieces" value="{{ $items->count() }}" accent="gray" />
-            <x-stat-card label="Live on site" value="{{ $visibleCount }}" accent="green" />
-            <x-stat-card label="Featured" value="{{ $featuredCount }}" accent="brand">
+            <x-stat-card label="Pieces" value="{{ $totals['all'] }}" accent="gray" />
+            <x-stat-card label="Live on site" value="{{ $totals['live'] }}" accent="green" />
+            <x-stat-card label="Featured" value="{{ $totals['featured'] }}" accent="brand">
                 Lead the landing page
             </x-stat-card>
             <x-stat-card label="Categories" value="{{ $categories->count() }}" accent="gray" />
         </div>
+
+        {{-- Find one piece without scrolling the lot. Plain GET, so a filtered
+             view is a URL staff can bookmark or send to each other. --}}
+        <x-card class="p-3 sm:p-4">
+            <form method="GET" action="{{ route('portfolio.index') }}"
+                  class="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-3 sm:items-end">
+                <div>
+                    <x-input-label for="q" value="Search" />
+                    <x-text-input id="q" name="q" type="search" class="mt-1"
+                                  value="{{ $filters['q'] }}" placeholder="Title or client" />
+                </div>
+
+                <div>
+                    <x-input-label for="category" value="Category" />
+                    <x-select id="category" name="category" class="mt-1">
+                        <option value="">All categories</option>
+                        <option value="none" @selected($filters['category'] === 'none')>Uncategorised</option>
+                        @foreach ($categories as $category)
+                            <option value="{{ $category->id }}" @selected($filters['category'] === (string) $category->id)>
+                                {{ $category->name }}
+                            </option>
+                        @endforeach
+                    </x-select>
+                </div>
+
+                <div>
+                    <x-input-label for="status" value="Status" />
+                    <x-select id="status" name="status" class="mt-1">
+                        @foreach (['' => 'Any status', 'live' => 'Live on site', 'draft' => 'Draft', 'featured' => 'Featured', 'no-video' => 'No video'] as $value => $label)
+                            <option value="{{ $value }}" @selected($filters['status'] === $value)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <x-primary-button class="justify-center">Filter</x-primary-button>
+                    @if ($isFiltered)
+                        <a href="{{ route('portfolio.index') }}"
+                           class="inline-flex items-center min-h-[44px] px-3 text-sm font-semibold text-gray-500 hover:text-gray-900">Clear</a>
+                    @endif
+                </div>
+            </form>
+        </x-card>
+
+        @if ($isFiltered)
+            <p class="text-sm text-gray-500">
+                Showing {{ $items->count() }} of {{ $totals['all'] }} {{ Str::plural('piece', $totals['all']) }}.
+            </p>
+        @endif
 
         @if ($missingVideo > 0)
             <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -42,7 +94,7 @@
         @endif
 
         @if ($items->isEmpty())
-            <x-empty-state message="No work published yet.">
+            <x-empty-state message="{{ $isFiltered ? 'Nothing matches those filters.' : 'No work published yet.' }}">
                 <a href="{{ route('portfolio.create') }}" class="text-brand-500 font-semibold text-sm hover:text-brand-600">
                     Upload your first video &rarr;
                 </a>
@@ -64,7 +116,7 @@
                                 <p class="font-semibold text-gray-900 truncate">{{ $item->title }}</p>
                                 <p class="text-xs text-gray-500 truncate">
                                     {{ $item->category?->name ?? 'Uncategorised' }}
-                                    @if ($item->client_name) &middot; {{ $item->client_name }} @endif
+                                    @if ($item->clientLabel()) &middot; {{ $item->clientLabel() }} @endif
                                 </p>
                                 <div class="mt-1.5 flex flex-wrap gap-1.5">
                                     <x-badge :status="$item->is_visible ? 'active' : 'inactive'" />
@@ -123,8 +175,14 @@
                                         </div>
                                         <div class="min-w-0">
                                             <p class="font-medium text-gray-900 truncate">{{ $item->title }}</p>
-                                            @if ($item->client_name)
-                                                <p class="text-xs text-gray-500 truncate">{{ $item->client_name }}</p>
+                                            @if ($item->clientLabel())
+                                                <p class="text-xs text-gray-500 truncate">
+                                                    @if ($item->client)
+                                                        <a href="{{ route('clients.show', $item->client) }}" class="text-brand-500 hover:text-brand-600">{{ $item->client->name }}</a>
+                                                    @else
+                                                        {{ $item->client_name }}
+                                                    @endif
+                                                </p>
                                             @endif
                                         </div>
                                     </div>

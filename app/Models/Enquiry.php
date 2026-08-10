@@ -10,12 +10,28 @@ class Enquiry extends Model
 {
     use HasFactory;
 
+    /**
+     * The pages that can send someone to the enquiry form.
+     *
+     * A closed set on purpose: the value arrives on the query string, where a
+     * visitor can put anything, so it is matched against this list and dropped
+     * if it is not one of them. Nothing here identifies a person -- it records
+     * which screen did the persuading.
+     */
+    public const SOURCES = [
+        'landing' => 'Landing page',
+        'portfolio' => 'Portfolio grid',
+        'case-study' => 'Case study',
+    ];
+
     protected $fillable = [
         'name',
         'email',
         'phone',
         'project',
         'message',
+        'source',
+        'prompted_by',
         'ip_address',
         'read_at',
         'handled_at',
@@ -25,6 +41,25 @@ class Enquiry extends Model
         'read_at' => 'datetime',
         'handled_at' => 'datetime',
     ];
+
+    /**
+     * A readable name for the page that sent them. Older rows predate the
+     * field, so an unknown or missing source reads as such rather than
+     * pretending the lead came from the landing page.
+     */
+    public function sourceLabel(): string
+    {
+        return self::SOURCES[$this->source] ?? 'Not recorded';
+    }
+
+    /**
+     * True once we know which page sent them -- the inbox only shows the chip
+     * when there is something to show.
+     */
+    public function hasSource(): bool
+    {
+        return isset(self::SOURCES[$this->source]);
+    }
 
     public function scopeUnread(Builder $query): void
     {

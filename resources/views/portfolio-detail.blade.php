@@ -10,6 +10,18 @@
     | behind it but a title and a film.
     */
 
+    /*
+    | Platform, format and objective come from the master lists, falling back
+    | to whatever was typed before those lists existed -- so a piece the
+    | backfill could not match still reads correctly. clientLabel() prefers the
+    | linked client record over the typed name.
+    */
+    $platform = $item->platformLabel();
+    $format = $item->formatLabel();
+    $objective = $item->objectiveLabel();
+    $clientName = $item->clientLabel();
+    $tags = $item->tags;
+
     $engagements = $item->engagements();
     $growth = $item->salesGrowth();
     $benchmarkRows = $item->benchmarkRows();
@@ -26,8 +38,8 @@
     $hasBusiness = $item->hasBusinessImpact();
     $showsSales = $hasBusiness && $item->sales_amount !== null;
     $hasBeforeAfter = ($showsSales && $item->sales_before_amount) || $beforeAfter !== [];
-    $hasSpec = filled($item->platform) || filled($item->format)
-        || $item->duration_seconds !== null || filled($item->objective);
+    $hasSpec = filled($platform) || filled($format)
+        || $item->duration_seconds !== null || filled($objective);
 
     // Sections are numbered as they appear, so hiding one never leaves a gap.
     $step = 0;
@@ -59,7 +71,7 @@
     $funnelWidth = fn ($value) => $funnelMax > 0 ? max(28, round(sqrt($value / $funnelMax) * 100)) : 0;
 
     // A Reel is shot vertical; anything else reads better in the usual frame.
-    $vertical = str_contains((string) $item->format, '9:16');
+    $vertical = str_contains((string) $format, '9:16');
     $coverRatio = $vertical ? 'aspect-[9/16]' : 'aspect-video';
 
     $playback = $item->playbackUrl();
@@ -105,9 +117,9 @@
                              class="absolute inset-0 bg-gradient-to-b from-brand-900/50 via-transparent to-brand-900/80"></div>
 
                         <div class="absolute top-3 inset-x-3 flex items-center justify-between gap-2 pointer-events-none">
-                            @if ($item->platform)
+                            @if ($platform)
                                 <span class="inline-flex items-center px-2.5 py-1 rounded-full bg-brand-900/70 backdrop-blur text-[10px] font-semibold uppercase tracking-widest">
-                                    {{ $item->platform }}
+                                    {{ $platform }}
                                 </span>
                             @endif
                             @if ($item->duration_seconds !== null)
@@ -130,10 +142,10 @@
                         @endif
                     </div>
 
-                    @if ($item->client_name || $item->published_on)
+                    @if ($clientName || $item->published_on)
                         <div class="mt-4">
-                            @if ($item->client_name)
-                                <p class="font-semibold">{{ $item->client_name }}</p>
+                            @if ($clientName)
+                                <p class="font-semibold">{{ $clientName }}</p>
                             @endif
                             @if ($item->published_on)
                                 <p class="text-sm text-brand-100/50">Published {{ $item->published_on->format('j F Y') }}</p>
@@ -158,20 +170,21 @@
                         </p>
                     @endif
 
-                    @if ($item->category || $item->format || $item->duration_seconds !== null || $item->objective)
+                    @if ($item->category || $format || $item->duration_seconds !== null || $objective || $tags->isNotEmpty())
                         <div class="mt-6 flex flex-wrap gap-2">
                             @foreach (array_filter([
                                 $item->category?->name,
-                                $item->format,
+                                $format,
                                 $item->duration_seconds !== null ? $item->duration_seconds.' seconds' : null,
-                            ]) as $tag)
+                                ...$tags->pluck('name')->all(),
+                            ]) as $chip)
                                 <span class="inline-flex items-center px-3 py-1.5 rounded-full bg-white/5 border border-white/15 text-xs font-semibold text-brand-100/70">
-                                    {{ $tag }}
+                                    {{ $chip }}
                                 </span>
                             @endforeach
-                            @if ($item->objective)
+                            @if ($objective)
                                 <span class="inline-flex items-center px-3 py-1.5 rounded-full bg-brand-400/15 border border-brand-400/40 text-xs font-semibold text-brand-200">
-                                    {{ $item->objective }}
+                                    {{ $objective }}
                                 </span>
                             @endif
                         </div>
@@ -483,10 +496,10 @@
                             <dl class="mt-7">
                                 @foreach (array_filter([
                                     'Content type' => $item->category?->name,
-                                    'Format' => $item->format,
+                                    'Format' => $format,
                                     'Duration' => $item->duration_seconds !== null ? $item->duration_seconds.' seconds' : null,
-                                    'Platform' => $item->platform,
-                                    'Objective' => $item->objective,
+                                    'Platform' => $platform,
+                                    'Objective' => $objective,
                                 ]) as $label => $value)
                                     <div class="flex items-baseline justify-between gap-4 py-3 border-b border-white/10 last:border-0">
                                         <dt class="text-sm text-brand-100/50">{{ $label }}</dt>
@@ -524,9 +537,9 @@
                  class="pointer-events-none absolute -right-24 -bottom-40 w-[520px] h-[520px] rounded-full bg-brand-400/15 blur-3xl"></div>
 
             <div class="relative max-w-7xl mx-auto px-5 sm:px-8 py-16 sm:py-24">
-                @if ($item->client_name)
+                @if ($clientName)
                     {{-- "SVA Jewels'" rather than "SVA Jewels's". --}}
-                    @php $possessive = $item->client_name.(str_ends_with($item->client_name, 's') ? "'" : "'s"); @endphp
+                    @php $possessive = $clientName.(str_ends_with($clientName, 's') ? "'" : "'s"); @endphp
                     <p class="max-w-md text-xl sm:text-2xl font-semibold leading-snug text-brand-200">
                         One of {{ $possessive }} highest-performing pieces of content.
                     </p>
@@ -625,7 +638,7 @@
                     <div>
                         <p class="text-brand-300 text-xs font-semibold uppercase tracking-[0.25em]">{{ $number() }} — More work</p>
                         <h2 class="mt-4 text-2xl sm:text-3xl lg:text-4xl font-bold">
-                            {{ $item->client_name ? 'Other films for '.$item->client_name : 'More from the studio' }}
+                            {{ $clientName ? 'Other films for '.$clientName : 'More from the studio' }}
                         </h2>
                     </div>
                     <a href="{{ route('portfolio') }}"
@@ -674,7 +687,7 @@
             <p class="mt-4 text-brand-100/60 max-w-xl mx-auto leading-relaxed">
                 Tell us roughly what you have in mind and we will come back with how we would approach it.
             </p>
-            <a href="{{ route('home') }}#contact"
+            <a href="{{ route('home', ['from' => 'case-study']) }}#contact"
                class="mt-8 inline-flex items-center justify-center min-h-[52px] px-8 rounded-md bg-brand-400 text-white text-sm font-semibold uppercase tracking-widest hover:bg-brand-500 transition-colors">
                 Start a project
             </a>

@@ -23,10 +23,14 @@ class EnquiryController extends Controller
     {
         $fields = $request->safe()->only(['name', 'email', 'phone', 'project', 'message']);
 
+        // Kept out of $fields so the notification email stays what it was --
+        // the studio reads attribution in the inbox, not in the alert.
+        $attribution = $request->safe()->only(['source', 'prompted_by']);
+
         // Saved before the mail is attempted, so the lead survives a dead SMTP
         // host. Production mails to the log at debug level with LOG_LEVEL=error,
         // which discards it entirely - the row is the only durable record.
-        $enquiry = Enquiry::create($fields + ['ip_address' => $request->ip()]);
+        $enquiry = Enquiry::create($fields + $attribution + ['ip_address' => $request->ip()]);
 
         $recipient = CompanySetting::current()->notification_email
             ?: config('mail.from.address');

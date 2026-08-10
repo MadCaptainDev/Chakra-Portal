@@ -26,6 +26,16 @@ class PublicLayout extends Component
         // than no portfolio, so the studio can simply not have one yet.
         return view('layouts.public', [
             'hasPortfolio' => PortfolioItem::published()->exists(),
+
+            // The header's call to action follows the visitor to the enquiry
+            // form, so it has to name the page they were actually reading --
+            // otherwise every lead off a case study is filed under the landing
+            // page and the whole measurement is quietly wrong.
+            'enquirySource' => match (true) {
+                request()->routeIs('portfolio.detail') => 'case-study',
+                request()->routeIs('portfolio') => 'portfolio',
+                default => 'landing',
+            },
         ]);
     }
 }

@@ -259,6 +259,15 @@
                             <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
                         </div>
 
+                        {{-- Which page sent them here. The portfolio and case-study
+                             CTAs link back with ?from=..., and anything that is not
+                             one of the known pages is dropped server-side. --}}
+                        @php
+                            $from = (string) request()->query('from', '');
+                            $source = old('source', isset(\App\Models\Enquiry::SOURCES[$from]) ? $from : 'landing');
+                        @endphp
+                        <input type="hidden" name="source" value="{{ $source }}">
+
                         <div>
                             <label for="name" class="block text-sm font-medium text-brand-100/80 mb-1.5">Your name</label>
                             <input type="text" id="name" name="name" value="{{ old('name') }}" required
@@ -301,6 +310,16 @@
                                       placeholder="What it is for, roughly when you need it, anything you already have."
                                       class="w-full rounded-md bg-brand-900/60 border-white/15 text-white placeholder-brand-100/30 focus:border-brand-400 focus:ring-brand-400">{{ old('message') }}</textarea>
                             @error('message') <p class="mt-1.5 text-sm text-red-300">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div>
+                            <label for="prompted_by" class="block text-sm font-medium text-brand-100/80 mb-1.5">
+                                What made you get in touch? <span class="text-brand-100/40">(optional)</span>
+                            </label>
+                            <input type="text" id="prompted_by" name="prompted_by" value="{{ old('prompted_by') }}"
+                                   placeholder="A film you saw, a recommendation, something else"
+                                   class="w-full min-h-[44px] rounded-md bg-brand-900/60 border-white/15 text-white placeholder-brand-100/30 focus:border-brand-400 focus:ring-brand-400">
+                            @error('prompted_by') <p class="mt-1.5 text-sm text-red-300">{{ $message }}</p> @enderror
                         </div>
 
                         @error('website') <p class="text-sm text-red-300">{{ $message }}</p> @enderror

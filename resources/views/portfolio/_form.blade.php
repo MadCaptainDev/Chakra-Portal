@@ -24,12 +24,33 @@
             </div>
 
             <div>
-                <x-input-label for="client_name" value="Client (optional)" />
-                <x-text-input id="client_name" name="client_name" type="text" class="mt-1"
-                              value="{{ old('client_name', $item->client_name) }}"
-                              placeholder="Shown under the title" />
-                <x-input-error :messages="$errors->get('client_name')" class="mt-2" />
+                <x-input-label for="client_id" value="Client" />
+                <x-select id="client_id" name="client_id" class="mt-1">
+                    <option value="">Not a client project</option>
+                    @foreach ($clients as $client)
+                        <option value="{{ $client->id }}" @selected((int) old('client_id', $item->client_id) === $client->id)>
+                            {{ $client->name }}
+                        </option>
+                    @endforeach
+                </x-select>
+                <p class="mt-1 text-xs text-gray-500">
+                    Links the piece to the client record.
+                    <a href="{{ route('clients.create') }}" target="_blank" rel="noopener"
+                       class="text-brand-500 hover:text-brand-600 font-semibold">Add a client</a>
+                </p>
+                <x-input-error :messages="$errors->get('client_id')" class="mt-2" />
             </div>
+        </div>
+
+        <div>
+            <x-input-label for="client_name" value="Or a name to show instead (optional)" />
+            <x-text-input id="client_name" name="client_name" type="text" class="mt-1"
+                          value="{{ old('client_name', $item->client_name) }}"
+                          placeholder="e.g. Private — for work with no client record" />
+            <p class="mt-1 text-xs text-gray-500">
+                Used when no client is linked. A linked client's own name always wins.
+            </p>
+            <x-input-error :messages="$errors->get('client_name')" class="mt-2" />
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -57,6 +78,49 @@
                               value="{{ old('sort_order', $item->sort_order ?? 0) }}" />
                 <p class="mt-1 text-xs text-gray-500">Lower numbers show first.</p>
                 <x-input-error :messages="$errors->get('sort_order')" class="mt-2" />
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <x-input-label for="service_type_id" value="Service type (internal)" />
+                <x-select id="service_type_id" name="service_type_id" class="mt-1">
+                    <option value="">Not set</option>
+                    @foreach ($lists['service_type'] as $term)
+                        <option value="{{ $term->id }}" @selected((int) old('service_type_id', $item->service_type_id) === $term->id)>
+                            {{ $term->name }}@unless ($term->is_active) (retired)@endunless
+                        </option>
+                    @endforeach
+                </x-select>
+                <p class="mt-1 text-xs text-gray-500">For our own reporting. Never shown on the website.</p>
+                <x-input-error :messages="$errors->get('service_type_id')" class="mt-2" />
+            </div>
+
+            <div>
+                <x-input-label value="Tags" />
+                @php $chosen = collect(old('tags', $item->tags->pluck('id')->all()))->map(fn ($id) => (int) $id); @endphp
+                @if ($lists['tag']->isEmpty())
+                    <p class="mt-2 text-xs text-gray-500">
+                        No tags yet —
+                        <a href="{{ route('taxonomy.index', ['type' => 'tag']) }}" target="_blank" rel="noopener"
+                           class="text-brand-500 hover:text-brand-600 font-semibold">add some</a>.
+                    </p>
+                @else
+                    <div class="mt-1 flex flex-wrap gap-2">
+                        @foreach ($lists['tag'] as $term)
+                            <label class="inline-flex items-center gap-2 min-h-[44px] px-3 rounded-full border cursor-pointer transition
+                                          {{ $chosen->contains($term->id)
+                                                ? 'bg-brand-50 border-brand-300 text-brand-800'
+                                                : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50' }}">
+                                <input type="checkbox" name="tags[]" value="{{ $term->id }}"
+                                       @checked($chosen->contains($term->id))
+                                       class="rounded border-gray-300 text-brand-500 focus:ring-brand-400">
+                                <span class="text-sm font-medium">{{ $term->name }}</span>
+                            </label>
+                        @endforeach
+                    </div>
+                @endif
+                <x-input-error :messages="$errors->get('tags')" class="mt-2" />
             </div>
         </div>
 

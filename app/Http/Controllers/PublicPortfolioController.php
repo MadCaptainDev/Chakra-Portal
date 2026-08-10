@@ -56,7 +56,7 @@ class PublicPortfolioController extends Controller
         // a hidden category -- the same rule the grid applies.
         abort_unless($portfolioItem->is_visible, 404);
 
-        $portfolioItem->loadMissing('category');
+        $portfolioItem->loadMissing(['category', 'client', 'platformTerm', 'formatTerm', 'objectiveTerm', 'tags']);
 
         if ($portfolioItem->category && ! $portfolioItem->category->is_visible) {
             abort(404);
@@ -64,12 +64,19 @@ class PublicPortfolioController extends Controller
 
         // "More for this client" first, falling back to the same category so
         // the screen never dead-ends.
+        // Same client first -- by the linked record where there is one, since
+        // two pieces can spell a typed name differently and still be the same
+        // client. Falls back to the category so the screen never dead-ends.
         $related = PortfolioItem::visible()
             ->whereKeyNot($portfolioItem->getKey())
             ->when(
-                filled($portfolioItem->client_name),
-                fn ($query) => $query->where('client_name', $portfolioItem->client_name),
-                fn ($query) => $query->where('portfolio_category_id', $portfolioItem->portfolio_category_id)
+                $portfolioItem->client_id,
+                fn ($query) => $query->where('client_id', $portfolioItem->client_id),
+                fn ($query) => $query->when(
+                    filled($portfolioItem->client_name),
+                    fn ($q) => $q->where('client_name', $portfolioItem->client_name),
+                    fn ($q) => $q->where('portfolio_category_id', $portfolioItem->portfolio_category_id)
+                )
             )
             ->ordered()
             ->take(4)

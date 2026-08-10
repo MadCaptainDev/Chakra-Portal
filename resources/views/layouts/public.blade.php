@@ -8,7 +8,14 @@
     | from anywhere else, so the same nav works on every public screen.
     */
     $onHome = request()->routeIs('home');
-    $anchor = fn (string $hash) => $onHome ? $hash : route('home').$hash;
+
+    // Links back to the landing page carry the page the visitor was reading, so
+    // the enquiry form can record what actually persuaded them. On the landing
+    // page itself these stay plain anchors -- no reload, and nothing to record.
+    $source = $enquirySource ?? 'landing';
+    $anchor = fn (string $hash) => $onHome
+        ? $hash
+        : route('home', $hash === '#contact' ? ['from' => $source] : []).$hash;
 
     // Work only appears once there is work to show -- see PublicLayout.
     $navLinks = array_filter([
