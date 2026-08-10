@@ -34,11 +34,27 @@
     <title>{{ $title ?? 'Chakra Productions — Video content studio' }}</title>
     <meta name="description" content="{{ $description ?? 'Chakra Productions is a video content studio: short-form, YouTube long-form, scripting, editing and publishing, taken from idea to posted.' }}">
 
+    {{-- The share card. og:image points at a purpose-built 1200x630 image, not
+         the header logo: WhatsApp, Facebook and LinkedIn all drop an image
+         under roughly 200px a side, and they composite transparent PNGs onto
+         black, so the small transparent logo showed as no preview at all. The
+         explicit width/height let a scraper lay the card out before it has
+         finished fetching the file. --}}
     <meta property="og:title" content="{{ $title ?? 'Chakra Productions' }}">
     <meta property="og:description" content="{{ $description ?? 'A video content studio. Idea to posted.' }}">
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ url()->current() }}">
-    <meta property="og:image" content="{{ asset('images/chakra-logo.png') }}">
+    <meta property="og:site_name" content="Chakra Productions">
+    <meta property="og:image" content="{{ asset('images/og-image.png') }}">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Chakra Productions — a video content studio.">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ $title ?? 'Chakra Productions' }}">
+    <meta name="twitter:description" content="{{ $description ?? 'A video content studio. Idea to posted.' }}">
+    <meta name="twitter:image" content="{{ asset('images/og-image.png') }}">
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
