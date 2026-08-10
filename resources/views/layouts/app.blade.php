@@ -8,6 +8,8 @@
 
         <title>{{ $title ? $title.' · '.config('app.name', 'Laravel') : config('app.name', 'Laravel') }}</title>
 
+        @include('partials.favicon')
+
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @stack('styles')
     </head>

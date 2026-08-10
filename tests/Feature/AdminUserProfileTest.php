@@ -13,10 +13,22 @@ class AdminUserProfileTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** Avatars land in the real public/uploads, so the test clears up after itself. */
+    private array $written = [];
+
+    protected function tearDown(): void
+    {
+        foreach ($this->written as $path) {
+            if (is_file(public_path($path))) {
+                unlink(public_path($path));
+            }
+        }
+
+        parent::tearDown();
+    }
+
     public function test_admin_can_edit_employee_profile(): void
     {
-        Storage::fake('public');
-
         $admin = User::factory()->create();
         $employee = User::factory()->employee()->create([
             'name' => 'Old Name',
@@ -46,7 +58,12 @@ class AdminUserProfileTest extends TestCase
         $this->assertSame('Edited by admin', $employee->bio);
         $this->assertSame('9998887777', $employee->phone);
         $this->assertNotNull($employee->avatar_path);
-        Storage::disk('public')->assertExists(substr($employee->avatar_path, strlen('storage/')));
+        $this->written[] = $employee->avatar_path;
+
+        // public/uploads, not the storage disk: Apache will not follow the
+        // public/storage symlink, so anything served from there returns 403.
+        $this->assertStringStartsWith('uploads/avatars/', $employee->avatar_path);
+        $this->assertFileExists(public_path($employee->avatar_path));
     }
 
     public function test_admin_can_update_linked_profile_from_salary_page(): void

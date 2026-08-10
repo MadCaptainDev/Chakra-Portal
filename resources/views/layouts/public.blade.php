@@ -56,6 +56,8 @@
     <meta name="twitter:description" content="{{ $description ?? 'A video content studio. Idea to posted.' }}">
     <meta name="twitter:image" content="{{ asset('images/og-image.png') }}">
 
+    @include('partials.favicon')
+
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
 </head>

@@ -12,6 +12,20 @@ class ProfileTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** Avatars land in the real public/uploads, so the test clears up after itself. */
+    private array $written = [];
+
+    protected function tearDown(): void
+    {
+        foreach ($this->written as $path) {
+            if (is_file(public_path($path))) {
+                unlink(public_path($path));
+            }
+        }
+
+        parent::tearDown();
+    }
+
     public function test_profile_page_is_displayed(): void
     {
         $user = User::factory()->create();
@@ -62,8 +76,6 @@ class ProfileTest extends TestCase
 
     public function test_employee_can_upload_avatar_and_bio(): void
     {
-        Storage::fake('public');
-
         $user = User::factory()->employee()->create();
         $file = UploadedFile::fake()->image('avatar.jpg', 200, 200);
 
@@ -84,8 +96,12 @@ class ProfileTest extends TestCase
 
         $this->assertSame('Employee bio', $user->bio);
         $this->assertNotNull($user->avatar_path);
-        $this->assertTrue(str_starts_with($user->avatar_path, 'storage/avatars/'));
-        Storage::disk('public')->assertExists(substr($user->avatar_path, strlen('storage/')));
+        $this->written[] = $user->avatar_path;
+
+        // public/uploads, not the storage disk: Apache will not follow the
+        // public/storage symlink, so anything served from there returns 403.
+        $this->assertStringStartsWith('uploads/avatars/', $user->avatar_path);
+        $this->assertFileExists(public_path($user->avatar_path));
     }
 
     public function test_email_verification_status_is_unchanged_when_the_email_address_is_unchanged(): void

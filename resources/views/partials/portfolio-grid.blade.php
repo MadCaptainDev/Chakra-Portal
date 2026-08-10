@@ -77,9 +77,15 @@
                         @unless ($item->playbackUrl()) disabled @endunless
                         class="block w-full text-left">
                     <div class="relative aspect-video bg-brand-900/60 overflow-hidden">
+                        {{-- No thumbnail falls back to the uploaded file's first
+                             frame, so a card is never a blank rectangle. --}}
                         @if ($item->thumbnailUrl())
                             <img src="{{ $item->thumbnailUrl() }}" alt="{{ $item->title }}" loading="lazy"
                                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                        @elseif ($item->isUploaded())
+                            <video src="{{ $item->playbackUrl() }}#t=0.1" preload="metadata"
+                                   muted playsinline tabindex="-1" aria-hidden="true"
+                                   class="w-full h-full object-cover pointer-events-none group-hover:scale-105 transition-transform duration-300"></video>
                         @endif
 
                         @if ($item->playbackUrl())

@@ -108,9 +108,20 @@
                 {{-- Cover --}}
                 <div class="order-2 lg:order-none lg:col-start-1 lg:row-start-1 lg:row-span-2">
                     <div class="relative {{ $coverRatio }} rounded-xl overflow-hidden bg-brand-800 border border-white/10">
+                        {{-- With no thumbnail uploaded the cover used to be an
+                             empty box with a play button floating in it, which
+                             read as a broken page rather than as a reel. The
+                             uploaded file stands in for the still: metadata
+                             preload plus a #t= seek paints the frame without
+                             pulling the whole video down, and it is inert --
+                             the modal below is what actually plays. --}}
                         @if ($item->thumbnailUrl())
                             <img src="{{ $item->thumbnailUrl() }}" alt="{{ $item->title }}"
                                  class="w-full h-full object-cover">
+                        @elseif ($item->isUploaded())
+                            <video src="{{ $playback }}#t=0.1" preload="metadata"
+                                   muted playsinline tabindex="-1" aria-hidden="true"
+                                   class="w-full h-full object-cover pointer-events-none"></video>
                         @endif
 
                         <div aria-hidden="true"
