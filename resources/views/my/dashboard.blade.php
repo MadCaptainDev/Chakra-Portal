@@ -78,6 +78,25 @@
             @endif
         </div>
 
+        {{-- An open question is the one thing here that somebody else is
+             waiting on, so it sits above everything except the numbers. --}}
+        @if ($queriedCount > 0)
+            <a href="{{ route('my.timesheet') }}"
+               class="animate-rise-in flex items-start gap-3.5 rounded-xl bg-amber-400/15 ring-1 ring-amber-400/40 p-4 sm:p-5
+                      hover:bg-amber-400/20 transition-colors">
+                <span class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-amber-400/20 text-amber-300">
+                    <x-icon name="alert" class="w-5 h-5" />
+                </span>
+                <div class="min-w-0">
+                    <p class="font-semibold text-amber-100">
+                        {{ $queriedCount }} {{ Str::plural('entry', $queriedCount) }}
+                        {{ $queriedCount === 1 ? 'has' : 'have' }} a question from the studio
+                    </p>
+                    <p class="mt-1 text-sm text-amber-100/70">Open your timesheet and edit the entry to answer.</p>
+                </div>
+            </a>
+        @endif
+
         {{-- The breakdown charts live on the timesheet, not here. This is the
              link to them -- the dashboard summarises, the timesheet analyses. --}}
         <a href="{{ route('my.timesheet') }}"

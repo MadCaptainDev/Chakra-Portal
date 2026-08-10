@@ -9,6 +9,8 @@ use App\Support\TimesheetStats;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Throwable;
 
@@ -65,6 +67,11 @@ class TimesheetAdminController extends Controller
             'totalMinutes' => $rows->sum('minutes'),
             'ranking' => $ranking,
             'teamStats' => $teamStats,
+            'behind' => $this->whoIsBehind($employees),
+            'queriedCount' => TimesheetEntry::forMonth($month)
+                ->whereIn('user_id', $employees->pluck('id'))
+                ->whereNotNull('review_note')
+                ->count(),
         ]);
     }
 
@@ -120,6 +127,143 @@ class TimesheetAdminController extends Controller
         return redirect()
             ->route('timesheets.show', [$employee, 'month' => $period->format('Y-m')])
             ->with('status', "Points recorded for {$employee->name}.");
+    }
+
+    /**
+     * Who has logged nothing so far this week.
+     *
+     * Deliberately measured against the current week rather than the month
+     * being viewed: this answers "who do I need to chase today", which is a
+     * question about now, not about whichever month the page happens to be
+     * showing. Cancelled entries do not count as having logged.
+     *
+     * Each row carries when they last logged anything at all, so a manager can
+     * tell someone two days quiet from someone who has never started.
+     *
+     * @param  \Illuminate\Support\Collection<int, User>  $employees
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function whoIsBehind(Collection $employees): Collection
+    {
+        if ($employees->isEmpty()) {
+            return collect();
+        }
+
+        $weekStart = now()->startOfWeek();
+
+        $loggedThisWeek = TimesheetEntry::whereIn('user_id', $employees->pluck('id'))
+            ->where('status', '!=', TimesheetEntry::STATUS_CANCELLED)
+            // Half-open, for the reason spelled out on scopeForMonth: a stored
+            // "2026-08-11 00:00:00" is not <= "2026-08-11".
+            ->where('worked_on', '>=', $weekStart->toDateString())
+            ->where('worked_on', '<', now()->addDay()->startOfDay()->toDateString())
+            ->distinct()
+            ->pluck('user_id');
+
+        $lastLogged = TimesheetEntry::whereIn('user_id', $employees->pluck('id'))
+            ->where('status', '!=', TimesheetEntry::STATUS_CANCELLED)
+            ->selectRaw('user_id, MAX(worked_on) as last_worked_on')
+            ->groupBy('user_id')
+            ->pluck('last_worked_on', 'user_id');
+
+        return $employees
+            ->reject(fn (User $employee) => $loggedThisWeek->contains($employee->id))
+            ->map(function (User $employee) use ($lastLogged) {
+                $last = $lastLogged->get($employee->id);
+                $last = $last ? Carbon::parse($last) : null;
+
+                return [
+                    'employee' => $employee,
+                    'last' => $last,
+                    'daysSince' => $last?->diffInDays(now()->startOfDay()),
+                ];
+            })
+            // Longest silence first: that is who needs chasing most.
+            ->sortByDesc(fn (array $row) => $row['daysSince'] ?? PHP_INT_MAX)
+            ->values();
+    }
+
+    /**
+     * Sign an entry off. Approving also settles the status: a manager saying
+     * "yes, that happened" is the answer to the employee's "pending".
+     */
+    public function approve(Request $request, TimesheetEntry $entry): RedirectResponse
+    {
+        $this->markReviewed($request, $entry, note: null);
+
+        $entry->status = TimesheetEntry::STATUS_COMPLETED;
+        $entry->save();
+
+        return $this->backToEntry($entry, 'Entry approved.');
+    }
+
+    /**
+     * Ask the employee something about an entry. The status is left alone --
+     * it is the employee's to set, and they may well answer by editing the
+     * entry, which clears the question.
+     */
+    public function query(Request $request, TimesheetEntry $entry): RedirectResponse
+    {
+        $validated = $request->validate([
+            'review_note' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $this->markReviewed($request, $entry, note: $validated['review_note']);
+        $entry->save();
+
+        return $this->backToEntry($entry, 'Question sent to '.Str::before($entry->user->name, ' ').'.');
+    }
+
+    /**
+     * Clear the whole month's pending pile in one go -- the common case at the
+     * end of a month, when a manager has read down the list and is happy.
+     * Queried entries are skipped: an open question is not a rubber stamp.
+     */
+    public function approveMonth(Request $request, User $employee): RedirectResponse
+    {
+        abort_unless($employee->isEmployee(), 404);
+
+        $month = $this->resolveMonth($request->input('month'));
+
+        $entries = TimesheetEntry::where('user_id', $employee->id)
+            ->forMonth($month)
+            ->where('status', TimesheetEntry::STATUS_PENDING)
+            ->whereNull('review_note')
+            ->get();
+
+        foreach ($entries as $entry) {
+            $this->markReviewed($request, $entry, note: null);
+            $entry->status = TimesheetEntry::STATUS_COMPLETED;
+            $entry->save();
+        }
+
+        $count = $entries->count();
+
+        return redirect()
+            ->route('timesheets.show', [$employee, 'month' => $month->format('Y-m')])
+            ->with('status', $count === 0
+                ? 'Nothing was waiting to be approved.'
+                : $count.' '.Str::plural('entry', $count).' approved.');
+    }
+
+    /**
+     * The review columns are not fillable, so they are set here by hand -- the
+     * one place in the app allowed to write them.
+     */
+    private function markReviewed(Request $request, TimesheetEntry $entry, ?string $note): void
+    {
+        $entry->forceFill([
+            'reviewed_at' => now(),
+            'reviewed_by_id' => $request->user()->id,
+            'review_note' => $note,
+        ]);
+    }
+
+    private function backToEntry(TimesheetEntry $entry, string $status): RedirectResponse
+    {
+        return redirect()
+            ->route('timesheets.show', [$entry->user_id, 'month' => $entry->worked_on->format('Y-m')])
+            ->with('status', $status);
     }
 
     private function resolveMonth(?string $value): Carbon

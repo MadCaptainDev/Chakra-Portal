@@ -29,6 +29,11 @@ class DashboardController extends Controller
             'employee' => $user->employeeRecord,
             'totalMinutes' => $counted->sum('minutes'),
             'pendingCount' => $entries->where('status', TimesheetEntry::STATUS_PENDING)->count(),
+            // Questions from a manager outrank pending: someone is waiting on
+            // a reply, and answering is a specific action rather than a chore.
+            'queriedCount' => TimesheetEntry::where('user_id', $user->id)
+                ->whereNotNull('review_note')
+                ->count(),
             'daysLogged' => $counted->pluck('worked_on')->map->toDateString()->unique()->count(),
             'point' => EmployeePoint::where('user_id', $user->id)
                 ->whereDate('period', $month->toDateString())

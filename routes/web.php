@@ -145,6 +145,9 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
     Route::get('timesheets', [TimesheetAdminController::class, 'index'])->name('timesheets.index');
     Route::get('timesheets/{employee}', [TimesheetAdminController::class, 'show'])->name('timesheets.show');
     Route::post('timesheets/{employee}/points', [TimesheetAdminController::class, 'award'])->name('timesheets.award');
+    Route::post('timesheets/{employee}/approve-month', [TimesheetAdminController::class, 'approveMonth'])->name('timesheets.approve-month');
+    Route::post('timesheet-entries/{entry}/approve', [TimesheetAdminController::class, 'approve'])->name('timesheets.entry.approve');
+    Route::post('timesheet-entries/{entry}/query', [TimesheetAdminController::class, 'query'])->name('timesheets.entry.query');
 
     /*
      * Website content: what the public landing page and /portfolio show.

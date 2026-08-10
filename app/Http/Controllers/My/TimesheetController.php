@@ -57,7 +57,15 @@ class TimesheetController extends Controller
     {
         $this->authoriseOwnership($request, $entry);
 
-        $entry->update($this->validated($request));
+        $entry->fill($this->validated($request));
+
+        // Editing answers a manager's question, or invalidates their approval:
+        // either way the entry goes back into the unreviewed pile.
+        if ($entry->isDirty() && $entry->reviewed_at !== null) {
+            $entry->clearReview();
+        }
+
+        $entry->save();
 
         return redirect()
             ->route('my.timesheet', ['month' => $entry->worked_on->format('Y-m')])

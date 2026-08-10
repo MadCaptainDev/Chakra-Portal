@@ -8,6 +8,73 @@
         <x-month-nav route="timesheets.index" :month="$month"
                      :subtitle="\App\Models\TimesheetEntry::formatMinutes($totalMinutes).' across the team'" />
 
+        {{-- Who to chase. Measured against this week, not the month on screen:
+             the question is "who do I need to nudge today", which does not
+             change because someone paged back to June. --}}
+        @if ($behind->isNotEmpty())
+            <x-card class="p-4 sm:p-5 border border-amber-200 bg-amber-50/60">
+                <div class="flex items-start gap-3">
+                    <span class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-amber-100 text-amber-700">
+                        <x-icon name="alert" class="w-5 h-5" />
+                    </span>
+                    <div class="min-w-0 flex-1">
+                        <p class="font-semibold text-amber-900">
+                            {{ $behind->count() }} {{ Str::plural('person', $behind->count()) }} logged nothing this week
+                        </p>
+                        <p class="text-xs text-amber-800/80 mt-0.5">Since {{ now()->startOfWeek()->format('D d M') }}.</p>
+
+                        <ul class="mt-3 divide-y divide-amber-200/70">
+                            @foreach ($behind as $row)
+                                <li class="py-2 flex items-center gap-3">
+                                    <x-avatar :name="$row['employee']->name" :src="$row['employee']->avatarUrl()" size="sm" />
+
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-sm font-semibold text-amber-900 truncate">{{ $row['employee']->name }}</p>
+                                        <p class="text-[11px] text-amber-800/80">
+                                            @if ($row['last'])
+                                                Last logged {{ $row['last']->format('d M') }}
+                                                @if ($row['daysSince'] !== null)
+                                                    &middot; {{ $row['daysSince'] }} {{ Str::plural('day', $row['daysSince']) }} ago
+                                                @endif
+                                            @else
+                                                Has never logged an entry
+                                            @endif
+                                        </p>
+                                    </div>
+
+                                    @if ($row['employee']->email)
+                                        {{-- Opens the manager's own mail client rather than
+                                             sending anything from the server: no queue, no
+                                             deliverability question, and they see what goes. --}}
+                                        <a href="mailto:{{ $row['employee']->email }}?subject={{ rawurlencode('Timesheet for this week') }}&body={{ rawurlencode('Hi '.Str::before($row['employee']->name, ' ').",\n\nCould you log your hours for this week when you get a moment?\n\nThanks") }}"
+                                           class="shrink-0 inline-flex items-center min-h-[36px] px-3 rounded-md border border-amber-300 bg-white text-[11px] font-semibold uppercase tracking-wider text-amber-900 hover:bg-amber-100 transition">
+                                            Nudge
+                                        </a>
+                                    @endif
+
+                                    <a href="{{ route('timesheets.show', [$row['employee'], 'month' => $month->format('Y-m')]) }}"
+                                       class="shrink-0 text-amber-700 hover:text-amber-900">
+                                        <x-icon name="chevron-right" class="w-4 h-4" />
+                                        <span class="sr-only">Open {{ $row['employee']->name }}'s timesheet</span>
+                                    </a>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                </div>
+            </x-card>
+        @endif
+
+        @if ($queriedCount > 0)
+            <x-card class="p-4 border border-brand-200 bg-brand-50/60">
+                <p class="text-sm text-brand-900">
+                    <span class="font-semibold">{{ $queriedCount }}</span>
+                    {{ Str::plural('entry', $queriedCount) }} {{ $queriedCount === 1 ? 'has' : 'have' }}
+                    an open question waiting on a reply.
+                </p>
+            </x-card>
+        @endif
+
         @if ($rows->isEmpty())
             <x-empty-state message="No employee logins yet.">
                 <a href="{{ route('users.create') }}" class="text-brand-500 font-semibold text-sm hover:text-brand-600">Create one &rarr;</a>

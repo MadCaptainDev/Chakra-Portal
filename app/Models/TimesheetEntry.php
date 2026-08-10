@@ -52,9 +52,16 @@ class TimesheetEntry extends Model
         'notes',
     ];
 
+    /*
+     * The review columns are deliberately absent from $fillable. They are
+     * written only by the admin review actions, which set them explicitly --
+     * so no amount of extra form input on the employee's own edit screen can
+     * approve an entry or clear a manager's question.
+     */
     protected $casts = [
         'worked_on' => 'date',
         'minutes' => 'integer',
+        'reviewed_at' => 'datetime',
     ];
 
     public function user(): BelongsTo
@@ -62,12 +69,51 @@ class TimesheetEntry extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by_id');
+    }
+
+    /** A manager has asked something about this entry and is waiting on a reply. */
+    public function isQueried(): bool
+    {
+        return filled($this->review_note);
+    }
+
+    /** Signed off by a manager, and not since re-opened by an edit. */
+    public function isApproved(): bool
+    {
+        return $this->reviewed_at !== null && ! $this->isQueried();
+    }
+
+    /**
+     * Wipe the review. Called when the employee edits the entry: the thing a
+     * manager approved or asked about no longer exists in that form, so the
+     * decision has to be made again against what the entry says now.
+     */
+    public function clearReview(): void
+    {
+        $this->forceFill([
+            'reviewed_at' => null,
+            'reviewed_by_id' => null,
+            'review_note' => null,
+        ]);
+    }
+
+    /**
+     * Half-open range rather than whereBetween on two date strings.
+     *
+     * worked_on is a DATE column, but the model casts it, so Eloquent writes
+     * "2026-08-31 00:00:00". MySQL truncates that to a date on the way in and
+     * whereBetween behaves; SQLite keeps the string, and "2026-08-31 00:00:00"
+     * sorts AFTER "2026-08-31" -- so the last day of the month fell out of
+     * every month query under the test database while production looked fine.
+     * Comparing against the first instant of the next month is correct on both.
+     */
     public function scopeForMonth(Builder $query, Carbon $month): void
     {
-        $query->whereBetween('worked_on', [
-            $month->copy()->startOfMonth()->toDateString(),
-            $month->copy()->endOfMonth()->toDateString(),
-        ]);
+        $query->where('worked_on', '>=', $month->copy()->startOfMonth()->toDateString())
+            ->where('worked_on', '<', $month->copy()->startOfMonth()->addMonthNoOverflow()->toDateString());
     }
 
     public function scopeCounted(Builder $query): void
