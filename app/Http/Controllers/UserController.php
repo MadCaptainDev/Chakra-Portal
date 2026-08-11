@@ -41,17 +41,24 @@ class UserController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', Password::defaults(), 'confirmed'],
-            'role' => ['required', 'in:admin,employee'],
+            // Derived from the constant rather than repeated as a literal, so
+            // a new access level cannot be added and silently rejected here.
+            'role' => ['required', Rule::in(array_keys(User::ROLES))],
             'employee_id' => ['nullable', 'exists:expenses,id'],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['array'],
+            'permissions.*.*' => ['string'],
         ]);
 
-        DB::transaction(function () use ($validated) {
+        DB::transaction(function () use ($validated, $request) {
             $user = User::create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
                 'password' => $validated['password'],
                 'role' => $validated['role'],
             ]);
+
+            $this->applyPermissions($user, $validated);
 
             if (! empty($validated['employee_id'])) {
                 // Only link an actual, still-unlinked employee record, so a
@@ -66,12 +73,26 @@ class UserController extends Controller
         return redirect()->route('users.index')->with('status', 'Account created.');
     }
 
+    /**
+     * The user's grants shaped for the matrix: ['scripts' => ['view','edit']].
+     *
+     * @return array<string, list<string>>
+     */
+    private function grantedMatrix(User $user): array
+    {
+        return $user->permissions
+            ->groupBy('module')
+            ->map(fn ($rows) => $rows->pluck('ability')->all())
+            ->all();
+    }
+
     public function edit(User $user): View
     {
-        $user->loadMissing('employeeRecord');
+        $user->loadMissing('employeeRecord', 'permissions');
 
         return view('users.edit', [
             'user' => $user,
+            'granted' => old('permissions', $this->grantedMatrix($user)),
         ]);
     }
 
@@ -91,7 +112,10 @@ class UserController extends Controller
             'bio' => ['nullable', 'string', 'max:1000'],
             'avatar' => ['nullable', 'image', 'max:2048'],
             'remove_avatar' => ['sometimes', 'boolean'],
-            'role' => ['required', 'in:admin,employee'],
+            'role' => ['required', Rule::in(array_keys(User::ROLES))],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['array'],
+            'permissions.*.*' => ['string'],
         ]);
 
         // Don't let the last admin demote themselves into a lock-out.
@@ -114,6 +138,8 @@ class UserController extends Controller
         $this->applyAvatarUpload($request, $user);
         $user->save();
 
+        $this->applyPermissions($user, $validated);
+
         if ($user->employeeRecord) {
             $user->employeeRecord->update([
                 'phone' => $validated['phone'] ?? null,
@@ -122,6 +148,26 @@ class UserController extends Controller
         }
 
         return redirect()->route('users.edit', $user)->with('status', 'Profile updated.');
+    }
+
+    /**
+     * Store the module grants from the form.
+     *
+     * An admin's grants are cleared rather than saved. They already pass every
+     * gate, so stored rows would be dead weight -- and dead weight that came
+     * back to life the moment the account was demoted, quietly handing someone
+     * access they were never re-granted.
+     *
+     * syncPermissions() filters every pair against the registry, so nothing a
+     * hand-crafted form post invents can be persisted.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function applyPermissions(User $user, array $validated): void
+    {
+        $user->syncPermissions(
+            $user->isAdmin() ? [] : ($validated['permissions'] ?? [])
+        );
     }
 
     /**

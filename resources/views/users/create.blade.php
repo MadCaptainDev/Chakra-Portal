@@ -24,7 +24,7 @@
                     </x-select>
                     <x-input-error :messages="$errors->get('role')" class="mt-2" />
                     <p class="text-xs text-gray-500 mt-1">
-                        Employees only ever see their own timesheet, calendar and dashboard.
+                        Employees see their own timesheet and dashboard. Anything more is granted below.
                     </p>
                 </div>
 
@@ -39,6 +39,10 @@
                         @endforeach
                     </x-select>
                     <x-input-error :messages="$errors->get('employee_id')" class="mt-2" />
+                </div>
+
+                <div class="mb-4">
+                    <x-permission-matrix :granted="old('permissions', [])" :role="old('role', 'employee')" />
                 </div>
 
                 <div class="mb-4">

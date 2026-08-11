@@ -21,6 +21,8 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicPortfolioController;
 use App\Http\Controllers\RecurringInvoiceController;
 use App\Http\Controllers\SalaryController;
+use App\Http\Controllers\ScriptController;
+use App\Http\Controllers\ScriptSectionController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TaxonomyTermController;
 use App\Http\Controllers\TeamMemberController;
@@ -65,6 +67,46 @@ Route::middleware('auth')->prefix('my')->name('my.')->group(function () {
     Route::post('timesheet', [MyTimesheetController::class, 'store'])->name('timesheet.store');
     Route::put('timesheet/{entry}', [MyTimesheetController::class, 'update'])->name('timesheet.update');
     Route::delete('timesheet/{entry}', [MyTimesheetController::class, 'destroy'])->name('timesheet.destroy');
+});
+
+/*
+ * Scripts. The first module gated by granular permissions rather than by the
+ * admin flag, so a writer can reach it without being given the books.
+ *
+ * Deliberately NOT in the admin group below: the admin middleware would refuse
+ * a writer before any permission was consulted. Deliberately without
+ * recurring.catchup too -- that generates the studio's invoices on the first
+ * request of the day, and opening a script should never bill anybody.
+ *
+ * scopeBindings() makes {section} resolve only within its {script}, so a
+ * section id from another script is a 404 rather than something the controller
+ * has to remember to check.
+ */
+Route::middleware(['auth', 'module:scripts,view'])->scopeBindings()->group(function () {
+    Route::get('scripts', [ScriptController::class, 'index'])->name('scripts.index');
+
+    // Before the {script} route, or "create" binds as a script id.
+    Route::get('scripts/create', [ScriptController::class, 'create'])
+        ->middleware('module:scripts,create')->name('scripts.create');
+    Route::post('scripts', [ScriptController::class, 'store'])
+        ->middleware('module:scripts,create')->name('scripts.store');
+
+    Route::get('scripts/{script}', [ScriptController::class, 'show'])->name('scripts.show');
+
+    Route::get('scripts/{script}/edit', [ScriptController::class, 'edit'])
+        ->middleware('module:scripts,edit')->name('scripts.edit');
+    Route::put('scripts/{script}', [ScriptController::class, 'update'])
+        ->middleware('module:scripts,edit')->name('scripts.update');
+    Route::delete('scripts/{script}', [ScriptController::class, 'destroy'])
+        ->middleware('module:scripts,delete')->name('scripts.destroy');
+
+    // The editor's own endpoints. All JSON, all behind the edit ability.
+    Route::middleware('module:scripts,edit')->group(function () {
+        Route::post('scripts/{script}/sections', [ScriptSectionController::class, 'store'])->name('scripts.sections.store');
+        Route::post('scripts/{script}/sections/reorder', [ScriptSectionController::class, 'reorder'])->name('scripts.sections.reorder');
+        Route::patch('scripts/{script}/sections/{section}', [ScriptSectionController::class, 'update'])->name('scripts.sections.update');
+        Route::delete('scripts/{script}/sections/{section}', [ScriptSectionController::class, 'destroy'])->name('scripts.sections.destroy');
+    });
 });
 
 /*

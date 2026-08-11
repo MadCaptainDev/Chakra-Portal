@@ -27,6 +27,10 @@
             </x-sidebar-link>
         </x-nav-section>
 
+        {{-- Modules this person has been granted. Personal items above are
+             never permissioned -- they are your own data, not a module. --}}
+        @include('layouts._nav-modules')
+
         <x-nav-section label="Account">
             <x-sidebar-link icon="user" :href="route('profile.edit')" :active="request()->routeIs('profile.*')">
                 My Profile
@@ -84,6 +88,10 @@
                 </x-sidebar-link>
             @endif
         </x-nav-section>
+
+        {{-- Same partial as the employee branch: an admin passes every gate,
+             so they see every module without a second list to maintain. --}}
+        @include('layouts._nav-modules')
 
         <x-nav-section label="Website">
             <x-sidebar-link icon="sparkles" :href="route('portfolio.index')"

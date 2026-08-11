@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'recurring.catchup' => \App\Http\Middleware\EnsureRecurringInvoicesGenerated::class,
             'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
+            'module' => \App\Http\Middleware\EnsureModulePermission::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

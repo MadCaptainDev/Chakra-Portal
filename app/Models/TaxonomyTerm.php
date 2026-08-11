@@ -31,6 +31,10 @@ class TaxonomyTerm extends Model
 
     public const TYPE_TAG = 'tag';
 
+    public const TYPE_SCRIPT_TYPE = 'script_type';
+
+    public const TYPE_LANGUAGE = 'language';
+
     /**
      * The lists, in the order the master-data screen shows them.
      *
@@ -70,6 +74,16 @@ class TaxonomyTerm extends Model
             'label' => 'Tag',
             'plural' => 'Tags',
             'hint' => 'Free keywords. A piece can carry several.',
+        ],
+        self::TYPE_SCRIPT_TYPE => [
+            'label' => 'Script type',
+            'plural' => 'Script types',
+            'hint' => 'The kind of script being written — ad film, explainer, testimonial.',
+        ],
+        self::TYPE_LANGUAGE => [
+            'label' => 'Language',
+            'plural' => 'Languages',
+            'hint' => 'What a script is written in. Tamil and English are the usual two.',
         ],
     ];
 
@@ -117,7 +131,16 @@ class TaxonomyTerm extends Model
             ->count()
             + ($this->type === self::TYPE_INDUSTRY
                 ? Client::where('industry_id', $this->id)->count()
-                : 0);
+                : 0)
+            // Scripts draw on the platform, script type and language lists.
+            // Left out, the delete warning would report a term as unused while
+            // scripts still point at it -- and the delete would null them all.
+            + Script::query()
+                ->where(fn (Builder $query) => $query
+                    ->orWhere('platform_id', $this->id)
+                    ->orWhere('script_type_id', $this->id)
+                    ->orWhere('language_id', $this->id))
+                ->count();
     }
 
     public static function label(string $type): string

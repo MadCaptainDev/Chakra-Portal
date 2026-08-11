@@ -1,0 +1,115 @@
+<?php
+
+namespace App\Support;
+
+/**
+ * The registry of what can be granted.
+ *
+ * One place declares every module and the abilities that make sense inside it,
+ * so the permission matrix on the user form, the gates, the middleware and the
+ * sidebar all read from the same list. Adding a module is an entry here -- no
+ * migration, no new screen.
+ *
+ * Abilities are per-module on purpose: "approve" means something for scripts
+ * and invoices and nothing for master data, and offering a checkbox that can
+ * never matter is how a permission screen becomes noise.
+ */
+class Permission
+{
+    /** Every ability the system knows about, in the order they read best. */
+    public const ABILITIES = [
+        'view' => 'View',
+        'create' => 'Create',
+        'edit' => 'Edit',
+        'delete' => 'Delete',
+        'comment' => 'Comment',
+        'approve' => 'Approve',
+        'manage' => 'Manage',
+    ];
+
+    /**
+     * "manage" is the module's own admin: whoever has it has everything else
+     * in that module, and only that module. It exists so a lead writer can be
+     * given the run of Scripts without being made an admin of the studio.
+     */
+    public const ABILITY_MANAGE = 'manage';
+
+    /**
+     * @var array<string, array{label: string, group: string, abilities: list<string>}>
+     */
+    public const MODULES = [
+        'scripts' => [
+            'label' => 'Scripts',
+            'group' => 'Production',
+            'abilities' => ['view', 'create', 'edit', 'delete', 'comment', 'approve', 'manage'],
+        ],
+    ];
+
+    /** @return array<string, array{label: string, group: string, abilities: list<string>}> */
+    public static function modules(): array
+    {
+        return self::MODULES;
+    }
+
+    public static function isKnownModule(string $module): bool
+    {
+        return isset(self::MODULES[$module]);
+    }
+
+    public static function moduleLabel(string $module): string
+    {
+        return self::MODULES[$module]['label'] ?? ucfirst($module);
+    }
+
+    /**
+     * The abilities offered for one module, or an empty list for a module that
+     * is not registered -- so an unknown string can never be granted.
+     *
+     * @return list<string>
+     */
+    public static function abilitiesFor(string $module): array
+    {
+        return self::MODULES[$module]['abilities'] ?? [];
+    }
+
+    public static function isGrantable(string $module, string $ability): bool
+    {
+        return in_array($ability, self::abilitiesFor($module), true);
+    }
+
+    /**
+     * Every "module.ability" pair, which is exactly the set of gates defined
+     * at boot.
+     *
+     * @return list<string>
+     */
+    public static function allGateNames(): array
+    {
+        $names = [];
+
+        foreach (self::MODULES as $module => $config) {
+            foreach ($config['abilities'] as $ability) {
+                $names[] = $module.'.'.$ability;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * Modules grouped for the sidebar and the permission matrix, preserving
+     * the declaration order within each group.
+     *
+     * @return array<string, array<string, array{label: string, group: string, abilities: list<string>}>>
+     */
+    public static function grouped(): array
+    {
+        $grouped = [];
+
+        foreach (self::MODULES as $module => $config) {
+            $grouped[$config['group']][$module] = $config;
+        }
+
+        return $grouped;
+    }
+}

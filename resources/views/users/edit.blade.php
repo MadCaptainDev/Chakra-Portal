@@ -92,6 +92,8 @@
                     <x-input-error class="mt-2" :messages="$errors->get('role')" />
                 </div>
 
+                <x-permission-matrix :granted="$granted" :role="old('role', $user->role)" />
+
                 <div class="flex items-center gap-4">
                     <x-primary-button>Save Profile</x-primary-button>
                     @if ($user->employeeRecord)
