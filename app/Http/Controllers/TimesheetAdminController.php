@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\EmployeePoint;
 use App\Models\TimesheetEntry;
 use App\Models\User;
+use App\Support\TeamPulse;
 use App\Support\TimesheetStats;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -67,7 +68,7 @@ class TimesheetAdminController extends Controller
             'totalMinutes' => $rows->sum('minutes'),
             'ranking' => $ranking,
             'teamStats' => $teamStats,
-            'behind' => $this->whoIsBehind($employees),
+            'behind' => TeamPulse::behind($employees),
             'queriedCount' => TimesheetEntry::forMonth($month)
                 ->whereIn('user_id', $employees->pluck('id'))
                 ->whereNotNull('review_note')
@@ -127,60 +128,6 @@ class TimesheetAdminController extends Controller
         return redirect()
             ->route('timesheets.show', [$employee, 'month' => $period->format('Y-m')])
             ->with('status', "Points recorded for {$employee->name}.");
-    }
-
-    /**
-     * Who has logged nothing so far this week.
-     *
-     * Deliberately measured against the current week rather than the month
-     * being viewed: this answers "who do I need to chase today", which is a
-     * question about now, not about whichever month the page happens to be
-     * showing. Cancelled entries do not count as having logged.
-     *
-     * Each row carries when they last logged anything at all, so a manager can
-     * tell someone two days quiet from someone who has never started.
-     *
-     * @param  \Illuminate\Support\Collection<int, User>  $employees
-     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
-     */
-    private function whoIsBehind(Collection $employees): Collection
-    {
-        if ($employees->isEmpty()) {
-            return collect();
-        }
-
-        $weekStart = now()->startOfWeek();
-
-        $loggedThisWeek = TimesheetEntry::whereIn('user_id', $employees->pluck('id'))
-            ->where('status', '!=', TimesheetEntry::STATUS_CANCELLED)
-            // Half-open, for the reason spelled out on scopeForMonth: a stored
-            // "2026-08-11 00:00:00" is not <= "2026-08-11".
-            ->where('worked_on', '>=', $weekStart->toDateString())
-            ->where('worked_on', '<', now()->addDay()->startOfDay()->toDateString())
-            ->distinct()
-            ->pluck('user_id');
-
-        $lastLogged = TimesheetEntry::whereIn('user_id', $employees->pluck('id'))
-            ->where('status', '!=', TimesheetEntry::STATUS_CANCELLED)
-            ->selectRaw('user_id, MAX(worked_on) as last_worked_on')
-            ->groupBy('user_id')
-            ->pluck('last_worked_on', 'user_id');
-
-        return $employees
-            ->reject(fn (User $employee) => $loggedThisWeek->contains($employee->id))
-            ->map(function (User $employee) use ($lastLogged) {
-                $last = $lastLogged->get($employee->id);
-                $last = $last ? Carbon::parse($last) : null;
-
-                return [
-                    'employee' => $employee,
-                    'last' => $last,
-                    'daysSince' => $last?->diffInDays(now()->startOfDay()),
-                ];
-            })
-            // Longest silence first: that is who needs chasing most.
-            ->sortByDesc(fn (array $row) => $row['daysSince'] ?? PHP_INT_MAX)
-            ->values();
     }
 
     /**

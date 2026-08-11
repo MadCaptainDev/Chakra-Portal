@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Enquiry;
 use App\Models\Expense;
 use App\Models\ExpensePayment;
 use App\Models\Invoice;
 use App\Models\Payment;
+use App\Models\PortfolioItem;
 use App\Services\ExpenseLedger;
+use App\Support\TeamPulse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -104,7 +108,37 @@ class DashboardController extends Controller
             ? round(($thisMonthRevenue / $expenseDue) * 100, 1)
             : null;
 
+        /*
+         * The studio is not only money. Enquiries, the team and the website
+         * each get their own read here, and each can raise an action item --
+         * an owner should not have to visit four screens to learn what is
+         * waiting.
+         */
+        $employees = TeamPulse::employees();
+        $teamHours = TeamPulse::hours($employees, $month);
+        $teamBehind = TeamPulse::behind($employees);
+        $pendingReviews = (int) $teamHours->sum('pending');
+
+        $unreadEnquiries = Enquiry::unread()->count();
+        $openEnquiries = Enquiry::open()->count();
+        $monthEnquiries = Enquiry::whereBetween('created_at', [$month, $monthEnd->copy()->endOfDay()])->count();
+        $recentEnquiries = Enquiry::latest()->take(5)->get();
+        $enquirySources = Enquiry::whereBetween('created_at', [$month, $monthEnd->copy()->endOfDay()])
+            ->get()
+            ->groupBy(fn (Enquiry $enquiry) => $enquiry->sourceLabel())
+            ->map->count()
+            ->sortDesc();
+
+        $portfolio = PortfolioItem::get();
+        $published = $portfolio->where('is_visible', true);
+
         $actionItems = $this->actionItems([
+            'unreadEnquiries' => $unreadEnquiries,
+            'pendingReviews' => $pendingReviews,
+            'behindCount' => $teamBehind->count(),
+            'behindNames' => $teamBehind->take(2)
+                ->map(fn (array $row) => Str::before($row['employee']->name, ' '))
+                ->implode(' and '),
             'pendingApprovalCount' => $pendingApprovalCount,
             'overdueCount' => $overdueCount,
             'overdueAmount' => $overdueAmount,
@@ -145,6 +179,31 @@ class DashboardController extends Controller
             'outflowPaid' => $expensePaid,
             'outflowPending' => $expenseOutstanding,
             'emiThisMonth' => $emiLoad,
+
+            // —— Enquiries ——
+            'unreadEnquiries' => $unreadEnquiries,
+            'openEnquiries' => $openEnquiries,
+            'monthEnquiries' => $monthEnquiries,
+            'recentEnquiries' => $recentEnquiries,
+            'enquirySources' => $enquirySources,
+
+            // —— Team ——
+            'teamHours' => $teamHours,
+            'teamBehind' => $teamBehind,
+            'teamMinutes' => (int) $teamHours->sum('minutes'),
+            'pendingReviews' => $pendingReviews,
+
+            // —— Website ——
+            'publishedCount' => $published->count(),
+            'hiddenCount' => $portfolio->count() - $published->count(),
+            'portfolioReach' => (int) $published->sum('reach'),
+            'portfolioEnquiries' => (int) $published->sum('enquiries'),
+            'missingThumbnails' => $published->whereNull('thumbnail_path')->count(),
+            'topPieces' => $published
+                ->filter(fn (PortfolioItem $item) => (int) $item->enquiries > 0)
+                ->sortByDesc('enquiries')
+                ->take(3)
+                ->values(),
         ]);
     }
 
@@ -306,9 +365,26 @@ class DashboardController extends Controller
     {
         $items = [];
 
+        /*
+         * Enquiries lead. A lead going cold costs more than an unapproved
+         * invoice sitting a day longer, and unlike everything below it there
+         * is a person on the other end waiting to hear back.
+         */
+        if ($ctx['unreadEnquiries'] > 0) {
+            $items[] = [
+                'tone' => 'red',
+                'domain' => 'Enquiries',
+                'title' => $ctx['unreadEnquiries'].' '.Str::plural('enquiry', $ctx['unreadEnquiries']).' unread',
+                'detail' => 'Nobody has opened these yet. Leads go cold fast.',
+                'href' => route('enquiries.index'),
+                'cta' => 'Open',
+            ];
+        }
+
         if ($ctx['pendingApprovalCount'] > 0) {
             $items[] = [
                 'tone' => 'amber',
+                'domain' => 'Money',
                 'title' => $ctx['pendingApprovalCount'].' invoice(s) need approval',
                 'detail' => 'These are waiting for your approval — nothing goes out until then.',
                 'href' => route('invoices.index', ['status' => 'pending_approval']),
@@ -319,6 +395,7 @@ class DashboardController extends Controller
         if ($ctx['overdueCount'] > 0) {
             $items[] = [
                 'tone' => 'red',
+                'domain' => 'Money',
                 'title' => $ctx['overdueCount'].' overdue invoice(s)',
                 'detail' => number_format($ctx['overdueAmount'], 2).' waiting to be collected.',
                 'href' => route('invoices.index', ['status' => 'unpaid']),
@@ -329,6 +406,7 @@ class DashboardController extends Controller
         if ($ctx['salaryPending'] > 0) {
             $items[] = [
                 'tone' => 'amber',
+                'domain' => 'Money',
                 'title' => 'Payroll incomplete',
                 'detail' => number_format($ctx['salaryPending'], 2).' pending across '.$ctx['salaryUnpaidCount'].' staff.',
                 'href' => route('salaries.index', ['month' => $ctx['monthKey']]),
@@ -339,6 +417,7 @@ class DashboardController extends Controller
         if ($ctx['emiUnpaidCount'] > 0) {
             $items[] = [
                 'tone' => 'red',
+                'domain' => 'Money',
                 'title' => $ctx['emiUnpaidCount'].' EMI payment(s) open',
                 'detail' => 'Keep finance schedules current to avoid penalties.',
                 'href' => route('emi.index', ['month' => $ctx['monthKey']]),
@@ -349,6 +428,7 @@ class DashboardController extends Controller
         if ($ctx['billPending'] > 0) {
             $items[] = [
                 'tone' => 'amber',
+                'domain' => 'Money',
                 'title' => 'Bills still open',
                 'detail' => number_format($ctx['billPending'], 2).' budgeted but not fully paid.',
                 'href' => route('bills.index', ['month' => $ctx['monthKey']]),
@@ -359,6 +439,7 @@ class DashboardController extends Controller
         if ($ctx['invoiceOutstanding'] > 0 && $ctx['overdueCount'] === 0) {
             $items[] = [
                 'tone' => 'brand',
+                'domain' => 'Money',
                 'title' => 'Month invoice balance open',
                 'detail' => number_format($ctx['invoiceOutstanding'], 2).' of this month’s invoices not yet collected.',
                 'href' => route('invoices.index', ['month' => $ctx['monthKey']]),
@@ -366,9 +447,34 @@ class DashboardController extends Controller
             ];
         }
 
+        if ($ctx['pendingReviews'] > 0) {
+            $items[] = [
+                'tone' => 'amber',
+                'domain' => 'Team',
+                'title' => $ctx['pendingReviews'].' timesheet '.Str::plural('entry', $ctx['pendingReviews']).' pending',
+                'detail' => 'Approve them or ask a question — nobody knows their hours are accepted until you do.',
+                'href' => route('timesheets.index'),
+                'cta' => 'Review',
+            ];
+        }
+
+        if ($ctx['behindCount'] > 0) {
+            $items[] = [
+                'tone' => 'amber',
+                'domain' => 'Team',
+                'title' => $ctx['behindCount'].' logged nothing this week',
+                'detail' => $ctx['behindNames'] !== ''
+                    ? $ctx['behindNames'].' '.($ctx['behindCount'] === 1 ? 'has' : 'have').' been quiet since Monday.'
+                    : 'Nobody has logged hours since Monday.',
+                'href' => route('timesheets.index'),
+                'cta' => 'Chase',
+            ];
+        }
+
         if ($ctx['netCash'] < 0) {
             $items[] = [
                 'tone' => 'red',
+                'domain' => 'Money',
                 'title' => 'Cash outflow ahead of collections',
                 'detail' => 'This month paid out '.number_format(abs($ctx['netCash']), 2).' more than collected. Prioritize receivables.',
                 'href' => route('invoices.index', ['status' => 'unpaid']),
@@ -379,6 +485,7 @@ class DashboardController extends Controller
         if ($items === []) {
             $items[] = [
                 'tone' => 'green',
+                'domain' => 'Money',
                 'title' => 'Nothing urgent right now',
                 'detail' => 'Payroll, EMIs, bills and approvals look under control for this month.',
                 'href' => route('expenses.index', ['month' => $ctx['monthKey']]),
