@@ -62,6 +62,7 @@ class TimesheetEntry extends Model
         'worked_on' => 'date',
         'minutes' => 'integer',
         'reviewed_at' => 'datetime',
+        'was_backdated' => 'boolean',
     ];
 
     public function user(): BelongsTo
@@ -74,22 +75,71 @@ class TimesheetEntry extends Model
         return $this->belongsTo(User::class, 'reviewed_by_id');
     }
 
-    /** A manager has asked something about this entry and is waiting on a reply. */
+    public const REVIEW_APPROVED = 'approved';
+
+    public const REVIEW_REJECTED = 'rejected';
+
+    public const REVIEW_QUERIED = 'queried';
+
+    public const REVIEW_STATES = [
+        self::REVIEW_APPROVED => 'Approved',
+        self::REVIEW_REJECTED => 'Rejected',
+        self::REVIEW_QUERIED => 'Question asked',
+    ];
+
+    /** A manager has asked something and is waiting on a reply. */
     public function isQueried(): bool
     {
-        return filled($this->review_note);
+        return $this->review_state === self::REVIEW_QUERIED;
     }
 
-    /** Signed off by a manager, and not since re-opened by an edit. */
     public function isApproved(): bool
     {
-        return $this->reviewed_at !== null && ! $this->isQueried();
+        return $this->review_state === self::REVIEW_APPROVED;
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->review_state === self::REVIEW_REJECTED;
+    }
+
+    /**
+     * Is a manager's decision outstanding?
+     *
+     * Only late-filed and edited entries need one. An entry written for the day
+     * it happened is taken at face value -- asking a manager to sign off work
+     * logged on the day it was done is ceremony, and ceremony is what stops
+     * people filling in timesheets at all.
+     */
+    public function needsReview(): bool
+    {
+        return $this->was_backdated && $this->review_state === null;
+    }
+
+    public function reviewStateLabel(): ?string
+    {
+        return $this->review_state
+            ? (self::REVIEW_STATES[$this->review_state] ?? ucfirst($this->review_state))
+            : null;
+    }
+
+    /**
+     * Was this entry filed for a day that had already passed?
+     *
+     * Stamped once, at creation. Deriving it later by comparing worked_on to
+     * today would relabel every entry in the system as backdated by the
+     * following morning.
+     */
+    public static function isLateFor(?string $workedOn): bool
+    {
+        return $workedOn !== null && Carbon::parse($workedOn)->startOfDay()->lt(now()->startOfDay());
     }
 
     /**
      * Wipe the review. Called when the employee edits the entry: the thing a
      * manager approved or asked about no longer exists in that form, so the
-     * decision has to be made again against what the entry says now.
+     * decision has to be made again against what the entry says now -- and an
+     * edited entry always needs one, whichever day it was for.
      */
     public function clearReview(): void
     {
@@ -97,6 +147,8 @@ class TimesheetEntry extends Model
             'reviewed_at' => null,
             'reviewed_by_id' => null,
             'review_note' => null,
+            'review_state' => null,
+            'was_backdated' => true,
         ]);
     }
 

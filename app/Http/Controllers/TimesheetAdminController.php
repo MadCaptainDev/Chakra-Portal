@@ -155,7 +155,7 @@ class TimesheetAdminController extends Controller
             'review_note' => ['required', 'string', 'max:1000'],
         ]);
 
-        $this->markReviewed($request, $entry, note: $validated['review_note']);
+        $this->markReviewed($request, $entry, note: $validated['review_note'], state: TimesheetEntry::REVIEW_QUERIED);
         $entry->save();
 
         return $this->backToEntry($entry, 'Question sent to '.Str::before($entry->user->name, ' ').'.');
@@ -197,13 +197,40 @@ class TimesheetAdminController extends Controller
      * The review columns are not fillable, so they are set here by hand -- the
      * one place in the app allowed to write them.
      */
-    private function markReviewed(Request $request, TimesheetEntry $entry, ?string $note): void
+    private function markReviewed(Request $request, TimesheetEntry $entry, ?string $note, string $state = TimesheetEntry::REVIEW_APPROVED): void
     {
+        /*
+         * Only this person's manager, or an admin, may decide. Checked here
+         * rather than in the route because the answer depends on whose entry it
+         * is, which a middleware cannot see.
+         */
+        abort_unless($request->user()->managesTimesheetOf($entry->user), 403);
+
         $entry->forceFill([
             'reviewed_at' => now(),
             'reviewed_by_id' => $request->user()->id,
             'review_note' => $note,
+            'review_state' => $state,
         ]);
+    }
+
+    /**
+     * Reject an entry, with a reason.
+     *
+     * The reason is required: "rejected" on its own tells somebody their work
+     * was refused and nothing about what to do next, which is how a review
+     * system becomes something people resent rather than use.
+     */
+    public function reject(Request $request, TimesheetEntry $entry): RedirectResponse
+    {
+        $validated = $request->validate([
+            'review_note' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $this->markReviewed($request, $entry, note: $validated['review_note'], state: TimesheetEntry::REVIEW_REJECTED);
+        $entry->save();
+
+        return $this->backToEntry($entry, 'Entry rejected — '.Str::before($entry->user->name, ' ').' has been told why.');
     }
 
     private function backToEntry(TimesheetEntry $entry, string $status): RedirectResponse

@@ -46,11 +46,23 @@ class TimesheetController extends Controller
         $data = $this->validated($request);
         $data['user_id'] = $request->user()->id;
 
-        TimesheetEntry::create($data);
+        $entry = new TimesheetEntry($data);
+
+        /*
+         * Filing for a day that has already gone needs a manager's decision;
+         * logging today's work does not. Stamped here rather than derived
+         * later, because "was this late?" is a fact about the moment it was
+         * written -- computed tomorrow, every entry in the system would look
+         * late.
+         */
+        $entry->was_backdated = TimesheetEntry::isLateFor($data['worked_on']);
+        $entry->save();
 
         return redirect()
             ->route('my.timesheet', ['month' => Carbon::parse($data['worked_on'])->format('Y-m')])
-            ->with('status', 'Entry added.');
+            ->with('status', $entry->was_backdated
+                ? 'Entry added — it is for an earlier day, so it goes to your manager to approve.'
+                : 'Entry added.');
     }
 
     public function update(Request $request, TimesheetEntry $entry): RedirectResponse
@@ -59,9 +71,12 @@ class TimesheetController extends Controller
 
         $entry->fill($this->validated($request));
 
-        // Editing answers a manager's question, or invalidates their approval:
-        // either way the entry goes back into the unreviewed pile.
-        if ($entry->isDirty() && $entry->reviewed_at !== null) {
+        /*
+         * Any real edit goes back to the manager, whether or not it had been
+         * decided before. An entry that has been changed since approval is no
+         * longer the entry that was approved.
+         */
+        if ($entry->isDirty()) {
             $entry->clearReview();
         }
 

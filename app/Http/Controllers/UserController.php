@@ -93,6 +93,8 @@ class UserController extends Controller
         return view('users.edit', [
             'user' => $user,
             'granted' => old('permissions', $this->grantedMatrix($user)),
+            // Anybody but themselves: a person cannot be their own manager.
+            'managers' => User::whereKeyNot($user->id)->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -113,6 +115,9 @@ class UserController extends Controller
             'avatar' => ['nullable', 'image', 'max:2048'],
             'remove_avatar' => ['sometimes', 'boolean'],
             'role' => ['required', Rule::in(array_keys(User::ROLES))],
+            // Rule::notIn stops the obvious cycle. Longer chains are possible
+            // and harmless -- nothing here walks the tree.
+            'manager_id' => ['nullable', Rule::notIn([$user->id]), Rule::exists('users', 'id')],
             'permissions' => ['nullable', 'array'],
             'permissions.*' => ['array'],
             'permissions.*.*' => ['string'],
@@ -128,7 +133,7 @@ class UserController extends Controller
             }
         }
 
-        $user->fill(collect($validated)->except(['avatar', 'remove_avatar', 'role'])->all());
+        $user->fill(collect($validated)->except(['avatar', 'remove_avatar', 'role', 'permissions'])->all());
         $user->role = $validated['role'];
 
         if ($user->isDirty('email')) {

@@ -92,6 +92,18 @@
                     <x-input-error class="mt-2" :messages="$errors->get('role')" />
                 </div>
 
+                <div>
+                    <x-input-label for="manager_id" value="Reports to" />
+                    <x-select id="manager_id" name="manager_id" class="mt-1">
+                        <option value="">Nobody — approvals go to the admins</option>
+                        @foreach ($managers as $manager)
+                            <option value="{{ $manager->id }}" @selected(old('manager_id', $user->manager_id) == $manager->id)>{{ $manager->name }}</option>
+                        @endforeach
+                    </x-select>
+                    <p class="text-xs text-gray-500 mt-1">Late or edited timesheet entries go to this person to accept or reject.</p>
+                    <x-input-error class="mt-2" :messages="$errors->get('manager_id')" />
+                </div>
+
                 <x-permission-matrix :granted="$granted" :role="old('role', $user->role)" />
 
                 <div class="flex items-center gap-4">

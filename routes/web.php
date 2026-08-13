@@ -14,6 +14,7 @@ use App\Http\Controllers\InvoiceTemplateController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\My\CalendarController as MyCalendarController;
 use App\Http\Controllers\My\DashboardController as MyDashboardController;
+use App\Http\Controllers\My\TeamController as MyTeamController;
 use App\Http\Controllers\My\TimesheetController as MyTimesheetController;
 use App\Http\Controllers\OtherExpenseController;
 use App\Http\Controllers\PaymentController;
@@ -72,6 +73,28 @@ Route::middleware('auth')->prefix('my')->name('my.')->group(function () {
     Route::post('timesheet', [MyTimesheetController::class, 'store'])->name('timesheet.store');
     Route::put('timesheet/{entry}', [MyTimesheetController::class, 'update'])->name('timesheet.update');
     Route::delete('timesheet/{entry}', [MyTimesheetController::class, 'destroy'])->name('timesheet.destroy');
+});
+
+
+/*
+ * The team's timesheets, and deciding on an entry.
+ *
+ * Outside the admin group on purpose: a manager is an ordinary employee, and
+ * the admin middleware would refuse them before anything else was consulted.
+ *
+ * Who may decide depends on whose entry it is -- that person's own manager, or
+ * any admin. That is a per-row question a middleware cannot answer, so
+ * TimesheetAdminController::markReviewed() checks it and aborts. The team
+ * screen scopes itself to the signed-in manager's own reports the same way the
+ * rest of the my/ area scopes to the signed-in user.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('my/team', [MyTeamController::class, 'index'])->name('my.team');
+
+    Route::post('timesheets/{employee}/approve-month', [TimesheetAdminController::class, 'approveMonth'])->name('timesheets.approve-month');
+    Route::post('timesheet-entries/{entry}/approve', [TimesheetAdminController::class, 'approve'])->name('timesheets.entry.approve');
+    Route::post('timesheet-entries/{entry}/query', [TimesheetAdminController::class, 'query'])->name('timesheets.entry.query');
+    Route::post('timesheet-entries/{entry}/reject', [TimesheetAdminController::class, 'reject'])->name('timesheets.entry.reject');
 });
 
 /*
@@ -245,9 +268,6 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
     Route::get('timesheets', [TimesheetAdminController::class, 'index'])->name('timesheets.index');
     Route::get('timesheets/{employee}', [TimesheetAdminController::class, 'show'])->name('timesheets.show');
     Route::post('timesheets/{employee}/points', [TimesheetAdminController::class, 'award'])->name('timesheets.award');
-    Route::post('timesheets/{employee}/approve-month', [TimesheetAdminController::class, 'approveMonth'])->name('timesheets.approve-month');
-    Route::post('timesheet-entries/{entry}/approve', [TimesheetAdminController::class, 'approve'])->name('timesheets.entry.approve');
-    Route::post('timesheet-entries/{entry}/query', [TimesheetAdminController::class, 'query'])->name('timesheets.entry.query');
 
     /*
      * Website content: what the public landing page and /portfolio show.
