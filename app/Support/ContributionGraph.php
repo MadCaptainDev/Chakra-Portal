@@ -7,101 +7,251 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * A year of the studio's work as one square per day.
+ * The studio's work as one square per day, over a window you can change.
  *
  * The point is shape rather than precision: which months the studio was flat
- * out, where the quiet weeks were, and whether the last fortnight looks like
- * the rest of the year. Nobody reads an exact figure off a 10px square, and a
- * table of 365 numbers answers none of those questions.
+ * out, where the quiet weeks were, and whether this week looks like the rest of
+ * the year. Nobody reads an exact figure off a 10px square, and a table of 365
+ * numbers answers none of those questions.
  *
- * Intensity is banded against the busiest day in the window rather than a fixed
- * number of hours. A studio of three and a studio of thirty both want the same
- * picture -- "busy for us" -- and a fixed scale gives one of them a solid block
- * and the other an empty one.
+ * Intensity is banded against the busiest day *in the chosen window*, not a
+ * fixed number of hours. A studio of three and a studio of thirty both want the
+ * same picture -- "busy for us" -- and a fixed scale gives one of them a solid
+ * block and the other an empty one. It also means switching to This week
+ * re-reads the week on its own terms rather than against a shoot day in March.
+ *
+ * All four windows are built from a single query so the dropdown switches
+ * without a round trip.
  */
 class ContributionGraph
 {
-    /** Sunday-first columns, the way a calendar reads. */
-    public const WEEKS = 53;
+    public const WEEK = 'week';
+
+    public const MONTH = 'month';
+
+    public const QUARTER = 'quarter';
+
+    public const YEAR = 'year';
+
+    /** @var array<string, string> */
+    public const RANGES = [
+        self::WEEK => 'This week',
+        self::MONTH => 'This month',
+        self::QUARTER => 'Last 3 months',
+        self::YEAR => 'Last 12 months',
+    ];
+
+    public const DEFAULT_RANGE = self::YEAR;
 
     /**
-     * @return array{
-     *     weeks: list<list<array{date: Carbon, minutes: int, level: int}|null>>,
-     *     months: list<array{label: string, span: int}>,
-     *     total: int,
-     *     busiest: array{date: Carbon, minutes: int}|null,
-     *     daysWorked: int,
-     * }
+     * How many week-columns each window spans, and how big its squares are.
+     *
+     * A seven-day window drawn at year size is a smudge, so the shorter the
+     * window the larger the square. `unit` is the column pitch in pixels --
+     * square plus gap -- which the month header needs to line its labels up
+     * with the grid underneath.
+     *
+     * @var array<string, array{weeks: int, cell: string, gap: string, unit: int}>
      */
-    public static function forTeam(?Carbon $end = null): array
+    private const SHAPE = [
+        self::WEEK => ['weeks' => 1, 'cell' => 'w-9 h-9', 'gap' => 'gap-1.5', 'unit' => 42],
+        self::MONTH => ['weeks' => 6, 'cell' => 'w-6 h-6', 'gap' => 'gap-1', 'unit' => 28],
+        self::QUARTER => ['weeks' => 13, 'cell' => 'w-3.5 h-3.5', 'gap' => 'gap-1', 'unit' => 18],
+        self::YEAR => ['weeks' => 53, 'cell' => 'w-2.5 h-2.5', 'gap' => 'gap-[3px]', 'unit' => 13],
+    ];
+
+    /**
+     * Every window, keyed by range. One query serves all four.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function forTeam(?Carbon $now = null): array
     {
-        $end = ($end ?? now())->copy()->endOfWeek(Carbon::SATURDAY)->startOfDay();
-        $start = $end->copy()->subWeeks(self::WEEKS - 1)->startOfWeek(Carbon::SUNDAY);
+        $now = ($now ?? now())->copy()->startOfDay();
 
-        $minutesByDay = self::minutesByDay($start, $end);
-        $max = (int) ($minutesByDay->max() ?: 0);
+        /*
+         * Fetch once, over the widest window any range can ask for, then slice.
+         * Four queries for four grids that all read the same rows would be
+         * three queries too many.
+         */
+        $widest = $now->copy()->subWeeks(self::SHAPE[self::YEAR]['weeks'])->startOfWeek(Carbon::SUNDAY);
+        $minutesByDay = self::minutesByDay($widest, $now->copy()->endOfWeek(Carbon::SATURDAY));
 
-        $weeks = [];
-        $months = [];
+        $graphs = [];
+
+        foreach (array_keys(self::RANGES) as $range) {
+            $graphs[$range] = self::build($range, $now, $minutesByDay);
+        }
+
+        return $graphs;
+    }
+
+    public static function isKnownRange(string $range): bool
+    {
+        return isset(self::RANGES[$range]);
+    }
+
+    /**
+     * @param  Collection<string, int>  $minutesByDay
+     * @return array<string, mixed>
+     */
+    private static function build(string $range, Carbon $now, Collection $minutesByDay): array
+    {
+        $shape = self::SHAPE[$range];
+
+        [$start, $confineTo] = self::windowFor($range, $now, $shape);
+
+        /*
+         * Two passes. The first lays out the cells and works out the busiest
+         * day; the second bands them against it. Banding cannot happen in the
+         * first pass because the maximum is not known until the last cell is
+         * read, and this window's maximum is the whole basis of the colour.
+         */
+        $cells = [];
         $cursor = $start->copy();
-        $lastMonth = null;
 
-        for ($week = 0; $week < self::WEEKS; $week++) {
+        for ($week = 0; $week < $shape['weeks']; $week++) {
             $column = [];
 
-            /*
-             * The month label belongs to whichever month the column starts in.
-             * Labelling every column would be unreadable, so a month claims one
-             * label and a span, and the header lays them out with the same
-             * column width as the grid.
-             */
-            $monthKey = $cursor->format('Y-m');
-
-            if ($monthKey !== $lastMonth) {
-                $months[] = ['label' => $cursor->format('M'), 'span' => 1];
-                $lastMonth = $monthKey;
-            } else {
-                $months[count($months) - 1]['span']++;
-            }
-
             for ($day = 0; $day < 7; $day++) {
-                // Days after today are not "nothing logged", they have not
-                // happened. Left empty rather than shown as a quiet day.
-                $column[] = $cursor->gt(now()->endOfDay())
-                    ? null
-                    : [
-                        'date' => $cursor->copy(),
-                        'minutes' => $minutes = (int) $minutesByDay->get($cursor->toDateString(), 0),
-                        'level' => self::level($minutes, $max),
-                    ];
-
+                $column[] = self::cell($cursor, $now, $confineTo, $minutesByDay);
                 $cursor->addDay();
             }
 
-            $weeks[] = $column;
+            $cells[] = $column;
         }
 
-        $busiestDate = $minutesByDay->filter()->sortDesc()->keys()->first();
+        $shown = collect($cells)->flatten(1)->filter();
+        $max = (int) ($shown->max('minutes') ?: 0);
+
+        $weeks = collect($cells)->map(
+            fn (array $column) => collect($column)->map(function (?array $day) use ($max) {
+                if ($day === null) {
+                    return null;
+                }
+
+                $day['level'] = self::level($day['minutes'], $max);
+
+                return $day;
+            })->all()
+        )->all();
+
+        $busiest = $shown->where('minutes', '>', 0)->sortByDesc('minutes')->first();
 
         return [
+            'key' => $range,
+            'label' => self::RANGES[$range],
+            'caption' => self::caption($range, $shown),
             'weeks' => $weeks,
-            'months' => $months,
-            'total' => (int) $minutesByDay->sum(),
-            'busiest' => $busiestDate ? [
-                'date' => Carbon::parse($busiestDate),
-                'minutes' => (int) $minutesByDay->get($busiestDate),
-            ] : null,
-            'daysWorked' => $minutesByDay->filter()->count(),
+            // A single month needs no month header -- its own caption says so.
+            'months' => in_array($range, [self::QUARTER, self::YEAR], true) ? self::monthHeader($cells) : [],
+            'cell' => $shape['cell'],
+            'gap' => $shape['gap'],
+            'unit' => $shape['unit'],
+            'total' => (int) $shown->sum('minutes'),
+            'daysWorked' => $shown->where('minutes', '>', 0)->count(),
+            'busiest' => $busiest ? ['date' => $busiest['date'], 'minutes' => $busiest['minutes']] : null,
         ];
+    }
+
+    /**
+     * Where the grid starts, and the calendar month it is confined to if any.
+     *
+     * This month is drawn as a calendar month: the grid still starts on a
+     * Sunday, but the days either side belong to another month and are left out
+     * so the shape reads the way a wall calendar does.
+     *
+     * @param  array{weeks: int, cell: string, gap: string, unit: int}  $shape
+     * @return array{0: Carbon, 1: ?Carbon}
+     */
+    private static function windowFor(string $range, Carbon $now, array $shape): array
+    {
+        if ($range === self::MONTH) {
+            return [$now->copy()->startOfMonth()->startOfWeek(Carbon::SUNDAY), $now->copy()->startOfMonth()];
+        }
+
+        $end = $now->copy()->endOfWeek(Carbon::SATURDAY);
+
+        return [$end->copy()->subWeeks($shape['weeks'] - 1)->startOfWeek(Carbon::SUNDAY), null];
+    }
+
+    /**
+     * @param  Collection<string, int>  $minutesByDay
+     * @return array{date: Carbon, minutes: int, level: int}|null
+     */
+    private static function cell(Carbon $date, Carbon $now, ?Carbon $confineTo, Collection $minutesByDay): ?array
+    {
+        // A day after today has not happened; a day outside the month being
+        // shown is somebody else's square. Neither is a quiet day.
+        if ($date->gt($now) || ($confineTo && ! $date->isSameMonth($confineTo))) {
+            return null;
+        }
+
+        return [
+            'date' => $date->copy(),
+            'minutes' => (int) $minutesByDay->get($date->toDateString(), 0),
+            'level' => 0,
+        ];
+    }
+
+    /**
+     * One label per month, spanning however many columns started in it.
+     *
+     * @param  list<list<array<string, mixed>|null>>  $cells
+     * @return list<array{label: string, span: int}>
+     */
+    private static function monthHeader(array $cells): array
+    {
+        $months = [];
+        $last = null;
+
+        foreach ($cells as $column) {
+            // The column's own month, taken from its first day -- which is
+            // there even when every square in it is still in the future.
+            $first = collect($column)->filter()->first();
+            $key = $first ? $first['date']->format('Y-m') : null;
+
+            if ($key === null) {
+                continue;
+            }
+
+            if ($key !== $last) {
+                $months[] = ['label' => $first['date']->format('M'), 'span' => 1];
+                $last = $key;
+            } else {
+                $months[count($months) - 1]['span']++;
+            }
+        }
+
+        return $months;
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $shown
+     */
+    private static function caption(string $range, Collection $shown): string
+    {
+        $first = $shown->first();
+        $last = $shown->last();
+
+        if (! $first || ! $last) {
+            return '';
+        }
+
+        return match ($range) {
+            self::WEEK => $first['date']->format('d M').' – '.$last['date']->format('d M Y'),
+            self::MONTH => $first['date']->format('F Y'),
+            default => $first['date']->format('M Y').' – '.$last['date']->format('M Y'),
+        };
     }
 
     /**
      * Minutes per calendar day across everyone, keyed "Y-m-d".
      *
-     * Grouped in the database rather than by hydrating a year of entries. The
-     * date is taken as a string prefix instead of a date function so MySQL and
-     * SQLite agree: worked_on is a DATE column the model casts, which means the
-     * stored value carries a midnight time on one of them and not the other.
+     * Ranged in the database and grouped in PHP. The dates are compared as
+     * string bounds rather than through a date function so MySQL and SQLite
+     * agree: worked_on is a DATE column the model casts, which means the stored
+     * value carries a midnight time on one of them and not on the other.
      *
      * @return Collection<string, int>
      */

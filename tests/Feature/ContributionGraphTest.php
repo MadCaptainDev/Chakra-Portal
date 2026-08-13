@@ -28,6 +28,7 @@ class ContributionGraphTest extends TestCase
     }
 
     /**
+     * @param  array<string, mixed>  $graph
      * @return array{date: Carbon, minutes: int, level: int}|null
      */
     private function cellFor(array $graph, string $date): ?array
@@ -43,15 +44,63 @@ class ContributionGraphTest extends TestCase
         return null;
     }
 
-    public function test_the_grid_covers_a_year_of_whole_weeks(): void
+    public function test_every_range_is_built_as_whole_weeks(): void
     {
-        $graph = ContributionGraph::forTeam(Carbon::parse('2026-08-12'));
+        $graphs = ContributionGraph::forTeam(Carbon::parse('2026-08-12'));
 
-        $this->assertCount(ContributionGraph::WEEKS, $graph['weeks']);
+        $this->assertSame(array_keys(ContributionGraph::RANGES), array_keys($graphs));
 
-        foreach ($graph['weeks'] as $week) {
-            $this->assertCount(7, $week);
+        foreach ($graphs as $graph) {
+            foreach ($graph['weeks'] as $week) {
+                $this->assertCount(7, $week);
+            }
         }
+    }
+
+    public function test_this_week_is_a_single_column(): void
+    {
+        $graphs = ContributionGraph::forTeam(Carbon::parse('2026-08-12'));
+
+        $this->assertCount(1, $graphs[ContributionGraph::WEEK]['weeks']);
+        $this->assertCount(53, $graphs[ContributionGraph::YEAR]['weeks']);
+    }
+
+    public function test_this_month_shows_only_that_month(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-12'));
+
+        $user = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
+        $this->entry($user, '2026-07-31', 300);
+        $this->entry($user, '2026-08-03', 120);
+
+        $month = ContributionGraph::forTeam()[ContributionGraph::MONTH];
+
+        // The grid still starts on a Sunday, but the days either side belong to
+        // another month and must not be drawn or counted.
+        $this->assertNull($this->cellFor($month, '2026-07-31'));
+        $this->assertNotNull($this->cellFor($month, '2026-08-03'));
+        $this->assertSame(120, $month['total']);
+        $this->assertSame('August 2026', $month['caption']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_each_range_bands_against_its_own_busiest_day(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-12'));  // a Wednesday
+
+        $user = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
+        $this->entry($user, '2026-03-04', 900);   // a monster day months ago
+        $this->entry($user, '2026-08-11', 120);   // an ordinary day this week
+
+        $graphs = ContributionGraph::forTeam();
+
+        // Against March the Tuesday is a faint square; on its own week it is
+        // the busiest thing that happened.
+        $this->assertSame(1, $this->cellFor($graphs[ContributionGraph::YEAR], '2026-08-11')['level']);
+        $this->assertSame(4, $this->cellFor($graphs[ContributionGraph::WEEK], '2026-08-11')['level']);
+
+        Carbon::setTestNow();
     }
 
     public function test_everybodys_hours_land_on_the_same_square(): void
@@ -64,11 +113,11 @@ class ContributionGraphTest extends TestCase
         $this->entry($one, '2026-08-10', 120);
         $this->entry($two, '2026-08-10', 180);
 
-        $graph = ContributionGraph::forTeam();
+        $year = ContributionGraph::forTeam()[ContributionGraph::YEAR];
 
         // The picture is the studio's, not one person's.
-        $this->assertSame(300, $this->cellFor($graph, '2026-08-10')['minutes']);
-        $this->assertSame(300, $graph['total']);
+        $this->assertSame(300, $this->cellFor($year, '2026-08-10')['minutes']);
+        $this->assertSame(300, $year['total']);
 
         Carbon::setTestNow();
     }
@@ -81,12 +130,12 @@ class ContributionGraphTest extends TestCase
         $this->entry($user, '2026-08-10', 600);
         $this->entry($user, '2026-08-11', 15);
 
-        $graph = ContributionGraph::forTeam();
+        $year = ContributionGraph::forTeam()[ContributionGraph::YEAR];
 
-        $this->assertSame(4, $this->cellFor($graph, '2026-08-10')['level']);
+        $this->assertSame(4, $this->cellFor($year, '2026-08-10')['level']);
         // A quarter of an hour against a ten-hour day still has to show.
-        $this->assertSame(1, $this->cellFor($graph, '2026-08-11')['level']);
-        $this->assertSame(0, $this->cellFor($graph, '2026-08-09')['level']);
+        $this->assertSame(1, $this->cellFor($year, '2026-08-11')['level']);
+        $this->assertSame(0, $this->cellFor($year, '2026-08-09')['level']);
 
         Carbon::setTestNow();
     }
@@ -100,10 +149,10 @@ class ContributionGraphTest extends TestCase
             ->forceFill(['status' => TimesheetEntry::STATUS_CANCELLED])
             ->save();
 
-        $graph = ContributionGraph::forTeam();
+        $year = ContributionGraph::forTeam()[ContributionGraph::YEAR];
 
-        $this->assertSame(0, $this->cellFor($graph, '2026-08-10')['minutes']);
-        $this->assertSame(0, $graph['daysWorked']);
+        $this->assertSame(0, $this->cellFor($year, '2026-08-10')['minutes']);
+        $this->assertSame(0, $year['daysWorked']);
 
         Carbon::setTestNow();
     }
@@ -112,12 +161,14 @@ class ContributionGraphTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-08-12'));  // a Wednesday
 
-        $graph = ContributionGraph::forTeam();
+        $graphs = ContributionGraph::forTeam();
 
-        // The rest of this week exists as a column but not as squares -- a
-        // Friday that has not arrived is not a quiet day.
-        $this->assertNull($this->cellFor($graph, '2026-08-14'));
-        $this->assertNotNull($this->cellFor($graph, '2026-08-12'));
+        foreach ([ContributionGraph::WEEK, ContributionGraph::YEAR] as $range) {
+            // The rest of this week exists as a column but not as squares -- a
+            // Friday that has not arrived is not a quiet day.
+            $this->assertNull($this->cellFor($graphs[$range], '2026-08-14'));
+            $this->assertNotNull($this->cellFor($graphs[$range], '2026-08-12'));
+        }
 
         Carbon::setTestNow();
     }
@@ -130,24 +181,25 @@ class ContributionGraphTest extends TestCase
         $this->entry($user, '2026-08-03', 120);
         $this->entry($user, '2026-08-05', 480);
 
-        $graph = ContributionGraph::forTeam();
+        $year = ContributionGraph::forTeam()[ContributionGraph::YEAR];
 
-        $this->assertSame('2026-08-05', $graph['busiest']['date']->toDateString());
-        $this->assertSame(480, $graph['busiest']['minutes']);
+        $this->assertSame('2026-08-05', $year['busiest']['date']->toDateString());
+        $this->assertSame(480, $year['busiest']['minutes']);
 
         Carbon::setTestNow();
     }
 
     public function test_an_empty_studio_produces_a_grid_and_no_busiest_day(): void
     {
-        $graph = ContributionGraph::forTeam(Carbon::parse('2026-08-12'));
-
-        $this->assertNull($graph['busiest']);
-        $this->assertSame(0, $graph['total']);
-        $this->assertSame(0, $graph['daysWorked']);
+        foreach (ContributionGraph::forTeam(Carbon::parse('2026-08-12')) as $graph) {
+            $this->assertNull($graph['busiest']);
+            $this->assertSame(0, $graph['total']);
+            $this->assertSame(0, $graph['daysWorked']);
+            $this->assertNotEmpty($graph['weeks']);
+        }
     }
 
-    public function test_the_admin_dashboard_shows_the_heatmap(): void
+    public function test_the_admin_dashboard_offers_every_period(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-08-12'));
 
@@ -155,10 +207,13 @@ class ContributionGraphTest extends TestCase
         $employee = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
         $this->entry($employee, '2026-08-10', 240);
 
-        $this->actingAs($admin)->get(route('dashboard'))
-            ->assertOk()
-            ->assertSee('A year of work')
-            ->assertSee('Busiest was Mon 10 Aug 2026');
+        $response = $this->actingAs($admin)->get(route('dashboard'))->assertOk();
+
+        $response->assertSee('Work logged')->assertSee('Busiest was Mon 10 Aug');
+
+        foreach (ContributionGraph::RANGES as $label) {
+            $response->assertSee($label);
+        }
 
         Carbon::setTestNow();
     }

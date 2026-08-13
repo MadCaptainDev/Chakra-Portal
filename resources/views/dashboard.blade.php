@@ -215,7 +215,7 @@
                  heatmap answers "is this normal for us", which is the question
                  the per-person bars underneath cannot. --}}
             <div class="mb-3.5">
-                <x-charts.work-heatmap :graph="$workGraph" />
+                <x-charts.work-heatmap :graphs="$workGraph" />
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
