@@ -7,7 +7,6 @@ use App\Models\Expense;
 use App\Models\ExpensePayment;
 use App\Models\Invoice;
 use App\Models\Payment;
-use App\Models\PortfolioItem;
 use App\Services\ExpenseLedger;
 use App\Support\ContributionGraph;
 use App\Support\TeamPulse;
@@ -120,18 +119,13 @@ class DashboardController extends Controller
         $teamBehind = TeamPulse::behind($employees);
         $pendingReviews = (int) $teamHours->sum('pending');
 
+        /*
+         * Only the count, and only so an unanswered lead can raise an action
+         * item. Enquiries and the portfolio had a dashboard section each; both
+         * are screens people go to on purpose, and repeating them here made a
+         * page nobody read to the bottom of.
+         */
         $unreadEnquiries = Enquiry::unread()->count();
-        $openEnquiries = Enquiry::open()->count();
-        $monthEnquiries = Enquiry::whereBetween('created_at', [$month, $monthEnd->copy()->endOfDay()])->count();
-        $recentEnquiries = Enquiry::latest()->take(5)->get();
-        $enquirySources = Enquiry::whereBetween('created_at', [$month, $monthEnd->copy()->endOfDay()])
-            ->get()
-            ->groupBy(fn (Enquiry $enquiry) => $enquiry->sourceLabel())
-            ->map->count()
-            ->sortDesc();
-
-        $portfolio = PortfolioItem::get();
-        $published = $portfolio->where('is_visible', true);
 
         $actionItems = $this->actionItems([
             'unreadEnquiries' => $unreadEnquiries,
@@ -181,31 +175,12 @@ class DashboardController extends Controller
             'outflowPending' => $expenseOutstanding,
             'emiThisMonth' => $emiLoad,
 
-            // —— Enquiries ——
-            'unreadEnquiries' => $unreadEnquiries,
-            'openEnquiries' => $openEnquiries,
-            'monthEnquiries' => $monthEnquiries,
-            'recentEnquiries' => $recentEnquiries,
-            'enquirySources' => $enquirySources,
-
             // —— Team ——
             'teamHours' => $teamHours,
             'teamBehind' => $teamBehind,
             'teamMinutes' => (int) $teamHours->sum('minutes'),
             'pendingReviews' => $pendingReviews,
             'workGraph' => ContributionGraph::forTeam(),
-
-            // —— Website ——
-            'publishedCount' => $published->count(),
-            'hiddenCount' => $portfolio->count() - $published->count(),
-            'portfolioReach' => (int) $published->sum('reach'),
-            'portfolioEnquiries' => (int) $published->sum('enquiries'),
-            'missingThumbnails' => $published->whereNull('thumbnail_path')->count(),
-            'topPieces' => $published
-                ->filter(fn (PortfolioItem $item) => (int) $item->enquiries > 0)
-                ->sortByDesc('enquiries')
-                ->take(3)
-                ->values(),
         ]);
     }
 
