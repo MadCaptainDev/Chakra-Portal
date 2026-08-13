@@ -43,6 +43,22 @@ class Permission
             'group' => 'Production',
             'abilities' => ['view', 'create', 'edit', 'delete', 'comment', 'approve', 'manage'],
         ],
+        /*
+         * Shoots and Equipment are separate modules because they answer
+         * different questions. A camera operator needs to plan a shoot and tick
+         * the kit onto it; deciding what the studio owns and retiring a dead
+         * camera is quartermaster work, and not everyone's.
+         */
+        'shoots' => [
+            'label' => 'Shoots',
+            'group' => 'Production',
+            'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
+        ],
+        'equipment' => [
+            'label' => 'Equipment',
+            'group' => 'Production',
+            'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
+        ],
     ];
 
     /** @return array<string, array{label: string, group: string, abilities: list<string>}> */

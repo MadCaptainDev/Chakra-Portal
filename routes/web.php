@@ -2,10 +2,12 @@
 
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\BillController;
+use App\Http\Controllers\CallSheetController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmiController;
 use App\Http\Controllers\EnquiryController;
+use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoiceTemplateController;
@@ -24,6 +26,9 @@ use App\Http\Controllers\SalaryController;
 use App\Http\Controllers\ScriptController;
 use App\Http\Controllers\ScriptSectionController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\ShootController;
+use App\Http\Controllers\ShootCrewController;
+use App\Http\Controllers\ShootKitController;
 use App\Http\Controllers\TaxonomyTermController;
 use App\Http\Controllers\TeamMemberController;
 use App\Http\Controllers\TimesheetAdminController;
@@ -107,6 +112,59 @@ Route::middleware(['auth', 'module:scripts,view'])->scopeBindings()->group(funct
         Route::patch('scripts/{script}/sections/{section}', [ScriptSectionController::class, 'update'])->name('scripts.sections.update');
         Route::delete('scripts/{script}/sections/{section}', [ScriptSectionController::class, 'destroy'])->name('scripts.sections.destroy');
     });
+});
+
+/*
+ * Shoots and Equipment. Same shape as Scripts above, and outside the admin
+ * group for the same two reasons: the admin middleware would refuse a camera
+ * operator before any permission was consulted, and recurring.catchup would
+ * have somebody opening a call sheet on set generating the studio's invoices.
+ */
+Route::middleware(['auth', 'module:shoots,view'])->scopeBindings()->group(function () {
+    Route::get('shoots', [ShootController::class, 'index'])->name('shoots.index');
+
+    // Before {shoot}, or "create" binds as a shoot id.
+    Route::get('shoots/create', [ShootController::class, 'create'])
+        ->middleware('module:shoots,create')->name('shoots.create');
+    Route::post('shoots', [ShootController::class, 'store'])
+        ->middleware('module:shoots,create')->name('shoots.store');
+
+    Route::get('shoots/{shoot}', [ShootController::class, 'show'])->name('shoots.show');
+    Route::get('shoots/{shoot}/call-sheet', [CallSheetController::class, 'show'])->name('shoots.call-sheet');
+
+    Route::get('shoots/{shoot}/edit', [ShootController::class, 'edit'])
+        ->middleware('module:shoots,edit')->name('shoots.edit');
+    Route::put('shoots/{shoot}', [ShootController::class, 'update'])
+        ->middleware('module:shoots,edit')->name('shoots.update');
+    Route::delete('shoots/{shoot}', [ShootController::class, 'destroy'])
+        ->middleware('module:shoots,delete')->name('shoots.destroy');
+
+    // Planning who and what goes: producer work.
+    Route::middleware('module:shoots,edit')->group(function () {
+        Route::post('shoots/{shoot}/crew', [ShootCrewController::class, 'store'])->name('shoots.crew.store');
+        Route::delete('shoots/{shoot}/crew/{crew}', [ShootCrewController::class, 'destroy'])->name('shoots.crew.destroy');
+        Route::post('shoots/{shoot}/kit', [ShootKitController::class, 'store'])->name('shoots.kit.store');
+        Route::delete('shoots/{shoot}/kit/{kit}', [ShootKitController::class, 'destroy'])->name('shoots.kit.destroy');
+    });
+
+    /*
+     * Ticking the list needs only view. The crew tick their own kit -- that was
+     * the whole ask -- while what goes on the list stays the producer's.
+     */
+    Route::post('shoots/{shoot}/kit/{kit}/check-out', [ShootKitController::class, 'checkOut'])->name('shoots.kit.check-out');
+    Route::post('shoots/{shoot}/kit/{kit}/undo', [ShootKitController::class, 'undoCheckOut'])->name('shoots.kit.undo');
+    Route::post('shoots/{shoot}/kit/{kit}/check-in', [ShootKitController::class, 'checkIn'])->name('shoots.kit.check-in');
+    Route::post('shoots/{shoot}/kit-bulk', [ShootKitController::class, 'bulk'])->name('shoots.kit.bulk');
+});
+
+Route::middleware(['auth', 'module:equipment,view'])->group(function () {
+    Route::get('equipment', [EquipmentController::class, 'index'])->name('equipment.index');
+    Route::post('equipment', [EquipmentController::class, 'store'])
+        ->middleware('module:equipment,create')->name('equipment.store');
+    Route::put('equipment/{equipment}', [EquipmentController::class, 'update'])
+        ->middleware('module:equipment,edit')->name('equipment.update');
+    Route::delete('equipment/{equipment}', [EquipmentController::class, 'destroy'])
+        ->middleware('module:equipment,delete')->name('equipment.destroy');
 });
 
 /*

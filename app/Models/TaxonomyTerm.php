@@ -35,6 +35,8 @@ class TaxonomyTerm extends Model
 
     public const TYPE_LANGUAGE = 'language';
 
+    public const TYPE_EQUIPMENT_CATEGORY = 'equipment_category';
+
     /**
      * The lists, in the order the master-data screen shows them.
      *
@@ -84,6 +86,11 @@ class TaxonomyTerm extends Model
             'label' => 'Language',
             'plural' => 'Languages',
             'hint' => 'What a script is written in. Tamil and English are the usual two.',
+        ],
+        self::TYPE_EQUIPMENT_CATEGORY => [
+            'label' => 'Equipment category',
+            'plural' => 'Equipment categories',
+            'hint' => 'How the kit register is grouped — camera, lens, lighting, audio, grip.',
         ],
     ];
 
@@ -140,7 +147,12 @@ class TaxonomyTerm extends Model
                     ->orWhere('platform_id', $this->id)
                     ->orWhere('script_type_id', $this->id)
                     ->orWhere('language_id', $this->id))
-                ->count();
+                ->count()
+            // The kit register groups by category. Uncounted, deleting "Lens"
+            // would report zero uses and null the category on every lens owned.
+            + ($this->type === self::TYPE_EQUIPMENT_CATEGORY
+                ? EquipmentItem::where('category_id', $this->id)->count()
+                : 0);
     }
 
     public static function label(string $type): string
