@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\BillController;
+use App\Http\Controllers\BrowserSessionController;
 use App\Http\Controllers\CallSheetController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
@@ -60,6 +61,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    /*
+     * Where this account is signed in. Both routes act on the signed-in user's
+     * own session rows and nobody else's -- there is no id in the URL to point
+     * somewhere else, by design.
+     */
+    Route::delete('/profile/devices', [BrowserSessionController::class, 'destroy'])->name('devices.destroy');
+    Route::delete('/profile/devices/others', [BrowserSessionController::class, 'destroyOthers'])->name('devices.destroy-others');
 });
 
 /*

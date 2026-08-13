@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Support\BrowserSessions;
 use App\Support\ManagesAvatars;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,6 +25,7 @@ class ProfileController extends Controller
 
         return view('profile.edit', [
             'user' => $user,
+            'devices' => BrowserSessions::for($user, $request->session()->getId()),
         ]);
     }
 

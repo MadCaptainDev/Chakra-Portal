@@ -30,6 +30,14 @@
             </x-card>
         @endif
 
+        {{-- Everyone gets this, admin or not. Losing a phone is not a
+             privilege of rank. --}}
+        <x-card class="p-4 sm:p-8">
+            <div class="max-w-xl">
+                @include('profile.partials.browser-sessions')
+            </div>
+        </x-card>
+
         @if ($user->isAdmin())
             <x-card class="p-4 sm:p-8">
                 <div class="max-w-xl">
