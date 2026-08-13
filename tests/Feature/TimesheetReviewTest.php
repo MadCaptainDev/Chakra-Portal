@@ -2,13 +2,21 @@
 
 namespace Tests\Feature;
 
+use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use App\Support\TimesheetVenture;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
+/**
+ * Review as the admin screens see it: one decision per day, and what an
+ * employee is shown about their own.
+ *
+ * Who is allowed to decide is TimesheetApprovalTest's ground; this is about
+ * what reaches the page.
+ */
 class TimesheetReviewTest extends TestCase
 {
     use RefreshDatabase;
@@ -23,6 +31,9 @@ class TimesheetReviewTest extends TestCase
         return User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
     }
 
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
     private function entry(User $employee, array $overrides = []): TimesheetEntry
     {
         return TimesheetEntry::create(array_merge([
@@ -32,7 +43,6 @@ class TimesheetReviewTest extends TestCase
             'task_type' => TimesheetEntry::TASK_SHOOTING,
             'venture' => TimesheetVenture::ALL_CLIENTS,
             'minutes' => 120,
-            'status' => TimesheetEntry::STATUS_PENDING,
         ], $overrides));
     }
 
@@ -41,6 +51,7 @@ class TimesheetReviewTest extends TestCase
      * one of the values the client list allows, which with no clients seeded
      * is the catch-all.
      *
+     * @param  array<string, mixed>  $overrides
      * @return array<string, mixed>
      */
     private function editPayload(TimesheetEntry $entry, array $overrides = []): array
@@ -51,135 +62,93 @@ class TimesheetReviewTest extends TestCase
             'task_type' => TimesheetEntry::TASK_SHOOTING,
             'venture' => TimesheetVenture::ALL_CLIENTS,
             'minutes' => 120,
-            'status' => TimesheetEntry::STATUS_PENDING,
         ], $overrides);
     }
 
-    public function test_an_admin_can_approve_a_pending_entry(): void
+    public function test_an_admin_can_accept_a_day_from_the_employee_screen(): void
     {
         $employee = $this->employee();
         $entry = $this->entry($employee);
         $admin = $this->admin();
 
-        $this->actingAs($admin)
-            ->post(route('timesheets.entry.approve', $entry))
-            ->assertRedirect();
+        $this->actingAs($admin)->post(route('timesheets.day', $employee), [
+            'worked_on' => $entry->worked_on->toDateString(),
+            'review_state' => TimesheetDay::APPROVED,
+        ])->assertSessionHasNoErrors()->assertRedirect();
 
-        $entry->refresh();
+        $decision = TimesheetDay::firstOrFail();
 
-        $this->assertSame(TimesheetEntry::STATUS_COMPLETED, $entry->status);
-        $this->assertNotNull($entry->reviewed_at);
-        $this->assertSame($admin->id, $entry->reviewed_by_id);
-        $this->assertTrue($entry->isApproved());
+        $this->assertTrue($decision->isApproved());
+        $this->assertNotNull($decision->reviewed_at);
+        $this->assertSame($admin->id, $decision->reviewed_by_id);
     }
 
-    public function test_a_query_records_the_question_and_leaves_the_status_alone(): void
-    {
-        $employee = $this->employee();
-        $entry = $this->entry($employee);
-        $admin = $this->admin();
-
-        $this->actingAs($admin)
-            ->post(route('timesheets.entry.query', $entry), ['review_note' => 'Which shoot was this?'])
-            ->assertSessionHasNoErrors()
-            ->assertRedirect();
-
-        $entry->refresh();
-
-        $this->assertSame('Which shoot was this?', $entry->review_note);
-        // The status belongs to the employee -- asking a question must not move it.
-        $this->assertSame(TimesheetEntry::STATUS_PENDING, $entry->status);
-        $this->assertTrue($entry->isQueried());
-        $this->assertFalse($entry->isApproved());
-    }
-
-    public function test_a_query_requires_a_question(): void
-    {
-        $entry = $this->entry($this->employee());
-
-        $this->actingAs($this->admin())
-            ->post(route('timesheets.entry.query', $entry), ['review_note' => ''])
-            ->assertSessionHasErrors('review_note');
-
-        $this->assertNull($entry->refresh()->review_note);
-    }
-
-    public function test_an_employee_cannot_review_entries(): void
+    public function test_an_employee_cannot_decide_on_their_own_day(): void
     {
         $employee = $this->employee();
         $entry = $this->entry($employee);
 
-        // Their own entry, and someone else's -- neither is theirs to approve.
-        $this->actingAs($employee)
-            ->post(route('timesheets.entry.approve', $entry))
-            ->assertForbidden();
+        $this->actingAs($employee)->post(route('timesheets.day', $employee), [
+            'worked_on' => $entry->worked_on->toDateString(),
+            'review_state' => TimesheetDay::APPROVED,
+        ])->assertForbidden();
 
-        $this->assertNull($entry->refresh()->reviewed_at);
+        $this->assertSame(0, TimesheetDay::count());
     }
 
-    public function test_editing_an_entry_clears_the_review(): void
+    public function test_an_unknown_review_state_is_refused(): void
     {
         $employee = $this->employee();
         $entry = $this->entry($employee);
 
-        $this->actingAs($this->admin())
-            ->post(route('timesheets.entry.query', $entry), ['review_note' => 'Which shoot?']);
+        $this->actingAs($this->admin())->post(route('timesheets.day', $employee), [
+            'worked_on' => $entry->worked_on->toDateString(),
+            'review_state' => 'approved-ish',
+        ])->assertSessionHasErrors('review_state');
 
-        $this->assertTrue($entry->refresh()->isQueried());
-
-        $this->actingAs($employee)->put(
-            route('my.timesheet.update', $entry),
-            $this->editPayload($entry, ['task' => 'Bridal shoot — day 2'])
-        )->assertSessionHasNoErrors();
-
-        $entry->refresh();
-
-        $this->assertNull($entry->review_note);
-        $this->assertNull($entry->reviewed_at);
-        $this->assertNull($entry->reviewed_by_id);
-        $this->assertFalse($entry->isQueried());
+        $this->assertSame(0, TimesheetDay::count());
     }
 
-    public function test_an_employee_cannot_approve_their_own_entry_through_the_edit_form(): void
+    public function test_the_employee_sees_why_their_day_was_sent_back(): void
+    {
+        $employee = $this->employee();
+        $entry = $this->entry($employee, ['worked_on' => now()->toDateString()]);
+
+        $this->actingAs($this->admin())->post(route('timesheets.day', $employee), [
+            'worked_on' => $entry->worked_on->toDateString(),
+            'review_state' => TimesheetDay::REJECTED,
+            'review_note' => 'That was the SVA shoot, not Aachi.',
+        ]);
+
+        $this->actingAs($employee)->get(route('my.timesheet'))
+            ->assertOk()
+            ->assertSee('That was the SVA shoot, not Aachi.');
+    }
+
+    public function test_a_day_nobody_has_decided_reads_as_under_review(): void
+    {
+        $employee = $this->employee();
+        $this->entry($employee, ['worked_on' => now()->toDateString()]);
+
+        $this->actingAs($employee)->get(route('my.timesheet'))
+            ->assertOk()
+            ->assertSee('Under review');
+    }
+
+    public function test_an_employee_cannot_set_their_own_entry_status(): void
     {
         $employee = $this->employee();
         $entry = $this->entry($employee);
 
-        // The review columns are not fillable, so smuggling them through the
-        // employee's own update must change nothing.
+        // status is no longer part of the form. Smuggling it through the
+        // employee's own update must change nothing -- it is only ever written
+        // by the spreadsheet importer now.
         $this->actingAs($employee)->put(route('my.timesheet.update', $entry), $this->editPayload($entry, [
             'task' => 'Shoot, edited',
-            'reviewed_at' => now()->toDateTimeString(),
-            'reviewed_by_id' => $employee->id,
-        ]));
+            'status' => TimesheetEntry::STATUS_CANCELLED,
+        ]))->assertSessionHasNoErrors();
 
-        $entry->refresh();
-
-        $this->assertNull($entry->reviewed_at);
-        $this->assertNull($entry->reviewed_by_id);
-        $this->assertFalse($entry->isApproved());
-    }
-
-    public function test_approve_month_clears_pending_but_skips_queried_entries(): void
-    {
-        $employee = $this->employee();
-        $admin = $this->admin();
-
-        $plain = $this->entry($employee, ['task' => 'Plain pending']);
-        $queried = $this->entry($employee, ['task' => 'Has a question']);
-        $cancelled = $this->entry($employee, ['task' => 'Dropped', 'status' => TimesheetEntry::STATUS_CANCELLED]);
-
-        $this->actingAs($admin)
-            ->post(route('timesheets.entry.query', $queried), ['review_note' => 'Which client?']);
-
-        $this->actingAs($admin)->post(route('timesheets.approve-month', $employee), [
-            'month' => now()->format('Y-m'),
-        ])->assertRedirect();
-
-        $this->assertSame(TimesheetEntry::STATUS_COMPLETED, $plain->refresh()->status);
-        // An open question is not a rubber stamp.
-        $this->assertSame(TimesheetEntry::STATUS_PENDING, $queried->refresh()->status);
-        $this->assertSame(TimesheetEntry::STATUS_CANCELLED, $cancelled->refresh()->status);
+        $this->assertSame(TimesheetEntry::STATUS_COMPLETED, $entry->refresh()->status);
     }
 
     public function test_the_team_list_names_who_logged_nothing_this_week(): void
@@ -208,10 +177,9 @@ class TimesheetReviewTest extends TestCase
         $admin = $this->admin();
         $employee = $this->employee();
 
-        $this->entry($employee, [
-            'worked_on' => now()->toDateString(),
-            'status' => TimesheetEntry::STATUS_CANCELLED,
-        ]);
+        $this->entry($employee, ['worked_on' => now()->toDateString()])
+            ->forceFill(['status' => TimesheetEntry::STATUS_CANCELLED])
+            ->save();
 
         $this->actingAs($admin)
             ->get(route('timesheets.index'))

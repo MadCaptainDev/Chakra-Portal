@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -25,7 +26,7 @@ class TeamPulse
 
     /**
      * Hours logged this month per person, busiest first, with the count of
-     * entries still waiting on a manager.
+     * days still waiting on a manager's decision.
      *
      * @param  Collection<int, User>  $employees
      * @return Collection<int, array{employee: User, minutes: int, pending: int}>
@@ -41,18 +42,19 @@ class TeamPulse
             ->get()
             ->groupBy('user_id');
 
+        $decisions = TimesheetDay::decisionsFor($employees->pluck('id'), $month);
+
         return $employees
-            ->map(function (User $employee) use ($entries) {
-                $own = $entries->get($employee->id, collect());
+            ->map(function (User $employee) use ($entries, $decisions) {
+                $counted = $entries->get($employee->id, collect())
+                    ->where('status', '!=', TimesheetEntry::STATUS_CANCELLED);
 
                 return [
                     'employee' => $employee,
-                    'minutes' => (int) $own
-                        ->where('status', '!=', TimesheetEntry::STATUS_CANCELLED)
-                        ->sum('minutes'),
-                    'pending' => $own
-                        ->where('status', TimesheetEntry::STATUS_PENDING)
-                        ->whereNull('review_note')
+                    'minutes' => (int) $counted->sum('minutes'),
+                    'pending' => $counted
+                        ->pluck('worked_on')->map->toDateString()->unique()
+                        ->reject(fn (string $date) => $decisions->has($employee->id.'|'.$date))
                         ->count(),
                 ];
             })

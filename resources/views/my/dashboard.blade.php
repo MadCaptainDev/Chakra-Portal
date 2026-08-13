@@ -58,41 +58,34 @@
                 <p class="mt-1.5 text-xs text-brand-100/60">{{ $point?->note ?: 'Not yet awarded' }}</p>
             </div>
 
-            {{-- Pending is the only number that asks for an action, so it is the
-                 only tile that carries the accent -- and the only one that is a
-                 link. With nothing pending it goes quiet and matches the rest. --}}
-            @if ($pendingCount > 0)
-                <a href="{{ route('my.timesheet') }}"
-                   class="block rounded-xl p-5 sm:p-6 transition-colors ring-1 ring-brand-400/40
-                          bg-gradient-to-br from-brand-400/20 to-white/5 hover:from-brand-400/30">
-                    <p class="text-3xl sm:text-4xl font-extrabold leading-none tabular-nums tracking-tight">{{ $pendingCount }}</p>
-                    <p class="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-200">Still pending</p>
-                    <p class="mt-1.5 text-xs text-brand-100/70">Review {{ Str::plural('entry', $pendingCount) }} &rarr;</p>
-                </a>
-            @else
-                <div class="rounded-xl bg-white/5 ring-1 ring-white/10 p-5 sm:p-6">
-                    <p class="text-3xl sm:text-4xl font-extrabold leading-none tabular-nums tracking-tight">0</p>
-                    <p class="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-100/70">Still pending</p>
-                    <p class="mt-1.5 text-xs text-brand-100/60">All caught up</p>
-                </div>
-            @endif
+            {{-- Days a manager has not looked at yet. Nothing here is the
+                 employee's to do, so the tile stays quiet either way -- it is
+                 information, not a task. --}}
+            <div class="rounded-xl bg-white/5 ring-1 ring-white/10 p-5 sm:p-6">
+                <p class="text-3xl sm:text-4xl font-extrabold leading-none tabular-nums tracking-tight">{{ $pendingCount }}</p>
+                <p class="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-100/70">Under review</p>
+                <p class="mt-1.5 text-xs text-brand-100/60">
+                    {{ $pendingCount === 0 ? 'Every day decided' : Str::plural('day', $pendingCount).' with your manager' }}
+                </p>
+            </div>
         </div>
 
-        {{-- An open question is the one thing here that somebody else is
-             waiting on, so it sits above everything except the numbers. --}}
-        @if ($queriedCount > 0)
+        {{-- A day sent back is the one thing here that is actually the
+             employee's to act on, so it sits above everything except the
+             numbers. --}}
+        @if ($rejectedCount > 0)
             <a href="{{ route('my.timesheet') }}"
-               class="animate-rise-in flex items-start gap-3.5 rounded-xl bg-amber-400/15 ring-1 ring-amber-400/40 p-4 sm:p-5
-                      hover:bg-amber-400/20 transition-colors">
-                <span class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-amber-400/20 text-amber-300">
+               class="animate-rise-in flex items-start gap-3.5 rounded-xl bg-red-400/15 ring-1 ring-red-400/40 p-4 sm:p-5
+                      hover:bg-red-400/20 transition-colors">
+                <span class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-red-400/20 text-red-300">
                     <x-icon name="alert" class="w-5 h-5" />
                 </span>
                 <div class="min-w-0">
-                    <p class="font-semibold text-amber-100">
-                        {{ $queriedCount }} {{ Str::plural('entry', $queriedCount) }}
-                        {{ $queriedCount === 1 ? 'has' : 'have' }} a question from the studio
+                    <p class="font-semibold text-red-100">
+                        {{ $rejectedCount }} {{ Str::plural('day', $rejectedCount) }}
+                        {{ $rejectedCount === 1 ? 'was' : 'were' }} sent back
                     </p>
-                    <p class="mt-1 text-sm text-amber-100/70">Open your timesheet and edit the entry to answer.</p>
+                    <p class="mt-1 text-sm text-red-100/70">Open your timesheet — the reason is on the day.</p>
                 </div>
             </a>
         @endif

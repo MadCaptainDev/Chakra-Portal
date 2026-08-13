@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
 use App\Models\User;
 use App\Support\Attendance;
@@ -38,28 +39,40 @@ class TimesheetApprovalTest extends TestCase
             'task_type' => TimesheetEntry::TASK_SHOOTING,
             'venture' => TimesheetVenture::ALL_CLIENTS,
             'minutes' => 120,
-            'status' => TimesheetEntry::STATUS_COMPLETED,
         ], $overrides);
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function decide(User $employee, array $overrides = []): array
+    {
+        return array_merge([
+            'worked_on' => now()->toDateString(),
+            'review_state' => TimesheetDay::APPROVED,
+        ], $overrides);
+    }
+
+    private function decisionFor(User $employee, ?string $date = null): ?TimesheetDay
+    {
+        return TimesheetDay::where('user_id', $employee->id)
+            ->whereDate('worked_on', $date ?? now()->toDateString())
+            ->first();
     }
 
     // ——— Filing today vs filing late ———
 
-    public function test_an_entry_for_today_needs_no_approval(): void
+    public function test_an_entry_for_today_is_not_marked_late(): void
     {
         $staff = $this->staff($this->manager());
 
         $this->actingAs($staff)->post(route('my.timesheet.store'), $this->payload())
             ->assertSessionHasNoErrors();
 
-        $entry = TimesheetEntry::firstOrFail();
-
-        // Asking a manager to sign off work logged on the day it was done is
-        // ceremony, and ceremony is what stops people filling timesheets in.
-        $this->assertFalse($entry->was_backdated);
-        $this->assertFalse($entry->needsReview());
+        $this->assertFalse(TimesheetEntry::firstOrFail()->was_backdated);
     }
 
-    public function test_an_entry_for_an_earlier_day_goes_to_the_manager(): void
+    public function test_an_entry_for_an_earlier_day_is_marked_late(): void
     {
         $staff = $this->staff($this->manager());
 
@@ -67,13 +80,10 @@ class TimesheetApprovalTest extends TestCase
             'worked_on' => now()->subDays(3)->toDateString(),
         ]))->assertSessionHasNoErrors();
 
-        $entry = TimesheetEntry::firstOrFail();
-
-        $this->assertTrue($entry->was_backdated);
-        $this->assertTrue($entry->needsReview());
+        $this->assertTrue(TimesheetEntry::firstOrFail()->was_backdated);
     }
 
-    public function test_editing_an_entry_sends_it_back_for_a_decision(): void
+    public function test_editing_an_entry_withdraws_the_decision_on_its_day(): void
     {
         $manager = $this->manager();
         $staff = $this->staff($manager);
@@ -81,84 +91,135 @@ class TimesheetApprovalTest extends TestCase
         $this->actingAs($staff)->post(route('my.timesheet.store'), $this->payload());
         $entry = TimesheetEntry::firstOrFail();
 
-        $this->actingAs($manager)->post(route('timesheets.entry.approve', $entry))->assertRedirect();
-        $this->assertTrue($entry->refresh()->isApproved());
+        $this->actingAs($manager)->post(route('timesheets.day', $staff), $this->decide($staff))->assertRedirect();
+        $this->assertNotNull($this->decisionFor($staff));
 
         $this->actingAs($staff)->put(route('my.timesheet.update', $entry), $this->payload([
             'task' => 'Shoot, corrected',
         ]))->assertSessionHasNoErrors();
 
-        $entry->refresh();
+        // A day changed since approval is not the day that was approved.
+        $this->assertNull($this->decisionFor($staff));
+    }
 
-        // An entry changed since approval is not the entry that was approved.
-        $this->assertNull($entry->review_state);
-        $this->assertTrue($entry->needsReview());
+    public function test_adding_an_entry_to_a_decided_day_reopens_it(): void
+    {
+        $manager = $this->manager();
+        $staff = $this->staff($manager);
+
+        $this->actingAs($staff)->post(route('my.timesheet.store'), $this->payload());
+        $this->actingAs($manager)->post(route('timesheets.day', $staff), $this->decide($staff));
+
+        $this->actingAs($staff)->post(route('my.timesheet.store'), $this->payload(['task' => 'Second job']))
+            ->assertSessionHasNoErrors();
+
+        $this->assertNull($this->decisionFor($staff));
     }
 
     // ——— Who may decide ———
 
-    public function test_a_manager_can_approve_their_own_report(): void
+    public function test_a_manager_can_accept_a_day_for_their_own_report(): void
     {
         $manager = $this->manager();
         $staff = $this->staff($manager);
-        $entry = TimesheetEntry::create($this->payload(['user_id' => $staff->id]));
+        TimesheetEntry::create($this->payload(['user_id' => $staff->id]));
 
-        $this->actingAs($manager)->post(route('timesheets.entry.approve', $entry))->assertRedirect();
+        $this->actingAs($manager)->post(route('timesheets.day', $staff), $this->decide($staff))->assertRedirect();
 
-        $entry->refresh();
-        $this->assertTrue($entry->isApproved());
-        $this->assertSame($manager->id, $entry->reviewed_by_id);
+        $decision = $this->decisionFor($staff);
+        $this->assertTrue($decision->isApproved());
+        $this->assertSame($manager->id, $decision->reviewed_by_id);
     }
 
     public function test_a_manager_cannot_decide_on_somebody_elses_report(): void
     {
         $manager = $this->manager();
         $stranger = $this->staff($this->manager());
-        $entry = TimesheetEntry::create($this->payload(['user_id' => $stranger->id]));
+        TimesheetEntry::create($this->payload(['user_id' => $stranger->id]));
 
-        $this->actingAs($manager)->post(route('timesheets.entry.approve', $entry))->assertForbidden();
+        $this->actingAs($manager)->post(route('timesheets.day', $stranger), $this->decide($stranger))
+            ->assertForbidden();
 
-        $this->assertNull($entry->refresh()->review_state);
+        $this->assertNull($this->decisionFor($stranger));
     }
 
     public function test_an_admin_can_decide_on_anyone(): void
     {
         $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
         $staff = $this->staff($this->manager());
-        $entry = TimesheetEntry::create($this->payload(['user_id' => $staff->id]));
+        TimesheetEntry::create($this->payload(['user_id' => $staff->id]));
 
         // Somebody has to be able to cover when a manager is on a shoot.
-        $this->actingAs($admin)->post(route('timesheets.entry.approve', $entry))->assertRedirect();
+        $this->actingAs($admin)->post(route('timesheets.day', $staff), $this->decide($staff))->assertRedirect();
 
-        $this->assertTrue($entry->refresh()->isApproved());
+        $this->assertTrue($this->decisionFor($staff)->isApproved());
     }
 
-    public function test_rejecting_requires_a_reason(): void
+    public function test_rejecting_a_day_requires_a_reason(): void
     {
         $manager = $this->manager();
         $staff = $this->staff($manager);
-        $entry = TimesheetEntry::create($this->payload(['user_id' => $staff->id]));
+        TimesheetEntry::create($this->payload(['user_id' => $staff->id]));
 
         $this->actingAs($manager)
-            ->post(route('timesheets.entry.reject', $entry), ['review_note' => ''])
+            ->post(route('timesheets.day', $staff), $this->decide($staff, [
+                'review_state' => TimesheetDay::REJECTED,
+                'review_note' => '',
+            ]))
             ->assertSessionHasErrors('review_note');
 
-        $this->assertNull($entry->refresh()->review_state);
+        $this->assertNull($this->decisionFor($staff));
     }
 
     public function test_a_rejection_records_the_reason(): void
     {
         $manager = $this->manager();
         $staff = $this->staff($manager);
-        $entry = TimesheetEntry::create($this->payload(['user_id' => $staff->id]));
+        TimesheetEntry::create($this->payload(['user_id' => $staff->id]));
 
-        $this->actingAs($manager)->post(route('timesheets.entry.reject', $entry), [
+        $this->actingAs($manager)->post(route('timesheets.day', $staff), $this->decide($staff, [
+            'review_state' => TimesheetDay::REJECTED,
             'review_note' => 'You were on the SVA shoot that afternoon.',
-        ])->assertRedirect();
+        ]))->assertRedirect();
 
-        $entry->refresh();
-        $this->assertTrue($entry->isRejected());
-        $this->assertSame('You were on the SVA shoot that afternoon.', $entry->review_note);
+        $decision = $this->decisionFor($staff);
+        $this->assertTrue($decision->isRejected());
+        $this->assertSame('You were on the SVA shoot that afternoon.', $decision->review_note);
+    }
+
+    public function test_deciding_again_replaces_the_earlier_decision(): void
+    {
+        $manager = $this->manager();
+        $staff = $this->staff($manager);
+        TimesheetEntry::create($this->payload(['user_id' => $staff->id]));
+
+        $this->actingAs($manager)->post(route('timesheets.day', $staff), $this->decide($staff, [
+            'review_state' => TimesheetDay::REJECTED,
+            'review_note' => 'Wrong client.',
+        ]));
+
+        $this->actingAs($manager)->post(route('timesheets.day', $staff), $this->decide($staff));
+
+        // A manager changing their mind leaves one decision behind, not two.
+        $this->assertSame(1, TimesheetDay::where('user_id', $staff->id)->count());
+        $this->assertTrue($this->decisionFor($staff)->isApproved());
+        $this->assertNull($this->decisionFor($staff)->review_note);
+    }
+
+    public function test_a_form_post_cannot_claim_somebody_else_decided(): void
+    {
+        $manager = $this->manager();
+        $staff = $this->staff($manager);
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        TimesheetEntry::create($this->payload(['user_id' => $staff->id]));
+
+        $this->actingAs($manager)->post(route('timesheets.day', $staff), $this->decide($staff, [
+            'reviewed_by_id' => $admin->id,
+            'reviewed_at' => now()->subYear()->toDateTimeString(),
+        ]))->assertRedirect();
+
+        // Who signed a day off is the one fact this table exists to hold.
+        $this->assertSame($manager->id, $this->decisionFor($staff)->reviewed_by_id);
     }
 
     // ——— The team screen ———
@@ -223,11 +284,12 @@ class TimesheetApprovalTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-08-12'));
 
         $staff = $this->staff();
+        // status is no longer fillable -- only the spreadsheet importer writes
+        // it, so a test that needs a cancelled row sets it the same way.
         TimesheetEntry::create($this->payload([
             'user_id' => $staff->id,
             'worked_on' => '2026-08-11',
-            'status' => TimesheetEntry::STATUS_CANCELLED,
-        ]));
+        ]))->forceFill(['status' => TimesheetEntry::STATUS_CANCELLED])->save();
 
         $absences = Attendance::absencesFor($staff, Carbon::parse('2026-08-01'))->map->toDateString();
 

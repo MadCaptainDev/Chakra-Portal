@@ -32,6 +32,7 @@ class UserController extends Controller
                 ->whereNull('user_id')
                 ->orderBy('name')
                 ->get(),
+            'managers' => User::orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -44,6 +45,7 @@ class UserController extends Controller
             // Derived from the constant rather than repeated as a literal, so
             // a new access level cannot be added and silently rejected here.
             'role' => ['required', Rule::in(array_keys(User::ROLES))],
+            'manager_id' => ['nullable', Rule::exists('users', 'id')],
             'employee_id' => ['nullable', 'exists:expenses,id'],
             'permissions' => ['nullable', 'array'],
             'permissions.*' => ['array'],
@@ -56,6 +58,7 @@ class UserController extends Controller
                 'email' => $validated['email'],
                 'password' => $validated['password'],
                 'role' => $validated['role'],
+                'manager_id' => $validated['manager_id'] ?? null,
             ]);
 
             $this->applyPermissions($user, $validated);

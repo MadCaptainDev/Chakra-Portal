@@ -76,10 +76,37 @@
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-brand-100 text-[10px] font-bold uppercase tracking-wide text-brand-700">Today</span>
                             @endif
                         </h3>
-                        <span class="text-sm font-semibold text-gray-600 tabular-nums">
-                            {{ \App\Models\TimesheetEntry::formatMinutes($dayEntries->where('status', '!=', 'cancelled')->sum('minutes')) }}
-                        </span>
+                        <div class="flex items-center gap-2">
+                            @php $decision = $decisions->get($day); @endphp
+                            @if ($decision)
+                                <span @class([
+                                    'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
+                                    'bg-green-100 text-green-700' => $decision->isApproved(),
+                                    'bg-red-100 text-red-700' => $decision->isRejected(),
+                                ])>{{ $decision->stateLabel() }}</span>
+                            @else
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[10px] font-bold uppercase tracking-wide text-gray-500">Under review</span>
+                            @endif
+                            <span class="text-sm font-semibold text-gray-600 tabular-nums">
+                                {{ \App\Models\TimesheetEntry::formatMinutes($dayEntries->where('status', '!=', 'cancelled')->sum('minutes')) }}
+                            </span>
+                        </div>
                     </div>
+
+                    {{-- A rejection is the one thing that needs acting on, so it sits
+                         above the day rather than inside one of its entries. --}}
+                    @if ($decision?->isRejected())
+                        <div class="mb-2 flex items-start gap-2 rounded-md bg-red-50 border border-red-200 px-3 py-2">
+                            <x-icon name="alert" class="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
+                            <div class="min-w-0">
+                                <p class="text-xs font-semibold text-red-900">
+                                    {{ $decision->reviewer?->name ? Str::before($decision->reviewer->name, ' ').' sent this day back' : 'This day was sent back' }}
+                                </p>
+                                <p class="text-xs text-red-800 mt-0.5">{{ $decision->review_note }}</p>
+                                <p class="text-[11px] text-red-700/80 mt-1">Fix the entries below — editing puts the day back under review.</p>
+                            </div>
+                        </div>
+                    @endif
 
                     <x-card class="divide-y divide-gray-100 overflow-hidden">
                         @foreach ($dayEntries as $entry)
@@ -97,12 +124,11 @@
                                         </p>
                                         <div class="mt-2 flex flex-wrap gap-1.5">
                                             <x-badge :status="$entry->task_type ?: 'other'" />
-                                            <x-badge :status="$entry->status" />
 
-                                            @if ($entry->isApproved())
-                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[11px] font-semibold">
-                                                    <x-icon name="check-circle" class="w-3 h-3" />
-                                                    Approved
+                                            @if ($entry->was_backdated)
+                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold">
+                                                    <x-icon name="alert" class="w-3 h-3" />
+                                                    Filed late
                                                 </span>
                                             @endif
                                         </div>
@@ -111,21 +137,6 @@
 
                                 @if ($entry->notes)
                                     <p class="mt-2 text-xs text-gray-600">{{ $entry->notes }}</p>
-                                @endif
-
-                                {{-- A question from the studio. Editing the entry is how you
-                                     answer it -- saving clears the query. --}}
-                                @if ($entry->isQueried())
-                                    <div class="mt-2 flex items-start gap-2 rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
-                                        <x-icon name="alert" class="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-                                        <div class="min-w-0">
-                                            <p class="text-xs font-semibold text-amber-900">
-                                                {{ $entry->reviewer?->name ? Str::before($entry->reviewer->name, ' ').' asked' : 'The studio asked' }}
-                                            </p>
-                                            <p class="text-xs text-amber-800 mt-0.5">{{ $entry->review_note }}</p>
-                                            <p class="text-[11px] text-amber-700/80 mt-1">Edit the entry to answer.</p>
-                                        </div>
-                                    </div>
                                 @endif
 
                                 <div class="mt-2 flex items-center justify-end gap-3">

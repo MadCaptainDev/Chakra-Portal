@@ -9,6 +9,7 @@ use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\PortfolioItem;
 use App\Services\ExpenseLedger;
+use App\Support\ContributionGraph;
 use App\Support\TeamPulse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -192,6 +193,7 @@ class DashboardController extends Controller
             'teamBehind' => $teamBehind,
             'teamMinutes' => (int) $teamHours->sum('minutes'),
             'pendingReviews' => $pendingReviews,
+            'workGraph' => ContributionGraph::forTeam(),
 
             // —— Website ——
             'publishedCount' => $published->count(),
@@ -451,8 +453,8 @@ class DashboardController extends Controller
             $items[] = [
                 'tone' => 'amber',
                 'domain' => 'Team',
-                'title' => $ctx['pendingReviews'].' timesheet '.Str::plural('entry', $ctx['pendingReviews']).' pending',
-                'detail' => 'Approve them or ask a question — nobody knows their hours are accepted until you do.',
+                'title' => $ctx['pendingReviews'].' timesheet '.Str::plural('day', $ctx['pendingReviews']).' undecided',
+                'detail' => 'Accept them or send them back with a reason — nobody knows their hours are accepted until you do.',
                 'href' => route('timesheets.index'),
                 'cta' => 'Review',
             ];

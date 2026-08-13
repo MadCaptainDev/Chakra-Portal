@@ -462,21 +462,23 @@ class TimesheetTest extends TestCase
     {
         $employee = $this->employee();
 
+        // status is written only by the spreadsheet importer now, so these are
+        // forced on the same way it does -- but old cancelled rows must still
+        // stay out of the total.
         foreach ([['completed', 120], ['pending', 60], ['cancelled', 300]] as [$status, $minutes]) {
             TimesheetEntry::create([
                 'user_id' => $employee->id,
                 'worked_on' => today()->toDateString(),
                 'task' => ucfirst($status),
                 'minutes' => $minutes,
-                'status' => $status,
-            ]);
+            ])->forceFill(['status' => $status])->save();
         }
 
         $response = $this->actingAs($employee)->get(route('my.timesheet'));
 
         $response->assertOk();
         $response->assertViewHas('totalMinutes', 180); // 120 + 60, not the cancelled 300
-        $response->assertSee('Cancelled'); // still listed
+        $response->assertSee('Cancelled'); // still listed by task name
     }
 
     public function test_the_calendar_lays_out_whole_weeks(): void

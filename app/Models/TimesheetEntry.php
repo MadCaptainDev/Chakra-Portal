@@ -12,17 +12,18 @@ class TimesheetEntry extends Model
 {
     use HasFactory;
 
+    /*
+     * Legacy. Nothing writes these but the spreadsheet importer, which reads
+     * them out of the old workbooks -- "Cacel" typo and all. Rows carrying
+     * `cancelled` are still kept out of every hours total, because the work in
+     * them genuinely did not happen. New entries are simply logged, and the day
+     * they belong to is what a manager decides on.
+     */
     public const STATUS_COMPLETED = 'completed';
 
     public const STATUS_PENDING = 'pending';
 
     public const STATUS_CANCELLED = 'cancelled';
-
-    public const STATUSES = [
-        self::STATUS_COMPLETED => 'Completed',
-        self::STATUS_PENDING => 'Pending',
-        self::STATUS_CANCELLED => 'Cancelled',
-    ];
 
     public const TASK_SHOOTING = 'shooting';
 
@@ -39,6 +40,12 @@ class TimesheetEntry extends Model
         self::TASK_OTHER => 'Other Task',
     ];
 
+    /*
+     * status is deliberately absent. It survives on old imported rows, where a
+     * spreadsheet column said "Pending" or "Cacel", but nobody types it any
+     * more: every day now goes to a manager, so an employee labelling their own
+     * work "completed" told us nothing the review did not.
+     */
     protected $fillable = [
         'user_id',
         'worked_on',
@@ -48,79 +55,18 @@ class TimesheetEntry extends Model
         'started_at',
         'ended_at',
         'minutes',
-        'status',
         'notes',
     ];
 
-    /*
-     * The review columns are deliberately absent from $fillable. They are
-     * written only by the admin review actions, which set them explicitly --
-     * so no amount of extra form input on the employee's own edit screen can
-     * approve an entry or clear a manager's question.
-     */
     protected $casts = [
         'worked_on' => 'date',
         'minutes' => 'integer',
-        'reviewed_at' => 'datetime',
         'was_backdated' => 'boolean',
     ];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
-    }
-
-    public function reviewer(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'reviewed_by_id');
-    }
-
-    public const REVIEW_APPROVED = 'approved';
-
-    public const REVIEW_REJECTED = 'rejected';
-
-    public const REVIEW_QUERIED = 'queried';
-
-    public const REVIEW_STATES = [
-        self::REVIEW_APPROVED => 'Approved',
-        self::REVIEW_REJECTED => 'Rejected',
-        self::REVIEW_QUERIED => 'Question asked',
-    ];
-
-    /** A manager has asked something and is waiting on a reply. */
-    public function isQueried(): bool
-    {
-        return $this->review_state === self::REVIEW_QUERIED;
-    }
-
-    public function isApproved(): bool
-    {
-        return $this->review_state === self::REVIEW_APPROVED;
-    }
-
-    public function isRejected(): bool
-    {
-        return $this->review_state === self::REVIEW_REJECTED;
-    }
-
-    /**
-     * Is a manager's decision outstanding?
-     *
-     * Only late-filed and edited entries need one. An entry written for the day
-     * it happened is taken at face value -- asking a manager to sign off work
-     * logged on the day it was done is ceremony, and ceremony is what stops
-     * people filling in timesheets at all.
-     */
-    public function needsReview(): bool
-    {
-        return $this->was_backdated && $this->review_state === null;
-    }
-
-    public function reviewStateLabel(): ?string
-    {
-        return $this->review_state
-            ? (self::REVIEW_STATES[$this->review_state] ?? ucfirst($this->review_state))
-            : null;
     }
 
     /**
@@ -133,23 +79,6 @@ class TimesheetEntry extends Model
     public static function isLateFor(?string $workedOn): bool
     {
         return $workedOn !== null && Carbon::parse($workedOn)->startOfDay()->lt(now()->startOfDay());
-    }
-
-    /**
-     * Wipe the review. Called when the employee edits the entry: the thing a
-     * manager approved or asked about no longer exists in that form, so the
-     * decision has to be made again against what the entry says now -- and an
-     * edited entry always needs one, whichever day it was for.
-     */
-    public function clearReview(): void
-    {
-        $this->forceFill([
-            'reviewed_at' => null,
-            'reviewed_by_id' => null,
-            'review_note' => null,
-            'review_state' => null,
-            'was_backdated' => true,
-        ]);
     }
 
     /**
@@ -225,11 +154,6 @@ class TimesheetEntry extends Model
         }
 
         return implode(' ', $parts);
-    }
-
-    public function statusLabel(): string
-    {
-        return self::STATUSES[$this->status] ?? ucfirst((string) $this->status);
     }
 
     public function taskTypeLabel(): string

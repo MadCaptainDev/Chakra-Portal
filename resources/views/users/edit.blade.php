@@ -83,16 +83,6 @@
                 </div>
 
                 <div>
-                    <x-input-label for="role" value="Access" />
-                    <select id="role" name="role" class="mt-1 block w-full border-gray-300 focus:border-brand-400 focus:ring-brand-400 rounded-md shadow-sm">
-                        @foreach (\App\Models\User::ROLES as $value => $label)
-                            <option value="{{ $value }}" @selected(old('role', $user->role) === $value)>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                    <x-input-error class="mt-2" :messages="$errors->get('role')" />
-                </div>
-
-                <div>
                     <x-input-label for="manager_id" value="Reports to" />
                     <x-select id="manager_id" name="manager_id" class="mt-1">
                         <option value="">Nobody — approvals go to the admins</option>
@@ -100,7 +90,9 @@
                             <option value="{{ $manager->id }}" @selected(old('manager_id', $user->manager_id) == $manager->id)>{{ $manager->name }}</option>
                         @endforeach
                     </x-select>
-                    <p class="text-xs text-gray-500 mt-1">Late or edited timesheet entries go to this person to accept or reject.</p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        This person decides each of their days, and gets the team timesheet without anything else being ticked.
+                    </p>
                     <x-input-error class="mt-2" :messages="$errors->get('manager_id')" />
                 </div>
 

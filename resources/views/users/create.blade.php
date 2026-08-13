@@ -5,8 +5,7 @@
 
     <div class="max-w-2xl mx-auto">
         <x-card class="p-4 sm:p-6">
-            <form method="POST" action="{{ route('users.store') }}"
-                  x-data="{ role: '{{ old('role', 'employee') }}' }">
+            <form method="POST" action="{{ route('users.store') }}">
                 @csrf
 
                 <div class="mb-4">
@@ -16,19 +15,6 @@
                 </div>
 
                 <div class="mb-4">
-                    <x-input-label for="role" value="Access Level" />
-                    <x-select id="role" name="role" class="mt-1" x-model="role" required>
-                        @foreach (\App\Models\User::ROLES as $value => $label)
-                            <option value="{{ $value }}" @selected(old('role', 'employee') === $value)>{{ $label }}</option>
-                        @endforeach
-                    </x-select>
-                    <x-input-error :messages="$errors->get('role')" class="mt-2" />
-                    <p class="text-xs text-gray-500 mt-1">
-                        Employees see their own timesheet and dashboard. Anything more is granted below.
-                    </p>
-                </div>
-
-                <div class="mb-4" x-show="role === 'employee'" x-cloak>
                     <x-input-label for="employee_id" value="Employee (optional)" />
                     <x-select id="employee_id" name="employee_id" class="mt-1">
                         <option value="">None</option>
@@ -39,6 +25,20 @@
                         @endforeach
                     </x-select>
                     <x-input-error :messages="$errors->get('employee_id')" class="mt-2" />
+                </div>
+
+                <div class="mb-4">
+                    <x-input-label for="manager_id" value="Reports to" />
+                    <x-select id="manager_id" name="manager_id" class="mt-1">
+                        <option value="">Nobody — their days go to the admins</option>
+                        @foreach ($managers as $manager)
+                            <option value="{{ $manager->id }}" @selected(old('manager_id') == $manager->id)>{{ $manager->name }}</option>
+                        @endforeach
+                    </x-select>
+                    <p class="text-xs text-gray-500 mt-1">
+                        This person decides each of their days, and gets the team timesheet without anything else being ticked.
+                    </p>
+                    <x-input-error :messages="$errors->get('manager_id')" class="mt-2" />
                 </div>
 
                 <div class="mb-4">

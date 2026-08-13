@@ -5,6 +5,7 @@ namespace App\Http\Controllers\My;
 use App\Http\Controllers\Controller;
 use App\Models\Announcement;
 use App\Models\EmployeePoint;
+use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -19,6 +20,11 @@ class DashboardController extends Controller
         $entries = TimesheetEntry::where('user_id', $user->id)->forMonth($month)->get();
         $counted = $entries->where('status', '!=', TimesheetEntry::STATUS_CANCELLED);
 
+        $decisions = TimesheetDay::decisionsFor([$user->id], $month)
+            ->keyBy(fn (TimesheetDay $day) => $day->worked_on->toDateString());
+
+        $workedDays = $counted->pluck('worked_on')->map->toDateString()->unique();
+
         /*
          * No per-type or per-day breakdown here on purpose. The timesheet screen
          * owns those charts; the dashboard links to it rather than repeating
@@ -28,13 +34,12 @@ class DashboardController extends Controller
             'month' => $month,
             'employee' => $user->employeeRecord,
             'totalMinutes' => $counted->sum('minutes'),
-            'pendingCount' => $entries->where('status', TimesheetEntry::STATUS_PENDING)->count(),
-            // Questions from a manager outrank pending: someone is waiting on
-            // a reply, and answering is a specific action rather than a chore.
-            'queriedCount' => TimesheetEntry::where('user_id', $user->id)
-                ->whereNotNull('review_note')
-                ->count(),
-            'daysLogged' => $counted->pluck('worked_on')->map->toDateString()->unique()->count(),
+            // Days still waiting on a manager, and days sent back. A rejection
+            // outranks a wait: it is a specific thing to go and fix, where
+            // waiting is somebody else's turn.
+            'pendingCount' => $workedDays->reject(fn (string $date) => $decisions->has($date))->count(),
+            'rejectedCount' => $decisions->filter(fn (TimesheetDay $day) => $day->isRejected())->count(),
+            'daysLogged' => $workedDays->count(),
             'point' => EmployeePoint::where('user_id', $user->id)
                 ->whereDate('period', $month->toDateString())
                 ->first(),

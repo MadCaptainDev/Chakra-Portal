@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\My;
 
 use App\Http\Controllers\Controller;
+use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
 use App\Support\TimesheetStats;
 use App\Support\TimesheetVenture;
@@ -35,6 +36,9 @@ class TimesheetController extends Controller
         return view('my.timesheet', [
             'month' => $month,
             'entries' => $entries,
+            // Keyed by date alone -- there is only one person on this screen.
+            'decisions' => TimesheetDay::decisionsFor([$request->user()->id], $month)
+                ->keyBy(fn (TimesheetDay $day) => $day->worked_on->toDateString()),
             'totalMinutes' => $entries->where('status', '!=', TimesheetEntry::STATUS_CANCELLED)->sum('minutes'),
             'ventureOptions' => TimesheetStats::ventureOptions(),
             'stats' => TimesheetStats::forEntries($entries, $month),
@@ -49,19 +53,21 @@ class TimesheetController extends Controller
         $entry = new TimesheetEntry($data);
 
         /*
-         * Filing for a day that has already gone needs a manager's decision;
-         * logging today's work does not. Stamped here rather than derived
-         * later, because "was this late?" is a fact about the moment it was
-         * written -- computed tomorrow, every entry in the system would look
-         * late.
+         * Whether this was filed late. Stamped here rather than derived later,
+         * because "was this late?" is a fact about the moment it was written --
+         * computed tomorrow, every entry in the system would look late.
          */
         $entry->was_backdated = TimesheetEntry::isLateFor($data['worked_on']);
         $entry->save();
 
+        // Adding to a day a manager has already decided reopens it. They signed
+        // off what the day said then, not what it says now.
+        $this->reopenDays($entry->user_id, [$entry->worked_on]);
+
         return redirect()
             ->route('my.timesheet', ['month' => Carbon::parse($data['worked_on'])->format('Y-m')])
             ->with('status', $entry->was_backdated
-                ? 'Entry added — it is for an earlier day, so it goes to your manager to approve.'
+                ? 'Entry added — it is for an earlier day, so your manager will see it flagged as late.'
                 : 'Entry added.');
     }
 
@@ -72,12 +78,14 @@ class TimesheetController extends Controller
         $entry->fill($this->validated($request));
 
         /*
-         * Any real edit goes back to the manager, whether or not it had been
-         * decided before. An entry that has been changed since approval is no
-         * longer the entry that was approved.
+         * A real edit sends the whole day back to the manager. The day they
+         * decided on is not the day this now describes, so their decision is
+         * withdrawn rather than left standing over changed work.
          */
         if ($entry->isDirty()) {
-            $entry->clearReview();
+            // Both days, because moving an entry to another date changes what
+            // two days say, not one.
+            $this->reopenDays($entry->user_id, [$entry->worked_on, $entry->getOriginal('worked_on')]);
         }
 
         $entry->save();
@@ -94,7 +102,30 @@ class TimesheetController extends Controller
         $month = $entry->worked_on->format('Y-m');
         $entry->delete();
 
+        $this->reopenDays($entry->user_id, [$entry->worked_on]);
+
         return redirect()->route('my.timesheet', ['month' => $month])->with('status', 'Entry deleted.');
+    }
+
+    /**
+     * Withdraw a manager's decision on the given days.
+     *
+     * whereDate rather than a plain equality: worked_on is a DATE column that
+     * the model casts, so the value Eloquent writes carries a midnight time
+     * under SQLite and not under MySQL. Comparing the date part matches on both.
+     *
+     * @param  array<int, mixed>  $days
+     */
+    private function reopenDays(int $userId, array $days): void
+    {
+        $dates = collect($days)
+            ->filter()
+            ->map(fn ($date) => Carbon::parse($date)->toDateString())
+            ->unique();
+
+        foreach ($dates as $date) {
+            TimesheetDay::where('user_id', $userId)->whereDate('worked_on', $date)->delete();
+        }
     }
 
     /**
@@ -119,7 +150,6 @@ class TimesheetController extends Controller
             'started_at' => ['nullable', 'date_format:H:i'],
             'ended_at' => ['nullable', 'date_format:H:i'],
             'minutes' => ['nullable', 'integer', 'min:0', 'max:1440'],
-            'status' => ['required', 'in:completed,pending,cancelled'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 

@@ -65,12 +65,12 @@
             </x-card>
         @endif
 
-        @if ($queriedCount > 0)
-            <x-card class="p-4 border border-brand-200 bg-brand-50/60">
-                <p class="text-sm text-brand-900">
-                    <span class="font-semibold">{{ $queriedCount }}</span>
-                    {{ Str::plural('entry', $queriedCount) }} {{ $queriedCount === 1 ? 'has' : 'have' }}
-                    an open question waiting on a reply.
+        @if ($rejectedCount > 0)
+            <x-card class="p-4 border border-red-200 bg-red-50/60">
+                <p class="text-sm text-red-900">
+                    <span class="font-semibold">{{ $rejectedCount }}</span>
+                    {{ Str::plural('day', $rejectedCount) }} {{ $rejectedCount === 1 ? 'was' : 'were' }}
+                    sent back this month and {{ $rejectedCount === 1 ? 'has' : 'have' }} not been redone.
                 </p>
             </x-card>
         @endif
@@ -136,8 +136,8 @@
                             <p class="text-xs text-gray-500">
                                 {{ $row['entries'] }} {{ Str::plural('entry', $row['entries']) }}
                                 &middot; {{ $row['days'] }} {{ Str::plural('day', $row['days']) }}
-                                @if ($row['pending'] > 0)
-                                    <span class="text-amber-600 font-semibold">&middot; {{ $row['pending'] }} pending</span>
+                                @if ($row['waiting'] > 0)
+                                    <span class="text-amber-600 font-semibold">&middot; {{ $row['waiting'] }} to decide</span>
                                 @endif
                             </p>
                         </div>

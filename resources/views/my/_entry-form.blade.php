@@ -87,7 +87,7 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4"
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4"
          x-data="{
              start: '{{ old('started_at', $entry?->started_at ? substr($entry->started_at, 0, 5) : '') }}',
              end: '{{ old('ended_at', $entry?->ended_at ? substr($entry->ended_at, 0, 5) : '') }}',
@@ -134,15 +134,6 @@
             <x-input-error :messages="$errors->get('minutes')" class="mt-2" />
         </div>
 
-        <div>
-            <x-input-label :for="'ts_status_'.$uid" value="Status" />
-            <x-select :id="'ts_status_'.$uid" name="status" class="mt-1" required>
-                @foreach (\App\Models\TimesheetEntry::STATUSES as $value => $label)
-                    <option value="{{ $value }}" @selected(old('status', $entry->status ?? 'completed') === $value)>{{ $label }}</option>
-                @endforeach
-            </x-select>
-            <x-input-error :messages="$errors->get('status')" class="mt-2" />
-        </div>
     </div>
 
     <div class="mb-4">

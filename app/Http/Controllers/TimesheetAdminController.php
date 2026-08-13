@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\EmployeePoint;
+use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
 use App\Models\User;
 use App\Support\TeamPulse;
@@ -10,8 +11,6 @@ use App\Support\TimesheetStats;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Throwable;
 
@@ -36,16 +35,22 @@ class TimesheetAdminController extends Controller
             ->get()
             ->keyBy('user_id');
 
-        $rows = $employees->map(function (User $employee) use ($entries, $points) {
+        $decisions = TimesheetDay::decisionsFor($employees->pluck('id'), $month);
+
+        $rows = $employees->map(function (User $employee) use ($entries, $points, $decisions) {
             $own = $entries->get($employee->id, collect());
             $counted = $own->where('status', '!=', TimesheetEntry::STATUS_CANCELLED);
+            $workedDays = $counted->pluck('worked_on')->map->toDateString()->unique();
 
             return [
                 'employee' => $employee,
                 'minutes' => $counted->sum('minutes'),
                 'entries' => $own->count(),
-                'pending' => $own->where('status', TimesheetEntry::STATUS_PENDING)->count(),
-                'days' => $counted->pluck('worked_on')->map->toDateString()->unique()->count(),
+                // Days with work on them that nobody has decided yet.
+                'waiting' => $workedDays
+                    ->reject(fn (string $date) => $decisions->has($employee->id.'|'.$date))
+                    ->count(),
+                'days' => $workedDays->count(),
                 'point' => $points->get($employee->id),
             ];
         });
@@ -69,10 +74,7 @@ class TimesheetAdminController extends Controller
             'ranking' => $ranking,
             'teamStats' => $teamStats,
             'behind' => TeamPulse::behind($employees),
-            'queriedCount' => TimesheetEntry::forMonth($month)
-                ->whereIn('user_id', $employees->pluck('id'))
-                ->whereNotNull('review_note')
-                ->count(),
+            'rejectedCount' => $decisions->where('review_state', TimesheetDay::REJECTED)->count(),
         ]);
     }
 
@@ -93,6 +95,7 @@ class TimesheetAdminController extends Controller
             'month' => $month,
             'employee' => $employee,
             'entries' => $entries,
+            'decisions' => TimesheetDay::decisionsFor([$employee->id], $month),
             'totalMinutes' => $entries->where('status', '!=', TimesheetEntry::STATUS_CANCELLED)->sum('minutes'),
             'point' => EmployeePoint::where('user_id', $employee->id)
                 ->whereDate('period', $month->toDateString())
@@ -128,116 +131,6 @@ class TimesheetAdminController extends Controller
         return redirect()
             ->route('timesheets.show', [$employee, 'month' => $period->format('Y-m')])
             ->with('status', "Points recorded for {$employee->name}.");
-    }
-
-    /**
-     * Sign an entry off. Approving also settles the status: a manager saying
-     * "yes, that happened" is the answer to the employee's "pending".
-     */
-    public function approve(Request $request, TimesheetEntry $entry): RedirectResponse
-    {
-        $this->markReviewed($request, $entry, note: null);
-
-        $entry->status = TimesheetEntry::STATUS_COMPLETED;
-        $entry->save();
-
-        return $this->backToEntry($entry, 'Entry approved.');
-    }
-
-    /**
-     * Ask the employee something about an entry. The status is left alone --
-     * it is the employee's to set, and they may well answer by editing the
-     * entry, which clears the question.
-     */
-    public function query(Request $request, TimesheetEntry $entry): RedirectResponse
-    {
-        $validated = $request->validate([
-            'review_note' => ['required', 'string', 'max:1000'],
-        ]);
-
-        $this->markReviewed($request, $entry, note: $validated['review_note'], state: TimesheetEntry::REVIEW_QUERIED);
-        $entry->save();
-
-        return $this->backToEntry($entry, 'Question sent to '.Str::before($entry->user->name, ' ').'.');
-    }
-
-    /**
-     * Clear the whole month's pending pile in one go -- the common case at the
-     * end of a month, when a manager has read down the list and is happy.
-     * Queried entries are skipped: an open question is not a rubber stamp.
-     */
-    public function approveMonth(Request $request, User $employee): RedirectResponse
-    {
-        abort_unless($employee->isEmployee(), 404);
-
-        $month = $this->resolveMonth($request->input('month'));
-
-        $entries = TimesheetEntry::where('user_id', $employee->id)
-            ->forMonth($month)
-            ->where('status', TimesheetEntry::STATUS_PENDING)
-            ->whereNull('review_note')
-            ->get();
-
-        foreach ($entries as $entry) {
-            $this->markReviewed($request, $entry, note: null);
-            $entry->status = TimesheetEntry::STATUS_COMPLETED;
-            $entry->save();
-        }
-
-        $count = $entries->count();
-
-        return redirect()
-            ->route('timesheets.show', [$employee, 'month' => $month->format('Y-m')])
-            ->with('status', $count === 0
-                ? 'Nothing was waiting to be approved.'
-                : $count.' '.Str::plural('entry', $count).' approved.');
-    }
-
-    /**
-     * The review columns are not fillable, so they are set here by hand -- the
-     * one place in the app allowed to write them.
-     */
-    private function markReviewed(Request $request, TimesheetEntry $entry, ?string $note, string $state = TimesheetEntry::REVIEW_APPROVED): void
-    {
-        /*
-         * Only this person's manager, or an admin, may decide. Checked here
-         * rather than in the route because the answer depends on whose entry it
-         * is, which a middleware cannot see.
-         */
-        abort_unless($request->user()->managesTimesheetOf($entry->user), 403);
-
-        $entry->forceFill([
-            'reviewed_at' => now(),
-            'reviewed_by_id' => $request->user()->id,
-            'review_note' => $note,
-            'review_state' => $state,
-        ]);
-    }
-
-    /**
-     * Reject an entry, with a reason.
-     *
-     * The reason is required: "rejected" on its own tells somebody their work
-     * was refused and nothing about what to do next, which is how a review
-     * system becomes something people resent rather than use.
-     */
-    public function reject(Request $request, TimesheetEntry $entry): RedirectResponse
-    {
-        $validated = $request->validate([
-            'review_note' => ['required', 'string', 'max:1000'],
-        ]);
-
-        $this->markReviewed($request, $entry, note: $validated['review_note'], state: TimesheetEntry::REVIEW_REJECTED);
-        $entry->save();
-
-        return $this->backToEntry($entry, 'Entry rejected — '.Str::before($entry->user->name, ' ').' has been told why.');
-    }
-
-    private function backToEntry(TimesheetEntry $entry, string $status): RedirectResponse
-    {
-        return redirect()
-            ->route('timesheets.show', [$entry->user_id, 'month' => $entry->worked_on->format('Y-m')])
-            ->with('status', $status);
     }
 
     private function resolveMonth(?string $value): Carbon

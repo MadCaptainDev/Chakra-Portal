@@ -211,6 +211,13 @@
                 <a href="{{ route('timesheets.index') }}" class="text-xs font-semibold text-brand-300 hover:text-brand-200 transition-colors">All timesheets</a>
             </div>
 
+            {{-- The shape of the year first, then this month's detail. The
+                 heatmap answers "is this normal for us", which is the question
+                 the per-person bars underneath cannot. --}}
+            <div class="mb-3.5">
+                <x-charts.work-heatmap :graph="$workGraph" />
+            </div>
+
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
                 <div class="{{ $cardClass }} p-5 sm:p-6">
                     <p class="{{ $tileLabel }}">Hours this month</p>
@@ -224,7 +231,7 @@
                                     <x-avatar :name="$row['employee']->name" :src="$row['employee']->avatarUrl()" size="sm" class="shrink-0" />
                                     <span class="text-sm flex-1 truncate group-hover:text-brand-200 transition-colors">{{ $row['employee']->name }}</span>
                                     @if ($row['pending'] > 0)
-                                        <span class="text-[10px] text-amber-300">{{ $row['pending'] }} pending</span>
+                                        <span class="text-[10px] text-amber-300">{{ $row['pending'] }} to decide</span>
                                     @endif
                                     <span class="text-sm tabular-nums text-brand-100/80">{{ TimesheetEntry::formatMinutes($row['minutes']) }}</span>
                                 </div>

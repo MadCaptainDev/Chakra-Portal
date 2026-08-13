@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\My;
 
 use App\Http\Controllers\Controller;
+use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
 use App\Models\User;
 use App\Support\Attendance;
@@ -12,7 +13,7 @@ use Illuminate\View\View;
 use Throwable;
 
 /**
- * A manager's view of their own team.
+ * A manager's view of their own team, decided a day at a time.
  *
  * Scoped to the signed-in manager's reports, the same way the rest of the my/
  * area scopes to the signed-in user. An admin sees every employee, because an
@@ -24,8 +25,6 @@ class TeamController extends Controller
     {
         $user = $request->user();
 
-        // Nobody reports to this person and they are not an admin: there is no
-        // team to show, and a 403 explains that better than an empty screen.
         abort_unless($user->isAdmin() || $user->managesAnyone(), 403);
 
         $month = $this->resolveMonth($request->query('month'));
@@ -36,47 +35,64 @@ class TeamController extends Controller
 
         $entries = TimesheetEntry::whereIn('user_id', $team->pluck('id'))
             ->forMonth($month)
-            ->with('user')
+            ->orderBy('worked_on')
             ->get();
 
-        $byPerson = $entries->groupBy('user_id');
+        $decisions = TimesheetDay::whereIn('user_id', $team->pluck('id'))
+            ->whereBetween('worked_on', [
+                $month->copy()->startOfMonth()->toDateString(),
+                $month->copy()->endOfMonth()->toDateString(),
+            ])
+            ->get()
+            ->keyBy(fn (TimesheetDay $day) => $day->user_id.'|'.$day->worked_on->toDateString());
+
+        /*
+         * One card per person per day that has any work on it. A day with no
+         * entries is an absence, counted separately -- there is nothing to
+         * decide about a day nobody worked.
+         */
+        $days = $entries
+            ->groupBy(fn (TimesheetEntry $entry) => $entry->user_id.'|'.$entry->worked_on->toDateString())
+            ->map(function ($rows, $key) use ($team, $decisions) {
+                [$userId, $date] = explode('|', $key);
+
+                return [
+                    'key' => $key,
+                    'member' => $team->firstWhere('id', (int) $userId),
+                    'date' => Carbon::parse($date),
+                    'entries' => $rows->sortBy('started_at')->values(),
+                    'minutes' => (int) $rows->sum('minutes'),
+                    'decision' => $decisions->get($key),
+                ];
+            })
+            ->sortByDesc(fn (array $day) => $day['date']->timestamp)
+            ->values();
+
         $absences = Attendance::countsFor($team, $month);
 
-        $rows = $team->map(function (User $member) use ($byPerson, $absences) {
-            $own = $byPerson->get($member->id, collect());
-            $counted = $own->where('status', '!=', TimesheetEntry::STATUS_CANCELLED);
+        $rows = $team->map(function (User $member) use ($days, $absences) {
+            $theirs = $days->where('member.id', $member->id);
 
             return [
                 'member' => $member,
-                'minutes' => (int) $counted->sum('minutes'),
-                'days' => $counted->pluck('worked_on')->map->toDateString()->unique()->count(),
+                'minutes' => (int) $theirs->sum('minutes'),
+                'days' => $theirs->count(),
                 'absent' => (int) ($absences[$member->id] ?? 0),
-                // Late-filed or edited, and nobody has decided yet.
-                'awaiting' => $own->filter(fn (TimesheetEntry $e) => $e->needsReview())->count(),
+                'waiting' => $theirs->whereNull('decision')->count(),
             ];
-        })->sortByDesc('awaiting')->values();
-
-        /*
-         * The queue is the reason a manager opens this screen, so it is loaded
-         * whole rather than paged -- if it is ever long enough to need paging,
-         * something has gone wrong upstream that paging would only hide.
-         */
-        $queue = $entries
-            ->filter(fn (TimesheetEntry $entry) => $entry->needsReview())
-            ->sortBy('worked_on')
-            ->values();
+        })->sortByDesc('waiting')->values();
 
         return view('my.team', [
             'month' => $month,
             'rows' => $rows,
-            'queue' => $queue,
+            'queue' => $days->whereNull('decision')->values(),
+            'decided' => $days->whereNotNull('decision')->values(),
             'totalMinutes' => $rows->sum('minutes'),
             'totalAbsent' => $rows->sum('absent'),
             'workingDays' => Attendance::workingDaysSoFar($month)->count(),
         ]);
     }
 
-    /** Same shape as every other month-scoped screen in the app. */
     private function resolveMonth(?string $value): Carbon
     {
         if (! $value) {

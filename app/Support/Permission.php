@@ -61,6 +61,27 @@ class Permission
         ],
     ];
 
+    /**
+     * What every account reaches without anything being ticked.
+     *
+     * These are not modules and deliberately have no gates: the routes behind
+     * them live in the plain `auth` group and every query inside is already
+     * scoped to the signed-in user, so there is nothing to grant. They are
+     * listed here only so the user form can say what "no permissions" means --
+     * an empty matrix that reads as "this person can do nothing" is how an
+     * admin ends up granting more than they meant to.
+     *
+     * Managing someone is not on this list because it is not granted here
+     * either: it follows from being named as their manager.
+     *
+     * @var array<string, string>
+     */
+    public const DEFAULTS = [
+        'Timesheet' => 'Log their own work and edit it',
+        'Calendar' => 'See their own month',
+        'Dashboard' => 'Their hours, points and studio announcements',
+    ];
+
     /** @return array<string, array{label: string, group: string, abilities: list<string>}> */
     public static function modules(): array
     {

@@ -50,6 +50,58 @@ class UserManagementTest extends TestCase
         $this->assertDatabaseMissing('users', ['email' => 'no-role@example.com']);
     }
 
+    public function test_the_form_offers_an_admin_switch_rather_than_an_access_level(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+
+        $response = $this->actingAs($admin)->get(route('users.create'));
+
+        $response->assertOk()
+            ->assertSee('Studio admin')
+            // Access is the module matrix now; there is no ladder to pick from.
+            ->assertDontSee('Access Level')
+            // And the form has to say what an untouched account can already do,
+            // or an empty matrix reads as "this person can do nothing".
+            ->assertSee('Everyone gets')
+            ->assertSee('Timesheet');
+    }
+
+    public function test_leaving_the_admin_switch_off_creates_an_employee(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+
+        // What the form posts with the box unticked: the hidden field alone.
+        $this->actingAs($admin)->post(route('users.store'), [
+            'name' => 'Plain Staff',
+            'email' => 'plain@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'role' => User::ROLE_EMPLOYEE,
+        ])->assertRedirect(route('users.index'));
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'plain@example.com',
+            'role' => User::ROLE_EMPLOYEE,
+        ]);
+    }
+
+    public function test_a_manager_can_be_named_when_the_account_is_created(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $manager = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
+
+        $this->actingAs($admin)->post(route('users.store'), [
+            'name' => 'Reports To Someone',
+            'email' => 'reports@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'role' => User::ROLE_EMPLOYEE,
+            'manager_id' => $manager->id,
+        ])->assertRedirect(route('users.index'));
+
+        $this->assertSame($manager->id, User::where('email', 'reports@example.com')->firstOrFail()->manager_id);
+    }
+
     public function test_staff_can_remove_another_user(): void
     {
         $user = User::factory()->create();

@@ -33,6 +33,7 @@ use App\Http\Controllers\ShootKitController;
 use App\Http\Controllers\TaxonomyTermController;
 use App\Http\Controllers\TeamMemberController;
 use App\Http\Controllers\TimesheetAdminController;
+use App\Http\Controllers\TimesheetDayController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -77,24 +78,21 @@ Route::middleware('auth')->prefix('my')->name('my.')->group(function () {
 
 
 /*
- * The team's timesheets, and deciding on an entry.
+ * The team's timesheets, and deciding on a day.
  *
  * Outside the admin group on purpose: a manager is an ordinary employee, and
  * the admin middleware would refuse them before anything else was consulted.
  *
- * Who may decide depends on whose entry it is -- that person's own manager, or
+ * Who may decide depends on whose day it is -- that person's own manager, or
  * any admin. That is a per-row question a middleware cannot answer, so
- * TimesheetAdminController::markReviewed() checks it and aborts. The team
- * screen scopes itself to the signed-in manager's own reports the same way the
- * rest of the my/ area scopes to the signed-in user.
+ * TimesheetDayController checks it and aborts. The team screen scopes itself to
+ * the signed-in manager's own reports the same way the rest of the my/ area
+ * scopes to the signed-in user.
  */
 Route::middleware('auth')->group(function () {
     Route::get('my/team', [MyTeamController::class, 'index'])->name('my.team');
 
-    Route::post('timesheets/{employee}/approve-month', [TimesheetAdminController::class, 'approveMonth'])->name('timesheets.approve-month');
-    Route::post('timesheet-entries/{entry}/approve', [TimesheetAdminController::class, 'approve'])->name('timesheets.entry.approve');
-    Route::post('timesheet-entries/{entry}/query', [TimesheetAdminController::class, 'query'])->name('timesheets.entry.query');
-    Route::post('timesheet-entries/{entry}/reject', [TimesheetAdminController::class, 'reject'])->name('timesheets.entry.reject');
+    Route::post('timesheets/{employee}/day', [TimesheetDayController::class, 'store'])->name('timesheets.day');
 });
 
 /*
