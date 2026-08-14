@@ -54,6 +54,23 @@
                     @endif
                 </span>
 
+                @if ($todo->venture)
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold">
+                        {{ $todo->venture }}
+                    </span>
+                @endif
+
+                @unless ($todo->isSelfAssigned())
+                    {{-- Which end of the handover this card is being read from. --}}
+                    <span class="text-gray-500">
+                        @if ($todo->user_id === auth()->id())
+                            from {{ $todo->assignedBy?->name ?? 'a deleted account' }}
+                        @else
+                            for {{ $todo->user->name }}
+                        @endif
+                    </span>
+                @endunless
+
                 @if ($moved > 0)
                     {{-- Derived from the history rows, never a column. --}}
                     <span @class([
@@ -106,7 +123,11 @@
                     {{-- Hands the title to the timesheet rather than making
                          somebody type the same work out a second time. --}}
                     <x-btn size="sm" variant="ghost" icon="clock"
-                           :href="route('my.timesheet', ['month' => $todo->due_on->format('Y-m'), 'task' => $todo->title])">
+                           :href="route('my.timesheet', [
+                               'month' => $todo->due_on->format('Y-m'),
+                               'task' => $todo->title,
+                               'venture' => $todo->venture,
+                           ])">
                         Log the hours
                     </x-btn>
                 @endif

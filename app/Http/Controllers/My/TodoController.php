@@ -5,19 +5,27 @@ namespace App\Http\Controllers\My;
 use App\Http\Controllers\Controller;
 use App\Models\Todo;
 use App\Models\TodoUpdate;
+use App\Models\User;
 use App\Support\PeriodInput;
+use App\Support\TimesheetVenture;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
- * An employee's own to-do list, a day at a time.
+ * One person's to-do list, a day at a time.
  *
- * Every query is scoped to the signed-in user, and ownership is enforced here
- * rather than by which links happen to get rendered. Employees write their own
- * to-dos; managers read them on the tracker and cannot change them, the same
- * way a manager decides on a timesheet day without editing its entries.
+ * Anybody may write a to-do for anybody -- a producer hands an edit over, a
+ * client call turns into three jobs for three people. What that does NOT do is
+ * open the list up: acting on a to-do is still limited to the two people it
+ * concerns, the one who has to do it and the one who asked. Everyone else gets
+ * a 404, tracker or no tracker.
+ *
+ * Who it is for is fixed when it is written. Moving work to somebody else is a
+ * new to-do, not an edit -- the history on this one records what happened to
+ * the job that was handed over, and silently swapping the name at the top would
+ * make that record describe somebody who never touched it.
  */
 class TodoController extends Controller
 {
@@ -42,14 +50,30 @@ class TodoController extends Controller
                     ->where('starts_on', '>=', $day->copy()->addDay()->toDateString())
                     ->get()
             ),
+            /*
+             * What this person has given other people for this day. Without it,
+             * handing work over is a thing you do and then never see again --
+             * and only managers can reach the tracker.
+             */
+            'assigned' => $this->forBoard(
+                Todo::where('assigned_by_id', $user->id)
+                    ->where('user_id', '!=', $user->id)
+                    ->onDay($day)
+                    ->with(['updates.user', 'user'])
+                    ->withCount(['updates as deferrals_count' => fn ($query) => $query->where('action', TodoUpdate::MOVED)])
+                    ->get()
+            ),
             'statuses' => Todo::STATUSES,
+            'ventureOptions' => TimesheetVenture::options(),
+            // Anyone can be given a job, so the picker is everybody with a login.
+            'people' => User::orderBy('name')->get(['id', 'name']),
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $data = $this->validated($request);
-        $data['user_id'] = $request->user()->id;
+        $data = $this->validated($request, creating: true);
+        $data['assigned_by_id'] = $request->user()->id;
 
         $todo = Todo::create($data);
 
@@ -59,16 +83,20 @@ class TodoController extends Controller
             'to_on' => $todo->due_on,
         ]);
 
-        return back()->with('status', $todo->spanDays() > 1
-            ? "To-do added — {$todo->spanDays()} days, due {$todo->due_on->format('D j M')}."
-            : 'To-do added.');
+        $span = $todo->spanDays() > 1
+            ? " — {$todo->spanDays()} days, due {$todo->due_on->format('D j M')}"
+            : '';
+
+        return back()->with('status', $todo->isSelfAssigned()
+            ? "To-do added{$span}."
+            : "Assigned to {$todo->user->name}{$span}.");
     }
 
     public function update(Request $request, Todo $todo): RedirectResponse
     {
-        $this->authoriseOwnership($request, $todo);
+        $this->authoriseWrite($request, $todo);
 
-        $data = $this->validated($request);
+        $data = $this->validated($request, creating: false);
 
         $wasDue = $todo->due_on->copy();
         $todo->fill($data);
@@ -89,7 +117,7 @@ class TodoController extends Controller
 
     public function destroy(Request $request, Todo $todo): RedirectResponse
     {
-        $this->authoriseOwnership($request, $todo);
+        $this->authoriseWrite($request, $todo);
 
         $todo->delete();
 
@@ -106,7 +134,7 @@ class TodoController extends Controller
      */
     public function status(Request $request, Todo $todo): RedirectResponse
     {
-        $this->authoriseOwnership($request, $todo);
+        $this->authoriseWrite($request, $todo);
 
         $data = $request->validate([
             'status' => ['required', Rule::in(array_keys(Todo::STATUSES))],
@@ -126,7 +154,7 @@ class TodoController extends Controller
     /** Push the promised day by one. */
     public function defer(Request $request, Todo $todo): RedirectResponse
     {
-        $this->authoriseOwnership($request, $todo);
+        $this->authoriseWrite($request, $todo);
 
         $data = $request->validate([
             'note' => ['nullable', 'string', 'max:1000'],
@@ -150,7 +178,7 @@ class TodoController extends Controller
             // The history is needed for the timeline and for replaying what the
             // status was on an older day, so it is loaded once here rather than
             // a query per row.
-            ->with('updates.user')
+            ->with(['updates.user', 'assignedBy', 'user'])
             ->withCount(['updates as deferrals_count' => fn ($query) => $query->where('action', TodoUpdate::MOVED)]);
     }
 
@@ -166,29 +194,46 @@ class TodoController extends Controller
     }
 
     /**
-     * 404 rather than 403: an employee has no business learning that another
-     * person's to-do exists.
+     * 404 rather than 403: somebody with no part in a to-do has no business
+     * learning that it exists.
      */
-    private function authoriseOwnership(Request $request, Todo $todo): void
+    private function authoriseWrite(Request $request, Todo $todo): void
     {
-        abort_unless($todo->user_id === $request->user()->id, 404);
+        abort_unless($todo->isWritableBy($request->user()), 404);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function validated(Request $request): array
+    private function validated(Request $request, bool $creating): array
     {
-        $data = $request->validate([
+        $rules = [
             'title' => ['required', 'string', 'max:255'],
+            // The same value set the timesheet uses, so a to-do and the entry
+            // that eventually logs it name the client the same way.
+            // "All / Multiple Clients" is in that list and covers work that is
+            // not any one client's.
+            'venture' => TimesheetVenture::validationRules(),
             'notes' => ['nullable', 'string', 'max:2000'],
             'starts_on' => ['required', 'date'],
             'due_on' => ['nullable', 'date', 'after_or_equal:starts_on'],
-        ]);
+        ];
+
+        // Who it is for is settled when it is written, never on an edit.
+        if ($creating) {
+            $rules['user_id'] = ['required', 'integer', Rule::exists('users', 'id')];
+        }
+
+        $data = $request->validate($rules);
 
         // A one-day job is a range of one. Leaving due_on null instead would put
         // a null branch into overdue checks, the move handler and every badge.
         $data['due_on'] = $data['due_on'] ?? $data['starts_on'];
+
+        // Same normalisation the timesheet does, so a client typed one way in
+        // one place and another way here still lines up.
+        $data['venture'] = TimesheetVenture::normalize(trim((string) $data['venture']))
+            ?? trim((string) $data['venture']);
 
         return $data;
     }

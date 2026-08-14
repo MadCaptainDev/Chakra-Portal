@@ -1,6 +1,6 @@
 @php
     $total = $todos->flatten(1)->count();
-    $filtering = $onlyUser !== null || $status !== null;
+    $filtering = $onlyUser !== null || $status !== null || $venture !== null;
 @endphp
 
 <x-app-layout title="Team to-dos">
@@ -18,7 +18,7 @@
             {{-- The filters ride along with the day, so stepping back a day keeps
                  whoever you were looking at. --}}
             <x-day-nav route="todos.index" :day="$day"
-                       :params="array_filter(['user' => $onlyUser, 'status' => $status])" />
+                       :params="array_filter(['user' => $onlyUser, 'status' => $status, 'venture' => $venture])" />
         </x-card>
 
         <x-card padding="sm">
@@ -42,6 +42,16 @@
                         <option value="">Any status</option>
                         @foreach ($statuses as $value => $label)
                             <option value="{{ $value }}" @selected($status === $value)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
+                </div>
+
+                <div class="min-w-0 flex-1 sm:flex-none sm:w-64">
+                    <x-input-label for="filter_venture" value="Client / Venture" />
+                    <x-select id="filter_venture" name="venture" class="mt-1" onchange="this.form.submit()">
+                        <option value="">Every client</option>
+                        @foreach ($ventureOptions as $option)
+                            <option value="{{ $option['value'] }}" @selected($venture === $option['value'])>{{ $option['label'] }}</option>
                         @endforeach
                     </x-select>
                 </div>

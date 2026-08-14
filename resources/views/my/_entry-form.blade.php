@@ -3,7 +3,8 @@
     $entry = $entry ?? null;
     $uid = $entry?->id ?? 'new';
     $knownValues = collect($ventureOptions)->pluck('value')->all();
-    $currentVenture = old('venture', $entry->venture ?? '');
+    // ?venture= arrives with ?task= when a finished to-do hands its work over.
+    $currentVenture = old('venture', $entry->venture ?? ($entry ? '' : (string) request('venture')));
     $currentType = old('task_type', $entry->task_type ?? '');
     // ?task= lets a finished to-do hand its title straight to the timesheet, so
     // the same work is not typed twice. Only ever seeds a new entry.

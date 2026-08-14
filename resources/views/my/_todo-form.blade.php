@@ -18,6 +18,10 @@
 
     $defaultStart = $todo?->starts_on?->toDateString() ?? ($day ?? today())->toDateString();
     $defaultDue = $todo?->due_on?->toDateString() ?? $defaultStart;
+
+    $allVentures = \App\Support\TimesheetVenture::ALL_CLIENTS;
+    $currentVenture = $was('venture', $todo->venture ?? '');
+    $knownVentures = collect($ventureOptions)->pluck('value')->all();
 @endphp
 
 <form method="POST" action="{{ $todo ? route('my.todos.update', $todo) : route('my.todos.store') }}"
@@ -50,6 +54,50 @@
                       value="{{ $was('title', $todo->title ?? '') }}"
                       placeholder="e.g. Edit the Vellore wedding teaser" required />
         <x-input-error :messages="$errorsFor('title')" class="mt-2" />
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div>
+            <x-input-label :for="'todo_for_'.$uid" value="Who is doing it" />
+            @if ($todo)
+                {{-- Settled when it was written. Moving work to somebody else is
+                     a new to-do, so this one's history keeps describing the
+                     person it was actually handed to. --}}
+                <div class="mt-1 flex items-center gap-2 min-h-[44px]">
+                    <x-avatar :name="$todo->user->name" :src="$todo->user->avatarUrl()" size="sm" />
+                    <span class="text-sm text-gray-700">{{ $todo->user->name }}</span>
+                </div>
+            @else
+                <x-select :id="'todo_for_'.$uid" name="user_id" class="mt-1" required>
+                    @foreach ($people as $person)
+                        <option value="{{ $person->id }}"
+                            @selected((int) $was('user_id', auth()->id()) === $person->id)>
+                            {{ $person->id === auth()->id() ? 'Me — '.$person->name : $person->name }}
+                        </option>
+                    @endforeach
+                </x-select>
+                <x-input-error :messages="$errorsFor('user_id')" class="mt-2" />
+            @endif
+        </div>
+
+        <div>
+            <x-input-label :for="'todo_venture_'.$uid" value="Client / Venture" />
+            @php $clientOptions = collect($ventureOptions)->reject(fn ($o) => $o['value'] === $allVentures); @endphp
+            <x-select :id="'todo_venture_'.$uid" name="venture" class="mt-1" required>
+                <option value="">Select client</option>
+                @foreach ($clientOptions as $option)
+                    <option value="{{ $option['value'] }}" @selected($currentVenture === $option['value'])>{{ $option['label'] }}</option>
+                @endforeach
+                {{-- Last, and always offered: plenty of work is not any one
+                     client's, and without this the field cannot be answered
+                     honestly. --}}
+                <option value="{{ $allVentures }}" @selected($currentVenture === $allVentures)>{{ $allVentures }}</option>
+            </x-select>
+            @if ($currentVenture !== '' && ! in_array($currentVenture, $knownVentures, true))
+                <p class="mt-1 text-xs text-amber-700">“{{ $currentVenture }}” is not a client any more — pick one to fix it.</p>
+            @endif
+            <x-input-error :messages="$errorsFor('venture')" class="mt-2" />
+        </div>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">

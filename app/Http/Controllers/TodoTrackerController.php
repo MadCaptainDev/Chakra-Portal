@@ -6,6 +6,7 @@ use App\Models\Todo;
 use App\Models\TodoUpdate;
 use App\Models\User;
 use App\Support\PeriodInput;
+use App\Support\TimesheetVenture;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -55,12 +56,22 @@ class TodoTrackerController extends Controller
             $status = null;
         }
 
+        // Same list the form offers, so a client that has since been renamed
+        // cannot be filtered for and silently return nothing.
+        $ventureOptions = TimesheetVenture::options();
+        $venture = $request->query('venture');
+
+        if (! in_array((string) $venture, array_column($ventureOptions, 'value'), true)) {
+            $venture = null;
+        }
+
         $todos = Todo::whereIn('user_id', $team->pluck('id'))
             ->onDay($day)
             ->when($status, fn ($query) => $query->where('status', $status))
+            ->when($venture, fn ($query) => $query->where('venture', $venture))
             // The history is what says when each thing moved, and what the
             // status was on an older day. Loaded once for the whole board.
-            ->with('updates.user')
+            ->with(['updates.user', 'assignedBy'])
             ->withCount(['updates as deferrals_count' => fn ($query) => $query->where('action', TodoUpdate::MOVED)])
             ->get()
             ->sortBy(fn (Todo $todo) => [$todo->boardRank(), $todo->due_on->toDateString(), $todo->id])
@@ -73,6 +84,8 @@ class TodoTrackerController extends Controller
             'onlyUser' => $only ? (int) $only : null,
             'status' => $status,
             'statuses' => Todo::STATUSES,
+            'venture' => $venture,
+            'ventureOptions' => $ventureOptions,
             /*
              * Counted off the same rows the board renders, so the summary can
              * never disagree with the list under it.

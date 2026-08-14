@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Todo;
 use App\Models\TodoUpdate;
 use App\Models\User;
+use App\Support\TimesheetVenture;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -25,7 +26,9 @@ class TodoTest extends TestCase
     {
         $todo = Todo::create(array_merge([
             'user_id' => $user->id,
+            'assigned_by_id' => $user->id,
             'title' => 'Edit the teaser',
+            'venture' => TimesheetVenture::ALL_CLIENTS,
             'starts_on' => today()->toDateString(),
             'due_on' => today()->toDateString(),
         ], $overrides));
@@ -39,10 +42,13 @@ class TodoTest extends TestCase
      * @param  array<string, mixed>  $overrides
      * @return array<string, mixed>
      */
-    private function payload(array $overrides = []): array
+    private function payload(?User $for = null, array $overrides = []): array
     {
         return array_merge([
+            'user_id' => $for?->id,
             'title' => 'Edit the teaser',
+            // Always in the list, whether or not the clients table has rows.
+            'venture' => TimesheetVenture::ALL_CLIENTS,
             'starts_on' => today()->toDateString(),
             'due_on' => today()->toDateString(),
         ], $overrides);
@@ -164,10 +170,11 @@ class TodoTest extends TestCase
     {
         $user = $this->employee();
 
-        $this->actingAs($user)->post(route('my.todos.store'), $this->payload())->assertRedirect();
+        $this->actingAs($user)->post(route('my.todos.store'), $this->payload($user))->assertRedirect();
 
         $this->assertDatabaseHas('todos', [
             'user_id' => $user->id,
+            'assigned_by_id' => $user->id,
             'title' => 'Edit the teaser',
             'status' => Todo::STATUS_WAITING,
         ]);
@@ -178,7 +185,7 @@ class TodoTest extends TestCase
         $user = $this->employee();
 
         $this->actingAs($user)
-            ->post(route('my.todos.store'), $this->payload(['starts_on' => '2026-08-20', 'due_on' => null]))
+            ->post(route('my.todos.store'), $this->payload($user, ['starts_on' => '2026-08-20', 'due_on' => null]))
             ->assertSessionHasNoErrors();
 
         $todo = Todo::where('user_id', $user->id)->firstOrFail();
@@ -191,7 +198,7 @@ class TodoTest extends TestCase
         $user = $this->employee();
 
         $this->actingAs($user)
-            ->post(route('my.todos.store'), $this->payload([
+            ->post(route('my.todos.store'), $this->payload($user, [
                 'starts_on' => '2026-08-20',
                 'due_on' => '2026-08-19',
             ]))
@@ -202,7 +209,7 @@ class TodoTest extends TestCase
     {
         $user = $this->employee();
 
-        $this->actingAs($user)->post(route('my.todos.store'), $this->payload());
+        $this->actingAs($user)->post(route('my.todos.store'), $this->payload($user));
 
         $todo = Todo::where('user_id', $user->id)->firstOrFail();
 
@@ -394,7 +401,7 @@ class TodoTest extends TestCase
         $this->actingAs($intruder)->post(route('my.todos.defer', $todo))->assertNotFound();
         $this->actingAs($intruder)->delete(route('my.todos.destroy', $todo))->assertNotFound();
         $this->actingAs($intruder)
-            ->put(route('my.todos.update', $todo), $this->payload(['title' => 'Mine now']))
+            ->put(route('my.todos.update', $todo), $this->payload($owner, ['title' => 'Mine now']))
             ->assertNotFound();
 
         $this->assertSame(Todo::STATUS_WAITING, $todo->refresh()->status);
@@ -432,7 +439,7 @@ class TodoTest extends TestCase
         $user = $this->employee();
         $todo = $this->todo($user);
 
-        $this->actingAs($user)->put(route('my.todos.update', $todo), $this->payload([
+        $this->actingAs($user)->put(route('my.todos.update', $todo), $this->payload($user, [
             'status' => Todo::STATUS_COMPLETED,
             'closed_on' => '2026-01-01',
         ]));
@@ -443,17 +450,152 @@ class TodoTest extends TestCase
         $this->assertNull($todo->closed_on);
     }
 
-    public function test_an_employee_cannot_hand_their_to_do_to_somebody_else(): void
+    public function test_the_person_a_to_do_is_for_cannot_be_changed_by_editing_it(): void
     {
         $user = $this->employee('Mine');
         $other = $this->employee('Theirs');
         $todo = $this->todo($user);
 
-        $this->actingAs($user)->put(route('my.todos.update', $todo), $this->payload([
-            'user_id' => $other->id,
+        $this->actingAs($user)->put(route('my.todos.update', $todo), $this->payload($other, [
+            'title' => 'Still mine',
         ]));
 
-        $this->assertSame($user->id, $todo->refresh()->user_id);
+        $todo->refresh();
+
+        // Handing work over is a new to-do; this one's history describes the
+        // person it was actually given to.
+        $this->assertSame($user->id, $todo->user_id);
+        $this->assertSame('Still mine', $todo->title);
+    }
+
+    // ——— Handing work to somebody else ———
+
+    public function test_anybody_can_write_a_to_do_for_somebody_else_and_it_records_who_asked(): void
+    {
+        $producer = $this->employee('The Producer');
+        $editor = $this->employee('The Editor');
+
+        $this->actingAs($producer)
+            ->post(route('my.todos.store'), $this->payload($editor, ['title' => 'Cut the teaser']))
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('todos', [
+            'user_id' => $editor->id,
+            'assigned_by_id' => $producer->id,
+            'title' => 'Cut the teaser',
+        ]);
+    }
+
+    public function test_a_to_do_written_for_somebody_else_lands_on_their_board_and_not_the_writers(): void
+    {
+        $producer = $this->employee('The Producer');
+        $editor = $this->employee('The Editor');
+
+        $this->actingAs($producer)
+            ->post(route('my.todos.store'), $this->payload($editor, ['title' => 'Cut the teaser']));
+
+        $this->assertTrue($this->boardFor($editor)->contains('title', 'Cut the teaser'));
+        $this->assertFalse($this->boardFor($producer)->contains('title', 'Cut the teaser'));
+    }
+
+    public function test_work_you_gave_somebody_else_still_shows_on_your_own_screen(): void
+    {
+        $producer = $this->employee('The Producer');
+        $editor = $this->employee('The Editor');
+
+        $todo = $this->todo($editor, ['assigned_by_id' => $producer->id, 'title' => 'Cut the teaser']);
+
+        $assigned = $this->actingAs($producer)->get(route('my.todos'))->viewData('assigned');
+
+        $this->assertTrue($assigned->contains('id', $todo->id));
+    }
+
+    public function test_the_person_a_to_do_was_given_to_can_act_on_it(): void
+    {
+        $producer = $this->employee('The Producer');
+        $editor = $this->employee('The Editor');
+
+        $todo = $this->todo($editor, ['assigned_by_id' => $producer->id]);
+
+        $this->actingAs($editor)
+            ->post(route('my.todos.status', $todo), ['status' => Todo::STATUS_STARTED])
+            ->assertRedirect();
+
+        $this->assertSame(Todo::STATUS_STARTED, $todo->refresh()->status);
+    }
+
+    public function test_the_person_who_asked_for_a_to_do_can_act_on_it_too(): void
+    {
+        $producer = $this->employee('The Producer');
+        $editor = $this->employee('The Editor');
+
+        $todo = $this->todo($editor, ['assigned_by_id' => $producer->id]);
+
+        $this->actingAs($producer)->post(route('my.todos.defer', $todo))->assertRedirect();
+
+        $this->assertDatabaseHas('todo_updates', [
+            'todo_id' => $todo->id,
+            'user_id' => $producer->id,
+            'action' => TodoUpdate::MOVED,
+        ]);
+    }
+
+    public function test_somebody_with_no_part_in_a_to_do_cannot_touch_it_even_as_an_admin(): void
+    {
+        $producer = $this->employee('The Producer');
+        $editor = $this->employee('The Editor');
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN, 'name' => 'Studio Admin']);
+
+        $todo = $this->todo($editor, ['assigned_by_id' => $producer->id]);
+
+        $this->actingAs($admin)
+            ->post(route('my.todos.status', $todo), ['status' => Todo::STATUS_COMPLETED])
+            ->assertNotFound();
+
+        $this->assertSame(Todo::STATUS_WAITING, $todo->refresh()->status);
+    }
+
+    public function test_a_to_do_cannot_be_written_for_an_account_that_does_not_exist(): void
+    {
+        $user = $this->employee();
+
+        $this->actingAs($user)
+            ->post(route('my.todos.store'), $this->payload(null, ['user_id' => 9999]))
+            ->assertSessionHasErrors('user_id');
+    }
+
+    // ——— The client it is for ———
+
+    public function test_a_to_do_must_say_which_client_it_is_for(): void
+    {
+        $user = $this->employee();
+
+        $this->actingAs($user)
+            ->post(route('my.todos.store'), $this->payload($user, ['venture' => null]))
+            ->assertSessionHasErrors('venture');
+    }
+
+    public function test_work_that_is_not_one_clients_can_be_filed_against_all_of_them(): void
+    {
+        $user = $this->employee();
+
+        $this->actingAs($user)
+            ->post(route('my.todos.store'), $this->payload($user, ['venture' => TimesheetVenture::ALL_CLIENTS]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('todos', [
+            'user_id' => $user->id,
+            'venture' => TimesheetVenture::ALL_CLIENTS,
+        ]);
+    }
+
+    public function test_a_client_the_studio_does_not_have_is_refused(): void
+    {
+        $user = $this->employee();
+
+        $this->actingAs($user)
+            ->post(route('my.todos.store'), $this->payload($user, ['venture' => 'Somebody Made Up']))
+            ->assertSessionHasErrors('venture');
     }
 
     public function test_an_unreadable_date_in_the_url_falls_back_to_today(): void

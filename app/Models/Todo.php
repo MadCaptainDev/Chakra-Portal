@@ -73,7 +73,9 @@ class Todo extends Model
      */
     protected $fillable = [
         'user_id',
+        'assigned_by_id',
         'title',
+        'venture',
         'notes',
         'starts_on',
         'due_on',
@@ -97,9 +99,16 @@ class Todo extends Model
         'closed_on' => 'date',
     ];
 
+    /** Whose job it is. The board is grouped by this. */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** Who asked for it. Null once that account has been deleted. */
+    public function assignedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_by_id');
     }
 
     /** Oldest first, because the timeline is read top to bottom. */
@@ -141,6 +150,25 @@ class Todo extends Model
     public function isOpen(): bool
     {
         return in_array($this->status, self::OPEN_STATUSES, true);
+    }
+
+    /** Written for themselves, rather than handed over by somebody else. */
+    public function isSelfAssigned(): bool
+    {
+        return $this->assigned_by_id === null || $this->assigned_by_id === $this->user_id;
+    }
+
+    /**
+     * May this person act on it?
+     *
+     * Both ends of the handover: the person who has to do it, and the person
+     * who asked for it. Nobody else, admin included -- an admin who wants to
+     * close somebody's job can assign one, which leaves a record, rather than
+     * quietly editing work that is not theirs.
+     */
+    public function isWritableBy(User $user): bool
+    {
+        return $this->user_id === $user->id || $this->assigned_by_id === $user->id;
     }
 
     public function statusLabel(): string

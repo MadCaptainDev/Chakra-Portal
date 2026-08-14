@@ -46,7 +46,8 @@
             <x-card padding="md" tone="brand">
                 <h3 class="font-semibold text-brand-900 mb-4">New to-do</h3>
                 <p class="text-xs text-brand-800/70 mb-4">
-                    Give it a last day further out and it stays on your board every day until you finish it.
+                    Give it a last day further out and it stays on the board every day until it is
+                    finished. Put somebody else&rsquo;s name on it to hand the job over.
                 </p>
                 @include('my._todo-form', ['day' => $day])
             </x-card>
@@ -78,6 +79,21 @@
                     </div>
                 </div>
             @endif
+        @endif
+
+        {{-- What this person has handed to other people. Anybody can give
+             anybody a job, but only managers can reach the tracker -- without
+             this, assigning work is something you do and then never see. --}}
+        @if ($assigned->isNotEmpty())
+            <div>
+                <x-section-heading title="You asked for"
+                                   :subtitle="$assigned->count().' with other people on this day'" />
+                <div class="space-y-3">
+                    @foreach ($assigned as $todo)
+                        @include('partials.todo-card', ['todo' => $todo, 'day' => $day, 'editable' => true])
+                    @endforeach
+                </div>
+            </div>
         @endif
 
         {{-- Work already written down for later days. A board that shows only

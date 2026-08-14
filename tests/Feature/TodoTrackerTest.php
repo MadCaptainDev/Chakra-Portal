@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Todo;
 use App\Models\TodoUpdate;
 use App\Models\User;
+use App\Support\TimesheetVenture;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -38,7 +39,9 @@ class TodoTrackerTest extends TestCase
     {
         $todo = Todo::create(array_merge([
             'user_id' => $user->id,
+            'assigned_by_id' => $user->id,
             'title' => 'Edit the teaser',
+            'venture' => TimesheetVenture::ALL_CLIENTS,
             'starts_on' => today()->toDateString(),
             'due_on' => today()->toDateString(),
         ], $overrides));
@@ -194,6 +197,49 @@ class TodoTrackerTest extends TestCase
         $response->assertOk();
         $response->assertSee('Still listed');
         $this->assertNull($response->viewData('status'));
+    }
+
+    public function test_filtering_the_tracker_by_client_leaves_the_other_clients_off(): void
+    {
+        $admin = $this->admin();
+        $staff = $this->staff(null, 'Client Person');
+
+        $client = \App\Models\Client::factory()->create(['name' => 'Vellore Silks', 'notion_venture' => null]);
+
+        $this->todo($staff, ['title' => 'For that one client', 'venture' => $client->name]);
+        $this->todo($staff, ['title' => 'For everybody', 'venture' => TimesheetVenture::ALL_CLIENTS]);
+
+        $response = $this->actingAs($admin)
+            ->get(route('todos.index', ['venture' => $client->name]));
+
+        $response->assertOk();
+        $response->assertSee('For that one client');
+        $response->assertDontSee('For everybody');
+    }
+
+    public function test_a_client_the_studio_no_longer_has_is_ignored_rather_than_emptying_the_board(): void
+    {
+        $admin = $this->admin();
+        $staff = $this->staff(null, 'Client Person');
+
+        $this->todo($staff, ['title' => 'Still listed']);
+
+        $response = $this->actingAs($admin)->get(route('todos.index', ['venture' => 'Long Gone Ltd']));
+
+        $response->assertOk();
+        $response->assertSee('Still listed');
+        $this->assertNull($response->viewData('venture'));
+    }
+
+    public function test_the_tracker_says_who_asked_for_work_somebody_did_not_write_themselves(): void
+    {
+        $admin = $this->admin();
+        $producer = $this->staff(null, 'The Producer');
+        $editor = $this->staff(null, 'The Editor');
+
+        $this->todo($editor, ['assigned_by_id' => $producer->id, 'title' => 'Cut the teaser']);
+
+        $this->actingAs($admin)->get(route('todos.index'))->assertSee('for The Editor');
     }
 
     public function test_a_multi_day_to_do_appears_on_the_tracker_on_every_day_it_spans(): void
