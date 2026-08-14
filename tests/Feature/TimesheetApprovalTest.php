@@ -22,10 +22,13 @@ class TimesheetApprovalTest extends TestCase
 
     private function staff(?User $manager = null): User
     {
-        return User::factory()->create([
-            'role' => User::ROLE_EMPLOYEE,
-            'manager_id' => $manager?->id,
-        ]);
+        $staff = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
+
+        if ($manager) {
+            $staff->managers()->attach($manager);
+        }
+
+        return $staff;
     }
 
     /**
@@ -341,9 +344,54 @@ class TimesheetApprovalTest extends TestCase
             'name' => $staff->name,
             'email' => $staff->email,
             'role' => User::ROLE_EMPLOYEE,
-            'manager_id' => $staff->id,
-        ])->assertSessionHasErrors('manager_id');
+            'manager_ids' => [$staff->id],
+        ])->assertSessionHasErrors('manager_ids.0');
 
-        $this->assertNull($staff->refresh()->manager_id);
+        $this->assertCount(0, $staff->managers);
+    }
+
+    public function test_an_employee_can_have_more_than_one_manager_and_either_can_decide(): void
+    {
+        $producer = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'name' => 'The Producer']);
+        $lead = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'name' => 'The Studio Lead']);
+
+        $staff = $this->staff($producer);
+        $staff->managers()->attach($lead);
+
+        $this->actingAs($staff)->post(route('my.timesheet.store'), $this->payload());
+
+        // Whichever of them is reachable that day is the one who signs it off.
+        $this->actingAs($lead)
+            ->post(route('timesheets.day', $staff), $this->decide($staff))
+            ->assertRedirect();
+
+        $this->assertSame($lead->id, $this->decisionFor($staff)->reviewed_by_id);
+
+        $this->actingAs($producer)
+            ->post(route('timesheets.day', $staff), $this->decide($staff, [
+                'review_state' => TimesheetDay::REJECTED,
+                'review_note' => 'Hours look short.',
+            ]))
+            ->assertRedirect();
+
+        $this->assertSame($producer->id, $this->decisionFor($staff)->reviewed_by_id);
+    }
+
+    public function test_taking_somebody_off_every_queue_leaves_them_with_no_manager(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $manager = $this->manager();
+        $staff = $this->staff($manager);
+
+        // The field is simply absent when nothing is ticked, which has to read
+        // as "nobody" rather than "leave it alone".
+        $this->actingAs($admin)->put(route('users.update', $staff), [
+            'name' => $staff->name,
+            'email' => $staff->email,
+            'role' => User::ROLE_EMPLOYEE,
+        ])->assertSessionHasNoErrors();
+
+        $this->assertCount(0, $staff->refresh()->managers);
+        $this->actingAs($manager)->get(route('my.team'))->assertForbidden();
     }
 }

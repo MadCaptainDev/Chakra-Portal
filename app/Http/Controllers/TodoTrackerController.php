@@ -71,7 +71,7 @@ class TodoTrackerController extends Controller
             ->when($venture, fn ($query) => $query->where('venture', $venture))
             // The history is what says when each thing moved, and what the
             // status was on an older day. Loaded once for the whole board.
-            ->with(['updates.user', 'assignedBy'])
+            ->with(['updates.user', 'assignedBy', 'user', 'reviewer'])
             ->withCount(['updates as deferrals_count' => fn ($query) => $query->where('action', TodoUpdate::MOVED)])
             ->get()
             ->sortBy(fn (Todo $todo) => [$todo->boardRank(), $todo->due_on->toDateString(), $todo->id])

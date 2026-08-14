@@ -59,7 +59,7 @@ class TodoController extends Controller
                 Todo::where('assigned_by_id', $user->id)
                     ->where('user_id', '!=', $user->id)
                     ->onDay($day)
-                    ->with(['updates.user', 'user'])
+                    ->with(['updates.user', 'user', 'reviewer'])
                     ->withCount(['updates as deferrals_count' => fn ($query) => $query->where('action', TodoUpdate::MOVED)])
                     ->get()
             ),
@@ -178,7 +178,7 @@ class TodoController extends Controller
             // The history is needed for the timeline and for replaying what the
             // status was on an older day, so it is loaded once here rather than
             // a query per row.
-            ->with(['updates.user', 'assignedBy', 'user'])
+            ->with(['updates.user', 'assignedBy', 'user', 'reviewer'])
             ->withCount(['updates as deferrals_count' => fn ($query) => $query->where('action', TodoUpdate::MOVED)]);
     }
 

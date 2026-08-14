@@ -6,7 +6,7 @@ namespace App\Models;
 use App\Support\Permission;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -41,7 +41,6 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
-        'manager_id',
         'avatar_path',
         'bio',
         'phone',
@@ -100,20 +99,25 @@ class User extends Authenticatable
     }
 
     /**
-     * Who signs this person's timesheet off.
+     * Who signs this person's work off. More than one is normal.
      *
-     * Nullable: the people at the top have no manager, and anyone left without
-     * one falls back to the admins rather than becoming unapprovable.
+     * An editor answers to the producer on the job and to the studio lead on
+     * the week, and whichever of them is reachable that day is the one who can
+     * actually look at the work. Empty is fine: the people at the top have no
+     * manager, and anyone left without one falls back to the admins rather than
+     * becoming unapprovable.
      */
-    public function manager(): BelongsTo
+    public function managers(): BelongsToMany
     {
-        return $this->belongsTo(User::class, 'manager_id');
+        return $this->belongsToMany(User::class, 'manager_user', 'user_id', 'manager_id')
+            ->orderBy('name');
     }
 
-    /** The people whose entries land in this person's queue. */
-    public function reports(): HasMany
+    /** The people whose work lands in this person's queue. */
+    public function reports(): BelongsToMany
     {
-        return $this->hasMany(User::class, 'manager_id');
+        return $this->belongsToMany(User::class, 'manager_user', 'manager_id', 'user_id')
+            ->orderBy('name');
     }
 
     public function managesAnyone(): bool
@@ -121,10 +125,34 @@ class User extends Authenticatable
         return $this->reports()->exists();
     }
 
-    /** Can this person decide on that person's timesheet? */
+    /**
+     * Can this person decide on that person's work?
+     *
+     * Admins can, always -- somebody has to be able to cover for a manager who
+     * is on a shoot.
+     */
+    public function manages(User $other): bool
+    {
+        if ($this->isAdmin()) {
+            return true;
+        }
+
+        // Uses the loaded relation when the caller has already eager-loaded it,
+        // which the team screens do once for a whole page of people.
+        if ($other->relationLoaded('managers')) {
+            return $other->managers->contains('id', $this->id);
+        }
+
+        return $other->managers()->whereKey($this->id)->exists();
+    }
+
+    /**
+     * Kept because the timesheet screens read better for it, and because
+     * "decide on the timesheet" is the specific thing most callers mean.
+     */
     public function managesTimesheetOf(User $other): bool
     {
-        return $this->isAdmin() || $other->manager_id === $this->id;
+        return $this->manages($other);
     }
 
     public function permissions(): HasMany

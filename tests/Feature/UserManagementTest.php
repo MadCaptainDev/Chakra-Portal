@@ -85,10 +85,11 @@ class UserManagementTest extends TestCase
         ]);
     }
 
-    public function test_a_manager_can_be_named_when_the_account_is_created(): void
+    public function test_managers_can_be_named_when_the_account_is_created(): void
     {
         $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
-        $manager = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
+        $producer = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
+        $lead = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
 
         $this->actingAs($admin)->post(route('users.store'), [
             'name' => 'Reports To Someone',
@@ -96,10 +97,32 @@ class UserManagementTest extends TestCase
             'password' => 'password123',
             'password_confirmation' => 'password123',
             'role' => User::ROLE_EMPLOYEE,
-            'manager_id' => $manager->id,
+            'manager_ids' => [$producer->id, $lead->id],
         ])->assertRedirect(route('users.index'));
 
-        $this->assertSame($manager->id, User::where('email', 'reports@example.com')->firstOrFail()->manager_id);
+        $created = User::where('email', 'reports@example.com')->firstOrFail();
+
+        $this->assertEqualsCanonicalizing(
+            [$producer->id, $lead->id],
+            $created->managers->pluck('id')->all()
+        );
+    }
+
+    public function test_naming_the_same_manager_twice_leaves_one_row(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $manager = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
+
+        $this->actingAs($admin)->post(route('users.store'), [
+            'name' => 'Reports To Someone',
+            'email' => 'twice@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'role' => User::ROLE_EMPLOYEE,
+            'manager_ids' => [$manager->id, $manager->id],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertCount(1, User::where('email', 'twice@example.com')->firstOrFail()->managers);
     }
 
     public function test_staff_can_remove_another_user(): void

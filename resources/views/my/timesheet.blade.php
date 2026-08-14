@@ -15,7 +15,13 @@
 
     {{-- Opens straight into the form when a finished to-do sent its title over. --}}
     <div class="space-y-4" x-data="{ adding: {{ $errors->any() || request('task') ? 'true' : 'false' }} }">
-        <x-month-nav route="my.timesheet" :month="$month" />
+        {{-- Sticky, like the to-do board's day nav: which month you are reading
+             is the one thing you need at every scroll position. --}}
+        <div class="sticky top-0 z-20 -mx-4 px-4 py-2 sm:mx-0 sm:px-0 backdrop-blur bg-gray-50/80">
+            <x-card padding="sm">
+                <x-month-nav route="my.timesheet" :month="$month" />
+            </x-card>
+        </div>
 
         <div class="grid grid-cols-2 gap-3 sm:gap-4">
             <x-stat-card label="Hours this month" accent="brand" icon="clock"
@@ -54,7 +60,7 @@
             </x-btn>
         </div>
 
-        <div x-show="adding" x-cloak>
+        <div x-show="adding" x-cloak x-transition.opacity.duration.200ms>
             <x-card padding="md" tone="brand">
                 <h3 class="font-semibold text-brand-900 mb-4">New entry</h3>
                 @include('my._entry-form', ['ventureOptions' => $ventureOptions])
@@ -67,9 +73,12 @@
             </x-empty-state>
         @else
             @foreach ($byDay as $day => $dayEntries)
-                @php $date = \Illuminate\Support\Carbon::parse($day); @endphp
+                @php
+                    $date = \Illuminate\Support\Carbon::parse($day);
+                    $i = $loop->index;
+                @endphp
 
-                <div>
+                <div class="animate-settle" style="animation-delay: {{ min($i, 8) * 45 }}ms">
                     <div class="flex items-center justify-between mb-2 px-1">
                         <h3 class="font-semibold text-gray-900 flex items-center gap-2">
                             {{ $date->format('D, d M') }}
@@ -109,9 +118,9 @@
                         </div>
                     @endif
 
-                    <x-card class="divide-y divide-gray-100 overflow-hidden">
+                    <x-card class="divide-y divide-gray-100 overflow-hidden transition duration-200 hover:shadow-md">
                         @foreach ($dayEntries as $entry)
-                            <div class="p-3 sm:p-4" x-data="{ editing: false }">
+                            <div class="p-3 sm:p-4 transition-colors hover:bg-gray-50/60" x-data="{ editing: false }">
                                 <div class="flex items-start justify-between gap-3">
                                     <div class="min-w-0 flex-1">
                                         <p class="font-medium text-gray-900 truncate">{{ $entry->task }}</p>
@@ -154,7 +163,8 @@
                                     </form>
                                 </div>
 
-                                <div x-show="editing" x-cloak class="mt-2 pt-3 border-t border-gray-200">
+                                <div x-show="editing" x-cloak x-transition.opacity.duration.200ms
+                                     class="mt-2 pt-3 border-t border-gray-200">
                                     @include('my._entry-form', ['entry' => $entry, 'ventureOptions' => $ventureOptions])
                                 </div>
                             </div>

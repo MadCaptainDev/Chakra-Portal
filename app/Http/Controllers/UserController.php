@@ -45,7 +45,8 @@ class UserController extends Controller
             // Derived from the constant rather than repeated as a literal, so
             // a new access level cannot be added and silently rejected here.
             'role' => ['required', Rule::in(array_keys(User::ROLES))],
-            'manager_id' => ['nullable', Rule::exists('users', 'id')],
+            'manager_ids' => ['nullable', 'array'],
+            'manager_ids.*' => [Rule::exists('users', 'id')],
             'employee_id' => ['nullable', 'exists:expenses,id'],
             'permissions' => ['nullable', 'array'],
             'permissions.*' => ['array'],
@@ -58,8 +59,10 @@ class UserController extends Controller
                 'email' => $validated['email'],
                 'password' => $validated['password'],
                 'role' => $validated['role'],
-                'manager_id' => $validated['manager_id'] ?? null,
             ]);
+
+            // sync() de-dupes, so the same name ticked twice is one row.
+            $user->managers()->sync($validated['manager_ids'] ?? []);
 
             $this->applyPermissions($user, $validated);
 
@@ -91,7 +94,7 @@ class UserController extends Controller
 
     public function edit(User $user): View
     {
-        $user->loadMissing('employeeRecord', 'permissions');
+        $user->loadMissing('employeeRecord', 'permissions', 'managers');
 
         return view('users.edit', [
             'user' => $user,
@@ -120,7 +123,8 @@ class UserController extends Controller
             'role' => ['required', Rule::in(array_keys(User::ROLES))],
             // Rule::notIn stops the obvious cycle. Longer chains are possible
             // and harmless -- nothing here walks the tree.
-            'manager_id' => ['nullable', Rule::notIn([$user->id]), Rule::exists('users', 'id')],
+            'manager_ids' => ['nullable', 'array'],
+            'manager_ids.*' => [Rule::notIn([$user->id]), Rule::exists('users', 'id')],
             'permissions' => ['nullable', 'array'],
             'permissions.*' => ['array'],
             'permissions.*.*' => ['string'],
@@ -136,7 +140,7 @@ class UserController extends Controller
             }
         }
 
-        $user->fill(collect($validated)->except(['avatar', 'remove_avatar', 'role', 'permissions'])->all());
+        $user->fill(collect($validated)->except(['avatar', 'remove_avatar', 'role', 'permissions', 'manager_ids'])->all());
         $user->role = $validated['role'];
 
         if ($user->isDirty('email')) {
@@ -145,6 +149,11 @@ class UserController extends Controller
 
         $this->applyAvatarUpload($request, $user);
         $user->save();
+
+        // Absent means "none ticked", which is a real answer -- an employee can
+        // be taken off every queue -- so it syncs to empty rather than being
+        // skipped the way an unsent field usually is.
+        $user->managers()->sync($validated['manager_ids'] ?? []);
 
         $this->applyPermissions($user, $validated);
 

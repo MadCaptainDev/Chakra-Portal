@@ -36,6 +36,7 @@ use App\Http\Controllers\TaxonomyTermController;
 use App\Http\Controllers\TeamMemberController;
 use App\Http\Controllers\TimesheetAdminController;
 use App\Http\Controllers\TimesheetDayController;
+use App\Http\Controllers\TodoReviewController;
 use App\Http\Controllers\TodoTrackerController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -132,6 +133,16 @@ Route::middleware('auth')->group(function () {
      * manages nobody.
      */
     Route::get('todos', [TodoTrackerController::class, 'index'])->name('todos.index');
+
+    /*
+     * The one thing the tracker writes. Marking your own work done is a claim;
+     * a manager's verdict is what makes it a fact, the same split the timesheet
+     * draws between logging a day and deciding one.
+     *
+     * Whether this person manages that person is a per-row question, so
+     * TodoReviewController asks it and aborts rather than a middleware trying.
+     */
+    Route::post('todos/{todo}/review', [TodoReviewController::class, 'store'])->name('todos.review');
 });
 
 /*

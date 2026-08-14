@@ -25,11 +25,16 @@ class TodoTrackerTest extends TestCase
 
     private function staff(?User $manager = null, string $name = 'Staff Person'): User
     {
-        return User::factory()->create([
+        $staff = User::factory()->create([
             'role' => User::ROLE_EMPLOYEE,
             'name' => $name,
-            'manager_id' => $manager?->id,
         ]);
+
+        if ($manager) {
+            $staff->managers()->attach($manager);
+        }
+
+        return $staff;
     }
 
     /**
@@ -240,6 +245,178 @@ class TodoTrackerTest extends TestCase
         $this->todo($editor, ['assigned_by_id' => $producer->id, 'title' => 'Cut the teaser']);
 
         $this->actingAs($admin)->get(route('todos.index'))->assertSee('for The Editor');
+    }
+
+    // ——— A manager's verdict ———
+
+    private function finished(User $user, array $overrides = []): Todo
+    {
+        $todo = $this->todo($user, $overrides);
+        $todo->moveTo(Todo::STATUS_COMPLETED, $user);
+
+        return $todo->fresh();
+    }
+
+    public function test_a_manager_can_check_off_a_report_s_finished_to_do(): void
+    {
+        $manager = $this->manager();
+        $staff = $this->staff($manager);
+        $todo = $this->finished($staff);
+
+        $this->assertTrue($todo->awaitsReview());
+
+        $this->actingAs($manager)
+            ->post(route('todos.review', $todo), ['review_state' => Todo::REVIEW_APPROVED])
+            ->assertRedirect();
+
+        $todo->refresh();
+
+        $this->assertTrue($todo->isApproved());
+        $this->assertSame($manager->id, $todo->reviewed_by_id);
+        $this->assertNotNull($todo->reviewed_at);
+    }
+
+    public function test_sending_a_to_do_back_needs_a_reason(): void
+    {
+        $manager = $this->manager();
+        $staff = $this->staff($manager);
+        $todo = $this->finished($staff);
+
+        $this->actingAs($manager)
+            ->post(route('todos.review', $todo), ['review_state' => Todo::REVIEW_REJECTED])
+            ->assertSessionHasErrors('review_note');
+
+        $this->assertNull($todo->refresh()->review_state);
+    }
+
+    public function test_sending_a_to_do_back_puts_it_on_the_board_again_as_started(): void
+    {
+        $manager = $this->manager();
+        $staff = $this->staff($manager);
+        $todo = $this->finished($staff);
+
+        $this->actingAs($manager)->post(route('todos.review', $todo), [
+            'review_state' => Todo::REVIEW_REJECTED,
+            'review_note' => 'The grade is off in the second half.',
+        ])->assertRedirect();
+
+        $todo->refresh();
+
+        // Left in the settled pile with a red flag, it is work nobody scrolls
+        // far enough to find.
+        $this->assertSame(Todo::STATUS_STARTED, $todo->status);
+        $this->assertNull($todo->closed_on);
+        $this->assertTrue($todo->wasSentBack());
+        $this->assertSame('The grade is off in the second half.', $todo->review_note);
+    }
+
+    public function test_a_verdict_is_written_to_the_to_dos_history(): void
+    {
+        $manager = $this->manager();
+        $staff = $this->staff($manager);
+        $todo = $this->finished($staff);
+
+        $this->actingAs($manager)->post(route('todos.review', $todo), ['review_state' => Todo::REVIEW_APPROVED]);
+
+        $this->assertDatabaseHas('todo_updates', [
+            'todo_id' => $todo->id,
+            'user_id' => $manager->id,
+            'action' => TodoUpdate::REVIEWED,
+        ]);
+    }
+
+    public function test_changing_a_to_do_after_it_was_checked_clears_the_verdict(): void
+    {
+        $manager = $this->manager();
+        $staff = $this->staff($manager);
+        $todo = $this->finished($staff);
+
+        $this->actingAs($manager)->post(route('todos.review', $todo), ['review_state' => Todo::REVIEW_APPROVED]);
+        $this->assertTrue($todo->refresh()->isApproved());
+
+        // The verdict was about the work as it stood; reopening makes it a
+        // statement about something that has not happened yet.
+        $this->actingAs($staff)->post(route('my.todos.status', $todo), ['status' => Todo::STATUS_STARTED]);
+
+        $todo->refresh();
+
+        $this->assertNull($todo->review_state);
+        $this->assertNull($todo->reviewed_by_id);
+        $this->assertNull($todo->reviewed_at);
+    }
+
+    public function test_somebody_who_does_not_manage_the_person_cannot_give_a_verdict(): void
+    {
+        $manager = $this->manager();
+        $staff = $this->staff($manager);
+        $stranger = $this->staff(null, 'Nobody In Particular');
+
+        $todo = $this->finished($staff);
+
+        $this->actingAs($stranger)
+            ->post(route('todos.review', $todo), ['review_state' => Todo::REVIEW_APPROVED])
+            ->assertForbidden();
+
+        $this->assertNull($todo->refresh()->review_state);
+    }
+
+    public function test_an_employee_cannot_check_off_their_own_work(): void
+    {
+        $manager = $this->manager();
+        $staff = $this->staff($manager);
+        $todo = $this->finished($staff);
+
+        // Marking your own work done is a claim; somebody else saying so is
+        // what makes the board worth reading.
+        $this->actingAs($staff)
+            ->post(route('todos.review', $todo), ['review_state' => Todo::REVIEW_APPROVED])
+            ->assertForbidden();
+
+        $this->assertNull($todo->refresh()->review_state);
+    }
+
+    public function test_any_of_an_employees_managers_can_give_the_verdict(): void
+    {
+        $producer = $this->manager();
+        $lead = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'name' => 'The Studio Lead']);
+
+        $staff = $this->staff($producer);
+        $staff->managers()->attach($lead);
+
+        $todo = $this->finished($staff);
+
+        $this->actingAs($lead)
+            ->post(route('todos.review', $todo), ['review_state' => Todo::REVIEW_APPROVED])
+            ->assertRedirect();
+
+        $this->assertSame($lead->id, $todo->refresh()->reviewed_by_id);
+    }
+
+    public function test_an_employee_with_two_managers_shows_on_both_of_their_trackers(): void
+    {
+        $producer = $this->manager();
+        $lead = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'name' => 'The Studio Lead']);
+
+        $staff = $this->staff($producer, 'Shared Report');
+        $staff->managers()->attach($lead);
+
+        $this->todo($staff, ['title' => 'Shared job']);
+
+        $this->actingAs($producer)->get(route('todos.index'))->assertSee('Shared job');
+        $this->actingAs($lead)->get(route('todos.index'))->assertSee('Shared job');
+    }
+
+    public function test_an_unfinished_to_do_cannot_be_checked_off(): void
+    {
+        $manager = $this->manager();
+        $staff = $this->staff($manager);
+        $todo = $this->todo($staff);
+
+        $this->actingAs($manager)
+            ->post(route('todos.review', $todo), ['review_state' => Todo::REVIEW_APPROVED])
+            ->assertRedirect();
+
+        $this->assertNull($todo->refresh()->review_state);
     }
 
     public function test_a_multi_day_to_do_appears_on_the_tracker_on_every_day_it_spans(): void

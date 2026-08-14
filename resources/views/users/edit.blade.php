@@ -82,19 +82,8 @@
                     <x-input-error class="mt-2" :messages="$errors->get('bio')" />
                 </div>
 
-                <div>
-                    <x-input-label for="manager_id" value="Reports to" />
-                    <x-select id="manager_id" name="manager_id" class="mt-1">
-                        <option value="">Nobody — approvals go to the admins</option>
-                        @foreach ($managers as $manager)
-                            <option value="{{ $manager->id }}" @selected(old('manager_id', $user->manager_id) == $manager->id)>{{ $manager->name }}</option>
-                        @endforeach
-                    </x-select>
-                    <p class="text-xs text-gray-500 mt-1">
-                        This person decides each of their days, and gets the team timesheet without anything else being ticked.
-                    </p>
-                    <x-input-error class="mt-2" :messages="$errors->get('manager_id')" />
-                </div>
+                <x-manager-picker :managers="$managers"
+                                  :selected="old('manager_ids', $user->managers->pluck('id')->all())" />
 
                 <x-permission-matrix :granted="$granted" :role="old('role', $user->role)" />
 

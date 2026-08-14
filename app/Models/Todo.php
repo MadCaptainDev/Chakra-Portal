@@ -64,6 +64,22 @@ class Todo extends Model
     /** Off it, one way or the other. */
     public const FINISHED_STATUSES = [self::STATUS_COMPLETED, self::STATUS_CANCELLED];
 
+    public const REVIEW_APPROVED = 'approved';
+
+    public const REVIEW_REJECTED = 'rejected';
+
+    /**
+     * A manager's verdict on finished work. No "pending" value: null is
+     * waiting, so an undecided to-do and one nobody has looked at cannot drift
+     * apart -- the same reasoning behind timesheet_days storing no pending row.
+     *
+     * @var array<string, string>
+     */
+    public const REVIEW_STATES = [
+        self::REVIEW_APPROVED => 'Checked',
+        self::REVIEW_REJECTED => 'Sent back',
+    ];
+
     /**
      * status and closed_on are missing on purpose. They move together, and only
      * through moveTo(), which also writes the history row that says when -- a
@@ -97,6 +113,7 @@ class Todo extends Model
         'starts_on' => 'date',
         'due_on' => 'date',
         'closed_on' => 'date',
+        'reviewed_at' => 'datetime',
     ];
 
     /** Whose job it is. The board is grouped by this. */
@@ -109,6 +126,12 @@ class Todo extends Model
     public function assignedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_by_id');
+    }
+
+    /** Which manager checked the finished work. */
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by_id');
     }
 
     /** Oldest first, because the timeline is read top to bottom. */
@@ -156,6 +179,27 @@ class Todo extends Model
     public function isSelfAssigned(): bool
     {
         return $this->assigned_by_id === null || $this->assigned_by_id === $this->user_id;
+    }
+
+    public function isApproved(): bool
+    {
+        return $this->review_state === self::REVIEW_APPROVED;
+    }
+
+    public function wasSentBack(): bool
+    {
+        return $this->review_state === self::REVIEW_REJECTED;
+    }
+
+    /** Finished, and nobody has looked at it yet. */
+    public function awaitsReview(): bool
+    {
+        return $this->status === self::STATUS_COMPLETED && $this->review_state === null;
+    }
+
+    public function reviewLabel(): ?string
+    {
+        return self::REVIEW_STATES[$this->review_state] ?? null;
     }
 
     /**
@@ -245,11 +289,56 @@ class Todo extends Model
         $this->forceFill([
             'status' => $status,
             'closed_on' => in_array($status, self::FINISHED_STATUSES, true) ? today()->toDateString() : null,
+            // A verdict was about the work in the state it was checked in. The
+            // moment that changes it stops meaning anything, so it goes rather
+            // than sitting there describing something that no longer happened.
+            'review_state' => null,
+            'review_note' => null,
+            'reviewed_at' => null,
+            'reviewed_by_id' => null,
         ])->save();
 
         TodoUpdate::record($this, $actor, TodoUpdate::STATUS, [
             'from_status' => $from,
             'to_status' => $status,
+            'note' => $note,
+        ]);
+    }
+
+    /**
+     * A manager's verdict on finished work.
+     *
+     * Marking your own work done is a claim; this is what makes it a fact.
+     * Sending something back puts it straight back on the board as started --
+     * left sitting in the settled pile with a red flag on it, it is work
+     * nobody scrolls far enough to find.
+     *
+     * Written in one save, and one history row, rather than by calling moveTo
+     * first: that would clear the verdict it was in the middle of recording,
+     * and leave the timeline reading "Started" before "Sent back".
+     */
+    public function review(string $state, User $reviewer, ?string $note = null): void
+    {
+        $from = $this->status;
+        $sendingBack = $state === self::REVIEW_REJECTED && ! $this->isOpen();
+
+        $attributes = [
+            'review_state' => $state,
+            'review_note' => $note,
+            'reviewed_at' => now(),
+            'reviewed_by_id' => $reviewer->id,
+        ];
+
+        if ($sendingBack) {
+            $attributes['status'] = self::STATUS_STARTED;
+            $attributes['closed_on'] = null;
+        }
+
+        $this->forceFill($attributes)->save();
+
+        TodoUpdate::record($this, $reviewer, TodoUpdate::REVIEWED, [
+            'from_status' => $sendingBack ? $from : null,
+            'to_status' => $sendingBack ? self::STATUS_STARTED : null,
             'note' => $note,
         ]);
     }

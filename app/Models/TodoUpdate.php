@@ -27,12 +27,16 @@ class TodoUpdate extends Model
     /** Its wording or dates were edited. */
     public const EDITED = 'edited';
 
+    /** A manager gave a verdict on the finished work. */
+    public const REVIEWED = 'reviewed';
+
     /** @var array<string, string> */
     public const ACTIONS = [
         self::CREATED => 'Added',
         self::STATUS => 'Status changed',
         self::MOVED => 'Moved',
         self::EDITED => 'Edited',
+        self::REVIEWED => 'Checked',
     ];
 
     /**
