@@ -13,7 +13,8 @@
         </x-page-header>
     </x-slot>
 
-    <div class="space-y-4" x-data="{ adding: {{ $errors->any() ? 'true' : 'false' }} }">
+    {{-- Opens straight into the form when a finished to-do sent its title over. --}}
+    <div class="space-y-4" x-data="{ adding: {{ $errors->any() || request('task') ? 'true' : 'false' }} }">
         <x-month-nav route="my.timesheet" :month="$month" />
 
         <div class="grid grid-cols-2 gap-3 sm:gap-4">

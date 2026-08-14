@@ -77,6 +77,7 @@ class Permission
      * @var array<string, string>
      */
     public const DEFAULTS = [
+        'To-dos' => 'Plan their own day and track what they finish',
         'Timesheet' => 'Log their own work and edit it',
         'Calendar' => 'See their own month',
         'Dashboard' => 'Their hours, points and studio announcements',

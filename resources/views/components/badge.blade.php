@@ -30,6 +30,11 @@
         'posting' => 'bg-teal-100 text-teal-800',
         'other' => 'bg-slate-100 text-slate-700',
         'other_task' => 'bg-slate-100 text-slate-700',
+        // To-do statuses. "completed" and "cancelled" above already read right
+        // for the two ends of the list, so only the live ones are new here.
+        'waiting' => 'bg-gray-100 text-gray-600',
+        'started' => 'bg-brand-100 text-brand-800',
+        'blocked' => 'bg-red-100 text-red-800',
     ];
 
     $labels = [
@@ -59,6 +64,10 @@
         'posting' => 'Posting',
         'other' => 'Other Task',
         'other_task' => 'Other Task',
+        'waiting' => 'Waiting to Start',
+        'started' => 'Started',
+        'blocked' => 'Blocked',
+        'cancelled' => 'Cancelled',
     ];
 
     // Invoice/recurring statuses arrive as snake_case; Notion statuses arrive as

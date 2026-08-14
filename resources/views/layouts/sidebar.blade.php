@@ -19,6 +19,9 @@
             <x-sidebar-link icon="home" :href="route('my.dashboard')" :active="request()->routeIs('my.dashboard')">
                 Dashboard
             </x-sidebar-link>
+            <x-sidebar-link icon="check-circle" :href="route('my.todos')" :active="request()->routeIs('my.todos*')">
+                My To-dos
+            </x-sidebar-link>
             <x-sidebar-link icon="clock" :href="route('my.timesheet')" :active="request()->routeIs('my.timesheet*')">
                 My Timesheet
             </x-sidebar-link>
@@ -31,6 +34,9 @@
             @if ($user?->managesAnyone())
                 <x-sidebar-link icon="users" :href="route('my.team')" :active="request()->routeIs('my.team')">
                     Team Timesheet
+                </x-sidebar-link>
+                <x-sidebar-link icon="check-circle" :href="route('todos.index')" :active="request()->routeIs('todos.index')">
+                    Team To-dos
                 </x-sidebar-link>
             @endif
         </x-nav-section>
@@ -84,6 +90,9 @@
         </x-nav-section>
 
         <x-nav-section label="Team">
+            <x-sidebar-link icon="check-circle" :href="route('todos.index')" :active="request()->routeIs('todos.index')">
+                To-dos
+            </x-sidebar-link>
             <x-sidebar-link icon="clock" :href="route('timesheets.index')" :active="request()->routeIs('timesheets.*')">
                 Timesheets
             </x-sidebar-link>

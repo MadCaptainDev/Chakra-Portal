@@ -17,6 +17,7 @@ use App\Http\Controllers\My\CalendarController as MyCalendarController;
 use App\Http\Controllers\My\DashboardController as MyDashboardController;
 use App\Http\Controllers\My\TeamController as MyTeamController;
 use App\Http\Controllers\My\TimesheetController as MyTimesheetController;
+use App\Http\Controllers\My\TodoController as MyTodoController;
 use App\Http\Controllers\OtherExpenseController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PortfolioCategoryController;
@@ -35,6 +36,7 @@ use App\Http\Controllers\TaxonomyTermController;
 use App\Http\Controllers\TeamMemberController;
 use App\Http\Controllers\TimesheetAdminController;
 use App\Http\Controllers\TimesheetDayController;
+use App\Http\Controllers\TodoTrackerController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -83,6 +85,21 @@ Route::middleware('auth')->prefix('my')->name('my.')->group(function () {
     Route::post('timesheet', [MyTimesheetController::class, 'store'])->name('timesheet.store');
     Route::put('timesheet/{entry}', [MyTimesheetController::class, 'update'])->name('timesheet.update');
     Route::delete('timesheet/{entry}', [MyTimesheetController::class, 'destroy'])->name('timesheet.destroy');
+
+    /*
+     * The other half of the same day: the timesheet says what was done, these
+     * say what is going to be. Employees write their own -- there is no route
+     * here or anywhere else for making somebody else a to-do.
+     *
+     * status takes the target in a hidden field, one endpoint for every
+     * transition. defer is separate because it moves a date, not a state.
+     */
+    Route::get('todos', [MyTodoController::class, 'index'])->name('todos');
+    Route::post('todos', [MyTodoController::class, 'store'])->name('todos.store');
+    Route::put('todos/{todo}', [MyTodoController::class, 'update'])->name('todos.update');
+    Route::delete('todos/{todo}', [MyTodoController::class, 'destroy'])->name('todos.destroy');
+    Route::post('todos/{todo}/status', [MyTodoController::class, 'status'])->name('todos.status');
+    Route::post('todos/{todo}/defer', [MyTodoController::class, 'defer'])->name('todos.defer');
 });
 
 
@@ -102,6 +119,19 @@ Route::middleware('auth')->group(function () {
     Route::get('my/team', [MyTeamController::class, 'index'])->name('my.team');
 
     Route::post('timesheets/{employee}/day', [TimesheetDayController::class, 'store'])->name('timesheets.day');
+
+    /*
+     * Everybody's to-dos for one day. Here for the same two reasons as the
+     * screens above: a manager is an ordinary employee, and recurring.catchup
+     * would have somebody generating the studio's invoices by opening a to-do
+     * board.
+     *
+     * One screen rather than the my/team + timesheets/ pair, because unlike
+     * timesheets an admin and a manager want the same board and differ only in
+     * who appears on it. The controller decides that, and refuses anyone who
+     * manages nobody.
+     */
+    Route::get('todos', [TodoTrackerController::class, 'index'])->name('todos.index');
 });
 
 /*

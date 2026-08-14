@@ -90,6 +90,43 @@
             </a>
         @endif
 
+        {{-- Today's plan, as counts and a way in. The list itself lives on the
+             board; what belongs here is the nudge to go and look at it, since a
+             to-do list nobody is reminded of is a to-do list nobody keeps. --}}
+        <a href="{{ route('my.todos') }}"
+           class="group flex items-start gap-3.5 rounded-xl p-4 sm:p-5 transition-colors
+                  {{ $todosOverdue > 0
+                      ? 'bg-amber-400/15 ring-1 ring-amber-400/40 hover:bg-amber-400/20'
+                      : 'bg-white/5 ring-1 ring-white/10 hover:bg-white/[0.07] hover:ring-white/20' }}">
+            <span class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg
+                         {{ $todosOverdue > 0 ? 'bg-amber-400/20 text-amber-200' : 'bg-white/10 text-brand-200' }}">
+                <x-icon name="check-circle" class="w-5 h-5" />
+            </span>
+            <div class="min-w-0 flex-1">
+                <p class="font-semibold {{ $todosOverdue > 0 ? 'text-amber-100' : '' }}">
+                    @if ($todosToday === 0)
+                        Nothing on your to-do list today
+                    @else
+                        {{ $todosToday }} {{ Str::plural('to-do', $todosToday) }} today
+                        @if ($todosStarted > 0)
+                            <span class="font-medium text-brand-100/70">· {{ $todosStarted }} started</span>
+                        @endif
+                    @endif
+                </p>
+                <p class="mt-1 text-sm {{ $todosOverdue > 0 ? 'text-amber-100/80' : 'text-brand-100/60' }}">
+                    @if ($todosOverdue > 0)
+                        {{ $todosOverdue }} {{ $todosOverdue === 1 ? 'is' : 'are' }} past the day you meant to
+                        finish — move {{ $todosOverdue === 1 ? 'it' : 'them' }} on or close {{ $todosOverdue === 1 ? 'it' : 'them' }} off.
+                    @elseif ($todosToday === 0)
+                        Write down what you are on today.
+                    @else
+                        Open the board to start, finish or move them.
+                    @endif
+                </p>
+            </div>
+            <x-icon name="chevron-right" class="w-4 h-4 shrink-0 mt-1 text-brand-300 group-hover:translate-x-0.5 transition-transform" />
+        </a>
+
         {{-- The breakdown charts live on the timesheet, not here. This is the
              link to them -- the dashboard summarises, the timesheet analyses. --}}
         <a href="{{ route('my.timesheet') }}"

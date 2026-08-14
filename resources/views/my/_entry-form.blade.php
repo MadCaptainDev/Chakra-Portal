@@ -5,7 +5,9 @@
     $knownValues = collect($ventureOptions)->pluck('value')->all();
     $currentVenture = old('venture', $entry->venture ?? '');
     $currentType = old('task_type', $entry->task_type ?? '');
-    $initialTask = old('task', $entry->task ?? '');
+    // ?task= lets a finished to-do hand its title straight to the timesheet, so
+    // the same work is not typed twice. Only ever seeds a new entry.
+    $initialTask = old('task', $entry->task ?? ($entry ? '' : (string) request('task')));
     // Prefer stored/posted type; otherwise suggest from task text for new rows.
     if ($currentType === '' || ! array_key_exists($currentType, \App\Models\TimesheetEntry::TASK_TYPES)) {
         $currentType = $entry
