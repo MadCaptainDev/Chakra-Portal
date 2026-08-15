@@ -107,5 +107,103 @@
             @endif
         </div>
 
+        {{-- ——— Their login ———
+             Password set here and handed over by phone: the app sends no real
+             mail (MAIL_MAILER is log), so an invite link would go to a log
+             file. That also means no self-serve reset, which is said out loud
+             below rather than discovered by a client at nine at night. --}}
+        <x-card class="p-4 sm:p-6 border border-brand-100/40" x-data="{ open: false }">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h3 class="font-semibold text-brand-900">Client login</h3>
+                    <p class="mt-1 text-sm text-gray-600">
+                        Lets {{ $client->name }} see their own invoices, published work and shoots — nothing else.
+                    </p>
+                </div>
+
+                @if ($login)
+                    <span class="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-wide">
+                        Active
+                    </span>
+                @endif
+            </div>
+
+            @if ($login)
+                <div class="mt-4 rounded-lg bg-gray-50 ring-1 ring-gray-900/5 p-4">
+                    <p class="text-sm font-semibold text-gray-900">{{ $login->name }}</p>
+                    <p class="text-xs text-gray-500">{{ $login->email }}</p>
+                    <p class="mt-1 text-xs text-gray-500">
+                        Created {{ $login->created_at->format('j M Y') }}
+                    </p>
+                </div>
+
+                <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <form method="POST" action="{{ route('clients.login.password', $client) }}">
+                        @csrf
+                        @method('PUT')
+                        <x-input-label for="client_password" value="Set a new password" />
+                        <x-text-input id="client_password" name="password" type="text" class="mt-1 block w-full"
+                                      placeholder="At least 8 characters" required />
+                        <x-input-error :messages="$errors->get('password')" class="mt-2" />
+                        <x-primary-button class="mt-2">Update password</x-primary-button>
+                    </form>
+
+                    <form method="POST" action="{{ route('clients.login.destroy', $client) }}" class="flex items-end"
+                          onsubmit="return confirm('Revoke this login? {{ $client->name }} will not be able to sign in.');">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit"
+                                class="inline-flex items-center min-h-[44px] px-4 rounded-md border border-red-300 text-red-700
+                                       text-xs font-semibold uppercase tracking-widest hover:bg-red-50 transition-colors">
+                            Revoke login
+                        </button>
+                    </form>
+                </div>
+
+                <p class="mt-4 text-xs text-gray-500">
+                    There is no self-serve password reset — the studio does not send email yet, so if they
+                    forget it, set a new one here and tell them.
+                </p>
+            @else
+                <div class="mt-4" x-show="! open">
+                    <x-primary-button type="button" @click="open = true">Create a login</x-primary-button>
+                </div>
+
+                <form method="POST" action="{{ route('clients.login.store', $client) }}" class="mt-4 space-y-4"
+                      x-show="open" x-cloak>
+                    @csrf
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <x-input-label for="login_name" value="Their name" />
+                            <x-text-input id="login_name" name="name" type="text" class="mt-1 block w-full"
+                                          value="{{ old('name', $client->name) }}" required />
+                            <x-input-error :messages="$errors->get('name')" class="mt-2" />
+                        </div>
+                        <div>
+                            <x-input-label for="login_email" value="Email (used as the username)" />
+                            <x-text-input id="login_email" name="email" type="email" class="mt-1 block w-full"
+                                          value="{{ old('email', $client->email) }}" required />
+                            <x-input-error :messages="$errors->get('email')" class="mt-2" />
+                            <p class="mt-1 text-xs text-gray-500">Nothing is sent to it — it is how they sign in.</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <x-input-label for="login_password" value="Password" />
+                        <x-text-input id="login_password" name="password" type="text" class="mt-1 block w-full"
+                                      placeholder="At least 8 characters" required />
+                        <x-input-error :messages="$errors->get('password')" class="mt-2" />
+                        <p class="mt-1 text-xs text-gray-500">Shown in plain text so you can copy it — send it to them directly.</p>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <x-primary-button>Create login</x-primary-button>
+                        <button type="button" @click="open = false" class="text-sm text-gray-600 hover:text-gray-900">Cancel</button>
+                    </div>
+                </form>
+            @endif
+        </x-card>
+
     </div>
 </x-app-layout>

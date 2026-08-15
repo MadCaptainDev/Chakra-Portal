@@ -5,7 +5,12 @@ use App\Http\Controllers\BillController;
 use App\Http\Controllers\BrowserSessionController;
 use App\Http\Controllers\McpTokenController;
 use App\Http\Controllers\CallSheetController;
+use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
+use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
+use App\Http\Controllers\Client\ShootController as ClientShootController;
+use App\Http\Controllers\Client\WorkController as ClientWorkController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\ClientLoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EditorOutputController;
 use App\Http\Controllers\EmiController;
@@ -193,6 +198,28 @@ Route::middleware(['auth', 'module:scripts,view'])->scopeBindings()->group(funct
 });
 
 /*
+ * The client area.
+ *
+ * Outside the admin group for the obvious reason, and outside
+ * recurring.catchup for a much less obvious one: that middleware generates the
+ * studio's due recurring invoices as a side effect of somebody loading a page.
+ * The invoice routes carry it, and a client downloading their own PDF through
+ * that group would silently issue the studio's monthly invoices to everybody
+ * else. Nothing in here may ever join that group.
+ *
+ * Ownership is not enforced by these routes. There is no {client} in any path;
+ * every controller reads the signed-in user's own client_id, so there is no id
+ * to tamper with. See App\Http\Controllers\Client\Concerns\ResolvesClient.
+ */
+Route::middleware(['auth', 'client'])->prefix('client')->name('client.')->group(function () {
+    Route::get('/', [ClientDashboardController::class, 'index'])->name('dashboard');
+    Route::get('invoices', [ClientInvoiceController::class, 'index'])->name('invoices');
+    Route::get('invoices/{invoice}/pdf', [ClientInvoiceController::class, 'pdf'])->name('invoices.pdf');
+    Route::get('work', [ClientWorkController::class, 'index'])->name('work');
+    Route::get('shoots', [ClientShootController::class, 'index'])->name('shoots');
+});
+
+/*
  * Shoots and Equipment. Same shape as Scripts above, and outside the admin
  * group for the same two reasons: the admin middleware would refuse a camera
  * operator before any permission was consulted, and recurring.catchup would
@@ -265,6 +292,11 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
     Route::post('clients/{client}/quick', [ClientController::class, 'quickUpdate'])->name('clients.quick-update');
 
     Route::resource('clients', ClientController::class);
+
+    // Issuing and revoking a client's login. Admin-only: it creates an account.
+    Route::post('clients/{client}/login', [ClientLoginController::class, 'store'])->name('clients.login.store');
+    Route::put('clients/{client}/login', [ClientLoginController::class, 'updatePassword'])->name('clients.login.password');
+    Route::delete('clients/{client}/login', [ClientLoginController::class, 'destroy'])->name('clients.login.destroy');
 
     // Combined month overview.
     Route::get('expenses', [ExpenseController::class, 'index'])->name('expenses.index');

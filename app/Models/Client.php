@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Support\TimesheetVenture;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Client extends Model
 {
@@ -35,9 +38,47 @@ class Client extends Model
         return $this->hasMany(Invoice::class);
     }
 
-    public function contentItems(): HasMany
+    /**
+     * Everything published for this client.
+     *
+     * Not a plain column join. Notion's venture field is free text typed by
+     * whoever filled the planner, so one client arrives as "SVA Silks",
+     * "Sva womenswear" and "SVA / RED-SAREE"; matching the column against
+     * notion_venture found 737 of 1,217 items and silently returned nothing at
+     * all for the six clients whose notion_venture is null.
+     *
+     * TimesheetVenture::normalize() already resolves every one of those -- an
+     * alias table, then token matching -- so the spellings are gathered once
+     * and matched with whereIn. It is the same mapping the timesheet uses,
+     * which is the point: a client's hours and a client's output must agree
+     * about who the client is.
+     *
+     * A query rather than a relation, deliberately. A HasMany would keep its
+     * own `venture = notion_venture` condition and AND it with the list, which
+     * is the bug this replaces; and for the six clients with a null
+     * notion_venture it would compare against NULL and match nothing at all.
+     */
+    public function contentItems(): Builder
     {
-        return $this->hasMany(ContentItem::class, 'venture', 'notion_venture');
+        $ventures = TimesheetVenture::rawVenturesFor($this);
+
+        return ContentItem::query()
+            // No spellings means no work, not every client's work. An empty
+            // whereIn is a no-op in some drivers, so the impossible value is
+            // what keeps "nothing" meaning nothing.
+            ->whereIn('venture', $ventures ?: ['\0__no_such_venture__']);
+    }
+
+    /** Shoots booked for this client, past and future. */
+    public function shoots(): HasMany
+    {
+        return $this->hasMany(Shoot::class);
+    }
+
+    /** The login this client signs in with, if one has been issued. */
+    public function login(): HasOne
+    {
+        return $this->hasOne(User::class)->where('role', User::ROLE_CLIENT);
     }
 
     /**

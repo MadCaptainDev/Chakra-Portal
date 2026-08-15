@@ -5,7 +5,9 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Support\Permission;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -26,6 +28,18 @@ class User extends Authenticatable
 
     public const ROLE_EMPLOYEE = 'employee';
 
+    /**
+     * Somebody the studio works for, not somebody who works at it. Reaches
+     * their own invoices, their own published work and their own shoots, and
+     * nothing else in the building.
+     */
+    public const ROLE_CLIENT = 'client';
+
+    /**
+     * The two roles the staff screens are about. A client is deliberately
+     * absent: this array feeds the user form's admin toggle and the pickers
+     * that ask "which of our people?", and a client is neither.
+     */
     public const ROLES = [
         self::ROLE_ADMIN => 'Admin — full access',
         self::ROLE_EMPLOYEE => 'Employee — timesheet & profile',
@@ -36,11 +50,18 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
+    /*
+     * client_id is fillable because an admin sets it when issuing a client's
+     * login. Nothing a client can reach posts to a form that writes it -- their
+     * own profile form does not offer it, and ProfileUpdateRequest does not
+     * accept it, so this cannot be used to walk into another client's account.
+     */
     protected $fillable = [
         'name',
         'email',
         'password',
         'role',
+        'client_id',
         'avatar_path',
         'bio',
         'phone',
@@ -74,9 +95,40 @@ class User extends Authenticatable
         return $this->role === self::ROLE_ADMIN;
     }
 
+    /**
+     * Tested against the value, not as "everyone who is not an admin".
+     *
+     * It used to be the latter, which was true while there were two roles and
+     * silently wrong the moment there were three: a client would have passed
+     * every employee check in the app, including the two in
+     * TimesheetAdminController that decide whose timesheet may be opened.
+     */
     public function isEmployee(): bool
     {
-        return ! $this->isAdmin();
+        return $this->role === self::ROLE_EMPLOYEE;
+    }
+
+    public function isClient(): bool
+    {
+        return $this->role === self::ROLE_CLIENT;
+    }
+
+    /** The client this login speaks for. Null for everyone at the studio. */
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
+    }
+
+    /**
+     * The studio's own people.
+     *
+     * Every "which of our people?" picker uses this -- assigning a to-do,
+     * naming a manager, crewing a shoot, notifying about recurring invoices.
+     * A client has a login but is not staff, and must never appear in one.
+     */
+    public function scopeStaff(Builder $query): void
+    {
+        $query->whereIn('role', [self::ROLE_ADMIN, self::ROLE_EMPLOYEE]);
     }
 
     /**
@@ -249,7 +301,11 @@ class User extends Authenticatable
      */
     public function homeRoute(): string
     {
-        return $this->isAdmin() ? 'dashboard' : 'my.dashboard';
+        return match (true) {
+            $this->isAdmin() => 'dashboard',
+            $this->isClient() => 'client.dashboard',
+            default => 'my.dashboard',
+        };
     }
 
     /**

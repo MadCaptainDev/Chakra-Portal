@@ -67,7 +67,11 @@ class ClientController extends Controller
         $timesheet = TimesheetStats::forClient($client);
         $ventureLabel = TimesheetVenture::canonicalForClient($client);
 
-        return view('clients.show', compact('client', 'invoices', 'timesheet', 'ventureLabel'));
+        // The login, if one has been issued. Null is the normal case and the
+        // panel offers to create one.
+        $login = $client->login()->first();
+
+        return view('clients.show', compact('client', 'invoices', 'timesheet', 'ventureLabel', 'login'));
     }
 
     public function edit(Client $client): View

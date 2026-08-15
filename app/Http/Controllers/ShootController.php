@@ -97,7 +97,7 @@ class ShootController extends Controller
             'committed' => $committed,
             'shortfalls' => $shortfalls,
             'available' => EquipmentItem::active()->with('category')->ordered()->get(),
-            'staff' => User::orderBy('name')->get(['id', 'name']),
+            'staff' => User::staff()->orderBy('name')->get(['id', 'name']),
             'scripts' => Script::orderBy('title')->get(['id', 'title']),
         ]);
     }

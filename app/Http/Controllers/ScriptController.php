@@ -156,6 +156,6 @@ class ScriptController extends Controller
     /** Anyone with a login can be named as a writer or an editor. */
     private function writers()
     {
-        return User::orderBy('name')->get(['id', 'name']);
+        return User::staff()->orderBy('name')->get(['id', 'name']);
     }
 }

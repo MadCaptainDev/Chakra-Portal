@@ -103,6 +103,6 @@ class RecurringInvoiceGenerator
             return;
         }
 
-        Notification::send(User::all(), new RecurringInvoicesGenerated($count));
+        Notification::send(User::staff()->get(), new RecurringInvoicesGenerated($count));
     }
 }

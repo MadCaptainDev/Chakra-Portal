@@ -35,8 +35,12 @@ class People
             return $caller;
         }
 
-        $matches = User::where('email', $needle)
-            ->orWhere('name', 'like', $needle.'%')
+        // Grouped, so staff() is ANDed with the name-or-email match rather
+        // than the orWhere escaping it and matching a client login.
+        $matches = User::staff()
+            ->where(fn ($query) => $query
+                ->where('email', $needle)
+                ->orWhere('name', 'like', $needle.'%'))
             ->orderBy('name')
             ->get();
 
@@ -78,8 +82,12 @@ class People
             return $caller;
         }
 
-        $matches = User::where('email', $needle)
-            ->orWhere('name', 'like', $needle.'%')
+        // Grouped, so staff() is ANDed with the name-or-email match rather
+        // than the orWhere escaping it and matching a client login.
+        $matches = User::staff()
+            ->where(fn ($query) => $query
+                ->where('email', $needle)
+                ->orWhere('name', 'like', $needle.'%'))
             ->orderBy('name')
             ->get();
 

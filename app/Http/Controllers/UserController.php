@@ -20,7 +20,11 @@ class UserController extends Controller
     public function index(): View
     {
         return view('users.index', [
-            'users' => User::with('employeeRecord')->orderBy('role')->orderBy('name')->get(),
+            // Staff only. A client's login is managed from that client's own
+            // screen, where the context for it is, and listing them here would
+            // put people who do not work at the studio in a screen about who
+            // does -- with a manager picker and a permission matrix beside them.
+            'users' => User::staff()->with('employeeRecord')->orderBy('role')->orderBy('name')->get(),
         ]);
     }
 
@@ -32,7 +36,7 @@ class UserController extends Controller
                 ->whereNull('user_id')
                 ->orderBy('name')
                 ->get(),
-            'managers' => User::orderBy('name')->get(['id', 'name']),
+            'managers' => User::staff()->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -100,7 +104,7 @@ class UserController extends Controller
             'user' => $user,
             'granted' => old('permissions', $this->grantedMatrix($user)),
             // Anybody but themselves: a person cannot be their own manager.
-            'managers' => User::whereKeyNot($user->id)->orderBy('name')->get(['id', 'name']),
+            'managers' => User::staff()->whereKeyNot($user->id)->orderBy('name')->get(['id', 'name']),
         ]);
     }
 

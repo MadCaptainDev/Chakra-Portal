@@ -2,6 +2,7 @@
 @php
     $user = auth()->user();
     $isAdmin = $user?->isAdmin();
+    $isClient = $user?->isClient();
 @endphp
 
 <div class="flex flex-col h-full">
@@ -12,7 +13,25 @@
     </div>
 
     <nav class="flex-1 px-3 py-3 overflow-y-auto">
-    @unless ($isAdmin)
+    @if ($isClient)
+        {{-- Four links and no profile. A client has nothing to configure here,
+             and an "Account" section with one dead item in it is worse than
+             none. The middleware is what enforces this; the nav is cosmetic. --}}
+        <x-nav-section label="{{ $user?->client?->name ?? 'Your account' }}">
+            <x-sidebar-link icon="home" :href="route('client.dashboard')" :active="request()->routeIs('client.dashboard')">
+                Overview
+            </x-sidebar-link>
+            <x-sidebar-link icon="document" :href="route('client.invoices')" :active="request()->routeIs('client.invoices*')">
+                Invoices
+            </x-sidebar-link>
+            <x-sidebar-link icon="sparkles" :href="route('client.work')" :active="request()->routeIs('client.work')">
+                Work Delivered
+            </x-sidebar-link>
+            <x-sidebar-link icon="camera" :href="route('client.shoots')" :active="request()->routeIs('client.shoots')">
+                Shoots
+            </x-sidebar-link>
+        </x-nav-section>
+    @elseif (! $isAdmin)
         {{-- Employees get timesheet, calendar, and their own profile. The admin
              middleware enforces this; hiding the links is only cosmetic. --}}
         <x-nav-section label="My work">
@@ -134,7 +153,7 @@
                 </x-sidebar-link>
             @endif
         </x-nav-section>
-    @endunless
+    @endif
     </nav>
 
     {{-- Signed-in identity. The avatar makes it obvious at a glance which

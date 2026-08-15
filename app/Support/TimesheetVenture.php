@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Client;
+use App\Models\ContentItem;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 
@@ -142,14 +143,65 @@ class TimesheetVenture
         return $value === '' ? null : $value;
     }
 
+    /** Where the request-lifetime memo of the client list lives. */
+    private const CLIENT_CACHE = 'timesheet-venture.clients';
+
     /**
+     * Drop the memo. For anything that edits a client and then asks about
+     * ventures in the same request.
+     */
+    public static function forgetClients(): void
+    {
+        app()->forgetInstance(self::CLIENT_CACHE);
+    }
+
+    /**
+     * Every raw `content_items.venture` spelling that belongs to this client.
+     *
+     * The planner is free text, so one client is "SVA Silks", "Sva womenswear"
+     * and "SVA / RED-SAREE". Each distinct spelling is put through the same
+     * normaliser the timesheet uses and kept if it lands on this client.
+     *
+     * @return list<string>
+     */
+    public static function rawVenturesFor(Client $client): array
+    {
+        $canonical = self::canonicalForClient($client);
+
+        if ($canonical === null) {
+            return [];
+        }
+
+        return ContentItem::query()
+            ->whereNotNull('venture')
+            ->where('venture', '!=', '')
+            ->distinct()
+            ->pluck('venture')
+            ->filter(fn (string $venture) => self::fold((string) self::normalize($venture)) === self::fold($canonical))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The client list, read once per request.
+     *
+     * normalize() consults this on every call, and rawVenturesFor() calls
+     * normalize() once per distinct venture string -- two dozen queries against
+     * a table of thirteen rows. Memoised in the container rather than a static
+     * property on purpose: the container is rebuilt for every test, where a
+     * static would carry one test's clients into the next one.
+     *
      * @return Collection<int, Client>
      */
     private static function clients(): Collection
     {
-        return Client::query()
-            ->orderBy('name')
-            ->get(['id', 'name', 'notion_venture']);
+        if (! app()->bound(self::CLIENT_CACHE)) {
+            app()->instance(self::CLIENT_CACHE, Client::query()
+                ->orderBy('name')
+                ->get(['id', 'name', 'notion_venture']));
+        }
+
+        return app()->make(self::CLIENT_CACHE);
     }
 
     /**

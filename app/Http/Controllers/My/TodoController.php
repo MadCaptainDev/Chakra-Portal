@@ -66,7 +66,7 @@ class TodoController extends Controller
             'statuses' => Todo::STATUSES,
             'ventureOptions' => TimesheetVenture::options(),
             // Anyone can be given a job, so the picker is everybody with a login.
-            'people' => User::orderBy('name')->get(['id', 'name']),
+            'people' => User::staff()->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
