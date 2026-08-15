@@ -48,13 +48,19 @@ class WhatsappSettingController extends Controller
              * endpoint offline.
              */
             'app_secret' => ['nullable', 'string', 'max:255'],
+            // Meta's tokens are long, and a System User token is longer still.
+            'access_token' => ['nullable', 'string', 'max:1000'],
             'phone_number_id' => ['nullable', 'string', 'max:64'],
             'business_account_id' => ['nullable', 'string', 'max:64'],
             'display_phone_number' => ['nullable', 'string', 'max:32'],
         ]);
 
-        if (blank($validated['app_secret'] ?? null)) {
-            unset($validated['app_secret']);
+        // Both secrets follow the same rule, for the same reason: the form
+        // cannot show them back, so blank has to mean "unchanged".
+        foreach (['app_secret', 'access_token'] as $secret) {
+            if (blank($validated[$secret] ?? null)) {
+                unset($validated[$secret]);
+            }
         }
 
         WhatsappSetting::current()->update($validated + [

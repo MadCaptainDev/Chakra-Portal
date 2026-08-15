@@ -145,6 +145,19 @@
                     </p>
                 </div>
 
+                <div class="mb-4">
+                    <x-input-label for="access_token" value="Access token" />
+                    <x-text-input id="access_token" name="access_token" type="password" class="mt-1 font-mono"
+                                  autocomplete="new-password"
+                                  placeholder="{{ $settings->access_token ? 'Saved — leave blank to keep it' : 'Meta dashboard → WhatsApp → API Setup' }}" />
+                    <x-input-error :messages="$errors->get('access_token')" class="mt-2" />
+                    <p class="text-xs text-gray-500 mt-1">
+                        Only needed to <span class="font-medium">send</span>; receiving works without it. The temporary
+                        token on the API Setup screen expires in 24 hours — for anything lasting, generate a System User
+                        token with no expiry. Stored encrypted and never shown again.
+                    </p>
+                </div>
+
                 <div class="grid sm:grid-cols-2 gap-4 mb-4">
                     <div>
                         <x-input-label for="phone_number_id" value="Phone number ID" />
@@ -213,6 +226,8 @@
                                     <td class="px-3 py-2.5 whitespace-nowrap">
                                         @if ($event->type === App\Models\WhatsappWebhookEvent::TYPE_MESSAGE)
                                             <x-badge status="unread">In · {{ $event->message_type ?? 'message' }}</x-badge>
+                                        @elseif ($event->type === App\Models\WhatsappWebhookEvent::TYPE_OUTGOING)
+                                            <x-badge status="scheduled">Out · {{ $event->message_type ?? 'message' }}</x-badge>
                                         @elseif ($event->type === App\Models\WhatsappWebhookEvent::TYPE_STATUS)
                                             <x-badge :status="$event->status" />
                                         @elseif ($event->type === App\Models\WhatsappWebhookEvent::TYPE_ERROR)

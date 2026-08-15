@@ -29,6 +29,8 @@ class WhatsappSetting extends Model
      */
     protected $fillable = [
         'app_secret',
+        'access_token',
+        'api_version',
         'phone_number_id',
         'business_account_id',
         'display_phone_number',
@@ -40,6 +42,8 @@ class WhatsappSetting extends Model
         // it has to be readable back. See the migration for why that trade is
         // accepted.
         'app_secret' => 'encrypted',
+        // Same trade, higher stakes: this one can send as the studio.
+        'access_token' => 'encrypted',
         'verified_at' => 'datetime',
         'last_event_at' => 'datetime',
     ];
@@ -114,6 +118,26 @@ class WhatsappSetting extends Model
     public function isReceiving(): bool
     {
         return filled($this->app_secret);
+    }
+
+    /**
+     * Sending needs both halves: who we are (the phone number ID) and proof we
+     * are allowed to be them (the token). Either one missing is not a partial
+     * capability, it is no capability.
+     */
+    public function canSend(): bool
+    {
+        return filled($this->access_token) && filled($this->phone_number_id);
+    }
+
+    /** Where a send is POSTed. */
+    public function messagesEndpoint(): string
+    {
+        return sprintf(
+            'https://graph.facebook.com/%s/%s/messages',
+            $this->api_version ?: 'v22.0',
+            $this->phone_number_id
+        );
     }
 
     public function matchesVerifyToken(?string $candidate): bool

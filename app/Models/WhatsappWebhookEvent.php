@@ -26,6 +26,14 @@ class WhatsappWebhookEvent extends Model
     public const TYPE_ERROR = 'error';
     public const TYPE_OTHER = 'other';
 
+    /**
+     * A message the studio sent. Not a webhook event at all -- it is written by
+     * the sender rather than by Meta -- but it lives here so that a message and
+     * the sent/delivered/read events that follow it share one table and one
+     * wamid, which is the only way the log reads as a conversation.
+     */
+    public const TYPE_OUTGOING = 'outgoing';
+
     /** How much of a message body the list preview keeps. */
     private const SUMMARY_LENGTH = 500;
 
@@ -36,6 +44,37 @@ class WhatsappWebhookEvent extends Model
         'occurred_at' => 'datetime',
         'received_at' => 'datetime',
     ];
+
+    /**
+     * File a message we sent, so the statuses Meta returns for it have
+     * something to sit next to.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public static function recordOutgoing(
+        string $to,
+        ?string $wamid,
+        string $messageType,
+        string $summary,
+        array $payload,
+    ): self {
+        return self::create([
+            'object' => 'whatsapp_business_account',
+            'field' => 'messages',
+            'type' => self::TYPE_OUTGOING,
+            // A send is unique by construction -- Meta issues one wamid per
+            // accepted call -- so there is nothing to deduplicate against, and
+            // the id alone is a sufficient key.
+            'dedupe_key' => hash('sha256', self::TYPE_OUTGOING.'|'.($wamid ?? uniqid('', true))),
+            'external_id' => $wamid,
+            'wa_id' => $to,
+            'message_type' => $messageType,
+            'summary' => self::trim($summary),
+            'payload' => $payload,
+            'occurred_at' => now(),
+            'received_at' => now(),
+        ]);
+    }
 
     public function scopeNewestFirst(Builder $query): Builder
     {
