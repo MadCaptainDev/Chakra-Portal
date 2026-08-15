@@ -3,6 +3,7 @@
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\BillController;
 use App\Http\Controllers\BrowserSessionController;
+use App\Http\Controllers\McpTokenController;
 use App\Http\Controllers\CallSheetController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
@@ -72,6 +73,11 @@ Route::middleware('auth')->group(function () {
      */
     Route::delete('/profile/devices', [BrowserSessionController::class, 'destroy'])->name('devices.destroy');
     Route::delete('/profile/devices/others', [BrowserSessionController::class, 'destroyOthers'])->name('devices.destroy-others');
+
+    // Keys for connecting Claude. Everyone may make their own -- a token can
+    // never reach further than the person who made it.
+    Route::post('/profile/mcp-tokens', [McpTokenController::class, 'store'])->name('mcp-tokens.store');
+    Route::delete('/profile/mcp-tokens/{token}', [McpTokenController::class, 'destroy'])->name('mcp-tokens.destroy');
 });
 
 /*

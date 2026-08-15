@@ -4,7 +4,10 @@ namespace App\Providers;
 
 use App\Models\User;
 use App\Support\Permission;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -37,5 +40,17 @@ class AppServiceProvider extends ServiceProvider
                 );
             }
         }
+
+        /*
+         * The MCP endpoint's rate limit.
+         *
+         * Counted per token rather than per IP: an AI client is chatty by
+         * nature and several people behind one office connection must not
+         * throttle each other. Falls back to the IP for an unauthenticated
+         * request, which is what a brute-force attempt on the token looks like
+         * -- and is the case the limit actually matters for.
+         */
+        RateLimiter::for('mcp', fn (Request $request) => Limit::perMinute(120)
+            ->by($request->bearerToken() ?: $request->ip()));
     }
 }

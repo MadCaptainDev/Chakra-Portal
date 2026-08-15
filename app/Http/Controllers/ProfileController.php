@@ -26,6 +26,7 @@ class ProfileController extends Controller
         return view('profile.edit', [
             'user' => $user,
             'devices' => BrowserSessions::for($user, $request->session()->getId()),
+            'mcpTokens' => $user->mcpTokens()->latest()->get(),
         ]);
     }
 

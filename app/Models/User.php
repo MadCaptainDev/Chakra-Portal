@@ -160,6 +160,12 @@ class User extends Authenticatable
         return $this->hasMany(UserPermission::class);
     }
 
+    /** Keys an AI client uses to act as this person over the MCP endpoint. */
+    public function mcpTokens(): HasMany
+    {
+        return $this->hasMany(McpToken::class);
+    }
+
     /**
      * May this user do this thing?
      *

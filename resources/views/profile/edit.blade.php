@@ -38,6 +38,12 @@
             </div>
         </x-card>
 
+        <x-card class="p-4 sm:p-8">
+            <div class="max-w-xl">
+                @include('profile.partials.mcp-tokens')
+            </div>
+        </x-card>
+
         @if ($user->isAdmin())
             <x-card class="p-4 sm:p-8">
                 <div class="max-w-xl">
