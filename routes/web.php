@@ -66,6 +66,10 @@ Route::get('/portfolio/{portfolioItem}', [PublicPortfolioController::class, 'sho
 // behind a login is a policy they fail the app for.
 Route::view('/privacy', 'privacy')->name('privacy');
 
+// Terms of service. Public for the same reason, and asked for by Meta in the
+// same breath as the privacy policy.
+Route::view('/terms', 'terms')->name('terms');
+
 // Public enquiry form. Throttled because it is unauthenticated and sends mail.
 Route::post('/enquiry', [EnquiryController::class, 'store'])
     ->middleware('throttle:5,1')

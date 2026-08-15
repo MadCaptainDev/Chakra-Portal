@@ -123,6 +123,10 @@
                    class="inline-flex items-center min-h-[44px] text-xs font-semibold uppercase tracking-widest text-brand-100/40 hover:text-brand-200 transition-colors">
                     Privacy
                 </a>
+                <a href="{{ route('terms') }}"
+                   class="inline-flex items-center min-h-[44px] text-xs font-semibold uppercase tracking-widest text-brand-100/40 hover:text-brand-200 transition-colors">
+                    Terms
+                </a>
                 <a href="{{ route('login') }}"
                    class="inline-flex items-center min-h-[44px] text-xs font-semibold uppercase tracking-widest text-brand-100/40 hover:text-brand-200 transition-colors">
                     Staff sign in
