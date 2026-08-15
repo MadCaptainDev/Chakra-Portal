@@ -7,6 +7,7 @@ use App\Http\Controllers\McpTokenController;
 use App\Http\Controllers\CallSheetController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EditorOutputController;
 use App\Http\Controllers\EmiController;
 use App\Http\Controllers\EnquiryController;
 use App\Http\Controllers\EquipmentController;
@@ -318,6 +319,14 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
     Route::post('invoice-template/preview', [InvoiceTemplateController::class, 'preview'])->name('invoice-template.preview');
     Route::post('invoice-template/generate-html', [InvoiceTemplateController::class, 'generateHtml'])->name('invoice-template.generate-html');
     Route::post('invoice-template/reset', [InvoiceTemplateController::class, 'reset'])->name('invoice-template.reset');
+
+    /*
+     * Output against hours, and the timesheet rows that make a rate a lie.
+     * Admin only and deliberately not module-gated: this is the screen that
+     * ranks people against each other, and who sees it is the owner's call to
+     * make on purpose rather than by ticking a permission box.
+     */
+    Route::get('editors', [EditorOutputController::class, 'index'])->name('editors.index');
 
     Route::get('timesheets', [TimesheetAdminController::class, 'index'])->name('timesheets.index');
     Route::get('timesheets/{employee}', [TimesheetAdminController::class, 'show'])->name('timesheets.show');

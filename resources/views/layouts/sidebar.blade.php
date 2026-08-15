@@ -55,6 +55,10 @@
             <x-sidebar-link icon="home" :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                 Dashboard
             </x-sidebar-link>
+            {{-- Admin-only, and inside the admin branch of this file already. --}}
+            <x-sidebar-link icon="trending-up" :href="route('editors.index')" :active="request()->routeIs('editors.*')">
+                Editor Output
+            </x-sidebar-link>
         </x-nav-section>
 
         <x-nav-section label="Money in">
