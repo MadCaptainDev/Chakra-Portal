@@ -70,6 +70,31 @@
             </div>
         </div>
 
+        {{-- Entries of their own that do not add up. Above the sent-back
+             banner because it is upstream of it: a manager reading a day with
+             a 24-hour entry in it will send that day back anyway. --}}
+        @if ($flagCount > 0)
+            <a href="{{ route('my.timesheet') }}"
+               class="animate-rise-in flex items-start gap-3.5 rounded-xl bg-amber-400/15 ring-1 ring-amber-400/40 p-4 sm:p-5
+                      hover:bg-amber-400/20 transition-colors">
+                <span class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-amber-400/20 text-amber-300">
+                    <x-icon name="alert" class="w-5 h-5" />
+                </span>
+                <div class="min-w-0">
+                    <p class="font-semibold text-amber-100">
+                        {{ $flagCount }} of your {{ Str::plural('entry', $flagCount) }}
+                        {{ $flagCount === 1 ? 'needs' : 'need' }} a second look
+                    </p>
+                    {{-- Wording matches the panel on the timesheet itself, so
+                         the number they are sent to find is the number they
+                         were told about. --}}
+                    <p class="mt-1 text-sm text-amber-100/70">
+                        They do not add up, so your hours are being read as wrong. Open your timesheet to correct them.
+                    </p>
+                </div>
+            </a>
+        @endif
+
         {{-- A day sent back is the one thing here that is actually the
              employee's to act on, so it sits above everything except the
              numbers. --}}

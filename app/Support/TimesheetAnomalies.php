@@ -49,11 +49,17 @@ class TimesheetAnomalies
     /**
      * Everything wrong with a window of timesheet, worst first.
      *
+     * $only scopes it to one person, which is what the employee's own screen
+     * passes. It is a query filter rather than something the caller filters
+     * afterwards, so a mistake upstream cannot show somebody else's rows to
+     * somebody who should never see them.
+     *
      * @return Collection<int, array<string, mixed>>
      */
-    public static function between(Carbon $from, Carbon $to): Collection
+    public static function between(Carbon $from, Carbon $to, ?User $only = null): Collection
     {
         $entries = TimesheetEntry::with('user')
+            ->when($only, fn ($query) => $query->where('user_id', $only->id))
             ->where('worked_on', '>=', $from->toDateString())
             ->where('worked_on', '<', $to->copy()->addDay()->toDateString())
             ->orderByDesc('worked_on')
@@ -121,6 +127,18 @@ class TimesheetAnomalies
     }
 
     /**
+     * How many things this person has to go and fix, over a window.
+     *
+     * For the nudge on their own dashboard. Counts flags rather than entries,
+     * because that is what the list they are being sent to will show them --
+     * a number that does not match the list it links to is worse than none.
+     */
+    public static function fixableCountFor(User $user, Carbon $from, Carbon $to): int
+    {
+        return self::between($from, $to, $user)->count();
+    }
+
+    /**
      * @param  Collection<int, TimesheetEntry>  $entries
      * @return Collection<int, array<string, mixed>>
      */
@@ -129,6 +147,14 @@ class TimesheetAnomalies
         return $entries
             ->groupBy(fn (TimesheetEntry $e) => $e->user_id.'|'.$e->worked_on->toDateString())
             ->filter(fn (Collection $rows) => $rows->sum('minutes') > self::IMPOSSIBLE_DAY_MINUTES)
+            /*
+             * A day made of one entry is already reported as that entry --
+             * anything over 16 hours in a single row is caught by the full-day
+             * or long-entry check. Saying it twice makes the list look worse
+             * than the timesheet is, and gives somebody two things to fix where
+             * there is one.
+             */
+            ->filter(fn (Collection $rows) => $rows->count() > 1)
             ->map(function (Collection $rows) {
                 $first = $rows->first();
                 $minutes = (int) $rows->sum('minutes');

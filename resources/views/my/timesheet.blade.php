@@ -23,6 +23,70 @@
             </x-card>
         </div>
 
+        {{-- ——— Entries that need a second look ———
+             Shown to the person who wrote them, because they are the only one
+             who knows what actually happened that day. The tone is deliberate:
+             almost every one of these is a job's length typed where hours were
+             asked for, which is a misread form and not a false claim. --}}
+        @if ($flags->isNotEmpty())
+            <x-card class="p-4 sm:p-5 border border-amber-200 bg-amber-50/70">
+                <div class="flex items-start gap-3.5">
+                    <span class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-amber-100 text-amber-700">
+                        <x-icon name="alert" class="w-5 h-5" />
+                    </span>
+                    <div class="min-w-0 flex-1">
+                        <h3 class="font-semibold text-amber-900">
+                            {{ $flags->count() }} {{ Str::plural('entry', $flags->count()) }} here
+                            {{ $flags->count() === 1 ? 'needs' : 'need' }} a second look
+                        </h3>
+                        <p class="mt-1 text-sm text-amber-800/80">
+                            These do not add up, so your hours for this month are being read as wrong.
+                            Only you know what actually happened — please correct them.
+                        </p>
+
+                        <div class="mt-4 space-y-2">
+                            @foreach ($flags as $flag)
+                                <div class="rounded-lg bg-white ring-1 ring-amber-200/70 p-3">
+                                    <div class="flex flex-wrap items-start justify-between gap-3">
+                                        <div class="min-w-0">
+                                            <p class="text-sm font-semibold text-gray-900">{{ $flag['title'] }}</p>
+                                            <p class="mt-0.5 text-xs text-gray-600">{{ $flag['detail'] }}</p>
+                                            <p class="mt-1 text-xs text-gray-500">
+                                                @if ($flag['date'])
+                                                    {{ \Illuminate\Support\Carbon::parse($flag['date'])->format('D j M') }}
+                                                @endif
+                                                @if (! empty($flag['task'])) &middot; &ldquo;{{ $flag['task'] }}&rdquo; @endif
+                                            </p>
+                                        </div>
+
+                                        @if ($flag['entry_id'])
+                                            <a href="#entry-{{ $flag['entry_id'] }}"
+                                               class="shrink-0 inline-flex items-center min-h-[36px] px-3 rounded-md
+                                                      bg-amber-500 text-white text-[11px] font-semibold uppercase
+                                                      tracking-wider hover:bg-amber-600 transition-colors">
+                                                Fix this
+                                            </a>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+            </x-card>
+        @endif
+
+        @if ($olderFlagCount > 0)
+            <x-card class="p-4 border border-gray-200">
+                <p class="text-sm text-gray-600">
+                    <span class="font-semibold text-gray-900">{{ $olderFlagCount }}</span>
+                    {{ Str::plural('entry', $olderFlagCount) }} in earlier months still
+                    {{ $olderFlagCount === 1 ? 'needs' : 'need' }} a second look.
+                    Use the month arrows above to go back and correct them.
+                </p>
+            </x-card>
+        @endif
+
         <div class="grid grid-cols-2 gap-3 sm:gap-4">
             <x-stat-card label="Hours this month" accent="brand" icon="clock"
                          value="{{ \App\Models\TimesheetEntry::formatMinutes($totalMinutes) }}" />
@@ -120,7 +184,13 @@
 
                     <x-card class="divide-y divide-gray-100 overflow-hidden transition duration-200 hover:shadow-md">
                         @foreach ($dayEntries as $entry)
-                            <div class="p-3 sm:p-4 transition-colors hover:bg-gray-50/60" x-data="{ editing: false }">
+                            {{-- The id and the hash check are what let "Fix this"
+                                 in the panel above scroll here AND open the
+                                 editor, with no JavaScript beyond Alpine. --}}
+                            <div id="entry-{{ $entry->id }}"
+                                 class="p-3 sm:p-4 transition-colors hover:bg-gray-50/60 target:bg-amber-50"
+                                 x-data="{ editing: false }"
+                                 x-init="if (window.location.hash === '#entry-{{ $entry->id }}') editing = true">
                                 <div class="flex items-start justify-between gap-3">
                                     <div class="min-w-0 flex-1">
                                         <p class="font-medium text-gray-900 truncate">{{ $entry->task }}</p>

@@ -7,6 +7,7 @@ use App\Models\Announcement;
 use App\Models\EmployeePoint;
 use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
+use App\Support\TimesheetAnomalies;
 use App\Models\Todo;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -47,6 +48,16 @@ class DashboardController extends Controller
             // waiting is somebody else's turn.
             'pendingCount' => $workedDays->reject(fn (string $date) => $decisions->has($date))->count(),
             'rejectedCount' => $decisions->filter(fn (TimesheetDay $day) => $day->isRejected())->count(),
+            /*
+             * Entries of their own that do not add up. Half a year back,
+             * because an unfixable-looking pile from last spring is still
+             * making this month's figures wrong.
+             */
+            'flagCount' => TimesheetAnomalies::fixableCountFor(
+                $user,
+                $month->copy()->subMonthsNoOverflow(6),
+                $month->copy()->endOfMonth()
+            ),
             'daysLogged' => $workedDays->count(),
             'todosToday' => $todosToday->count(),
             'todosStarted' => $todosToday->where('status', Todo::STATUS_STARTED)->count(),

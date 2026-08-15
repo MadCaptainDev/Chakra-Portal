@@ -5,6 +5,7 @@ namespace App\Http\Controllers\My;
 use App\Http\Controllers\Controller;
 use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
+use App\Support\TimesheetAnomalies;
 use App\Support\TimesheetStats;
 use App\Support\TimesheetVenture;
 use Illuminate\Http\RedirectResponse;
@@ -33,9 +34,33 @@ class TimesheetController extends Controller
             ->orderBy('started_at')
             ->get();
 
+        /*
+         * What looks wrong in their own timesheet, this month. Scoped to them
+         * inside the query, never filtered afterwards -- an employee must not
+         * be one bug away from reading a colleague's rows.
+         *
+         * Shown to the person who wrote the entries rather than only to an
+         * admin, because they are the only one who knows what actually
+         * happened that day. An admin correcting a guess is worse than the
+         * wrong number.
+         */
+        $flags = TimesheetAnomalies::between(
+            $month->copy()->startOfMonth(),
+            $month->copy()->endOfMonth(),
+            $request->user()
+        );
+
         return view('my.timesheet', [
             'month' => $month,
             'entries' => $entries,
+            'flags' => $flags,
+            // Anything older that still needs a look, so a month with a clean
+            // panel does not read as "nothing to do" when there is.
+            'olderFlagCount' => TimesheetAnomalies::fixableCountFor(
+                $request->user(),
+                $month->copy()->startOfMonth()->subMonthsNoOverflow(6),
+                $month->copy()->startOfMonth()->subDay()
+            ),
             // Keyed by date alone -- there is only one person on this screen.
             'decisions' => TimesheetDay::decisionsFor([$request->user()->id], $month)
                 ->keyBy(fn (TimesheetDay $day) => $day->worked_on->toDateString()),
