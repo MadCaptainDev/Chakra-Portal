@@ -4,8 +4,6 @@ namespace App\Services;
 
 use App\Models\WhatsappSetting;
 use App\Models\WhatsappWebhookEvent;
-use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
@@ -25,12 +23,6 @@ use RuntimeException;
  */
 class WhatsappSender
 {
-    /**
-     * Meta answers quickly or not at all. A long timeout here would only hold a
-     * request open while a person watches a spinner.
-     */
-    private const TIMEOUT_SECONDS = 15;
-
     public function __construct(private readonly WhatsappSetting $settings) {}
 
     public static function make(): self
@@ -100,16 +92,12 @@ class WhatsappSender
             );
         }
 
-        $response = Http::withToken($this->settings->access_token)
-            ->timeout(self::TIMEOUT_SECONDS)
-            ->asJson()
-            ->post($this->settings->messagesEndpoint(), $payload);
+        // The HTTP call, the token and the error handling all live in
+        // WhatsappGraph, so a Meta error reads the same however it was reached.
+        $response = (new WhatsappGraph($this->settings))
+            ->post($this->settings->phone_number_id.'/messages', $payload);
 
-        if ($response->failed()) {
-            $this->throwFrom($response, $payload['to']);
-        }
-
-        $wamid = $response->json('messages.0.id');
+        $wamid = data_get($response, 'messages.0.id');
 
         Log::info('WhatsApp message sent.', ['to' => $payload['to'], 'wamid' => $wamid]);
 
@@ -121,7 +109,7 @@ class WhatsappSender
          */
         $this->record($payload, $wamid, $summary);
 
-        return ['wamid' => $wamid, 'response' => $response->json()];
+        return ['wamid' => $wamid, 'response' => $response];
     }
 
     /**
@@ -142,31 +130,6 @@ class WhatsappSender
             // successful send into an exception the caller sees as a failure.
             Log::error('WhatsApp message sent but not recorded.', ['error' => $e->getMessage()]);
         }
-    }
-
-    /**
-     * Meta's errors are the useful part of this integration and are thrown
-     * verbatim: "Recipient phone number not in allowed list" and "Template name
-     * does not exist" are each one specific fix, and flattening them into
-     * "sending failed" throws that away.
-     */
-    private function throwFrom(Response $response, string $to): never
-    {
-        $error = $response->json('error', []);
-
-        $message = trim(sprintf(
-            '%s%s',
-            $error['message'] ?? 'WhatsApp API request failed with HTTP '.$response->status(),
-            isset($error['error_data']['details']) ? ' — '.$error['error_data']['details'] : ''
-        ));
-
-        Log::error('WhatsApp send failed.', [
-            'to' => $to,
-            'status' => $response->status(),
-            'error' => $error ?: $response->body(),
-        ]);
-
-        throw new RuntimeException($message);
     }
 
     /**
