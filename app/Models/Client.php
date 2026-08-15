@@ -75,6 +75,12 @@ class Client extends Model
         return $this->hasMany(Shoot::class);
     }
 
+    /** Logins the studio holds for this client's own accounts. */
+    public function credentials(): HasMany
+    {
+        return $this->hasMany(ClientCredential::class)->orderBy('kind')->orderBy('label');
+    }
+
     /** The login this client signs in with, if one has been issued. */
     public function login(): HasOne
     {

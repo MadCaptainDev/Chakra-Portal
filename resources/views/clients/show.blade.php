@@ -107,11 +107,22 @@
             @endif
         </div>
 
+        {{-- The logins the studio holds FOR them, as opposed to the login they
+             sign in with below. Only rendered for somebody granted the
+             separate credentials ability. --}}
+        @can('clients.credentials')
+            @include('clients._credentials')
+        @endcan
+
         {{-- ——— Their login ———
              Password set here and handed over by phone: the app sends no real
              mail (MAIL_MAILER is log), so an invite link would go to a log
              file. That also means no self-serve reset, which is said out loud
-             below rather than discovered by a client at nine at night. --}}
+             below rather than discovered by a client at nine at night.
+
+             Behind `manage`, matching the route: issuing this creates an
+             account that can sign in, which is more than editing a record. --}}
+        @can('clients.manage')
         <x-card class="p-4 sm:p-6 border border-brand-100/40" x-data="{ open: false }">
             <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -204,6 +215,7 @@
                 </form>
             @endif
         </x-card>
+        @endcan
 
     </div>
 </x-app-layout>

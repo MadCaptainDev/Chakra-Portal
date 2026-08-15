@@ -89,9 +89,9 @@
                     Recurring
                 </x-sidebar-link>
             @endif
-            <x-sidebar-link icon="users" :href="route('clients.index')" :active="request()->routeIs('clients.*')">
-                Clients
-            </x-sidebar-link>
+            {{-- Clients moved to the module list below: it is permissioned
+                 now, and having it in two places would show admins two links
+                 to the same screen. --}}
             @if (Route::has('enquiries.index'))
                 @php $unreadEnquiries = \App\Models\Enquiry::unreadCount(); @endphp
                 <x-sidebar-link icon="mail" :href="route('enquiries.index')" :active="request()->routeIs('enquiries.*')">

@@ -10,6 +10,7 @@ use App\Support\TimesheetVenture;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class ClientController extends Controller
@@ -61,9 +62,19 @@ class ClientController extends Controller
         return $client->only(['id', 'name', 'address', 'email', 'phone', 'notion_venture']);
     }
 
-    public function show(Client $client): View
+    public function show(Request $request, Client $client): View
     {
-        $invoices = $client->invoices()->with('payments')->latest('invoice_date')->get();
+        /*
+         * The money block is admin-only, even though the screen is not any
+         * more. Someone given the Clients module to keep records and logins
+         * tidy has not thereby been handed what every client has paid and
+         * owes. Withheld here rather than hidden in the view, so the rows are
+         * never loaded for a request that may not see them.
+         */
+        $invoices = $request->user()->isAdmin()
+            ? $client->invoices()->with('payments')->latest('invoice_date')->get()
+            : collect();
+
         $timesheet = TimesheetStats::forClient($client);
         $ventureLabel = TimesheetVenture::canonicalForClient($client);
 
@@ -71,7 +82,18 @@ class ClientController extends Controller
         // panel offers to create one.
         $login = $client->login()->first();
 
-        return view('clients.show', compact('client', 'invoices', 'timesheet', 'ventureLabel', 'login'));
+        /*
+         * Loaded only for somebody allowed to see them. Not a display concern:
+         * an @can in the view would still have pulled the ciphertext into
+         * memory for a request that had no business holding it.
+         */
+        $credentials = $request->user()->can('clients.credentials')
+            ? $client->credentials()->with(['views.user' => fn ($q) => $q->select('id', 'name')])->get()
+            : collect();
+
+        return view('clients.show', compact(
+            'client', 'invoices', 'timesheet', 'ventureLabel', 'login', 'credentials'
+        ));
     }
 
     public function edit(Client $client): View

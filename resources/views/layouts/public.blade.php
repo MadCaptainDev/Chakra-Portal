@@ -116,10 +116,18 @@
             <p class="text-xs text-brand-100/40">
                 &copy; {{ date('Y') }} Chakra Productions. All rights reserved.
             </p>
-            <a href="{{ route('login') }}"
-               class="inline-flex items-center min-h-[44px] text-xs font-semibold uppercase tracking-widest text-brand-100/40 hover:text-brand-200 transition-colors">
-                Staff sign in
-            </a>
+            <div class="flex items-center gap-6">
+                {{-- Meta, Google and the app stores all want to find the privacy
+                     policy from the site itself, not only from a pasted URL. --}}
+                <a href="{{ route('privacy') }}"
+                   class="inline-flex items-center min-h-[44px] text-xs font-semibold uppercase tracking-widest text-brand-100/40 hover:text-brand-200 transition-colors">
+                    Privacy
+                </a>
+                <a href="{{ route('login') }}"
+                   class="inline-flex items-center min-h-[44px] text-xs font-semibold uppercase tracking-widest text-brand-100/40 hover:text-brand-200 transition-colors">
+                    Staff sign in
+                </a>
+            </div>
         </div>
     </footer>
 

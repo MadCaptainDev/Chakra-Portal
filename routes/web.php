@@ -10,6 +10,7 @@ use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\Client\ShootController as ClientShootController;
 use App\Http\Controllers\Client\WorkController as ClientWorkController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\ClientCredentialController;
 use App\Http\Controllers\ClientLoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EditorOutputController;
@@ -58,6 +59,11 @@ Route::get('/portfolio', [PublicPortfolioController::class, 'index'])->name('por
 // The case study for one piece. Named portfolio.detail rather than
 // portfolio.show because the portfolio.* names belong to the admin CRUD.
 Route::get('/portfolio/{portfolioItem}', [PublicPortfolioController::class, 'show'])->name('portfolio.detail');
+
+// Privacy policy. Public and outside every auth group on purpose: Meta, Google
+// and the app stores fetch this URL as an anonymous stranger, and a policy
+// behind a login is a policy they fail the app for.
+Route::view('/privacy', 'privacy')->name('privacy');
 
 // Public enquiry form. Throttled because it is unauthenticated and sends mail.
 Route::post('/enquiry', [EnquiryController::class, 'store'])
@@ -262,6 +268,57 @@ Route::middleware(['auth', 'module:shoots,view'])->scopeBindings()->group(functi
     Route::post('shoots/{shoot}/kit-bulk', [ShootKitController::class, 'bulk'])->name('shoots.kit.bulk');
 });
 
+/*
+ * Clients, and the logins the studio holds on their behalf.
+ *
+ * Moved out of the admin group so an account manager can keep client records
+ * without being handed the books. Outside recurring.catchup for the reason
+ * every non-admin group is: opening a client record must not issue the
+ * studio's monthly invoices.
+ *
+ * The credentials routes carry their own ability. Somebody who tidies client
+ * details has no reason to read their Instagram password, and the day one is
+ * misused the list of people who could have seen it should be short.
+ */
+Route::middleware(['auth', 'module:clients,view'])->scopeBindings()->group(function () {
+    Route::get('clients', [ClientController::class, 'index'])->name('clients.index');
+
+    // Before {client}, or "create" binds as a client id.
+    Route::get('clients/create', [ClientController::class, 'create'])
+        ->middleware('module:clients,create')->name('clients.create');
+    Route::post('clients', [ClientController::class, 'store'])
+        ->middleware('module:clients,create')->name('clients.store');
+
+    Route::get('clients/{client}', [ClientController::class, 'show'])->name('clients.show');
+
+    Route::get('clients/{client}/edit', [ClientController::class, 'edit'])
+        ->middleware('module:clients,edit')->name('clients.edit');
+    Route::match(['put', 'patch'], 'clients/{client}', [ClientController::class, 'update'])
+        ->middleware('module:clients,edit')->name('clients.update');
+    Route::delete('clients/{client}', [ClientController::class, 'destroy'])
+        ->middleware('module:clients,delete')->name('clients.destroy');
+
+    // Stored logins. scopeBindings() means a credential belonging to another
+    // client 404s on the binding, before the controller runs.
+    Route::middleware('module:clients,credentials')->group(function () {
+        Route::post('clients/{client}/credentials', [ClientCredentialController::class, 'store'])->name('clients.credentials.store');
+        Route::put('clients/{client}/credentials/{credential}', [ClientCredentialController::class, 'update'])->name('clients.credentials.update');
+        Route::delete('clients/{client}/credentials/{credential}', [ClientCredentialController::class, 'destroy'])->name('clients.credentials.destroy');
+        Route::post('clients/{client}/credentials/{credential}/reveal', [ClientCredentialController::class, 'reveal'])->name('clients.credentials.reveal');
+    });
+
+    /*
+     * Issuing and revoking a client's login. Behind `manage` rather than
+     * `edit`, because it creates a user account that can sign in -- a bigger
+     * act than correcting a phone number.
+     */
+    Route::middleware('module:clients,manage')->group(function () {
+        Route::post('clients/{client}/login', [ClientLoginController::class, 'store'])->name('clients.login.store');
+        Route::put('clients/{client}/login', [ClientLoginController::class, 'updatePassword'])->name('clients.login.password');
+        Route::delete('clients/{client}/login', [ClientLoginController::class, 'destroy'])->name('clients.login.destroy');
+    });
+});
+
 Route::middleware(['auth', 'module:equipment,view'])->group(function () {
     Route::get('equipment', [EquipmentController::class, 'index'])->name('equipment.index');
     Route::post('equipment', [EquipmentController::class, 'store'])
@@ -287,16 +344,9 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
 
     // JSON endpoints behind the invoice form's client modal. Both POST: a
     // JSON body carries no _method field for Laravel to spoof PUT from.
-    // Declared before the resource so neither path is shadowed.
+    // These stay admin-only -- they exist for the invoice form, which is.
     Route::post('clients/quick', [ClientController::class, 'quickStore'])->name('clients.quick-store');
     Route::post('clients/{client}/quick', [ClientController::class, 'quickUpdate'])->name('clients.quick-update');
-
-    Route::resource('clients', ClientController::class);
-
-    // Issuing and revoking a client's login. Admin-only: it creates an account.
-    Route::post('clients/{client}/login', [ClientLoginController::class, 'store'])->name('clients.login.store');
-    Route::put('clients/{client}/login', [ClientLoginController::class, 'updatePassword'])->name('clients.login.password');
-    Route::delete('clients/{client}/login', [ClientLoginController::class, 'destroy'])->name('clients.login.destroy');
 
     // Combined month overview.
     Route::get('expenses', [ExpenseController::class, 'index'])->name('expenses.index');

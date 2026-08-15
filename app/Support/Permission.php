@@ -24,6 +24,7 @@ class Permission
         'delete' => 'Delete',
         'comment' => 'Comment',
         'approve' => 'Approve',
+        'credentials' => 'See passwords',
         'manage' => 'Manage',
     ];
 
@@ -58,6 +59,24 @@ class Permission
             'label' => 'Equipment',
             'group' => 'Production',
             'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
+        ],
+        /*
+         * Client records, and the logins the studio holds on their behalf.
+         *
+         * "credentials" is a separate ability rather than part of view, because
+         * the two are genuinely different jobs: somebody keeping client details
+         * tidy has no reason to read their Instagram password, and the day that
+         * password is misused the list of people who could have seen it should
+         * be as short as the work allows.
+         *
+         * Grouped under Clients rather than Production because it is not
+         * production work, and because a group of one reads better on the
+         * permission matrix than a misfiled row.
+         */
+        'clients' => [
+            'label' => 'Clients',
+            'group' => 'Clients',
+            'abilities' => ['view', 'create', 'edit', 'delete', 'credentials', 'manage'],
         ],
     ];
 

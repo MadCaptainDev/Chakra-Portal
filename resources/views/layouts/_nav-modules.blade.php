@@ -13,6 +13,7 @@
         'scripts' => 'document',
         'shoots' => 'camera',
         'equipment' => 'briefcase',
+        'clients' => 'users',
     ];
 
     $groups = collect(Permission::grouped())
