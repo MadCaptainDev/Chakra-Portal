@@ -52,5 +52,22 @@ class AppServiceProvider extends ServiceProvider
          */
         RateLimiter::for('mcp', fn (Request $request) => Limit::perMinute(120)
             ->by($request->bearerToken() ?: $request->ip()));
+
+        /*
+         * Inbound webhooks.
+         *
+         * Set high on purpose. Meta batches events and retries anything it does
+         * not get a prompt 200 for, so a limit tight enough to be a quota would
+         * turn a busy hour into lost messages and, if enough 429s pile up, into
+         * Meta disabling the subscription. This is a flood guard against
+         * somebody who found the URL, nothing finer -- the signature check is
+         * what actually keeps them out.
+         *
+         * Counted per IP, which is the only thing an unauthenticated caller
+         * offers. Meta posts from a wide range, so no legitimate sender is
+         * anywhere near this.
+         */
+        RateLimiter::for('webhooks', fn (Request $request) => Limit::perMinute(600)
+            ->by($request->ip()));
     }
 }

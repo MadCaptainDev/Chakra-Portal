@@ -22,6 +22,21 @@ return Application::configure(basePath: dirname(__DIR__))
                 'throttle:mcp',
                 \App\Http\Middleware\AuthenticateMcpToken::class,
             ])->group(base_path('routes/mcp.php'));
+
+            /*
+             * Inbound callbacks from other people's servers -- currently Meta's
+             * WhatsApp Cloud API. Registered here for the same reason as the
+             * MCP endpoint: no session and no CSRF, neither of which a webhook
+             * can produce and both of which would only be a liability on a
+             * route the whole internet can reach.
+             *
+             * Each route names its own proof of authenticity. The throttle is
+             * the one thing they share, and it is a flood guard rather than a
+             * quota: it sits well above anything Meta actually sends, because a
+             * webhook this endpoint drops is a message the studio never sees.
+             */
+            Route::middleware(['throttle:webhooks'])
+                ->group(base_path('routes/webhooks.php'));
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {

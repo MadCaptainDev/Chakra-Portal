@@ -47,6 +47,7 @@ use App\Http\Controllers\TimesheetDayController;
 use App\Http\Controllers\TodoReviewController;
 use App\Http\Controllers\TodoTrackerController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WhatsappSettingController;
 use Illuminate\Support\Facades\Route;
 
 // Public landing page. Signed-in users go to whichever home their role has.
@@ -395,6 +396,18 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
 
     Route::get('settings', [SettingsController::class, 'edit'])->name('settings.edit');
     Route::put('settings', [SettingsController::class, 'update'])->name('settings.update');
+
+    /*
+     * The WhatsApp connection. Admin-only rather than a permission module: the
+     * app secret on this screen can send messages as the studio, and connecting
+     * the studio's own Meta app is not work that gets delegated in pieces.
+     *
+     * The endpoint Meta actually calls is in routes/webhooks.php, deliberately
+     * outside every auth group -- this is only where a human configures it.
+     */
+    Route::get('whatsapp', [WhatsappSettingController::class, 'edit'])->name('whatsapp.edit');
+    Route::put('whatsapp', [WhatsappSettingController::class, 'update'])->name('whatsapp.update');
+    Route::post('whatsapp/rotate-token', [WhatsappSettingController::class, 'rotate'])->name('whatsapp.rotate');
 
     Route::get('invoice-template', [InvoiceTemplateController::class, 'edit'])->name('invoice-template.edit');
     Route::put('invoice-template', [InvoiceTemplateController::class, 'update'])->name('invoice-template.update');

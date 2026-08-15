@@ -35,6 +35,12 @@
         'waiting' => 'bg-gray-100 text-gray-600',
         'started' => 'bg-brand-100 text-brand-800',
         'blocked' => 'bg-red-100 text-red-800',
+        // WhatsApp delivery statuses, which climb sent -> delivered -> read.
+        // "failed" borrows the red that overdue and blocked already own.
+        'sent' => 'bg-gray-100 text-gray-600',
+        'delivered' => 'bg-blue-100 text-blue-800',
+        'read' => 'bg-green-100 text-green-800',
+        'failed' => 'bg-red-100 text-red-800',
     ];
 
     $labels = [
@@ -68,6 +74,10 @@
         'started' => 'Started',
         'blocked' => 'Blocked',
         'cancelled' => 'Cancelled',
+        'sent' => 'Sent',
+        'delivered' => 'Delivered',
+        'read' => 'Read',
+        'failed' => 'Failed',
     ];
 
     // Invoice/recurring statuses arrive as snake_case; Notion statuses arrive as
