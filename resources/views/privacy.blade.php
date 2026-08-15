@@ -15,9 +15,12 @@
     $company = App\Models\CompanySetting::current();
 
     $legalName = $company->company_name ?: 'Chakra Productions';
-    $email = $company->email ?: $company->notification_email ?: 'hello@chakragroups.in';
-    $phone = $company->phone;
+    $email = $company->notification_email ?: 'hello@chakragroups.in';
     $address = $company->address;
+
+    // No phone column on company settings yet. Fill this in if you want a
+    // number on the policy -- Meta is satisfied by the email alone.
+    $phone = null;
 
     // Shown as "Last updated". Bump it by hand when the text changes -- a date
     // that moves on every deploy tells a reader nothing.
