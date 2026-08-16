@@ -5,6 +5,7 @@ use App\Http\Controllers\BillController;
 use App\Http\Controllers\BrowserSessionController;
 use App\Http\Controllers\McpTokenController;
 use App\Http\Controllers\CallSheetController;
+use App\Http\Controllers\Client\BriefController as ClientBriefController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\Client\ShootController as ClientShootController;
@@ -228,6 +229,26 @@ Route::middleware(['auth', 'client'])->prefix('client')->name('client.')->group(
     Route::get('invoices/{invoice}/pdf', [ClientInvoiceController::class, 'pdf'])->name('invoices.pdf');
     Route::get('work', [ClientWorkController::class, 'index'])->name('work');
     Route::get('shoots', [ClientShootController::class, 'index'])->name('shoots');
+
+    /*
+     * The brand brief. Static segments and no {client}, by design and for the
+     * same reason as everything above it: the controller reads the signed-in
+     * user's own client_id, so there is no id in the URL to swap for someone
+     * else's.
+     *
+     * Two write routes against one form. Which one was posted to is what tells
+     * ClientBriefRequest whether to enforce the required questions -- a saved
+     * draft may be as empty as the client likes, a submission may not.
+     *
+     * Both are POST rather than the PUT that saving a record would normally
+     * take, because the two buttons are one form switched by `formaction`, and
+     * a form carrying Laravel's _method=PUT field cannot post to a route that
+     * is not also PUT. A hidden field rewritten by JavaScript would restore the
+     * verb at the cost of making the submit path depend on script running.
+     */
+    Route::get('brief', [ClientBriefController::class, 'edit'])->name('brief');
+    Route::post('brief', [ClientBriefController::class, 'update'])->name('brief.update');
+    Route::post('brief/submit', [ClientBriefController::class, 'submit'])->name('brief.submit');
 });
 
 /*

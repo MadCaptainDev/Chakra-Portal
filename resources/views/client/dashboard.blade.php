@@ -24,6 +24,32 @@
             </div>
         </div>
 
+        {{-- The brief, while it is still owed. Above the money because it is the
+             one thing on this page the client has to do rather than read, and
+             amber because that is already this screen's "needs you" colour.
+             Gone the moment it is submitted -- a permanent prompt is wallpaper. --}}
+        @if (! $brief?->isSubmitted())
+            <a href="{{ route('client.brief') }}"
+               class="block rounded-xl bg-gradient-to-br from-amber-400/20 to-white/5 ring-1 ring-amber-400/40 p-5 sm:p-6 hover:from-amber-400/30 transition-colors">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                        <p class="text-lg sm:text-xl font-extrabold tracking-tight">Before we write for you</p>
+                        <p class="mt-1.5 text-sm text-amber-100/80 leading-snug max-w-xl">
+                            A few questions about your brand, so every script sounds like you. About ten minutes, once.
+                        </p>
+                    </div>
+                    <x-icon name="chevron-right" class="w-5 h-5 shrink-0 mt-1 text-amber-100/70" />
+                </div>
+                <p class="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-amber-100">
+                    @if ($brief && $brief->requiredAnswered() > 0)
+                        Continue — {{ $brief->requiredAnswered() }} of {{ $brief->requiredTotal() }} answered
+                    @else
+                        Start
+                    @endif
+                </p>
+            </a>
+        @endif
+
         {{-- Outstanding is the one number that asks for an action, so it is the
              only tile that carries the accent. Settled, it goes quiet. --}}
         <div class="grid grid-cols-2 lg:grid-cols-3 gap-3.5">

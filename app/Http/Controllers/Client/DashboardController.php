@@ -36,6 +36,13 @@ class DashboardController extends Controller
 
         return view('client.dashboard', [
             'client' => $client,
+
+            /*
+             * Null until the client has saved something. Loaded rather than
+             * created: opening the dashboard must not start a brief on their
+             * behalf, or "not started" stops meaning anything.
+             */
+            'brief' => $client->brief()->with('answers')->first(),
             'outstanding' => $outstanding,
             'overdueCount' => $overdue->count(),
             'overdueAmount' => $overdue->sum(fn (Invoice $invoice) => $invoice->balanceDue()),

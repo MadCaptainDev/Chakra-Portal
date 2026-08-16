@@ -14,13 +14,17 @@
 
     <nav class="flex-1 px-3 py-3 overflow-y-auto">
     @if ($isClient)
-        {{-- Four links and no profile. A client has nothing to configure here,
+        {{-- Five links and no profile. A client has nothing to configure here,
              and an "Account" section with one dead item in it is worse than
              none. The middleware is what enforces this; the nav is cosmetic. --}}
         <x-nav-section label="{{ $user?->client?->name ?? 'Your account' }}">
             <x-sidebar-link icon="home" :href="route('client.dashboard')" :active="request()->routeIs('client.dashboard')">
                 Overview
             </x-sidebar-link>
+            <x-sidebar-link icon="template" :href="route('client.brief')" :active="request()->routeIs('client.brief*')">
+                Brand Brief
+            </x-sidebar-link>
+
             <x-sidebar-link icon="document" :href="route('client.invoices')" :active="request()->routeIs('client.invoices*')">
                 Invoices
             </x-sidebar-link>

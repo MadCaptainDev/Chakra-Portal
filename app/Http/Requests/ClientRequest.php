@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Models\TaxonomyTerm;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class ClientRequest extends FormRequest
 {
@@ -22,6 +24,19 @@ class ClientRequest extends FormRequest
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'notion_venture' => ['nullable', 'string', 'max:255'],
+
+            /*
+             * The sector. Fillable on the model since the taxonomy landed, but
+             * with no rule here and no field on the form it was unsettable
+             * through the UI. The brand brief now writes to it from the client
+             * side, so staff need to be able to see and correct it -- a field
+             * only the client can change is worse than one nobody can.
+             *
+             * Pinned to its own list, like ScriptRequest's pickers: without the
+             * type constraint a tag id would validate and the client would show
+             * a tag where the sector belongs.
+             */
+            'industry_id' => ['nullable', Rule::exists('taxonomy_terms', 'id')->where('type', TaxonomyTerm::TYPE_INDUSTRY)],
 
             // The logo is handled by the controller, not mass-assigned: the
             // validated array must not carry the UploadedFile into create().

@@ -54,6 +54,9 @@
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Address</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
+                            {{-- Who still owes us a brief, at a glance. The one
+                                 cross-client question anyone asks of it. --}}
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Brief</th>
                             <th class="px-6 py-3"></th>
                         </tr>
                     </thead>
@@ -72,6 +75,15 @@
                                 <td class="px-6 py-4 text-sm text-gray-500">{{ $client->address }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-500">{{ $client->email }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-500">{{ $client->phone }}</td>
+                                <td class="px-6 py-4 text-sm">
+                                    @if ($client->brief?->isSubmitted())
+                                        <x-badge color="bg-green-100 text-green-800">Done</x-badge>
+                                    @elseif ($client->brief)
+                                        <x-badge color="bg-amber-100 text-amber-800">{{ $client->brief->requiredAnswered() }}/{{ $client->brief->requiredTotal() }}</x-badge>
+                                    @else
+                                        <span class="text-gray-400">—</span>
+                                    @endif
+                                </td>
                                 <td class="px-6 py-4 text-right text-sm space-x-3">
                                     <a href="{{ route('clients.edit', $client) }}" class="text-brand-500 hover:text-brand-600 font-semibold">Edit</a>
                                     <form method="POST" action="{{ route('clients.destroy', $client) }}" class="inline" onsubmit="return confirm('Delete this client?');">

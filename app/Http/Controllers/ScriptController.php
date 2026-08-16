@@ -100,7 +100,8 @@ class ScriptController extends Controller
 
     public function edit(Script $script): View
     {
-        $script->load(['sections', 'client', 'lastEditedBy']);
+        // client.brief.answers feeds the brief drawer beside the editor.
+        $script->load(['sections', 'client.brief.answers', 'lastEditedBy']);
 
         return view('scripts.edit', $this->formData($script) + [
             'commonHeadings' => ScriptSection::COMMON_HEADINGS,
@@ -119,7 +120,7 @@ class ScriptController extends Controller
     /** The read-only render — what a view-only user gets, and what goes on set. */
     public function show(Script $script): View
     {
-        $script->load(['sections', 'client', 'writer', 'editor', 'lastEditedBy', 'platformTerm', 'scriptTypeTerm', 'languageTerm']);
+        $script->load(['sections', 'client.brief.answers', 'writer', 'editor', 'lastEditedBy', 'platformTerm', 'scriptTypeTerm', 'languageTerm']);
 
         return view('scripts.show', ['script' => $script]);
     }

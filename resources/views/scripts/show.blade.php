@@ -55,6 +55,12 @@
             </x-card>
         @endif
 
+        {{-- print:hidden: this goes on set, and the brief is not part of the
+             script anybody reads from a stand. --}}
+        <div class="print:hidden">
+            @include('scripts._brief-drawer')
+        </div>
+
         @if ($script->sections->isEmpty())
             <x-empty-state message="Nothing written yet.">
                 @can('scripts.edit')

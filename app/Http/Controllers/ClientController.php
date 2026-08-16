@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ClientRequest;
 use App\Models\Client;
+use App\Models\TaxonomyTerm;
 use App\Support\PublicUpload;
 use App\Support\TimesheetStats;
 use App\Support\TimesheetVenture;
@@ -17,14 +18,16 @@ class ClientController extends Controller
 {
     public function index(): View
     {
-        $clients = Client::orderBy('name')->paginate(20);
+        // The brief comes along so the list can show who still owes one
+        // without a query per row.
+        $clients = Client::with('brief.answers')->orderBy('name')->paginate(20);
 
         return view('clients.index', compact('clients'));
     }
 
     public function create(): View
     {
-        return view('clients.create');
+        return view('clients.create', ['industries' => TaxonomyTerm::options(TaxonomyTerm::TYPE_INDUSTRY)]);
     }
 
     public function store(ClientRequest $request): RedirectResponse
@@ -65,6 +68,13 @@ class ClientController extends Controller
     public function show(Request $request, Client $client): View
     {
         /*
+         * What the client told us about their brand. Loaded, never created --
+         * a staff member opening this record must not start a brief on the
+         * client's behalf, or "not started" stops meaning anything.
+         */
+        $client->load('brief.answers');
+
+        /*
          * The money block is admin-only, even though the screen is not any
          * more. Someone given the Clients module to keep records and logins
          * tidy has not thereby been handed what every client has paid and
@@ -98,7 +108,12 @@ class ClientController extends Controller
 
     public function edit(Client $client): View
     {
-        return view('clients.edit', compact('client'));
+        // keep: a sector the studio has since retired stays in this client's
+        // own picker, so editing their phone number does not drop it.
+        return view('clients.edit', [
+            'client' => $client,
+            'industries' => TaxonomyTerm::options(TaxonomyTerm::TYPE_INDUSTRY, $client->industry_id),
+        ]);
     }
 
     public function update(ClientRequest $request, Client $client): RedirectResponse

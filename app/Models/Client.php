@@ -103,4 +103,17 @@ class Client extends Model
     {
         return $this->belongsTo(TaxonomyTerm::class, 'industry_id');
     }
+
+    /**
+     * What this client told us about their brand before we wrote for them.
+     *
+     * hasOne, enforced by a unique on client_briefs.client_id: one brand, one
+     * brief. Null until the client saves something -- nothing creates a row on
+     * a read, so a staff member opening this record does not start a brief on
+     * the client's behalf.
+     */
+    public function brief(): HasOne
+    {
+        return $this->hasOne(ClientBrief::class);
+    }
 }

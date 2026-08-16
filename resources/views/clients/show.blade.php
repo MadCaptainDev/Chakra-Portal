@@ -35,6 +35,83 @@
             </dl>
         </x-card>
 
+        {{-- The brand brief. Here rather than further down because it is client
+             identity, not client accounting -- the same kind of thing as the
+             contact card above it. Read-only: v1 has the client owning their
+             own answers, and a staff edit would need to record who changed
+             what before it could be trusted. --}}
+        @php $brief = $client->brief; @endphp
+        <x-card class="p-4 sm:p-6 border border-brand-100/40" x-data="{ open: {{ $brief?->exists ? 'false' : 'true' }} }">
+            <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
+                <div class="min-w-0">
+                    <h3 class="font-semibold text-brand-900">Brand brief</h3>
+                    <p class="text-xs text-gray-500 mt-0.5">
+                        @if ($brief?->isSubmitted())
+                            Sent in {{ $brief->submitted_at?->format('j M Y') }}
+                        @elseif ($brief?->exists)
+                            {{ $brief->requiredAnswered() }} of {{ $brief->requiredTotal() }} answered
+                        @else
+                            Not started
+                        @endif
+                    </p>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    {{-- x-badge's `color` is a class string, not a colour name.
+                         These borrow the palette the status map already uses. --}}
+                    @if ($brief?->isSubmitted())
+                        <x-badge color="bg-green-100 text-green-800">Done</x-badge>
+                    @elseif ($brief?->exists)
+                        <x-badge color="bg-amber-100 text-amber-800">In progress</x-badge>
+                    @else
+                        <x-badge color="bg-gray-100 text-gray-600">Not started</x-badge>
+                    @endif
+
+                    @if ($brief?->exists)
+                        <button type="button" @click="open = !open"
+                                class="text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                            <span x-text="open ? 'Hide' : 'Show'">Show</span>
+                        </button>
+                    @endif
+                </div>
+            </div>
+
+            @unless ($brief?->isSubmitted())
+                @if ($client->phone)
+                    {{-- A wa.me deep link, not WhatsappSender. A cold reminder
+                         to somebody who has not messaged the studio in the last
+                         24 hours is only deliverable as a Meta-approved
+                         template, and no brand_brief_reminder template exists.
+                         This needs no approval, no token and no send quota, and
+                         leaves the trail in the sender's own WhatsApp.
+
+                         When a template is approved the upgrade is one route:
+                         POST clients/{client}/brief/nudge behind
+                         module:clients,edit calling sendTemplate(). --}}
+                    @php
+                        $nudge = 'Hi '.$client->name.' — before we start writing, could you fill in your brand brief? '
+                            .'It takes about ten minutes: '.route('client.brief');
+                    @endphp
+                    <div class="mb-3 flex flex-wrap items-center gap-2" x-data="{ copied: false }">
+                        <a href="https://wa.me/{{ \App\Services\WhatsappSender::normalise($client->phone) }}?text={{ urlencode($nudge) }}"
+                           target="_blank" rel="noopener"
+                           class="inline-flex items-center gap-1.5 rounded-md bg-brand-400 px-3 py-2 text-xs font-semibold uppercase tracking-widest text-brand-900 hover:bg-brand-500">
+                            Nudge on WhatsApp
+                        </a>
+                        <button type="button"
+                                @click="navigator.clipboard.writeText(@js($nudge)).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
+                                class="text-xs font-semibold uppercase tracking-widest text-gray-500 hover:text-gray-800">
+                            <span x-text="copied ? 'Copied' : 'Copy message'">Copy message</span>
+                        </button>
+                    </div>
+                @endif
+            @endunless
+
+            <div x-show="open">
+                @include('clients._brief', ['brief' => $brief])
+            </div>
+        </x-card>
+
         {{-- Production hours against this client --}}
         <div>
             <h3 class="font-semibold text-brand-900 mb-3">Timesheet hours</h3>

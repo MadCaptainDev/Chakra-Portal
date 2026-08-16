@@ -45,6 +45,26 @@
     </div>
 </div>
 
+{{-- The sector. Also answered by the client on their brand brief, which writes
+     back here -- so this field is how the studio sees and corrects it. --}}
+<div class="mb-4">
+    <x-input-label for="industry_id" value="Industry" />
+    <x-select id="industry_id" name="industry_id" class="mt-1">
+        <option value="">—</option>
+        @foreach ($industries as $industry)
+            <option value="{{ $industry->id }}" @selected((string) old('industry_id', $client->industry_id ?? '') === (string) $industry->id)>
+                {{ $industry->name }}
+            </option>
+        @endforeach
+    </x-select>
+    {{-- Master Data is admin-only, so the link is too. Somebody with the
+         Clients module and nothing else would get a 403 from it. --}}
+    @if (auth()->user()?->isAdmin())
+        <p class="mt-1 text-xs text-gray-500">Managed on <a href="{{ route('taxonomy.index', ['type' => 'industry']) }}" class="text-brand-500 hover:text-brand-600">Master Data</a>.</p>
+    @endif
+    <x-input-error :messages="$errors->get('industry_id')" class="mt-2" />
+</div>
+
 <div class="mb-4">
     <x-input-label for="address" value="Address" />
     <x-text-input id="address" name="address" type="text" class="mt-1 block w-full" value="{{ old('address', $client->address ?? '') }}" />

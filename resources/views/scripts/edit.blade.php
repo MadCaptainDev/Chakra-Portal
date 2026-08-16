@@ -66,6 +66,8 @@
             </x-card>
         </div>
 
+        @include('scripts._brief-drawer')
+
         @include('scripts._editor')
     </div>
 
