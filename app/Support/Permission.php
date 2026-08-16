@@ -36,12 +36,24 @@ class Permission
     public const ABILITY_MANAGE = 'manage';
 
     /**
-     * @var array<string, array{label: string, group: string, abilities: list<string>}>
+     * Every module, and everything the rest of the app needs to know about it.
+     *
+     * This list is the single source of truth. An entry here defines the gates
+     * (AppServiceProvider), the checkboxes on the user form (permission-matrix),
+     * and the sidebar link including its icon (_nav-modules) -- so adding a
+     * module is one entry and one route group, and nothing else.
+     *
+     * `icon` lives here rather than in the Blade for exactly that reason: a map
+     * in the view meant a new module silently fell back to a generic glyph and
+     * looked like every other row until somebody noticed.
+     *
+     * @var array<string, array{label: string, group: string, icon: string, abilities: list<string>}>
      */
     public const MODULES = [
         'scripts' => [
             'label' => 'Scripts',
             'group' => 'Production',
+            'icon' => 'document',
             'abilities' => ['view', 'create', 'edit', 'delete', 'comment', 'approve', 'manage'],
         ],
         /*
@@ -53,11 +65,13 @@ class Permission
         'shoots' => [
             'label' => 'Shoots',
             'group' => 'Production',
+            'icon' => 'camera',
             'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
         'equipment' => [
             'label' => 'Equipment',
             'group' => 'Production',
+            'icon' => 'briefcase',
             'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
         /*
@@ -76,7 +90,106 @@ class Permission
         'clients' => [
             'label' => 'Clients',
             'group' => 'Clients',
+            'icon' => 'users',
             'abilities' => ['view', 'create', 'edit', 'delete', 'credentials', 'manage'],
+        ],
+
+        /*
+         * What the public site shows. Separated from Production because it is
+         * publishing work rather than making work: the person who keeps the
+         * portfolio current is often not the person who shot it.
+         */
+        'portfolio' => [
+            'label' => 'Portfolio',
+            'group' => 'Website',
+            'icon' => 'sparkles',
+            'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
+        ],
+        'team' => [
+            'label' => 'Team Page',
+            'group' => 'Website',
+            'icon' => 'user',
+            'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
+        ],
+
+        /*
+         * Running the studio. Enquiries has no `create` -- the only thing that
+         * writes one is the public form on the landing page, and offering a
+         * checkbox for something nobody can do is how a permission screen
+         * stops being read.
+         */
+        'enquiries' => [
+            'label' => 'Enquiries',
+            'group' => 'Studio',
+            'icon' => 'mail',
+            /*
+             * The unread count next to the link. Declared as a callable pair
+             * rather than a closure because this is a constant -- and declared
+             * here at all so the badge follows the permission: it used to be
+             * hardcoded in the admin half of the sidebar, which meant granting
+             * Enquiries to a producer gave them the screen but not the one cue
+             * that tells them to open it.
+             */
+            'badge' => [\App\Models\Enquiry::class, 'unreadCount'],
+            'abilities' => ['view', 'edit', 'delete', 'manage'],
+        ],
+        'announcements' => [
+            'label' => 'Announcements',
+            'group' => 'Studio',
+            'icon' => 'megaphone',
+            'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
+        ],
+        /*
+         * Everyone's hours, not your own -- your own timesheet is a default and
+         * needs no permission. `manage` is what awards points, which is why it
+         * is separate from merely reading the month.
+         */
+        'timesheets' => [
+            'label' => 'Timesheets',
+            'group' => 'Studio',
+            'icon' => 'clock',
+            'abilities' => ['view', 'manage'],
+        ],
+        /*
+         * The master lists -- platforms, formats, objectives, industries, tags.
+         * Only view and manage: there is no meaningful difference between
+         * adding a tag and editing one, and pretending otherwise would put
+         * four checkboxes on the form where two say the same thing.
+         */
+        'taxonomy' => [
+            'label' => 'Master Data',
+            'group' => 'Studio',
+            'icon' => 'grip',
+            'abilities' => ['view', 'manage'],
+        ],
+
+        /*
+         * The money. Split three ways rather than one "finance" module, because
+         * these are three different jobs and the whole point of granting is
+         * being able to give somebody one of them.
+         *
+         * Salaries is its own module for one reason: it is the only screen here
+         * that tells you what a colleague earns. Folding it in with bills and
+         * EMIs would mean anyone who reconciles the electricity bill also
+         * learns the payroll.
+         */
+        'invoices' => [
+            'label' => 'Invoices',
+            'group' => 'Money',
+            'icon' => 'card',
+            'abilities' => ['view', 'create', 'edit', 'delete', 'approve', 'manage'],
+        ],
+        'expenses' => [
+            'label' => 'Expenses',
+            'group' => 'Money',
+            'icon' => 'wallet',
+            'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
+        ],
+        'salaries' => [
+            'label' => 'Salaries',
+            'group' => 'Money',
+            'icon' => 'trending-down',
+            'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
     ];
 

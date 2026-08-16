@@ -84,47 +84,9 @@
             </x-sidebar-link>
         </x-nav-section>
 
-        <x-nav-section label="Money in">
-            <x-sidebar-link icon="document" :href="route('invoices.index')" :active="request()->routeIs('invoices.*')">
-                Invoices
-            </x-sidebar-link>
-            @if (Route::has('recurring.index'))
-                <x-sidebar-link icon="refresh" :href="route('recurring.index')" :active="request()->routeIs('recurring.*')">
-                    Recurring
-                </x-sidebar-link>
-            @endif
-            {{-- Clients moved to the module list below: it is permissioned
-                 now, and having it in two places would show admins two links
-                 to the same screen. --}}
-            @if (Route::has('enquiries.index'))
-                @php $unreadEnquiries = \App\Models\Enquiry::unreadCount(); @endphp
-                <x-sidebar-link icon="mail" :href="route('enquiries.index')" :active="request()->routeIs('enquiries.*')">
-                    Enquiries
-                    @if ($unreadEnquiries > 0)
-                        <span class="ml-auto shrink-0 inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-brand-400 text-brand-900 text-[11px] font-bold">
-                            {{ $unreadEnquiries > 99 ? '99+' : $unreadEnquiries }}
-                        </span>
-                    @endif
-                </x-sidebar-link>
-            @endif
-        </x-nav-section>
-
-        <x-nav-section label="Money out">
-            <x-sidebar-link icon="card" :href="route('expenses.index')"
-                            :active="request()->routeIs('expenses.*', 'salaries.*', 'bills.*', 'emi.*', 'other.*')">
-                Expenses
-            </x-sidebar-link>
-        </x-nav-section>
-
         <x-nav-section label="Team">
             <x-sidebar-link icon="check-circle" :href="route('todos.index')" :active="request()->routeIs('todos.index')">
                 To-dos
-            </x-sidebar-link>
-            <x-sidebar-link icon="clock" :href="route('timesheets.index')" :active="request()->routeIs('timesheets.*')">
-                Timesheets
-            </x-sidebar-link>
-            <x-sidebar-link icon="megaphone" :href="route('announcements.index')" :active="request()->routeIs('announcements.*')">
-                Announcements
             </x-sidebar-link>
             @if (Route::has('users.index'))
                 <x-sidebar-link icon="user" :href="route('users.index')" :active="request()->routeIs('users.*')">
@@ -134,18 +96,15 @@
         </x-nav-section>
 
         {{-- Same partial as the employee branch: an admin passes every gate,
-             so they see every module without a second list to maintain. --}}
-        @include('layouts._nav-modules')
+             so they see every module without a second list to maintain.
 
-        <x-nav-section label="Website">
-            <x-sidebar-link icon="sparkles" :href="route('portfolio.index')"
-                            :active="request()->routeIs('portfolio.*', 'portfolio-categories.*')">
-                Portfolio
-            </x-sidebar-link>
-            <x-sidebar-link icon="users" :href="route('team.index')" :active="request()->routeIs('team.*')">
-                Team
-            </x-sidebar-link>
-        </x-nav-section>
+             Invoices, Enquiries, Expenses, Salaries, Timesheets, Announcements,
+             Portfolio, Team and Master Data all used to be hardcoded above.
+             They are permissioned modules now, and listing them in two places
+             would show an admin two links to the same screen. What stays here
+             is what the registry cannot describe: an admin-only screen, or a
+             personal one that nobody needs granting for. --}}
+        @include('layouts._nav-modules')
 
         <x-nav-section label="Setup">
             <x-sidebar-link icon="cog" :href="route('settings.edit')" :active="request()->routeIs('settings.*')">

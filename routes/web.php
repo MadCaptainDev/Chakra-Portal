@@ -356,68 +356,210 @@ Route::middleware(['auth', 'module:equipment,view'])->group(function () {
 });
 
 /*
+ * Website content: what the public landing page and /portfolio show.
+ * The paths are prefixed so neither can shadow the public /portfolio route.
+ */
+Route::middleware(['auth', 'module:portfolio,view'])->group(function () {
+    Route::get('portfolio-items', [PortfolioItemController::class, 'index'])->name('portfolio.index');
+    Route::get('portfolio-items/create', [PortfolioItemController::class, 'create'])
+        ->middleware('module:portfolio,create')->name('portfolio.create');
+    Route::post('portfolio-items', [PortfolioItemController::class, 'store'])
+        ->middleware('module:portfolio,create')->name('portfolio.store');
+    Route::get('portfolio-items/{portfolio}/edit', [PortfolioItemController::class, 'edit'])
+        ->middleware('module:portfolio,edit')->name('portfolio.edit');
+    Route::put('portfolio-items/{portfolio}', [PortfolioItemController::class, 'update'])
+        ->middleware('module:portfolio,edit')->name('portfolio.update');
+    Route::delete('portfolio-items/{portfolio}', [PortfolioItemController::class, 'destroy'])
+        ->middleware('module:portfolio,delete')->name('portfolio.destroy');
+
+    /*
+     * Categories sit behind `manage` rather than `edit`. Renaming a category
+     * re-labels every piece filed under it on the public site, which is a
+     * different act from correcting one case study.
+     */
+    Route::middleware('module:portfolio,manage')->group(function () {
+        Route::get('portfolio-categories', [PortfolioCategoryController::class, 'index'])->name('portfolio-categories.index');
+        Route::post('portfolio-categories', [PortfolioCategoryController::class, 'store'])->name('portfolio-categories.store');
+        Route::put('portfolio-categories/{portfolioCategory}', [PortfolioCategoryController::class, 'update'])->name('portfolio-categories.update');
+        Route::delete('portfolio-categories/{portfolioCategory}', [PortfolioCategoryController::class, 'destroy'])->name('portfolio-categories.destroy');
+    });
+});
+
+Route::middleware(['auth', 'module:team,view'])->group(function () {
+    Route::get('team', [TeamMemberController::class, 'index'])->name('team.index');
+    Route::post('team', [TeamMemberController::class, 'store'])
+        ->middleware('module:team,create')->name('team.store');
+    Route::put('team/{team}', [TeamMemberController::class, 'update'])
+        ->middleware('module:team,edit')->name('team.update');
+    Route::delete('team/{team}', [TeamMemberController::class, 'destroy'])
+        ->middleware('module:team,delete')->name('team.destroy');
+});
+
+/*
+ * Master lists shared across the app -- platforms, formats, objectives,
+ * service types, industries and tags, all one screen switched by ?type=.
+ * Everything behind `manage`: these lists feed dropdowns everywhere, so
+ * renaming one term reaches screens the person editing it may never open.
+ */
+Route::middleware(['auth', 'module:taxonomy,view'])->group(function () {
+    Route::get('master-data', [TaxonomyTermController::class, 'index'])->name('taxonomy.index');
+
+    Route::middleware('module:taxonomy,manage')->group(function () {
+        Route::post('master-data', [TaxonomyTermController::class, 'store'])->name('taxonomy.store');
+        Route::put('master-data/{taxonomyTerm}', [TaxonomyTermController::class, 'update'])->name('taxonomy.update');
+        Route::delete('master-data/{taxonomyTerm}', [TaxonomyTermController::class, 'destroy'])->name('taxonomy.destroy');
+    });
+});
+
+// Staff-side inbox for the landing page's enquiry form. No `create`: the only
+// thing that writes an enquiry is the public form.
+Route::middleware(['auth', 'module:enquiries,view'])->group(function () {
+    Route::get('enquiries', [EnquiryController::class, 'index'])->name('enquiries.index');
+    Route::get('enquiries/{enquiry}', [EnquiryController::class, 'show'])->name('enquiries.show');
+    Route::patch('enquiries/{enquiry}/handled', [EnquiryController::class, 'toggleHandled'])
+        ->middleware('module:enquiries,edit')->name('enquiries.handled');
+    Route::delete('enquiries/{enquiry}', [EnquiryController::class, 'destroy'])
+        ->middleware('module:enquiries,delete')->name('enquiries.destroy');
+});
+
+Route::middleware(['auth', 'module:announcements,view'])->group(function () {
+    Route::get('announcements', [AnnouncementController::class, 'index'])->name('announcements.index');
+    Route::post('announcements', [AnnouncementController::class, 'store'])
+        ->middleware('module:announcements,create')->name('announcements.store');
+    Route::put('announcements/{announcement}', [AnnouncementController::class, 'update'])
+        ->middleware('module:announcements,edit')->name('announcements.update');
+    Route::delete('announcements/{announcement}', [AnnouncementController::class, 'destroy'])
+        ->middleware('module:announcements,delete')->name('announcements.destroy');
+});
+
+/*
+ * Everyone's hours. Your own timesheet is not here -- it is a default every
+ * account has, under /my. Awarding points is `manage`, because handing out
+ * points is a supervisor's act rather than a reader's.
+ */
+Route::middleware(['auth', 'module:timesheets,view'])->group(function () {
+    Route::get('timesheets', [TimesheetAdminController::class, 'index'])->name('timesheets.index');
+    Route::get('timesheets/{employee}', [TimesheetAdminController::class, 'show'])->name('timesheets.show');
+    Route::post('timesheets/{employee}/points', [TimesheetAdminController::class, 'award'])
+        ->middleware('module:timesheets,manage')->name('timesheets.award');
+});
+
+/*
+ * Money in. recurring.catchup rides along because opening the invoice list is
+ * what generates any recurring invoices that have fallen due -- see the
+ * middleware for why it is not a scheduled job.
+ */
+Route::middleware(['auth', 'module:invoices,view', 'recurring.catchup'])->group(function () {
+    Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
+    Route::post('invoices/download-pdfs', [InvoiceController::class, 'downloadPdfs'])->name('invoices.download-pdfs');
+
+    /*
+     * Declared before invoices/{invoice}: Laravel matches in declaration
+     * order, so a literal path registered after the wildcard is never reached
+     * -- /invoices/create would be read as a request to show invoice "create".
+     */
+    Route::middleware('module:invoices,create')->group(function () {
+        Route::get('invoices/create', [InvoiceController::class, 'create'])->name('invoices.create');
+        Route::post('invoices', [InvoiceController::class, 'store'])->name('invoices.store');
+        Route::post('invoices/{invoice}/duplicate', [InvoiceController::class, 'duplicate'])->name('invoices.duplicate');
+    });
+
+    Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show');
+    Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'pdf'])->name('invoices.pdf');
+    Route::get('invoices/{invoice}/preview', [InvoiceController::class, 'preview'])->name('invoices.preview');
+
+    Route::middleware('module:invoices,edit')->group(function () {
+        Route::get('invoices/{invoice}/edit', [InvoiceController::class, 'edit'])->name('invoices.edit');
+        Route::put('invoices/{invoice}', [InvoiceController::class, 'update'])->name('invoices.update');
+        Route::patch('invoices/{invoice}', [InvoiceController::class, 'update']);
+        Route::post('invoices/{invoice}/payments', [PaymentController::class, 'store'])->name('payments.store');
+        Route::delete('payments/{payment}', [PaymentController::class, 'destroy'])->name('payments.destroy');
+    });
+
+    // Approving is its own ability: whoever raises an invoice should not
+    // necessarily be the one who signs it off.
+    Route::post('invoices/{invoice}/approve', [InvoiceController::class, 'approve'])
+        ->middleware('module:invoices,approve')->name('invoices.approve');
+
+    Route::middleware('module:invoices,delete')->group(function () {
+        Route::delete('invoices/{invoice}', [InvoiceController::class, 'destroy'])->name('invoices.destroy');
+        Route::delete('invoices/{invoice}/discard', [InvoiceController::class, 'discard'])->name('invoices.discard');
+    });
+
+    // Standing arrangements rather than one-off bills, so `manage`.
+    Route::middleware('module:invoices,manage')->group(function () {
+        Route::resource('recurring', RecurringInvoiceController::class)->except('show');
+        Route::patch('recurring/{recurring}/toggle', [RecurringInvoiceController::class, 'toggle'])->name('recurring.toggle');
+    });
+});
+
+/*
+ * Money out, minus payroll. Salaries is a separate module because it is the
+ * only screen here that tells you what a colleague earns.
+ */
+Route::middleware(['auth', 'module:expenses,view'])->group(function () {
+    // Combined month overview.
+    Route::get('expenses', [ExpenseController::class, 'index'])->name('expenses.index');
+    // Retired: each type now manages itself in its own module.
+    Route::redirect('expenses/manage', 'expenses')->name('expenses.manage');
+
+    Route::get('emi', [EmiController::class, 'index'])->name('emi.index');
+    Route::get('bills', [BillController::class, 'index'])->name('bills.index');
+    Route::get('other', [OtherExpenseController::class, 'index'])->name('other.index');
+
+    // Paying is `edit`: it changes a record's state rather than creating one.
+    Route::middleware('module:expenses,edit')->group(function () {
+        Route::post('expenses/pay-all', [ExpenseController::class, 'payAll'])->name('expenses.pay-all');
+        Route::post('expenses/{expense}/pay', [ExpenseController::class, 'pay'])->name('expenses.pay');
+        Route::post('emi/{emi}/pay', [EmiController::class, 'pay'])->name('emi.pay');
+        Route::put('emi/{emi}', [EmiController::class, 'update'])->name('emi.update');
+        Route::post('bills/{bill}/pay', [BillController::class, 'pay'])->name('bills.pay');
+        Route::put('bills/{bill}', [BillController::class, 'update'])->name('bills.update');
+        Route::put('other/{other}', [OtherExpenseController::class, 'update'])->name('other.update');
+    });
+
+    Route::middleware('module:expenses,create')->group(function () {
+        Route::post('emi', [EmiController::class, 'store'])->name('emi.store');
+        Route::post('bills', [BillController::class, 'store'])->name('bills.store');
+        Route::post('other', [OtherExpenseController::class, 'store'])->name('other.store');
+    });
+
+    Route::middleware('module:expenses,delete')->group(function () {
+        Route::delete('emi/{emi}', [EmiController::class, 'destroy'])->name('emi.destroy');
+        Route::delete('bills/{bill}', [BillController::class, 'destroy'])->name('bills.destroy');
+        Route::delete('other/{other}', [OtherExpenseController::class, 'destroy'])->name('other.destroy');
+    });
+});
+
+Route::middleware(['auth', 'module:salaries,view'])->group(function () {
+    Route::get('salaries', [SalaryController::class, 'index'])->name('salaries.index');
+    Route::get('salaries/{salary}', [SalaryController::class, 'show'])->name('salaries.show');
+
+    Route::post('salaries', [SalaryController::class, 'store'])
+        ->middleware('module:salaries,create')->name('salaries.store');
+
+    Route::middleware('module:salaries,edit')->group(function () {
+        Route::post('salaries/pay-all', [SalaryController::class, 'payAll'])->name('salaries.pay-all');
+        Route::post('salaries/{salary}/pay', [SalaryController::class, 'pay'])->name('salaries.pay');
+        Route::put('salaries/{salary}', [SalaryController::class, 'update'])->name('salaries.update');
+    });
+
+    Route::delete('salaries/{salary}', [SalaryController::class, 'destroy'])
+        ->middleware('module:salaries,delete')->name('salaries.destroy');
+});
+
+/*
  * Everything below is admin-only. The guard sits on the group so a new admin
  * route is protected by default rather than by remembering to add it.
  */
 Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    // Staff-side inbox for the landing page's enquiry form.
-    Route::get('enquiries', [EnquiryController::class, 'index'])->name('enquiries.index');
-    Route::get('enquiries/{enquiry}', [EnquiryController::class, 'show'])->name('enquiries.show');
-    Route::patch('enquiries/{enquiry}/handled', [EnquiryController::class, 'toggleHandled'])->name('enquiries.handled');
-    Route::delete('enquiries/{enquiry}', [EnquiryController::class, 'destroy'])->name('enquiries.destroy');
-
     // JSON endpoints behind the invoice form's client modal. Both POST: a
     // JSON body carries no _method field for Laravel to spoof PUT from.
     // These stay admin-only -- they exist for the invoice form, which is.
     Route::post('clients/quick', [ClientController::class, 'quickStore'])->name('clients.quick-store');
     Route::post('clients/{client}/quick', [ClientController::class, 'quickUpdate'])->name('clients.quick-update');
-
-    // Combined month overview.
-    Route::get('expenses', [ExpenseController::class, 'index'])->name('expenses.index');
-    Route::post('expenses/pay-all', [ExpenseController::class, 'payAll'])->name('expenses.pay-all');
-    Route::post('expenses/{expense}/pay', [ExpenseController::class, 'pay'])->name('expenses.pay');
-    // Retired: each type now manages itself in its own module.
-    Route::redirect('expenses/manage', 'expenses')->name('expenses.manage');
-
-    Route::get('emi', [EmiController::class, 'index'])->name('emi.index');
-    Route::post('emi', [EmiController::class, 'store'])->name('emi.store');
-    Route::post('emi/{emi}/pay', [EmiController::class, 'pay'])->name('emi.pay');
-    Route::put('emi/{emi}', [EmiController::class, 'update'])->name('emi.update');
-    Route::delete('emi/{emi}', [EmiController::class, 'destroy'])->name('emi.destroy');
-
-    Route::get('salaries', [SalaryController::class, 'index'])->name('salaries.index');
-    Route::post('salaries', [SalaryController::class, 'store'])->name('salaries.store');
-    Route::post('salaries/pay-all', [SalaryController::class, 'payAll'])->name('salaries.pay-all');
-    Route::post('salaries/{salary}/pay', [SalaryController::class, 'pay'])->name('salaries.pay');
-    Route::get('salaries/{salary}', [SalaryController::class, 'show'])->name('salaries.show');
-    Route::put('salaries/{salary}', [SalaryController::class, 'update'])->name('salaries.update');
-    Route::delete('salaries/{salary}', [SalaryController::class, 'destroy'])->name('salaries.destroy');
-
-    Route::get('bills', [BillController::class, 'index'])->name('bills.index');
-    Route::post('bills', [BillController::class, 'store'])->name('bills.store');
-    Route::post('bills/{bill}/pay', [BillController::class, 'pay'])->name('bills.pay');
-    Route::put('bills/{bill}', [BillController::class, 'update'])->name('bills.update');
-    Route::delete('bills/{bill}', [BillController::class, 'destroy'])->name('bills.destroy');
-
-    Route::get('other', [OtherExpenseController::class, 'index'])->name('other.index');
-    Route::post('other', [OtherExpenseController::class, 'store'])->name('other.store');
-    Route::put('other/{other}', [OtherExpenseController::class, 'update'])->name('other.update');
-    Route::delete('other/{other}', [OtherExpenseController::class, 'destroy'])->name('other.destroy');
-
-    Route::resource('invoices', InvoiceController::class);
-    Route::post('invoices/download-pdfs', [InvoiceController::class, 'downloadPdfs'])->name('invoices.download-pdfs');
-    Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'pdf'])->name('invoices.pdf');
-    Route::get('invoices/{invoice}/preview', [InvoiceController::class, 'preview'])->name('invoices.preview');
-    Route::post('invoices/{invoice}/duplicate', [InvoiceController::class, 'duplicate'])->name('invoices.duplicate');
-    Route::post('invoices/{invoice}/approve', [InvoiceController::class, 'approve'])->name('invoices.approve');
-    Route::delete('invoices/{invoice}/discard', [InvoiceController::class, 'discard'])->name('invoices.discard');
-    Route::post('invoices/{invoice}/payments', [PaymentController::class, 'store'])->name('payments.store');
-    Route::delete('payments/{payment}', [PaymentController::class, 'destroy'])->name('payments.destroy');
-
-    Route::resource('recurring', RecurringInvoiceController::class)->except('show');
-    Route::patch('recurring/{recurring}/toggle', [RecurringInvoiceController::class, 'toggle'])->name('recurring.toggle');
 
     Route::get('settings', [SettingsController::class, 'edit'])->name('settings.edit');
     Route::put('settings', [SettingsController::class, 'update'])->name('settings.update');
@@ -447,43 +589,6 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
      * make on purpose rather than by ticking a permission box.
      */
     Route::get('editors', [EditorOutputController::class, 'index'])->name('editors.index');
-
-    Route::get('timesheets', [TimesheetAdminController::class, 'index'])->name('timesheets.index');
-    Route::get('timesheets/{employee}', [TimesheetAdminController::class, 'show'])->name('timesheets.show');
-    Route::post('timesheets/{employee}/points', [TimesheetAdminController::class, 'award'])->name('timesheets.award');
-
-    /*
-     * Website content: what the public landing page and /portfolio show.
-     * The paths are prefixed so neither can shadow the public /portfolio route.
-     */
-    Route::get('portfolio-items', [PortfolioItemController::class, 'index'])->name('portfolio.index');
-    Route::get('portfolio-items/create', [PortfolioItemController::class, 'create'])->name('portfolio.create');
-    Route::post('portfolio-items', [PortfolioItemController::class, 'store'])->name('portfolio.store');
-    Route::get('portfolio-items/{portfolio}/edit', [PortfolioItemController::class, 'edit'])->name('portfolio.edit');
-    Route::put('portfolio-items/{portfolio}', [PortfolioItemController::class, 'update'])->name('portfolio.update');
-    Route::delete('portfolio-items/{portfolio}', [PortfolioItemController::class, 'destroy'])->name('portfolio.destroy');
-
-    Route::get('portfolio-categories', [PortfolioCategoryController::class, 'index'])->name('portfolio-categories.index');
-    Route::post('portfolio-categories', [PortfolioCategoryController::class, 'store'])->name('portfolio-categories.store');
-    Route::put('portfolio-categories/{portfolioCategory}', [PortfolioCategoryController::class, 'update'])->name('portfolio-categories.update');
-    Route::delete('portfolio-categories/{portfolioCategory}', [PortfolioCategoryController::class, 'destroy'])->name('portfolio-categories.destroy');
-
-    // Master lists shared across the app -- platforms, formats, objectives,
-    // service types, industries and tags, all one screen switched by ?type=.
-    Route::get('master-data', [TaxonomyTermController::class, 'index'])->name('taxonomy.index');
-    Route::post('master-data', [TaxonomyTermController::class, 'store'])->name('taxonomy.store');
-    Route::put('master-data/{taxonomyTerm}', [TaxonomyTermController::class, 'update'])->name('taxonomy.update');
-    Route::delete('master-data/{taxonomyTerm}', [TaxonomyTermController::class, 'destroy'])->name('taxonomy.destroy');
-
-    Route::get('team', [TeamMemberController::class, 'index'])->name('team.index');
-    Route::post('team', [TeamMemberController::class, 'store'])->name('team.store');
-    Route::put('team/{team}', [TeamMemberController::class, 'update'])->name('team.update');
-    Route::delete('team/{team}', [TeamMemberController::class, 'destroy'])->name('team.destroy');
-
-    Route::get('announcements', [AnnouncementController::class, 'index'])->name('announcements.index');
-    Route::post('announcements', [AnnouncementController::class, 'store'])->name('announcements.store');
-    Route::put('announcements/{announcement}', [AnnouncementController::class, 'update'])->name('announcements.update');
-    Route::delete('announcements/{announcement}', [AnnouncementController::class, 'destroy'])->name('announcements.destroy');
 
     Route::resource('users', UserController::class)->except(['show']);
     Route::put('users/{user}/password', [UserController::class, 'updatePassword'])->name('users.password');
