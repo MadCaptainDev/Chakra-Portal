@@ -34,5 +34,19 @@ abstract class TestCase extends BaseTestCase
                 .'Run `php artisan config:clear` first (and `php artisan config:cache` again afterwards).'
             );
         }
+
+        /*
+         * Per-request caches, cleared per test.
+         *
+         * These are static properties holding master data for the life of a
+         * request, which is correct in production and wrong in a suite: the
+         * whole file runs in one process, RefreshDatabase rebuilds the tables
+         * between tests, and static properties survive that. A test that
+         * retires a task type left every later test in the process unable to
+         * select it -- a failure that passes in isolation and only appears in
+         * a full run, which is the worst kind to chase.
+         */
+        \App\Models\TimesheetEntry::flushTaskTypes();
+        \App\Support\BrandBrief::flush();
     }
 }
