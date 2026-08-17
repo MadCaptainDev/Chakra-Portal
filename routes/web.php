@@ -21,6 +21,8 @@ use App\Http\Controllers\EmiController;
 use App\Http\Controllers\EnquiryController;
 use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\InstagramConnectionController;
+use App\Http\Controllers\InstagramSettingController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoiceTemplateController;
 use App\Http\Controllers\LandingController;
@@ -114,6 +116,17 @@ Route::middleware('auth')->group(function () {
     Route::post('/profile/mcp-tokens', [McpTokenController::class, 'store'])->name('mcp-tokens.store');
     Route::delete('/profile/mcp-tokens/{token}', [McpTokenController::class, 'destroy'])->name('mcp-tokens.destroy');
 });
+
+/*
+ * Where Instagram returns a client after they authorise.
+ *
+ * One fixed path with no {client}, because Meta matches the redirect URI
+ * exactly. Which client this belongs to comes from the session, never the URL
+ * -- see InstagramConnectionController for why that distinction is the whole
+ * security design.
+ */
+Route::middleware('auth')->get('oauth/instagram/callback', [InstagramConnectionController::class, 'callback'])
+    ->name('instagram.callback');
 
 /*
  * Employee area. Employees have logins only so they can fill in their own
@@ -367,6 +380,23 @@ Route::middleware(['auth', 'module:clients,view'])->scopeBindings()->group(funct
     });
 
     /*
+     * Connecting a client's Instagram account.
+     *
+     * Behind `manage`, matching the client-login routes: authorising the
+     * studio to read somebody's Instagram is the same order of act as issuing
+     * them a password, and a bigger one than correcting a phone number.
+     *
+     * The callback is registered separately below -- Meta allows one exact
+     * redirect URI, so it cannot carry a {client}.
+     */
+    Route::middleware('module:clients,manage')->group(function () {
+        Route::post('clients/{client}/social/instagram/connect', [InstagramConnectionController::class, 'connect'])
+            ->name('instagram.connect');
+        Route::delete('clients/{client}/social/instagram', [InstagramConnectionController::class, 'destroy'])
+            ->name('instagram.disconnect');
+    });
+
+    /*
      * Issuing and revoking a client's login. Behind `manage` rather than
      * `edit`, because it creates a user account that can sign in -- a bigger
      * act than correcting a phone number.
@@ -614,6 +644,9 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
      * question changes what every client of the studio is asked, which is not
      * per-client work and is not delegated a piece at a time.
      */
+    Route::get('instagram-settings', [InstagramSettingController::class, 'edit'])->name('instagram-settings.edit');
+    Route::put('instagram-settings', [InstagramSettingController::class, 'update'])->name('instagram-settings.update');
+
     Route::get('brief-questions', [BriefQuestionController::class, 'index'])->name('brief-questions.index');
     Route::post('brief-questions', [BriefQuestionController::class, 'store'])->name('brief-questions.store');
     Route::put('brief-questions/{briefQuestion}', [BriefQuestionController::class, 'update'])->name('brief-questions.update');

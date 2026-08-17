@@ -23,6 +23,8 @@
                 'brief' => ['label' => 'Brand Brief', 'count' => $client->brief?->exists
                     ? $client->brief->requiredAnswered().'/'.$client->brief->requiredTotal()
                     : null],
+                'social' => ['label' => 'Social Media', 'count' => $client->socialAccounts
+                    ->where('status', App\Models\SocialAccount::STATUS_CONNECTED)->count() ?: null],
                 'credentials' => auth()->user()->can('clients.credentials')
                     ? ['label' => 'Logins We Hold', 'count' => $client->credentials()->count() ?: null]
                     : null,
@@ -287,6 +289,10 @@
             @endif
         </div>
 
+        </div>
+
+        <div x-show="tab === 'social'" x-cloak class="space-y-6">
+        @include('clients._social')
         </div>
 
         <div x-show="tab === 'credentials'" x-cloak class="space-y-6">

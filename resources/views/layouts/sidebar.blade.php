@@ -113,6 +113,9 @@
             <x-sidebar-link icon="chat" :href="route('whatsapp.edit')" :active="request()->routeIs('whatsapp.*')">
                 WhatsApp
             </x-sidebar-link>
+            <x-sidebar-link icon="sparkles" :href="route('instagram-settings.edit')" :active="request()->routeIs('instagram-settings.*')">
+                Instagram
+            </x-sidebar-link>
             <x-sidebar-link icon="inbox" :href="route('brief-questions.index')" :active="request()->routeIs('brief-questions.*')">
                 Brief Questions
             </x-sidebar-link>

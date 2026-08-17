@@ -33,6 +33,17 @@ class Client extends Model
         return $this->logo_path ? asset($this->logo_path) : null;
     }
 
+    /**
+     * The social accounts the studio has been authorised to read for them.
+     *
+     * hasMany rather than hasOne: one client will eventually connect Instagram
+     * and YouTube, and the day that happens should not be a migration.
+     */
+    public function socialAccounts(): HasMany
+    {
+        return $this->hasMany(SocialAccount::class);
+    }
+
     public function invoices(): HasMany
     {
         return $this->hasMany(Invoice::class);
