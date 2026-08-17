@@ -68,7 +68,7 @@ class TimesheetStats
             ->values()
             ->all();
 
-        $taskTypes = collect(TimesheetEntry::TASK_TYPES)->map(function (string $label, string $key) use ($counted) {
+        $taskTypes = collect(TimesheetEntry::taskTypes())->map(function (string $label, string $key) use ($counted) {
             $group = $counted->where('task_type', $key);
 
             return [
@@ -102,7 +102,7 @@ class TimesheetStats
             return [
                 'minutes' => 0,
                 'entries' => 0,
-                'byType' => collect(TimesheetEntry::TASK_TYPES)->map(fn (string $label, string $key) => [
+                'byType' => collect(TimesheetEntry::taskTypes())->map(fn (string $label, string $key) => [
                     'key' => $key,
                     'label' => $label,
                     'minutes' => 0,
@@ -120,7 +120,7 @@ class TimesheetStats
 
         $entries = $query->get();
 
-        $byType = collect(TimesheetEntry::TASK_TYPES)->map(function (string $label, string $key) use ($entries) {
+        $byType = collect(TimesheetEntry::taskTypes())->map(function (string $label, string $key) use ($entries) {
             return [
                 'key' => $key,
                 'label' => $label,

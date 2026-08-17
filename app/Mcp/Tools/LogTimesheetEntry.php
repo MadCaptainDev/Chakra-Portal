@@ -45,7 +45,7 @@ class LogTimesheetEntry extends Tool
             'date' => ['type' => 'string', 'format' => 'date', 'description' => 'The day it was worked, YYYY-MM-DD. Defaults to today.'],
             'type' => [
                 'type' => 'string',
-                'enum' => array_keys(TimesheetEntry::TASK_TYPES),
+                'enum' => array_keys(TimesheetEntry::taskTypes()),
                 'description' => 'Kind of work. Guessed from the task name if omitted.',
             ],
             'client' => ['type' => 'string', 'description' => 'Which client it was for. Use the exact client name; there is a catch-all for work spanning several.'],

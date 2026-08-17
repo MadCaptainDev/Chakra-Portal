@@ -10,7 +10,7 @@
     // the same work is not typed twice. Only ever seeds a new entry.
     $initialTask = old('task', $entry->task ?? ($entry ? '' : (string) request('task')));
     // Prefer stored/posted type; otherwise suggest from task text for new rows.
-    if ($currentType === '' || ! array_key_exists($currentType, \App\Models\TimesheetEntry::TASK_TYPES)) {
+    if ($currentType === '' || ! array_key_exists($currentType, \App\Models\TimesheetEntry::taskTypes())) {
         $currentType = $entry
             ? ($entry->task_type ?: \App\Models\TimesheetEntry::TASK_OTHER)
             : \App\Models\TimesheetEntry::inferTaskType($initialTask);
@@ -74,7 +74,7 @@
             <x-input-label :for="'ts_type_'.$uid" value="Type" />
             <x-select :id="'ts_type_'.$uid" name="task_type" class="mt-1" required
                       x-model="taskType" @change="typeTouched = true">
-                @foreach (\App\Models\TimesheetEntry::TASK_TYPES as $value => $label)
+                @foreach (\App\Models\TimesheetEntry::taskTypes() as $value => $label)
                     <option value="{{ $value }}">{{ $label }}</option>
                 @endforeach
             </x-select>

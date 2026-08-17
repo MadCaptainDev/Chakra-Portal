@@ -37,6 +37,8 @@ class TaxonomyTerm extends Model
 
     public const TYPE_EQUIPMENT_CATEGORY = 'equipment_category';
 
+    public const TYPE_TASK_TYPE = 'task_type';
+
     /**
      * The lists, in the order the master-data screen shows them.
      *
@@ -91,6 +93,11 @@ class TaxonomyTerm extends Model
             'label' => 'Equipment category',
             'plural' => 'Equipment categories',
             'hint' => 'How the kit register is grouped — camera, lens, lighting, audio, grip.',
+        ],
+        self::TYPE_TASK_TYPE => [
+            'label' => 'Task type',
+            'plural' => 'Task types',
+            'hint' => 'What a timesheet entry was — shooting, editing, posting. The SLUG is what every entry stores, so renaming a term is safe but changing its slug would orphan the hours already logged against it.',
         ],
     ];
 

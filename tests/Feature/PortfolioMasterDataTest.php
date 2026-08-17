@@ -45,7 +45,7 @@ class PortfolioMasterDataTest extends TestCase
             'is_active' => '1',
         ])->assertRedirect(route('taxonomy.index', ['type' => TaxonomyTerm::TYPE_PLATFORM]));
 
-        $term = TaxonomyTerm::firstOrFail();
+        $term = TaxonomyTerm::where('type', TaxonomyTerm::TYPE_PLATFORM)->firstOrFail();
 
         $this->assertSame('instagram-reels', $term->slug);
         $this->assertTrue($term->is_active);
@@ -72,7 +72,12 @@ class PortfolioMasterDataTest extends TestCase
             'name' => 'Instagram Reels',
         ])->assertSessionHasNoErrors();
 
-        $this->assertSame(2, TaxonomyTerm::count());
+        // Scoped to the two lists under test: task types are seeded by a
+        // migration, so a bare count() is counting somebody else's rows.
+        $this->assertSame(2, TaxonomyTerm::whereIn('type', [
+            TaxonomyTerm::TYPE_PLATFORM,
+            TaxonomyTerm::TYPE_TAG,
+        ])->count());
     }
 
     public function test_retiring_a_term_hides_it_from_pickers_but_not_from_the_work_using_it(): void

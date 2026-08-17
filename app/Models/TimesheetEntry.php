@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
 use Illuminate\Support\Carbon;
 
 class TimesheetEntry extends Model
@@ -156,9 +157,64 @@ class TimesheetEntry extends Model
         return implode(' ', $parts);
     }
 
+    /**
+     * The task types on offer, from master data.
+     *
+     * Keyed by SLUG, because the slug is what an entry stores. Renaming a term
+     * relabels every past entry, which is what somebody tidying the list
+     * expects; the slug is fixed at creation so the hours stay attached.
+     *
+     * TASK_TYPES is the fallback rather than the source, so a fresh database
+     * -- or one mid-migration -- still has a working form instead of an empty
+     * dropdown.
+     *
+     * @return array<string, string>
+     */
+    public static function taskTypes(): array
+    {
+        if (self::$taskTypes !== null) {
+            return self::$taskTypes;
+        }
+
+        $types = null;
+
+        try {
+            $types = TaxonomyTerm::query()
+                ->where('type', TaxonomyTerm::TYPE_TASK_TYPE)
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->pluck('name', 'slug')
+                ->all();
+        } catch (\Throwable) {
+            return self::$taskTypes = self::TASK_TYPES;
+        }
+
+        return self::$taskTypes = $types ?: self::TASK_TYPES;
+    }
+
+    /**
+     * The per-request cache. A class property rather than a method static so
+     * it can actually be cleared -- the master-data screen has to see its own
+     * edit, and tests create terms and read the list back.
+     *
+     * @var array<string, string>|null
+     */
+    private static ?array $taskTypes = null;
+
+    public static function flushTaskTypes(): void
+    {
+        self::$taskTypes = null;
+    }
+
     public function taskTypeLabel(): string
     {
-        return self::TASK_TYPES[$this->task_type] ?? 'Other Task';
+        // Falls back to the stored slug rather than "Other Task": an entry
+        // logged against a type that has since been retired should say what it
+        // was, not be quietly relabelled as something else.
+        return self::taskTypes()[$this->task_type]
+            ?? self::TASK_TYPES[$this->task_type]
+            ?? Str::headline((string) $this->task_type ?: 'Other Task');
     }
 
     /**

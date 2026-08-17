@@ -170,7 +170,7 @@ class TimesheetController extends Controller
         $data = $request->validate([
             'worked_on' => ['required', 'date'],
             'task' => ['required', 'string', 'max:255'],
-            'task_type' => ['required', Rule::in(array_keys(TimesheetEntry::TASK_TYPES))],
+            'task_type' => ['required', Rule::in(array_keys(TimesheetEntry::taskTypes()))],
             'venture' => TimesheetVenture::validationRules(),
             'started_at' => ['nullable', 'date_format:H:i'],
             'ended_at' => ['nullable', 'date_format:H:i'],
