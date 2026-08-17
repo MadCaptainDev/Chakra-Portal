@@ -71,6 +71,18 @@ class InstagramConnectionTest extends TestCase
                 'account_type' => 'BUSINESS',
                 'followers_count' => 4210,
                 'media_count' => 312,
+                // A realistic-length signed CDN URL. The first live connection
+                // (thechakra_productions) failed here: the column was 500
+                // chars and Instagram's real URLs run past 600. Left long on
+                // purpose so a regression in the column width fails loudly
+                // instead of only in production.
+                'profile_picture_url' => 'https://scontent-bom5-1.cdninstagram.com/v/t51.82787-19/'
+                    .'560346598_17850158463565470_8731637826199421232_n.jpg?stp=dst-jpg_s206x206_tt6'
+                    .'&_nc_cat=111&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDI0LkMzIn0'
+                    .'&_nc_ohc=7VX1Og4LyLoQ7kNvwGjFT6w&_nc_oc=AdphbtNZ9P5t68U9BATLGygKKw5qXcQ-BiM4CB8SzLLxlkxxDsc1oCiwzUerapEyI7IImiXPitoHScUKS3GnXJym'
+                    .'&_nc_zt=24&_nc_ht=scontent-bom5-1.cdninstagram.com&edm=AP4hL3IEAAAA'
+                    .'&_nc_gid=0mB33WPuVf4FpKwQo83WqA&_nc_tpa=Q5bMBQLYbDk6xz8bgOE3-PlwNgb5b-c-2mjsYXWaKWk8Gw4gfFqNytM0ozvPVJ-D1j-RWc9il0ohx7A8Bw'
+                    .'&oh=00_AQGyNFDkp4R8d4J6QT3UfrYkEpDU3p2_7IMQ8zeRJmwDbw&oe=6A88ED00',
             ]),
         ]);
     }
