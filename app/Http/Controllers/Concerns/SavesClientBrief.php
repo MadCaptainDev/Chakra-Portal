@@ -37,6 +37,26 @@ trait SavesClientBrief
             $brief = $client->brief()->firstOrCreate([]);
 
             foreach ($answers as $key => $value) {
+                /*
+                 * An empty answer is stored as no row at all, not as a row
+                 * holding null. This matters much more now that the form
+                 * autosaves: it posts every field on every keystroke, so
+                 * upserting nulls would write a row for all twenty-odd
+                 * questions the moment somebody typed one word -- each with an
+                 * updated_at implying the client had touched it.
+                 *
+                 * Deleting also gives "cleared" one meaning. A client who
+                 * types an answer and removes it again has not answered, and
+                 * the row should not survive to say otherwise.
+                 */
+                if ($value === null || $value === '' || $value === []) {
+                    ClientBriefAnswer::where('client_brief_id', $brief->id)
+                        ->where('question_key', $key)
+                        ->delete();
+
+                    continue;
+                }
+
                 $multi = BrandBrief::isMulti($key);
 
                 /*
