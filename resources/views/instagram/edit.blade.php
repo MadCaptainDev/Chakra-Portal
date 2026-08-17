@@ -102,6 +102,36 @@
                     </p>
                 </div>
 
+                <div>
+                    <x-input-label value="4 · Business login → Deauthorize callback URL" />
+                    <div class="mt-1 flex gap-2">
+                        <input type="text" readonly value="{{ url('/webhooks/instagram/deauthorize') }}" x-ref="deauth"
+                               class="flex-1 min-w-0 rounded-md border-gray-300 bg-gray-50 text-xs font-mono text-gray-800">
+                        <x-secondary-button type="button" @click="copy('deauth', $refs.deauth)">
+                            <span x-text="copied === 'deauth' ? 'Copied' : 'Copy'">Copy</span>
+                        </x-secondary-button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">
+                        Meta tells us here when somebody removes the app from their Instagram. We stop using the
+                        connection immediately and keep the record.
+                    </p>
+                </div>
+
+                <div>
+                    <x-input-label value="5 · Business login → Data deletion request URL" />
+                    <div class="mt-1 flex gap-2">
+                        <input type="text" readonly value="{{ url('/webhooks/instagram/data-deletion') }}" x-ref="del"
+                               class="flex-1 min-w-0 rounded-md border-gray-300 bg-gray-50 text-xs font-mono text-gray-800">
+                        <x-secondary-button type="button" @click="copy('del', $refs.del)">
+                            <span x-text="copied === 'del' ? 'Copied' : 'Copy'">Copy</span>
+                        </x-secondary-button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">
+                        Deletes what we hold about the Instagram account — token, handle, profile — and answers with
+                        a confirmation code. The client's own records here are the studio's and are not touched.
+                    </p>
+                </div>
+
                 <div class="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
                     <p class="text-xs text-gray-500">
                         @if ($settings->webhook_verified_at)

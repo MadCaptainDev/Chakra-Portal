@@ -52,4 +52,25 @@ Route::prefix('webhooks')->name('webhooks.')->group(function (): void {
     Route::post('instagram', [\App\Http\Controllers\InstagramWebhookController::class, 'receive'])
         ->middleware(\App\Http\Middleware\VerifyInstagramSignature::class)
         ->name('instagram.receive');
+
+    /*
+     * The two URLs Meta requires an app to publish before it will ship.
+     *
+     * These do NOT carry VerifyInstagramSignature: they authenticate with a
+     * `signed_request` form field rather than the X-Hub-Signature-256 header,
+     * which is a different mechanism on the same app secret. See SignedRequest.
+     */
+    Route::post('instagram/deauthorize', [\App\Http\Controllers\InstagramWebhookController::class, 'deauthorize'])
+        ->name('instagram.deauthorize');
+
+    Route::post('instagram/data-deletion', [\App\Http\Controllers\InstagramWebhookController::class, 'dataDeletion'])
+        ->name('instagram.data-deletion');
 });
+
+/*
+ * Where a person checks what became of their deletion request. Public, and
+ * unauthenticated on purpose -- they have no account here, which is rather the
+ * point of having asked.
+ */
+Route::get('instagram/deletion-status', [\App\Http\Controllers\InstagramWebhookController::class, 'deletionStatus'])
+    ->name('instagram.deletion-status');

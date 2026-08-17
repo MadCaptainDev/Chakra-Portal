@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Client;
 use App\Models\InstagramSetting;
+use App\Models\SocialAccount;
 use App\Models\SocialWebhookEvent;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -174,5 +176,113 @@ class InstagramWebhookTest extends TestCase
         // They are genuinely different URLs -- swapping them is the failure
         // this screen is laid out to prevent.
         $this->assertNotSame($settings->callbackUrl(), $settings->webhookUrl());
+    }
+    /** Meta's signed_request: {base64url sig}.{base64url payload}. */
+    private function signedRequest(array $payload, string $secret = self::SECRET): string
+    {
+        $encoded = rtrim(strtr(base64_encode(json_encode($payload)), '+/', '-_'), '=');
+        $signature = hash_hmac('sha256', $encoded, $secret, true);
+
+        return rtrim(strtr(base64_encode($signature), '+/', '-_'), '=').'.'.$encoded;
+    }
+
+    private function connectedAccount(string $userId = '17841400000000001'): SocialAccount
+    {
+        $client = Client::create(['name' => 'The Chakra Productions']);
+
+        $account = SocialAccount::create([
+            'client_id' => $client->id,
+            'platform' => SocialAccount::PLATFORM_INSTAGRAM,
+            'platform_user_id' => $userId,
+            'username' => 'thechakra_productions',
+            'status' => SocialAccount::STATUS_CONNECTED,
+        ]);
+
+        $account->forceFill(['access_token' => 'IGQV-long-lived', 'connected_at' => now()])->save();
+
+        return $account->fresh();
+    }
+
+    public function test_deauthorizing_stops_us_using_the_connection(): void
+    {
+        $this->configured();
+        $account = $this->connectedAccount();
+
+        $this->post('/webhooks/instagram/deauthorize', [
+            'signed_request' => $this->signedRequest(['user_id' => '17841400000000001']),
+        ])->assertOk();
+
+        $account = $account->fresh();
+
+        $this->assertSame(SocialAccount::STATUS_REVOKED, $account->status);
+        $this->assertNull($account->access_token);
+        // The record survives: they may reconnect, and the history is theirs.
+        $this->assertSame('thechakra_productions', $account->username);
+    }
+
+    public function test_an_unsigned_deauthorize_is_refused(): void
+    {
+        $this->configured();
+        $account = $this->connectedAccount();
+
+        $this->post('/webhooks/instagram/deauthorize', [
+            'signed_request' => $this->signedRequest(['user_id' => '17841400000000001'], 'wrong-secret'),
+        ])->assertForbidden();
+
+        $this->assertTrue($account->fresh()->isConnected());
+    }
+
+    public function test_a_data_deletion_request_is_honoured_and_answered(): void
+    {
+        $this->configured();
+        $account = $this->connectedAccount();
+
+        $response = $this->post('/webhooks/instagram/data-deletion', [
+            'signed_request' => $this->signedRequest(['user_id' => '17841400000000001']),
+        ])->assertOk();
+
+        // Meta requires exactly this shape.
+        $code = $response->json('confirmation_code');
+        $this->assertNotEmpty($code);
+        $this->assertStringContainsString($code, $response->json('url'));
+
+        $account = $account->fresh();
+
+        $this->assertNull($account->access_token);
+        $this->assertNull($account->username);
+        $this->assertSame(SocialAccount::STATUS_REVOKED, $account->status);
+    }
+
+    public function test_the_deletion_status_page_still_answers_after_the_data_is_gone(): void
+    {
+        $this->configured();
+        $this->connectedAccount();
+
+        $code = $this->post('/webhooks/instagram/data-deletion', [
+            'signed_request' => $this->signedRequest(['user_id' => '17841400000000001']),
+        ])->json('confirmation_code');
+
+        // Public: the person asking has no account here, which is the point.
+        $this->get(route('instagram.deletion-status', ['code' => $code]))
+            ->assertOk()
+            ->assertSee('deleted', escape: false);
+    }
+
+    public function test_an_unknown_confirmation_code_says_so(): void
+    {
+        $this->get(route('instagram.deletion-status', ['code' => 'nope']))
+            ->assertOk()
+            ->assertSee('could not find', escape: false);
+    }
+
+    public function test_the_authorize_url_forces_a_fresh_login(): void
+    {
+        $this->configured();
+
+        $url = \App\Services\Instagram\InstagramOAuth::make()->authorizationUrl('state-value');
+
+        // Without this, a staff member already signed in to the studio's own
+        // Instagram would silently connect that account to the client.
+        $this->assertStringContainsString('force_reauth=true', $url);
     }
 }

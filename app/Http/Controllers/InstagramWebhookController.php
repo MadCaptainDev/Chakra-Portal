@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\InstagramSetting;
 use App\Models\SocialAccount;
+use App\Models\SocialDataDeletion;
 use App\Models\SocialWebhookEvent;
+use App\Services\Instagram\SignedRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
@@ -95,5 +97,141 @@ class InstagramWebhookController extends Controller
         }
 
         return response('', 200);
+    }
+
+    /**
+     * Somebody removed the app from their Instagram account.
+     *
+     * Meta POSTs a signed_request naming the user. The right response is to
+     * stop using the connection immediately: the token we hold has already
+     * been revoked on their side, and continuing to try would be both broken
+     * and rude.
+     *
+     * The row itself is kept, as with a staff-side disconnect -- the client
+     * may reconnect, and the history is theirs either way.
+     */
+    public function deauthorize(Request $request): Response
+    {
+        $user = $this->signedUser($request);
+
+        if ($user === null) {
+            return response('', 403);
+        }
+
+        $account = $this->accountFor($user);
+
+        if ($account) {
+            $account->forceFill([
+                'access_token' => null,
+                'token_expires_at' => null,
+                'status' => SocialAccount::STATUS_REVOKED,
+                'last_error' => 'Access was removed from the Instagram account.',
+                'last_error_at' => now(),
+            ])->save();
+
+            Log::info('Instagram access revoked by the account holder.', [
+                'client_id' => $account->client_id,
+            ]);
+        }
+
+        // 200 regardless of whether we knew the account: Meta is reporting a
+        // fact, not asking a question, and a 404 here just earns retries.
+        return response('', 200);
+    }
+
+    /**
+     * A data deletion request, which Meta requires an app to honour.
+     *
+     * Answers with the JSON shape Meta specifies -- a status URL and a
+     * confirmation code -- and that URL has to keep working afterwards, which
+     * is why a receipt row outlives the data.
+     *
+     * What is deleted is what we hold *about the Instagram account*: the
+     * token, the handle, the profile details. The client record, their
+     * invoices and their brief are the studio's own business records and are
+     * not Instagram's to ask for.
+     */
+    public function dataDeletion(Request $request): Response
+    {
+        $user = $this->signedUser($request);
+
+        if ($user === null) {
+            return response()->json(['error' => 'Invalid signed request.'], 403);
+        }
+
+        $receipt = SocialDataDeletion::open(SocialAccount::PLATFORM_INSTAGRAM, $user);
+        $account = $this->accountFor($user);
+
+        if ($account) {
+            $account->socialWebhookEvents()->delete();
+
+            $account->forceFill([
+                'access_token' => null,
+                'token_expires_at' => null,
+                'username' => null,
+                'account_type' => null,
+                'profile_picture_url' => null,
+                'followers_count' => null,
+                'scopes' => null,
+                'status' => SocialAccount::STATUS_REVOKED,
+                'last_error' => 'Data deleted at the account holder\'s request.',
+                'last_error_at' => now(),
+            ])->save();
+
+            $receipt->complete('Instagram account data deleted; the connection was closed.');
+        } else {
+            $receipt->complete('No Instagram data was held for that account.');
+        }
+
+        Log::info('Instagram data deletion honoured.', ['code' => $receipt->confirmation_code]);
+
+        return response()->json([
+            'url' => $receipt->statusUrl(),
+            'confirmation_code' => $receipt->confirmation_code,
+        ]);
+    }
+
+    /**
+     * Where a person checks what happened to their request.
+     *
+     * Public and unauthenticated on purpose: the person asking has no account
+     * here, which is rather the point of having asked.
+     */
+    public function deletionStatus(Request $request): Response
+    {
+        $receipt = SocialDataDeletion::where('confirmation_code', $request->query('code'))->first();
+
+        return response()->view('instagram.deletion-status', ['receipt' => $receipt]);
+    }
+
+    /**
+     * The Instagram user id from a verified signed_request, or null.
+     *
+     * Null covers both "not signed by us" and "we have no secret to check
+     * against" -- in either case the only safe answer is to refuse.
+     */
+    private function signedUser(Request $request): ?string
+    {
+        $secret = InstagramSetting::current()->app_secret;
+
+        if (blank($secret)) {
+            Log::warning('Instagram signed request rejected: no app secret configured.');
+
+            return null;
+        }
+
+        $payload = SignedRequest::parse($request->input('signed_request'), $secret);
+
+        $user = $payload['user_id'] ?? $payload['user']['id'] ?? null;
+
+        return $user ? (string) $user : null;
+    }
+
+    private function accountFor(string $platformUserId): ?SocialAccount
+    {
+        return SocialAccount::query()
+            ->forPlatform(SocialAccount::PLATFORM_INSTAGRAM)
+            ->where('platform_user_id', $platformUserId)
+            ->first();
     }
 }

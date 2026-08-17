@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * One social account the studio may read on a client's behalf.
@@ -79,6 +80,17 @@ class SocialAccount extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
+    }
+
+    /**
+     * Events Meta has pushed about this account.
+     *
+     * Named in full rather than events() because a social account will
+     * eventually have insights too, and "events" would stop meaning anything.
+     */
+    public function socialWebhookEvents(): HasMany
+    {
+        return $this->hasMany(SocialWebhookEvent::class);
     }
 
     public function connectedBy(): BelongsTo

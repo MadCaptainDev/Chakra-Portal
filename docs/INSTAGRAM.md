@@ -49,12 +49,54 @@ saving with the secret box blank keeps the existing one. It is deliberately in
 the database rather than `.env` so it can be rotated without a deploy — the
 same decision as the WhatsApp settings.
 
+## 3b. The other three URLs Meta asks for
+
+All five values are on Setup → Instagram, numbered by the box they belong in.
+Two of them look alike and go in different places, which is the easiest
+mistake to make here:
+
+| Meta field | URL |
+|---|---|
+| Business login → **Valid OAuth Redirect URI** | `/oauth/instagram/callback` |
+| Webhooks → **Callback URL** | `/webhooks/instagram` |
+| Webhooks → **Verify token** | shown on the settings screen |
+| Business login → **Deauthorize callback URL** | `/webhooks/instagram/deauthorize` |
+| Business login → **Data deletion request URL** | `/webhooks/instagram/data-deletion` |
+
+The OAuth callback is behind a login because a person lands on it. The other
+three are public because Meta calls them as a stranger — they authenticate
+with a signature instead:
+
+- the webhook with `X-Hub-Signature-256` over the raw body;
+- deauthorize and data deletion with a `signed_request` form field, which is a
+  *different* mechanism on the same app secret (see `SignedRequest`).
+
+**Deauthorize** discards the token and marks the connection revoked, keeping
+the record so the client can reconnect.
+
+**Data deletion** removes what we hold about the Instagram account — token,
+handle, profile, pushed events — and answers with the JSON Meta requires. The
+client's own records here, such as invoices and the brand brief, are the
+studio's business records and are untouched. A receipt row outlives the
+deletion so the status URL Meta hands the person keeps working afterwards.
+
 ## 4. Permissions requested
 
 | Scope | Why |
 |---|---|
 | `instagram_business_basic` | Mandatory. The account's id, username, type, follower and media counts. |
 | `instagram_business_manage_insights` | Not used until Phase 3. Requested now so nobody has to be walked back through a second consent screen later. |
+
+The dashboard also offers `instagram_business_manage_messages`,
+`instagram_business_manage_comments` and `instagram_business_content_publish`.
+They are deliberately **not** requested: this integration reads analytics, and
+asking a client for permission to post as them or read their DMs — in order to
+draw a chart — is a request to make when something actually needs it.
+
+The authorize URL also carries `force_reauth=true`, so Instagram asks for
+credentials even when the browser already has a session. Without it, a staff
+member signed in to the studio's own Instagram would silently connect *that*
+account to the client.
 
 ## 5. Testing before App Review
 

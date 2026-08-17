@@ -68,6 +68,16 @@ class InstagramOAuth
         }
 
         return InstagramGraph::AUTHORIZE_URL.'?'.http_build_query([
+            /*
+             * force_reauth makes Instagram ask for credentials even when the
+             * browser already has a session. That matters here more than it
+             * would elsewhere: a staff member connecting a CLIENT's account is
+             * usually signed in to the studio's own Instagram, and without
+             * this the consent screen would quietly offer that account instead
+             * -- connecting the wrong Instagram to the right client, with
+             * nothing on screen saying so.
+             */
+            'force_reauth' => 'true',
             'client_id' => $this->settings->app_id,
             'redirect_uri' => $this->settings->callbackUrl(),
             'response_type' => 'code',
