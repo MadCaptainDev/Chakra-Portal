@@ -646,6 +646,7 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
      */
     Route::get('instagram-settings', [InstagramSettingController::class, 'edit'])->name('instagram-settings.edit');
     Route::put('instagram-settings', [InstagramSettingController::class, 'update'])->name('instagram-settings.update');
+    Route::post('instagram-settings/rotate-token', [InstagramSettingController::class, 'rotate'])->name('instagram-settings.rotate');
 
     Route::get('brief-questions', [BriefQuestionController::class, 'index'])->name('brief-questions.index');
     Route::post('brief-questions', [BriefQuestionController::class, 'store'])->name('brief-questions.store');

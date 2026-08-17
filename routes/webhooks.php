@@ -32,3 +32,24 @@ Route::prefix('webhooks')->name('webhooks.')->group(function (): void {
         ->middleware(\App\Http\Middleware\VerifyWhatsappSignature::class)
         ->name('whatsapp.receive');
 });
+
+/*
+ * Instagram.
+ *
+ * Same two-verb shape as WhatsApp and for the same reason: one callback URL
+ * takes the GET handshake when the subscription is saved and the POST events
+ * forever after. Only POST carries the signature middleware -- the GET proves
+ * itself with the verify token instead.
+ *
+ * Emphatically NOT /oauth/instagram/callback, which is where a signed-in
+ * person lands after authorising. That one is behind `auth`; this one cannot
+ * be, because Meta has no cookie to send.
+ */
+Route::prefix('webhooks')->name('webhooks.')->group(function (): void {
+    Route::get('instagram', [\App\Http\Controllers\InstagramWebhookController::class, 'verify'])
+        ->name('instagram.verify');
+
+    Route::post('instagram', [\App\Http\Controllers\InstagramWebhookController::class, 'receive'])
+        ->middleware(\App\Http\Middleware\VerifyInstagramSignature::class)
+        ->name('instagram.receive');
+});

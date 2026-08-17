@@ -54,4 +54,20 @@ class InstagramSettingController extends Controller
             ->route('instagram-settings.edit')
             ->with('status', 'Instagram settings saved.');
     }
+
+    /**
+     * Issue a new webhook verify token.
+     *
+     * The old one dies immediately, so the subscription must be verified again
+     * in the Meta dashboard. The flash says exactly that — a rotation that
+     * looks successful here and silently breaks the dashboard is the worst
+     * outcome this screen can have.
+     */
+    public function rotate(): RedirectResponse
+    {
+        InstagramSetting::current()->rotateVerifyToken();
+
+        return redirect()->route('instagram-settings.edit')->with('status',
+            'New verify token generated. Paste it into the Meta dashboard and press "Verify and save" again — until you do, the old token is dead.');
+    }
 }

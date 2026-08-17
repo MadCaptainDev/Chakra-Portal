@@ -45,21 +45,77 @@
                 title="Paste this into Meta"
                 subtitle="Meta dashboard → your Instagram app → Instagram → API setup with Instagram login." />
 
-            <div x-data="{ copied: false }">
-                <x-input-label value="Valid OAuth Redirect URI" />
-                <div class="mt-1 flex gap-2">
-                    <input type="text" readonly value="{{ $settings->callbackUrl() }}" x-ref="uri"
-                           class="flex-1 min-w-0 rounded-md border-gray-300 bg-gray-50 text-xs font-mono text-gray-800">
-                    <x-secondary-button type="button"
-                            @click="$refs.uri.select(); navigator.clipboard.writeText($refs.uri.value); copied = true; setTimeout(() => copied = false, 2000)">
-                        <span x-text="copied ? 'Copied' : 'Copy'">Copy</span>
-                    </x-secondary-button>
+            {{-- Three values, two of which look alike and go in different
+                 boxes. They are labelled with where they belong rather than
+                 with what they are, because swapping them is the single most
+                 common way this setup fails. --}}
+            <div class="space-y-4" x-data="{ copied: null,
+                     copy(key, el) {
+                         el.select();
+                         navigator.clipboard?.writeText(el.value);
+                         this.copied = key;
+                         setTimeout(() => { if (this.copied === key) this.copied = null }, 2000);
+                     } }">
+
+                <div>
+                    <x-input-label value="1 · Business login → Valid OAuth Redirect URI" />
+                    <div class="mt-1 flex gap-2">
+                        <input type="text" readonly value="{{ $settings->callbackUrl() }}" x-ref="oauth"
+                               class="flex-1 min-w-0 rounded-md border-gray-300 bg-gray-50 text-xs font-mono text-gray-800">
+                        <x-secondary-button type="button" @click="copy('oauth', $refs.oauth)">
+                            <span x-text="copied === 'oauth' ? 'Copied' : 'Copy'">Copy</span>
+                        </x-secondary-button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">
+                        Where a client lands after approving. Meta matches this character for character.
+                    </p>
                 </div>
-                <p class="text-xs text-gray-500 mt-1">
-                    Meta matches this character for character. It is built from APP_URL, so it does not change
-                    with the address you signed in through — a mismatch here is the most common reason the
-                    connection fails, and Meta's error for it names nothing useful.
-                </p>
+
+                <div>
+                    <x-input-label value="2 · Webhooks → Callback URL" />
+                    <div class="mt-1 flex gap-2">
+                        <input type="text" readonly value="{{ $settings->webhookUrl() }}" x-ref="hook"
+                               class="flex-1 min-w-0 rounded-md border-gray-300 bg-gray-50 text-xs font-mono text-gray-800">
+                        <x-secondary-button type="button" @click="copy('hook', $refs.hook)">
+                            <span x-text="copied === 'hook' ? 'Copied' : 'Copy'">Copy</span>
+                        </x-secondary-button>
+                    </div>
+                    <p class="text-xs text-amber-700 mt-1">
+                        A <span class="font-semibold">different URL</span> from the one above. Meta verifies this
+                        one as an anonymous stranger, and the OAuth URL is behind a login — paste that one here
+                        and the check fails with an error that explains nothing.
+                    </p>
+                </div>
+
+                <div>
+                    <x-input-label value="3 · Webhooks → Verify token" />
+                    <div class="mt-1 flex gap-2">
+                        <input type="text" readonly value="{{ $settings->verify_token }}" x-ref="token"
+                               class="flex-1 min-w-0 rounded-md border-gray-300 bg-gray-50 text-xs font-mono text-gray-800">
+                        <x-secondary-button type="button" @click="copy('token', $refs.token)">
+                            <span x-text="copied === 'token' ? 'Copied' : 'Copy'">Copy</span>
+                        </x-secondary-button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">
+                        Generated for you, so nobody has to invent a secret on the spot. Meta sends it back once,
+                        when you press <span class="font-medium">Verify and save</span>.
+                    </p>
+                </div>
+
+                <div class="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
+                    <p class="text-xs text-gray-500">
+                        @if ($settings->webhook_verified_at)
+                            Webhook verified {{ $settings->webhook_verified_at->diffForHumans() }}.
+                        @else
+                            Webhook not verified yet.
+                        @endif
+                    </p>
+                    <form method="POST" action="{{ route('instagram-settings.rotate') }}"
+                          onsubmit="return confirm('Generate a new verify token? The current one stops working immediately and you will have to verify the webhook again in Meta.')">
+                        @csrf
+                        <x-secondary-button type="submit">Generate new token</x-secondary-button>
+                    </form>
+                </div>
             </div>
         </x-card>
 

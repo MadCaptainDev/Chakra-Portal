@@ -24,6 +24,7 @@ class InstagramSetting extends Model
         // to be readable back. Same trade as ClientCredential::$secret.
         'app_secret' => 'encrypted',
         'verified_at' => 'datetime',
+        'webhook_verified_at' => 'datetime',
     ];
 
     /**
@@ -36,14 +37,72 @@ class InstagramSetting extends Model
     public static function current(): self
     {
         if ($existing = static::query()->whereKey(1)->first()) {
+            /*
+             * Heal a row that predates the verify token rather than
+             * backfilling it in a migration. The row is created the first time
+             * anybody opens the settings screen, so it can and does exist
+             * before a column that is added later -- and a settings screen
+             * showing an empty token is a screen somebody copies an empty
+             * string out of.
+             */
+            if (blank($existing->verify_token)) {
+                $existing->forceFill(['verify_token' => self::freshToken()])->save();
+            }
+
             return $existing;
         }
 
         try {
-            return static::forceCreate(['id' => 1]);
+            // forceCreate: verify_token is generated here and is not fillable,
+            // so mass assignment would silently drop it and leave a row that
+            // can never complete a handshake.
+            return static::forceCreate(['id' => 1, 'verify_token' => self::freshToken()]);
         } catch (QueryException $e) {
             return static::query()->whereKey(1)->first() ?? throw $e;
         }
+    }
+
+    /**
+     * Where META posts events. NOT the OAuth redirect URI.
+     *
+     * Public, because Meta verifies it with an anonymous GET and has no cookie
+     * to send. Pasting the OAuth callback here instead is the classic mistake:
+     * that route is behind `auth`, so the handshake is answered with a
+     * redirect to the login page and Meta reports only that it could not be
+     * validated.
+     */
+    public function webhookUrl(): string
+    {
+        return rtrim((string) config('app.url'), '/').'/webhooks/instagram';
+    }
+
+    public function matchesVerifyToken(?string $candidate): bool
+    {
+        // hash_equals, not ===, so a wrong token cannot be found one character
+        // at a time by timing the responses.
+        return is_string($candidate)
+            && filled($this->verify_token)
+            && hash_equals((string) $this->verify_token, $candidate);
+    }
+
+    /**
+     * Issue a new verify token.
+     *
+     * The old one dies immediately, so the subscription has to be verified
+     * again in the Meta dashboard -- said plainly on the screen, because a
+     * silent rotation looks exactly like an outage.
+     */
+    public function rotateVerifyToken(): void
+    {
+        $this->forceFill([
+            'verify_token' => self::freshToken(),
+            'webhook_verified_at' => null,
+        ])->save();
+    }
+
+    private static function freshToken(): string
+    {
+        return \Illuminate\Support\Str::random(40);
     }
 
     public function updatedBy(): BelongsTo
