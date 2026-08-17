@@ -1,0 +1,256 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Client;
+use App\Models\ClientBrief;
+use App\Models\TaxonomyTerm;
+use App\Models\User;
+use App\Models\UserPermission;
+use App\Support\BrandBrief;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+/**
+ * The brand brief filled through a one-time link, by a client with no login.
+ *
+ * The token is the only credential these routes have, so most of this is about
+ * what the token does not open.
+ */
+class PublicBriefLinkTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function client(string $name = 'SVA Silks'): Client
+    {
+        return Client::create(['name' => $name]);
+    }
+
+    private function staff(array $abilities = ['view', 'edit']): User
+    {
+        $user = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
+
+        foreach ($abilities as $ability) {
+            UserPermission::create(['user_id' => $user->id, 'module' => 'clients', 'ability' => $ability]);
+        }
+
+        return $user->refresh();
+    }
+
+    /** Every required question, so a submit can succeed. */
+    private function completeAnswers(): array
+    {
+        $answers = [];
+
+        foreach (BrandBrief::requiredKeys() as $key) {
+            /*
+             * Taxonomy-backed questions validate their value against the term
+             * table, so a real term has to exist. Built from the catalogue
+             * rather than hardcoded, so a question added later is answered
+             * here without anybody editing this list.
+             */
+            if ($type = BrandBrief::taxonomyFor($key)) {
+                $term = TaxonomyTerm::create([
+                    'type' => $type,
+                    'name' => 'Term for '.$key,
+                    'slug' => 'term-for-'.str_replace('_', '-', $key),
+                ]);
+                $answers[$key] = BrandBrief::isMulti($key) ? [$term->id] : $term->id;
+
+                continue;
+            }
+
+            /*
+             * Questions with a fixed option list (tone_traits and friends)
+             * validate against it, so the first option is picked rather than
+             * free text. Read from the catalogue for the same reason as above.
+             */
+            $options = array_keys(BrandBrief::QUESTIONS[$key]['options'] ?? []);
+
+            if ($options !== []) {
+                $answers[$key] = BrandBrief::isMulti($key) ? [$options[0]] : $options[0];
+
+                continue;
+            }
+
+            $answers[$key] = BrandBrief::isMulti($key) ? ['An answer.'] : 'An answer.';
+        }
+
+        return $answers;
+    }
+
+    public function test_a_link_opens_the_form_for_someone_with_no_login(): void
+    {
+        $client = $this->client();
+        $brief = $client->brief()->create([]);
+        $token = $brief->issuePublicToken();
+
+        $this->get(route('brief.public', $token))
+            ->assertOk()
+            ->assertSee('Before we write for you')
+            ->assertSee($client->name);
+    }
+
+    public function test_an_unknown_token_is_a_404_rather_than_a_hint(): void
+    {
+        // Not a 403: there is nothing to authenticate as, so "no" and "wrong"
+        // must look identical or a guessed token gets feedback.
+        $this->get(route('brief.public', 'nope-not-a-real-token'))->assertNotFound();
+    }
+
+    public function test_answers_save_without_submitting(): void
+    {
+        $client = $this->client();
+        $token = $client->brief()->create([])->issuePublicToken();
+
+        $this->post(route('brief.public.update', $token), [
+            'answers' => ['business_description' => 'We sell sarees.'],
+        ])->assertRedirect(route('brief.public', $token));
+
+        $brief = $client->brief->fresh()->load('answers');
+
+        $this->assertSame('We sell sarees.', $brief->answer('business_description'));
+        $this->assertFalse($brief->isSubmitted());
+        // Still open, so the client can come back to the same link.
+        $this->assertTrue($brief->acceptsPublicEdits());
+    }
+
+    public function test_submitting_closes_the_link_for_good(): void
+    {
+        $client = $this->client();
+        $token = $client->brief()->create([])->issuePublicToken();
+
+        $this->post(route('brief.public.submit', $token), [
+            'answers' => $this->completeAnswers(),
+            'submitted_name' => 'Vinupriya',
+        ])->assertRedirect(route('brief.public', $token));
+
+        $brief = $client->brief->fresh();
+
+        $this->assertTrue($brief->isSubmitted());
+        $this->assertSame('Vinupriya', $brief->public_submitted_name);
+        $this->assertNotNull($brief->public_submitted_at);
+        $this->assertFalse($brief->acceptsPublicEdits());
+    }
+
+    public function test_a_used_link_shows_a_thank_you_rather_than_the_form(): void
+    {
+        $client = $this->client();
+        $brief = $client->brief()->create([]);
+        $token = $brief->issuePublicToken();
+        $brief->forceFill(['status' => ClientBrief::STATUS_SUBMITTED, 'submitted_at' => now()])->save();
+
+        $this->get(route('brief.public', $token))
+            ->assertOk()
+            ->assertSee('Thank you')
+            ->assertDontSee('Save for later');
+    }
+
+    public function test_a_stale_tab_cannot_write_over_a_submitted_brief(): void
+    {
+        $client = $this->client();
+        $brief = $client->brief()->create([]);
+        $token = $brief->issuePublicToken();
+
+        $this->post(route('brief.public.update', $token), [
+            'answers' => ['business_description' => 'The real answer.'],
+        ]);
+
+        $brief->forceFill(['status' => ClientBrief::STATUS_SUBMITTED, 'submitted_at' => now()])->save();
+
+        // The link is closed, so a form left open overnight is refused rather
+        // than silently overwriting what was sent in.
+        $this->post(route('brief.public.update', $token), [
+            'answers' => ['business_description' => 'Overwritten later.'],
+        ])->assertForbidden();
+
+        $this->assertSame('The real answer.', $client->brief->fresh()->load('answers')->answer('business_description'));
+    }
+
+    public function test_reissuing_kills_the_previous_link(): void
+    {
+        $client = $this->client();
+        $brief = $client->brief()->create([]);
+        $old = $brief->issuePublicToken();
+        $new = $brief->fresh()->issuePublicToken();
+
+        $this->assertNotSame($old, $new);
+        $this->get(route('brief.public', $old))->assertNotFound();
+        $this->get(route('brief.public', $new))->assertOk();
+    }
+
+    public function test_one_clients_token_never_opens_another_clients_brief(): void
+    {
+        $sva = $this->client('SVA Silks');
+        $thor = $this->client('Thor Gym');
+
+        $token = $sva->brief()->create([])->issuePublicToken();
+        $thor->brief()->create([])->issuePublicToken();
+
+        $this->get(route('brief.public', $token))
+            ->assertOk()
+            ->assertSee('SVA Silks')
+            ->assertDontSee('Thor Gym');
+    }
+
+    public function test_staff_can_issue_and_close_a_link(): void
+    {
+        $client = $this->client();
+        $staff = $this->staff();
+
+        $this->actingAs($staff)->post(route('clients.brief.link', $client))->assertRedirect();
+        $this->assertNotNull($client->brief->fresh()->public_token);
+
+        $this->actingAs($staff)->delete(route('clients.brief.link.revoke', $client))->assertRedirect();
+        $this->assertNull($client->brief->fresh()->public_token);
+    }
+
+    public function test_issuing_a_link_needs_edit_not_merely_view(): void
+    {
+        $client = $this->client();
+
+        $this->actingAs($this->staff(['view']))
+            ->post(route('clients.brief.link', $client))
+            ->assertForbidden();
+    }
+
+    public function test_reopening_lets_the_client_back_in(): void
+    {
+        $client = $this->client();
+        $brief = $client->brief()->create([]);
+        $token = $brief->issuePublicToken();
+        $brief->forceFill(['status' => ClientBrief::STATUS_SUBMITTED, 'submitted_at' => now()])->save();
+
+        $this->actingAs($this->staff())->post(route('clients.brief.reopen', $client))->assertRedirect();
+
+        $this->assertFalse($client->brief->fresh()->isSubmitted());
+        $this->get(route('brief.public', $token))->assertOk()->assertSee('Save for later');
+    }
+
+    public function test_the_brief_exports_as_readable_text(): void
+    {
+        $client = $this->client();
+        $brief = $client->brief()->create([]);
+        $brief->answers()->create(['question_key' => 'business_description', 'value' => 'We sell sarees in Trichy.']);
+
+        $response = $this->actingAs($this->staff(['view']))
+            ->get(route('clients.brief.export', $client));
+
+        $response->assertOk();
+        $response->assertHeader('content-type', 'text/plain; charset=UTF-8');
+        $this->assertStringContainsString('attachment; filename="sva-silks-brand-brief.txt"',
+            $response->headers->get('content-disposition'));
+
+        $text = $response->getContent();
+        $this->assertStringContainsString('BRAND BRIEF — SVA Silks', $text);
+        $this->assertStringContainsString('We sell sarees in Trichy.', $text);
+    }
+
+    public function test_the_export_is_not_public(): void
+    {
+        $client = $this->client();
+        $client->brief()->create([]);
+
+        $this->get(route('clients.brief.export', $client))->assertRedirect(route('login'));
+    }
+}

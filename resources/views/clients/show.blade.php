@@ -89,8 +89,14 @@
                          POST clients/{client}/brief/nudge behind
                          module:clients,edit calling sendTemplate(). --}}
                     @php
+                        /*
+                         * The public link when one has been issued, the portal
+                         * URL otherwise. Most clients have no login, so a nudge
+                         * pointing at a sign-in screen is a nudge that comes
+                         * back as "it asked me for a password".
+                         */
                         $nudge = 'Hi '.$client->name.' — before we start writing, could you fill in your brand brief? '
-                            .'It takes about ten minutes: '.route('client.brief');
+                            .'It takes about ten minutes: '.($brief?->publicUrl() ?? route('client.brief'));
                     @endphp
                     <div class="mb-3 flex flex-wrap items-center gap-2" x-data="{ copied: false }">
                         <a href="https://wa.me/{{ \App\Services\WhatsappSender::normalise($client->phone) }}?text={{ urlencode($nudge) }}"
@@ -106,6 +112,76 @@
                     </div>
                 @endif
             @endunless
+
+            {{-- The share link, and what can be done with the answers.
+                 Below the nudge because issuing a link is the step before
+                 sending one, and above the answers because a brief that is not
+                 filled in yet has nothing to read underneath. --}}
+            @can('clients.edit')
+                <div class="mb-4 rounded-lg bg-gray-50 ring-1 ring-gray-900/5 p-3.5" x-data="{ copied: false }">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Fill-in link</p>
+                        @if ($brief?->isSubmitted())
+                            <span class="text-[11px] text-gray-500">Closed — this brief has been sent in</span>
+                        @elseif ($brief?->public_token)
+                            <span class="text-[11px] text-gray-500">Open · anyone with the link can fill it once</span>
+                        @endif
+                    </div>
+
+                    @if ($brief?->public_token && ! $brief->isSubmitted())
+                        <div class="flex gap-2 mb-2">
+                            <input type="text" readonly value="{{ $brief->publicUrl() }}" x-ref="link"
+                                   class="flex-1 min-w-0 rounded-md border-gray-300 bg-white text-xs font-mono text-gray-700">
+                            <button type="button"
+                                    @click="$refs.link.select(); navigator.clipboard.writeText($refs.link.value); copied = true; setTimeout(() => copied = false, 2000)"
+                                    class="shrink-0 rounded-md bg-white px-3 py-2 text-xs font-semibold uppercase tracking-widest text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50">
+                                <span x-text="copied ? 'Copied' : 'Copy'">Copy</span>
+                            </button>
+                        </div>
+                    @endif
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        @unless ($brief?->isSubmitted())
+                            <form method="POST" action="{{ route('clients.brief.link', $client) }}"
+                                  @if ($brief?->public_token) onsubmit="return confirm('Create a new link? The current one stops working immediately.')" @endif>
+                                @csrf
+                                <button type="submit" class="text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                                    {{ $brief?->public_token ? 'New link' : 'Create link' }}
+                                </button>
+                            </form>
+
+                            @if ($brief?->public_token)
+                                <form method="POST" action="{{ route('clients.brief.link.revoke', $client) }}"
+                                      onsubmit="return confirm('Close this link? Answers already saved are kept, but the client cannot get back in until you issue a new one.')">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" class="text-xs font-semibold uppercase tracking-widest text-gray-500 hover:text-red-700">
+                                        Close link
+                                    </button>
+                                </form>
+                            @endif
+                        @else
+                            {{-- The escape hatch that makes "fill it once" safe
+                                 to enforce: somebody will send it with a wrong
+                                 answer, and retyping a client's words for them
+                                 is worse than letting them fix it. --}}
+                            <form method="POST" action="{{ route('clients.brief.reopen', $client) }}"
+                                  onsubmit="return confirm('Reopen this brief? The client will be able to edit and send it again.')">
+                                @csrf
+                                <button type="submit" class="text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                                    Reopen for editing
+                                </button>
+                            </form>
+                        @endunless
+
+                        @if ($brief?->exists)
+                            <a href="{{ route('clients.brief.export', $client) }}"
+                               class="ml-auto text-xs font-semibold uppercase tracking-widest text-gray-500 hover:text-gray-800">
+                                Export as text
+                            </a>
+                        @endif
+                    </div>
+                </div>
+            @endcan
 
             <div x-show="open">
                 @include('clients._brief', ['brief' => $brief])

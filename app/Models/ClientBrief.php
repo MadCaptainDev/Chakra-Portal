@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
  * One client's answers to the discovery questions, and how far through it is.
@@ -44,6 +45,8 @@ class ClientBrief extends Model
 
     protected $casts = [
         'submitted_at' => 'datetime',
+        'token_issued_at' => 'datetime',
+        'public_submitted_at' => 'datetime',
     ];
 
     protected $attributes = [
@@ -77,6 +80,150 @@ class ClientBrief extends Model
     public function keyedAnswers(): Collection
     {
         return $this->answers->keyBy('question_key');
+    }
+
+    /**
+     * Issue (or replace) the link the studio sends out.
+     *
+     * Replacing rather than adding is the whole point: one live link per
+     * brief, so sending it to the wrong address is fixed by reissuing rather
+     * than by hoping. forceFill because none of this is anybody's to post.
+     */
+    public function issuePublicToken(?User $by = null): string
+    {
+        $token = Str::random(48);
+
+        $this->forceFill([
+            'public_token' => $token,
+            'token_issued_at' => now(),
+            'token_issued_by_id' => $by?->id,
+        ])->save();
+
+        return $token;
+    }
+
+    public function revokePublicToken(): void
+    {
+        $this->forceFill([
+            'public_token' => null,
+            'token_issued_at' => null,
+            'token_issued_by_id' => null,
+        ])->save();
+    }
+
+    public function publicUrl(): ?string
+    {
+        return $this->public_token ? route('brief.public', $this->public_token) : null;
+    }
+
+    /**
+     * Whether the public link still accepts answers.
+     *
+     * Submitted means closed -- filled once, as the studio asks. A signed-in
+     * client can still revise through the portal, which is deliberate and is
+     * not the same promise: the portal knows who is typing, a shared URL does
+     * not.
+     */
+    public function acceptsPublicEdits(): bool
+    {
+        return $this->public_token !== null && ! $this->isSubmitted();
+    }
+
+    /**
+     * Put a submitted brief back in the client's hands.
+     *
+     * The escape hatch for the one-time rule. Somebody will answer question
+     * four wrong and press Submit, and without this the only remedy is a staff
+     * member retyping their words for them.
+     */
+    public function reopen(): void
+    {
+        $this->forceFill([
+            'status' => self::STATUS_IN_PROGRESS,
+            'submitted_at' => null,
+            'submitted_by_id' => null,
+            'public_submitted_at' => null,
+        ])->save();
+    }
+
+    /**
+     * The whole brief as plain text, for pasting into a script doc, an email
+     * or a WhatsApp message to whoever is writing.
+     *
+     * Plain text rather than PDF on purpose: this gets pasted into other
+     * things far more often than it gets printed, and a PDF is the format you
+     * cannot paste. Unanswered questions are skipped -- a page of "—" is
+     * harder to read than a short page.
+     */
+    public function toText(): string
+    {
+        $lines = [
+            'BRAND BRIEF — '.$this->client->name,
+            str_repeat('=', 60),
+            'Status: '.$this->statusLabel()
+                .($this->submitted_at ? ', submitted '.$this->submitted_at->format('j M Y') : ''),
+            'Exported: '.now()->format('j M Y, H:i'),
+        ];
+
+        foreach (BrandBrief::sections() as $sectionKey => $section) {
+            $questions = BrandBrief::questionsFor($sectionKey);
+
+            $answered = collect($questions)
+                ->filter(fn ($q, $key) => $this->has($key));
+
+            if ($answered->isEmpty()) {
+                continue;
+            }
+
+            $lines[] = '';
+            $lines[] = mb_strtoupper($section['label']);
+            $lines[] = str_repeat('-', 60);
+
+            foreach ($questions as $key => $question) {
+                if (! $this->has($key)) {
+                    continue;
+                }
+
+                $value = $this->displayAnswer($key);
+
+                $lines[] = '';
+                $lines[] = $question['label'];
+                // Indented so a long answer stays visibly attached to its
+                // question when this is pasted somewhere that does not wrap.
+                $lines[] = '    '.str_replace("\n", "\n    ", $value);
+            }
+        }
+
+        return implode("\n", $lines)."\n";
+    }
+
+    /**
+     * One answer as a human would read it -- taxonomy ids resolved to their
+     * names, lists joined. The stored value is an id because reporting wants
+     * one; nobody wants to read "37".
+     */
+    public function displayAnswer(string $key): string
+    {
+        $value = $this->answer($key);
+
+        if (is_array($value)) {
+            $value = array_map(fn ($v) => self::termName($v), $value);
+
+            return implode(', ', array_filter($value));
+        }
+
+        return (string) self::termName($value);
+    }
+
+    private static function termName(mixed $value): mixed
+    {
+        // Numeric answers are taxonomy term ids; anything else is what the
+        // client typed and is already readable.
+        if (! is_numeric($value)) {
+            return $value;
+        }
+
+        return TaxonomyTerm::find((int) $value)?->name ?? $value;
     }
 
     /** Whether a question has an answer worth showing. */

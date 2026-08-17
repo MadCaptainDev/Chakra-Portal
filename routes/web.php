@@ -10,6 +10,7 @@ use App\Http\Controllers\Client\DashboardController as ClientDashboardController
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\Client\ShootController as ClientShootController;
 use App\Http\Controllers\Client\WorkController as ClientWorkController;
+use App\Http\Controllers\ClientBriefLinkController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientCredentialController;
 use App\Http\Controllers\ClientLoginController;
@@ -47,6 +48,7 @@ use App\Http\Controllers\TimesheetAdminController;
 use App\Http\Controllers\TimesheetDayController;
 use App\Http\Controllers\TodoReviewController;
 use App\Http\Controllers\TodoTrackerController;
+use App\Http\Controllers\PublicBriefController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WhatsappSettingController;
 use Illuminate\Support\Facades\Route;
@@ -70,6 +72,20 @@ Route::view('/privacy', 'privacy')->name('privacy');
 // Terms of service. Public for the same reason, and asked for by Meta in the
 // same breath as the privacy policy.
 Route::view('/terms', 'terms')->name('terms');
+
+/*
+ * The brand brief on a one-time link, for the many clients who have no login.
+ *
+ * Unauthenticated by necessity and by design: the token in the path is the
+ * only credential, so there is no {client} to tamper with and a wrong token is
+ * a 404. Throttled because it is a public write -- generously, because a
+ * client saving a long form repeatedly is the expected behaviour, not abuse.
+ */
+Route::middleware('throttle:30,1')->group(function () {
+    Route::get('brief/{token}', [PublicBriefController::class, 'show'])->name('brief.public');
+    Route::post('brief/{token}', [PublicBriefController::class, 'update'])->name('brief.public.update');
+    Route::post('brief/{token}/submit', [PublicBriefController::class, 'submit'])->name('brief.public.submit');
+});
 
 // Public enquiry form. Throttled because it is unauthenticated and sends mail.
 Route::post('/enquiry', [EnquiryController::class, 'store'])
@@ -331,6 +347,22 @@ Route::middleware(['auth', 'module:clients,view'])->scopeBindings()->group(funct
         Route::put('clients/{client}/credentials/{credential}', [ClientCredentialController::class, 'update'])->name('clients.credentials.update');
         Route::delete('clients/{client}/credentials/{credential}', [ClientCredentialController::class, 'destroy'])->name('clients.credentials.destroy');
         Route::post('clients/{client}/credentials/{credential}/reveal', [ClientCredentialController::class, 'reveal'])->name('clients.credentials.reveal');
+    });
+
+    /*
+     * The brand brief the studio holds on a client.
+     *
+     * Export needs only view: it is the same answers already rendered on the
+     * client's page, in a shape that can be pasted into a script document.
+     * Handing out or closing the public link is `edit`, because it decides who
+     * outside the studio can write to that record.
+     */
+    Route::get('clients/{client}/brief/export', [ClientBriefLinkController::class, 'export'])->name('clients.brief.export');
+
+    Route::middleware('module:clients,edit')->group(function () {
+        Route::post('clients/{client}/brief/link', [ClientBriefLinkController::class, 'issue'])->name('clients.brief.link');
+        Route::delete('clients/{client}/brief/link', [ClientBriefLinkController::class, 'revoke'])->name('clients.brief.link.revoke');
+        Route::post('clients/{client}/brief/reopen', [ClientBriefLinkController::class, 'reopen'])->name('clients.brief.reopen');
     });
 
     /*

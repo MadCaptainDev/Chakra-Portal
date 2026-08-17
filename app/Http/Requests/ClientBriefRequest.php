@@ -26,7 +26,10 @@ class ClientBriefRequest extends FormRequest
     /** Whether this request is the final submit rather than a partial save. */
     public function isSubmitting(): bool
     {
-        return $this->routeIs('client.brief.submit');
+        // Both doors onto the same form: the signed-in portal and the public
+        // one-time link. Named explicitly rather than matched with a wildcard,
+        // so a route added later has to opt in to skipping nothing.
+        return $this->routeIs('client.brief.submit') || $this->routeIs('brief.public.submit');
     }
 
     /**
