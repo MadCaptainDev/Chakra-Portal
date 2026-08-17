@@ -12,14 +12,11 @@
      * $stepId    the group when adding; taken from the question when editing
      */
     $question = $question ?? null;
-    $stepId = $question?->step_id ?? ($stepId ?? $steps[0]['id']);
     $type = old('type', $question?->type ?? BrandBrief::TYPE_TEXTAREA);
     $listTypes = [BrandBrief::TYPE_CHIPS, BrandBrief::TYPE_CHECKS];
 @endphp
 
 <div x-data="{ type: @js($type) }" class="grid gap-3">
-    <input type="hidden" name="step_id" value="{{ $stepId }}">
-
     <div>
         <x-input-label value="The question, as the client reads it" />
         <x-text-input name="label" type="text" class="mt-1 w-full"

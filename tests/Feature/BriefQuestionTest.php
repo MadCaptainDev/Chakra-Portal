@@ -295,4 +295,82 @@ class BriefQuestionTest extends TestCase
         // Her extra required question counts for her and for nobody else.
         $this->assertSame($otherTotal + 1, $ziraTotal);
     }
+    public function test_the_screen_switches_between_shared_and_one_client(): void
+    {
+        $zira = Client::create(['name' => 'Zira Bridal Studio']);
+
+        BriefQuestion::create([
+            'client_id' => $zira->id,
+            'step_id' => BriefQuestion::stepIdFor($zira->id),
+            'group_label' => 'Your craft',
+            'type' => BrandBrief::TYPE_TEXTAREA,
+            'label' => 'Who inspired you to enter makeup?',
+        ]);
+
+        // The shared view must not show one client's private questions...
+        $this->actingAs($this->admin())
+            ->get(route('brief-questions.index'))
+            ->assertOk()
+            ->assertDontSee('Who inspired you to enter makeup?');
+
+        // ...and picking that client shows them.
+        $this->actingAs($this->admin())
+            ->get(route('brief-questions.index', ['client' => $zira->id]))
+            ->assertOk()
+            ->assertSee('Who inspired you to enter makeup?')
+            ->assertSee('Your craft');
+    }
+
+    public function test_adding_from_the_client_scope_stays_private_to_them(): void
+    {
+        $zira = Client::create(['name' => 'Zira Bridal Studio']);
+        $other = Client::create(['name' => 'SVA Silks']);
+
+        $this->actingAs($this->admin())->post(route('brief-questions.store'), [
+            'client_id' => $zira->id,
+            'group_label' => 'Your craft',
+            'type' => BrandBrief::TYPE_TEXTAREA,
+            'label' => 'What is your biggest USP?',
+        ])->assertRedirect();
+
+        $question = BriefQuestion::sole();
+
+        $this->assertSame($zira->id, $question->client_id);
+        // Filed into the client's own group, never a shared one.
+        $this->assertSame(BriefQuestion::stepIdFor($zira->id), $question->step_id);
+
+        BrandBrief::forClient($other);
+        $this->assertArrayNotHasKey('what_is_your_biggest_usp', BrandBrief::questions());
+    }
+
+    public function test_a_posted_step_cannot_move_a_private_question_onto_everyones_brief(): void
+    {
+        $zira = Client::create(['name' => 'Zira Bridal Studio']);
+
+        // A crafted post naming a shared group alongside a client.
+        $this->actingAs($this->admin())->post(route('brief-questions.store'), [
+            'client_id' => $zira->id,
+            'step_id' => 'business',
+            'type' => BrandBrief::TYPE_TEXT,
+            'label' => 'Sneaky question',
+        ]);
+
+        // The step is derived from the client, so it lands in their own group.
+        $this->assertSame(BriefQuestion::stepIdFor($zira->id), BriefQuestion::sole()->step_id);
+
+        BrandBrief::forClient(null);
+        $this->assertArrayNotHasKey('sneaky_question', BrandBrief::questions());
+    }
+
+    public function test_a_shared_question_needs_a_group(): void
+    {
+        $this->actingAs($this->admin())
+            ->post(route('brief-questions.store'), [
+                'type' => BrandBrief::TYPE_TEXT,
+                'label' => 'Ungrouped',
+            ])
+            ->assertSessionHasErrors('step_id');
+
+        $this->assertSame(0, BriefQuestion::count());
+    }
 }
