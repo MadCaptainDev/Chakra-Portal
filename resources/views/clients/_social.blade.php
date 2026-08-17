@@ -83,6 +83,11 @@
 
         @if ($canManage)
             <div class="flex flex-wrap items-center gap-3">
+                <a href="{{ route('instagram.insights', $client) }}"
+                   class="inline-flex items-center gap-1.5 rounded-md bg-brand-400 px-3 py-2 text-xs font-semibold uppercase tracking-widest text-brand-900 hover:bg-brand-500">
+                    View Analytics
+                </a>
+
                 <form method="POST" action="{{ route('instagram.disconnect', $client) }}"
                       onsubmit="return confirm('Disconnect {{ $instagram->handle() }}? The stored access token is discarded and analytics stop updating. Anything already collected is kept, and you can reconnect the same account later.')">
                     @csrf @method('DELETE')

@@ -93,6 +93,16 @@ class SocialAccount extends Model
         return $this->hasMany(SocialWebhookEvent::class);
     }
 
+    public function socialMediaItems(): HasMany
+    {
+        return $this->hasMany(SocialMediaItem::class);
+    }
+
+    public function insights(): HasMany
+    {
+        return $this->hasMany(SocialInsight::class);
+    }
+
     public function connectedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'connected_by_id');

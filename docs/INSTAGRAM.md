@@ -8,8 +8,8 @@ Display API, and not the Facebook-Login variant that requires a linked Facebook
 Page. Source of truth:
 <https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login>
 
-**Phase 1 is what exists today: connect, status, disconnect.** No analytics are
-fetched yet. Phases 3–5 add insights, a dashboard and scheduled syncing.
+**Phases 1–4 are live: connect, status, disconnect, analytics.** Phase 5
+(scheduled syncing) is not — see §10.
 
 ---
 
@@ -163,15 +163,54 @@ Failures are logged with the status, Meta's error type/code and message.
 to a browser — `SocialAccount::$hidden` keeps the token out of any accidental
 JSON as well.
 
-## 9. Production notes
+## 9. Analytics (Phases 3–4)
 
-- Tokens last ~60 days and are refreshed by being used. Phase 5 adds the
-  refresh; until then a connection left completely idle for two months will
-  need reconnecting.
-- **There is no cron and no queue worker on this server.** `schedule:run` never
-  fires, so the scheduled sync in Phase 5 will need either a real cron entry or
-  the catch-up-middleware approach this codebase already uses for recurring
-  invoices (`EnsureRecurringInvoicesGenerated`). Worth settling before Phase 5,
-  not during it.
+`php artisan instagram:sync` pulls fresh data for every connected account and
+caches it in `social_insights` (one metric, one row, one day) and
+`social_media_items` (recent posts/reels). The insights screen at
+**Client → Social Media → View Analytics** reads only that cache — it never
+calls Instagram on a page load. **Sync now** on that screen, or the command,
+are the only things that do.
+
+**The metric list is not from Meta's docs.** Meta's own pages disagree with
+each other and with themselves across pages, and the reference sub-pages
+don't render for a scraper. It was built by calling the live endpoint against
+a real connected account and reading Meta's own rejection error, which names
+every metric the endpoint currently accepts — see `InstagramInsights` for the
+full account and the citation. `impressions` was probed deliberately and
+confirmed retired (2 Jul 2024) in favour of `views`.
+
+**Why every metric is synced one day at a time**, including the ones that
+look like they should cover a whole range: a `total_value` metric (views,
+engagement, profile views, and most others) answers with exactly one number
+for whatever `[since, until]` was asked, confirmed by asking a real account
+for both a 30-day and a 1-day range on the same metric. Caching that as one
+row for "the last 30 days" breaks the moment anybody's window doesn't align
+to the sync's window byte-for-byte — which it usually won't, since the
+dashboard computes its own range independently of whenever sync last ran. The
+first real sync against a live account hit exactly this: Reach showed real
+numbers, Views and Engagement both showed 0, despite Instagram reporting real
+non-zero numbers for every individual day underneath. One row per metric per
+day, summed however a viewer's range requires, is what actually composes
+correctly — the same shape `reach` and `follower_count` already use as
+genuine time-series metrics.
+
+An unsupported metric for a given account or media type is skipped, not
+fatal: Meta rejects a whole batched request when one metric in it is invalid,
+so a failed batch is retried one metric at a time and only the bad ones are
+logged and dropped. `php artisan instagram:sync` prints which were skipped,
+if any.
+
+## 10. Production notes
+
+- Tokens last ~60 days and are refreshed by being used. There is no automatic
+  refresh yet; a connection left completely idle for two months will need
+  reconnecting.
+- **There is no cron and no queue worker on this server.** `schedule:run`
+  never fires, so `instagram:sync` is run by hand or from the client page's
+  Sync now button. A real cron entry, or the catch-up-middleware approach this
+  codebase already uses for recurring invoices
+  (`EnsureRecurringInvoicesGenerated`), are the two ways to automate it —
+  worth settling before relying on daily-fresh numbers.
 - App Review is required before clients outside your app roles can connect.
   `instagram_business_manage_insights` is the scope that needs it.

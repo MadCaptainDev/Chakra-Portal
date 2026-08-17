@@ -1,0 +1,186 @@
+@php
+    /*
+     * Instagram analytics for one client, read entirely from the local cache
+     * -- see InstagramInsightsController for why nothing here calls Instagram.
+     *
+     * $account is null when nothing is connected, in which case the page is
+     * one sentence and a link back to Social Media rather than a wall of
+     * empty stat cards.
+     */
+    $rangeQuery = fn (string $key) => route('instagram.insights', $client) . '?range=' . $key;
+@endphp
+
+<x-app-layout title="Instagram Analytics">
+    <x-slot name="header">
+        <x-page-header :title="$client->name" eyebrow="Instagram Analytics">
+            <x-slot name="actions">
+                <a href="{{ route('clients.show', $client) }}#social"
+                   class="text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                    ← Back to client
+                </a>
+            </x-slot>
+        </x-page-header>
+    </x-slot>
+
+    @if (! $account)
+        <x-card padding="md" class="max-w-lg">
+            <p class="text-sm text-gray-600">
+                No Instagram account is connected for {{ $client->name }} yet.
+            </p>
+            <a href="{{ route('clients.show', $client) }}#social"
+               class="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                Connect Instagram
+            </a>
+        </x-card>
+    @else
+        <div class="space-y-6">
+
+            {{-- Account strip: who, and how fresh the numbers are. --}}
+            <x-card padding="md">
+                <div class="flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        @if ($account->profile_picture_url)
+                            <img src="{{ $account->profile_picture_url }}" alt="" onerror="this.remove()"
+                                 class="w-10 h-10 rounded-full object-cover ring-1 ring-gray-900/5">
+                        @endif
+                        <div>
+                            <p class="text-sm font-semibold text-gray-900">{{ $account->handle() }}</p>
+                            <p class="text-xs text-gray-500">
+                                {{ $account->last_synced_at ? 'Synced ' . $account->last_synced_at->diffForHumans() : 'Never synced' }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <form method="POST" action="{{ route('instagram.insights.sync', $client) }}?range={{ $rangeKey }}">
+                        @csrf
+                        <x-secondary-button type="submit">Sync now</x-secondary-button>
+                    </form>
+                </div>
+
+                @if ($account->last_error)
+                    <p class="mt-3 text-sm text-amber-800 bg-amber-50 ring-1 ring-amber-100 rounded-lg px-3 py-2">
+                        Last problem: {{ $account->last_error }}
+                    </p>
+                @endif
+            </x-card>
+
+            {{-- Date range. Plain links rather than JS state: the whole page
+                 is server-rendered from the range in the query string, so a
+                 link is simpler than an Alpine store that has to refetch. --}}
+            <div class="flex flex-wrap items-center gap-2">
+                @foreach ($ranges as $key => $label)
+                    <a href="{{ $rangeQuery($key) }}"
+                       @class([
+                           'inline-flex items-center min-h-[36px] px-3 rounded-full text-xs font-semibold transition-colors',
+                           'bg-brand-500 text-white' => $rangeKey === $key,
+                           'bg-white text-gray-600 ring-1 ring-gray-900/5 hover:ring-gray-900/10' => $rangeKey !== $key,
+                       ])>
+                        {{ $label }}
+                    </a>
+                @endforeach
+
+                {{-- Custom range, its own small form so it can carry two dates
+                     without a JS date-range widget nothing else in the product
+                     uses. --}}
+                <form method="GET" action="{{ route('instagram.insights', $client) }}"
+                      class="inline-flex items-center gap-1.5">
+                    <input type="hidden" name="range" value="custom">
+                    <input type="date" name="from" value="{{ $since->toDateString() }}"
+                           class="rounded-md border-gray-300 text-xs py-1.5">
+                    <span class="text-xs text-gray-400">to</span>
+                    <input type="date" name="to" value="{{ $until->toDateString() }}"
+                           class="rounded-md border-gray-300 text-xs py-1.5">
+                    <button type="submit"
+                            class="inline-flex items-center min-h-[36px] px-3 rounded-full text-xs font-semibold transition-colors
+                                   {{ $rangeKey === 'custom' ? 'bg-brand-500 text-white' : 'bg-white text-gray-600 ring-1 ring-gray-900/5 hover:ring-gray-900/10' }}">
+                        Go
+                    </button>
+                </form>
+            </div>
+
+            {{-- Overview --}}
+            <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                <x-stat-card label="Reach" :value="number_format($overview['reach'])" icon="trending-up" accent="brand" />
+                <x-stat-card label="Views" :value="number_format($overview['views'])" icon="eye" accent="brand" />
+                <x-stat-card label="Engagement" :value="number_format($overview['engagement'])" icon="sparkles" accent="green" />
+                <x-stat-card label="Followers" :value="$overview['followers'] !== null ? number_format($overview['followers']) : '—'" icon="users" accent="gray" />
+                <x-stat-card label="Follower growth"
+                    :value="$overview['follower_growth'] !== null ? ($overview['follower_growth'] >= 0 ? '+' : '').number_format($overview['follower_growth']) : '—'"
+                    icon="trending-up"
+                    :accent="($overview['follower_growth'] ?? 0) > 0 ? 'green' : (($overview['follower_growth'] ?? 0) < 0 ? 'red' : 'gray')" />
+            </div>
+
+            {{-- Trend --}}
+            <x-charts.metric-trend :days="$trend" title="Reach, day by day"
+                empty="No reach data cached for this range yet — press Sync now." />
+
+            {{-- Content performance --}}
+            <x-card padding="none">
+                <div class="p-4 sm:p-5 pb-0">
+                    <x-section-heading title="Content performance"
+                        subtitle="Recent posts and reels, ranked by reach. Sync now to bring this up to date." />
+                </div>
+
+                @if ($content->isEmpty())
+                    <div class="p-4 sm:p-5">
+                        <x-empty-state message="No media cached yet — press Sync now to pull recent posts." />
+                    </div>
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead>
+                                <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">
+                                    <th class="px-4 sm:px-5 py-2.5">Content</th>
+                                    <th class="px-3 py-2.5">Type</th>
+                                    <th class="px-3 py-2.5 text-right">Reach</th>
+                                    <th class="px-3 py-2.5 text-right">Views</th>
+                                    <th class="px-3 py-2.5 text-right">Engagement</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                @foreach ($content as $item)
+                                    <tr>
+                                        <td class="px-4 sm:px-5 py-2.5">
+                                            <div class="flex items-center gap-3 min-w-0">
+                                                @if ($item->thumbnail_url || $item->media_url)
+                                                    <img src="{{ $item->thumbnail_url ?: $item->media_url }}" alt=""
+                                                         onerror="this.remove()"
+                                                         class="w-9 h-9 rounded-md object-cover ring-1 ring-gray-900/5 shrink-0">
+                                                @endif
+                                                <div class="min-w-0">
+                                                    @if ($item->permalink)
+                                                        <a href="{{ $item->permalink }}" target="_blank" rel="noopener"
+                                                           class="text-gray-900 font-medium hover:text-brand-600 truncate block max-w-xs">
+                                                            {{ $item->shortCaption() }}
+                                                        </a>
+                                                    @else
+                                                        <span class="text-gray-900 font-medium truncate block max-w-xs">{{ $item->shortCaption() }}</span>
+                                                    @endif
+                                                    <span class="text-xs text-gray-400">{{ $item->posted_at?->format('j M Y') }}</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-3 py-2.5 whitespace-nowrap">
+                                            <x-badge color="{{ $item->isReel() ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600' }}">
+                                                {{ $item->typeLabel() }}
+                                            </x-badge>
+                                        </td>
+                                        <td class="px-3 py-2.5 text-right tabular-nums text-gray-900">
+                                            {{ $item->metricValue('reach') !== null ? number_format($item->metricValue('reach')) : '—' }}
+                                        </td>
+                                        <td class="px-3 py-2.5 text-right tabular-nums text-gray-900">
+                                            {{ $item->metricValue('views') !== null ? number_format($item->metricValue('views')) : '—' }}
+                                        </td>
+                                        <td class="px-3 py-2.5 text-right tabular-nums text-gray-900">
+                                            {{ $item->metricValue('total_interactions') !== null ? number_format($item->metricValue('total_interactions')) : '—' }}
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </x-card>
+        </div>
+    @endif
+</x-app-layout>

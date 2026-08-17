@@ -16,7 +16,11 @@
 
          Every panel is rendered and Alpine only switches which is visible, so
          switching costs nothing and find-in-page still reaches all of it. --}}
-    <div class="space-y-6" x-data="{ tab: 'overview' }">
+    {{-- The Instagram insights page links back with a #social fragment;
+         reading it once on load is what makes that landing on the right tab
+         instead of always Overview. --}}
+    <div class="space-y-6" x-data="{ tab: 'overview' }"
+         x-init="if (['overview','brief','social','credentials','login'].includes(window.location.hash.slice(1))) tab = window.location.hash.slice(1)">
         <div class="overflow-x-auto -mx-1 px-1 pb-1">
             <x-tab-nav model="tab" :tabs="array_filter([
                 'overview' => ['label' => 'Overview'],

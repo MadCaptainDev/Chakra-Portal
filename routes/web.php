@@ -22,6 +22,7 @@ use App\Http\Controllers\EnquiryController;
 use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InstagramConnectionController;
+use App\Http\Controllers\InstagramInsightsController;
 use App\Http\Controllers\InstagramSettingController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoiceTemplateController;
@@ -353,6 +354,17 @@ Route::middleware(['auth', 'module:clients,view'])->scopeBindings()->group(funct
         ->middleware('module:clients,edit')->name('clients.update');
     Route::delete('clients/{client}', [ClientController::class, 'destroy'])
         ->middleware('module:clients,delete')->name('clients.destroy');
+
+    /*
+     * Instagram analytics. Reading needs only `view` -- it is a local cache
+     * read, not a call to Instagram, so it is no more sensitive than any other
+     * client screen. Syncing is `edit`: it spends the account's API quota and
+     * writes rows, which is a step above merely looking at a chart.
+     */
+    Route::get('clients/{client}/instagram/insights', [InstagramInsightsController::class, 'show'])
+        ->name('instagram.insights');
+    Route::post('clients/{client}/instagram/insights/sync', [InstagramInsightsController::class, 'sync'])
+        ->middleware('module:clients,edit')->name('instagram.insights.sync');
 
     // Stored logins. scopeBindings() means a credential belonging to another
     // client 404s on the binding, before the controller runs.
