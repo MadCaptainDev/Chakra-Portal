@@ -10,6 +10,7 @@ use App\Http\Controllers\Client\DashboardController as ClientDashboardController
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\Client\ShootController as ClientShootController;
 use App\Http\Controllers\Client\WorkController as ClientWorkController;
+use App\Http\Controllers\BriefQuestionController;
 use App\Http\Controllers\ClientBriefLinkController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientCredentialController;
@@ -607,6 +608,17 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
     Route::get('whatsapp', [WhatsappSettingController::class, 'edit'])->name('whatsapp.edit');
     Route::put('whatsapp', [WhatsappSettingController::class, 'update'])->name('whatsapp.update');
     Route::post('whatsapp/rotate-token', [WhatsappSettingController::class, 'rotate'])->name('whatsapp.rotate');
+
+    /*
+     * The brand brief question list. Admin-only alongside Settings: adding a
+     * question changes what every client of the studio is asked, which is not
+     * per-client work and is not delegated a piece at a time.
+     */
+    Route::get('brief-questions', [BriefQuestionController::class, 'index'])->name('brief-questions.index');
+    Route::post('brief-questions', [BriefQuestionController::class, 'store'])->name('brief-questions.store');
+    Route::put('brief-questions/{briefQuestion}', [BriefQuestionController::class, 'update'])->name('brief-questions.update');
+    Route::delete('brief-questions/{briefQuestion}', [BriefQuestionController::class, 'destroy'])->name('brief-questions.destroy');
+    Route::post('brief-questions/{briefQuestion}/restore', [BriefQuestionController::class, 'restore'])->name('brief-questions.restore');
 
     Route::get('invoice-template', [InvoiceTemplateController::class, 'edit'])->name('invoice-template.edit');
     Route::put('invoice-template', [InvoiceTemplateController::class, 'update'])->name('invoice-template.update');

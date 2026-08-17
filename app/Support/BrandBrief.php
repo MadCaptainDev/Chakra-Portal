@@ -255,35 +255,121 @@ class BrandBrief
      *
      * @return array<string, array<string, mixed>>
      */
+    /**
+     * Per-request caches. Class properties rather than method statics so
+     * flush() can actually clear them -- a method static cannot be reset, and
+     * the admin screen has to see its own edit on the next line.
+     *
+     * @var array<string, array<string, mixed>>|null
+     */
+    private static ?array $flat = null;
+
+    /** @var array<string, array<string, array<string, mixed>>>|null */
+    private static ?array $custom = null;
+
     public static function questions(): array
     {
-        static $flat = null;
-
-        if ($flat !== null) {
-            return $flat;
+        if (self::$flat !== null) {
+            return self::$flat;
         }
 
         $flat = [];
 
         foreach (self::STEPS as $index => $step) {
-            foreach ($step['questions'] as $key => $question) {
+            foreach (self::questionsFor($step['id']) as $key => $question) {
                 $flat[$key] = $question + ['step' => $index, 'section' => $step['id']];
             }
         }
 
-        return $flat;
+        return self::$flat = $flat;
     }
 
-    /** @return array<string, array<string, mixed>> */
+    /**
+     * One group's questions: the code-defined ones first, then whatever the
+     * studio has added to that group from Setup → Brief Questions.
+     *
+     * Code first on purpose. The built-in questions are the ones the writers
+     * read first and the script drawer depends on, and a client should not
+     * have to scroll past four questions somebody added last week to reach
+     * "briefly describe your business".
+     *
+     * @return array<string, array<string, mixed>>
+     */
     public static function questionsFor(string $stepId): array
     {
+        $questions = [];
+
         foreach (self::STEPS as $step) {
             if ($step['id'] === $stepId) {
-                return $step['questions'];
+                $questions = $step['questions'];
+                break;
             }
         }
 
-        return [];
+        return $questions + (self::customQuestions()[$stepId] ?? []);
+    }
+
+    /**
+     * The studio's own questions, grouped by step and cached for the request.
+     *
+     * Wrapped in a try: this is read while rendering, and a missing table
+     * during a deploy that has not migrated yet must degrade to "no custom
+     * questions" rather than white-screening every brief in the product.
+     *
+     * @return array<string, array<string, array<string, mixed>>>
+     */
+    public static function customQuestions(): array
+    {
+        if (self::$custom !== null) {
+            return self::$custom;
+        }
+
+        $grouped = [];
+
+        try {
+            $stored = \App\Models\BriefQuestion::query()->live()->ordered()->get();
+        } catch (\Throwable) {
+            return self::$custom = [];
+        }
+
+        $stepIds = array_column(self::STEPS, 'id');
+        $fallback = end($stepIds) ?: 'business';
+
+        foreach ($stored as $question) {
+            // A question whose group no longer exists lands in the last group
+            // rather than vanishing -- an invisible question is one the studio
+            // keeps re-adding, wondering why it never appears.
+            $stepId = in_array($question->step_id, $stepIds, true) ? $question->step_id : $fallback;
+
+            $grouped[$stepId][$question->key] = $question->toCatalogue();
+        }
+
+        return self::$custom = $grouped;
+    }
+
+    /** Whether a key belongs to the code catalogue rather than the studio's. */
+    public static function isCoreKey(string $key): bool
+    {
+        foreach (self::STEPS as $step) {
+            if (array_key_exists($key, $step['questions'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Forget the per-request caches.
+     *
+     * Called after the admin screen writes a question, so the same request can
+     * render the list it just changed, and between tests, which create
+     * questions and then read the catalogue back.
+     */
+    public static function flush(): void
+    {
+        self::$flat = null;
+        self::$custom = null;
     }
 
     /** @return array<string, array{label: string, title: string, blurb: string}> */

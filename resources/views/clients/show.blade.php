@@ -9,7 +9,28 @@
         </x-page-header>
     </x-slot>
 
-    <div class="space-y-6">
+    {{-- Tabbed rather than one long scroll. A client record is four unrelated
+         jobs -- who they are, what they told us, what we hold for them, and
+         their login -- and stacking them meant the brief, the thing most often
+         wanted, sat below a contact card and above an invoice table.
+
+         Every panel is rendered and Alpine only switches which is visible, so
+         switching costs nothing and find-in-page still reaches all of it. --}}
+    <div class="space-y-6" x-data="{ tab: 'overview' }">
+        <div class="overflow-x-auto -mx-1 px-1 pb-1">
+            <x-tab-nav model="tab" :tabs="array_filter([
+                'overview' => ['label' => 'Overview'],
+                'brief' => ['label' => 'Brand Brief', 'count' => $client->brief?->exists
+                    ? $client->brief->requiredAnswered().'/'.$client->brief->requiredTotal()
+                    : null],
+                'credentials' => auth()->user()->can('clients.credentials')
+                    ? ['label' => 'Logins We Hold', 'count' => $client->credentials()->count() ?: null]
+                    : null,
+                'login' => auth()->user()->can('clients.manage') ? ['label' => 'Client Login'] : null,
+            ])" />
+        </div>
+
+        <div x-show="tab === 'overview'" x-cloak class="space-y-6">
         {{-- Contact info --}}
         <x-card class="p-4 sm:p-6 border border-brand-100/40">
             <h3 class="font-semibold text-brand-900 mb-3">Contact Info</h3>
@@ -35,6 +56,9 @@
             </dl>
         </x-card>
 
+        </div>
+
+        <div x-show="tab === 'brief'" x-cloak class="space-y-6">
         {{-- The brand brief. Here rather than further down because it is client
              identity, not client accounting -- the same kind of thing as the
              contact card above it. Read-only: v1 has the client owning their
@@ -188,6 +212,9 @@
             </div>
         </x-card>
 
+        </div>
+
+        <div x-show="tab === 'overview'" x-cloak class="space-y-6">
         {{-- Production hours against this client --}}
         <div>
             <h3 class="font-semibold text-brand-900 mb-3">Timesheet hours</h3>
@@ -260,6 +287,9 @@
             @endif
         </div>
 
+        </div>
+
+        <div x-show="tab === 'credentials'" x-cloak class="space-y-6">
         {{-- The logins the studio holds FOR them, as opposed to the login they
              sign in with below. Only rendered for somebody granted the
              separate credentials ability. --}}
@@ -267,6 +297,9 @@
             @include('clients._credentials')
         @endcan
 
+        </div>
+
+        <div x-show="tab === 'login'" x-cloak class="space-y-6">
         {{-- ——— Their login ———
              Password set here and handed over by phone: the app sends no real
              mail (MAIL_MAILER is log), so an invite link would go to a log
@@ -370,5 +403,6 @@
         </x-card>
         @endcan
 
+        </div>
     </div>
 </x-app-layout>

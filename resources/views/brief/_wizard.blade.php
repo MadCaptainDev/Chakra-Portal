@@ -94,7 +94,7 @@
                     <p class="mt-1 text-sm text-brand-100/60">{{ $step['blurb'] }}</p>
                 </div>
 
-                @foreach ($step['questions'] as $key => $q)
+                @foreach (BrandBrief::questionsFor($step['id']) as $key => $q)
                     @php $visible = BrandBrief::isVisible($key, $answers); @endphp
                     {{-- Conditional questions are rendered but hidden, and the
                          condition is re-evaluated live by Alpine: a client who
@@ -129,7 +129,7 @@
                         </button>
                     </div>
                     <dl class="px-5 pb-4">
-                        @foreach ($step['questions'] as $key => $q)
+                        @foreach (BrandBrief::questionsFor($step['id']) as $key => $q)
                             @continue (! BrandBrief::isVisible($key, $answers))
                             @php
                                 $shown = $brief->exists ? $brief->displayAnswer($key) : '';

@@ -113,6 +113,9 @@
             <x-sidebar-link icon="chat" :href="route('whatsapp.edit')" :active="request()->routeIs('whatsapp.*')">
                 WhatsApp
             </x-sidebar-link>
+            <x-sidebar-link icon="inbox" :href="route('brief-questions.index')" :active="request()->routeIs('brief-questions.*')">
+                Brief Questions
+            </x-sidebar-link>
             @if (Route::has('invoice-template.edit'))
                 <x-sidebar-link icon="template" :href="route('invoice-template.edit')" :active="request()->routeIs('invoice-template.*')">
                     PDF Template
