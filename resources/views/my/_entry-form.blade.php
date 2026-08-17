@@ -66,6 +66,60 @@
                 <p class="mt-1 text-xs text-amber-700">Current value “{{ $currentVenture }}” is not a client — pick one below to fix it.</p>
             @endif
             <x-input-error :messages="$errors->get('venture')" class="mt-2" />
+
+            {{-- More ventures on the same entry: a shared shoot, a day split
+                 between two SVA brands. The first select above stays the
+                 primary and is what every hours report counts against; these
+                 record who else the work was for.
+
+                 Collapsed behind a link because most entries name one venture
+                 and a permanently open multi-select would be five rows of
+                 nothing on the common case. --}}
+            @php
+                $extraVentures = collect(old('ventures', $entry?->ventures ?? []))
+                    ->reject(fn ($v) => $v === $currentVenture)
+                    ->values();
+            @endphp
+            <div x-data="{ open: {{ $extraVentures->isNotEmpty() || old('new_venture') ? 'true' : 'false' }}, other: {{ old('new_venture') ? 'true' : 'false' }} }"
+                 class="mt-2">
+                <button type="button" @click="open = ! open"
+                        class="text-xs font-semibold text-brand-600 hover:text-brand-800">
+                    <span x-text="open ? 'Fewer options' : '+ Also for other ventures'">+ Also for other ventures</span>
+                </button>
+
+                <div x-show="open" x-cloak class="mt-2 space-y-2">
+                    <div class="flex flex-wrap gap-1.5">
+                        @foreach ($ventureOptions as $option)
+                            @continue ($option['value'] === $currentVenture)
+                            @php $checked = $extraVentures->contains($option['value']); @endphp
+                            <label class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium cursor-pointer ring-1 ring-inset
+                                          {{ $checked ? 'bg-brand-50 text-brand-800 ring-brand-300' : 'bg-white text-gray-600 ring-gray-200 hover:ring-gray-300' }}">
+                                <input type="checkbox" name="ventures[]" value="{{ $option['value'] }}" @checked($checked)
+                                       class="rounded border-gray-300 text-brand-600 focus:ring-brand-500 w-3.5 h-3.5">
+                                {{ $option['label'] }}
+                            </label>
+                        @endforeach
+                    </div>
+
+                    <div>
+                        <button type="button" @click="other = ! other"
+                                class="text-xs font-semibold text-brand-600 hover:text-brand-800">
+                            <span x-text="other ? 'Cancel new venture' : '+ Other venture'">+ Other venture</span>
+                        </button>
+
+                        {{-- Typing a name here creates it as master data, so
+                             the next person picks it off the list rather than
+                             inventing a second spelling of the same thing. --}}
+                        <div x-show="other" x-cloak class="mt-1.5">
+                            <x-text-input name="new_venture" type="text" class="w-full sm:max-w-xs text-sm"
+                                          value="{{ old('new_venture') }}"
+                                          placeholder="Name the venture, e.g. Studio showreel" />
+                            <p class="mt-1 text-xs text-gray-500">Added to the venture list for everyone.</p>
+                            <x-input-error :messages="$errors->get('new_venture')" class="mt-1" />
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

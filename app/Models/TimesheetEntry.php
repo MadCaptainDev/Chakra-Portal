@@ -53,6 +53,7 @@ class TimesheetEntry extends Model
         'task',
         'task_type',
         'venture',
+        'ventures',
         'started_at',
         'ended_at',
         'minutes',
@@ -60,6 +61,7 @@ class TimesheetEntry extends Model
     ];
 
     protected $casts = [
+        'ventures' => 'array',
         'worked_on' => 'date',
         'minutes' => 'integer',
         'was_backdated' => 'boolean',
@@ -205,6 +207,50 @@ class TimesheetEntry extends Model
     public static function flushTaskTypes(): void
     {
         self::$taskTypes = null;
+    }
+
+    /**
+     * Every venture this entry was for, primary first.
+     *
+     * Falls back to the single `venture` for the fifteen hundred rows written
+     * before an entry could name more than one -- so callers get a list either
+     * way and none of them has to know when the column arrived.
+     *
+     * @return list<string>
+     */
+    public function ventureList(): array
+    {
+        $list = collect($this->ventures ?: [])
+            ->map(fn ($one) => trim((string) $one))
+            ->filter();
+
+        if (filled($this->venture)) {
+            $list = $list->prepend(trim((string) $this->venture));
+        }
+
+        return $list
+            ->unique(fn (string $one) => mb_strtolower($one))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * How the entry reads in a list: "SVA Silks +2".
+     *
+     * The extra count rather than the names, because a table cell that grows
+     * with the number of ventures is a table that reflows.
+     */
+    public function ventureLabel(): string
+    {
+        $list = $this->ventureList();
+
+        if ($list === []) {
+            return '—';
+        }
+
+        $extra = count($list) - 1;
+
+        return $extra > 0 ? $list[0].' +'.$extra : $list[0];
     }
 
     public function taskTypeLabel(): string

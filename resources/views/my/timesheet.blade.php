@@ -195,7 +195,7 @@
                                     <div class="min-w-0 flex-1">
                                         <p class="font-medium text-gray-900 truncate">{{ $entry->task }}</p>
                                         <p class="text-xs text-gray-500 truncate mt-0.5">
-                                            @if ($entry->venture){{ $entry->venture }} &middot; @endif
+                                            @if ($entry->venture){{ $entry->ventureLabel() }} &middot; @endif
                                             @if ($entry->started_at)
                                                 {{ substr($entry->started_at, 0, 5) }}@if ($entry->ended_at)&ndash;{{ substr($entry->ended_at, 0, 5) }}@endif
                                                 &middot;

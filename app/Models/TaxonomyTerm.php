@@ -39,6 +39,8 @@ class TaxonomyTerm extends Model
 
     public const TYPE_TASK_TYPE = 'task_type';
 
+    public const TYPE_VENTURE = 'venture';
+
     /**
      * The lists, in the order the master-data screen shows them.
      *
@@ -93,6 +95,11 @@ class TaxonomyTerm extends Model
             'label' => 'Equipment category',
             'plural' => 'Equipment categories',
             'hint' => 'How the kit register is grouped — camera, lens, lighting, audio, grip.',
+        ],
+        self::TYPE_VENTURE => [
+            'label' => 'Venture',
+            'plural' => 'Ventures',
+            'hint' => 'Work that is not billable to one client on the list — internal projects, and anything typed into “Other” on a timesheet. Clients are ventures automatically and are not repeated here.',
         ],
         self::TYPE_TASK_TYPE => [
             'label' => 'Task type',

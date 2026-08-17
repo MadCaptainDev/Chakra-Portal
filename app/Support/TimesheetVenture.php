@@ -53,9 +53,71 @@ class TimesheetVenture
             ->sortBy(fn (array $option) => mb_strtolower($option['label']), SORT_NATURAL)
             ->values();
 
+        /*
+         * Ventures the studio typed in rather than clients: internal projects,
+         * one-off collaborations, anything that came through "Other". Kept as
+         * master data so the second person to work on it picks it from the list
+         * instead of inventing a second spelling.
+         */
+        $custom = self::customVentures()
+            ->reject(fn (string $name) => $clientOptions->contains(
+                fn (array $option) => strcasecmp($option['value'], $name) === 0
+            ))
+            ->map(fn (string $name) => ['value' => $name, 'label' => $name])
+            ->values();
+
         return $clientOptions
+            ->concat($custom)
             ->push(['value' => self::ALL_CLIENTS, 'label' => self::ALL_CLIENTS])
             ->all();
+    }
+
+    /**
+     * @return Collection<int, string>
+     */
+    public static function customVentures(): Collection
+    {
+        try {
+            return \App\Models\TaxonomyTerm::query()
+                ->where('type', \App\Models\TaxonomyTerm::TYPE_VENTURE)
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->pluck('name');
+        } catch (\Throwable) {
+            return collect();
+        }
+    }
+
+    /**
+     * Record a venture somebody typed by hand, so it is on the list next time.
+     *
+     * Returns the canonical name to store. A name matching an existing client
+     * or term is reused rather than duplicated -- the whole reason this is
+     * master data is to stop "SVA silks" and "Sva Silks" both existing.
+     */
+    public static function remember(string $name): ?string
+    {
+        $name = trim(preg_replace('/\s+/u', ' ', $name) ?? $name);
+
+        if ($name === '') {
+            return null;
+        }
+
+        foreach (self::allowedValues() as $existing) {
+            if (strcasecmp($existing, $name) === 0) {
+                return $existing;
+            }
+        }
+
+        \App\Models\TaxonomyTerm::create([
+            'type' => \App\Models\TaxonomyTerm::TYPE_VENTURE,
+            'name' => $name,
+            'slug' => \App\Models\TaxonomyTerm::uniqueSlug(\App\Models\TaxonomyTerm::TYPE_VENTURE, $name),
+            'is_active' => true,
+        ]);
+
+        return $name;
     }
 
     /**

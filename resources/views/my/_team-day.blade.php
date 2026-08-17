@@ -66,7 +66,7 @@
                     <p class="text-sm truncate">{{ $entry->task }}</p>
                     <p class="text-[11px] text-brand-100/60 truncate">
                         {{ $entry->taskTypeLabel() }}
-                        @if ($entry->venture) &middot; {{ $entry->venture }} @endif
+                        @if ($entry->venture) &middot; {{ $entry->ventureLabel() }} @endif
                         @if ($entry->started_at)
                             &middot; {{ substr($entry->started_at, 0, 5) }}@if ($entry->ended_at)&ndash;{{ substr($entry->ended_at, 0, 5) }}@endif
                         @endif

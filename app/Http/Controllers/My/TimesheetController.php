@@ -171,7 +171,17 @@ class TimesheetController extends Controller
             'worked_on' => ['required', 'date'],
             'task' => ['required', 'string', 'max:255'],
             'task_type' => ['required', Rule::in(array_keys(TimesheetEntry::taskTypes()))],
+            /*
+             * Many ventures per entry now. `venture` is still posted and still
+             * required -- it is the primary, and everything that reports on
+             * hours reads it -- while `ventures[]` carries the rest.
+             */
             'venture' => TimesheetVenture::validationRules(),
+            'ventures' => ['nullable', 'array', 'max:20'],
+            'ventures.*' => ['string', 'max:255'],
+            // What somebody typed into "Other". Becomes a venture in master
+            // data, so the next person picks it instead of respelling it.
+            'new_venture' => ['nullable', 'string', 'max:255'],
             'started_at' => ['nullable', 'date_format:H:i'],
             'ended_at' => ['nullable', 'date_format:H:i'],
             'minutes' => ['nullable', 'integer', 'min:0', 'max:1440'],
@@ -185,6 +195,40 @@ class TimesheetController extends Controller
         $data['minutes'] = $derived ?? (int) ($data['minutes'] ?? 0);
         $data['venture'] = TimesheetVenture::normalize(trim((string) $data['venture']))
             ?? trim((string) $data['venture']);
+
+        /*
+         * The full set, primary first. Anything typed into "Other" is recorded
+         * as master data on the way through, so it is on the list next time --
+         * which is the difference between a venture and a spelling.
+         *
+         * Unknown values are dropped rather than rejected: the primary has
+         * already been validated against the list, and failing somebody's whole
+         * timesheet entry over a stale second pick is how a form stops being
+         * used. Nothing here can invent a venture except through remember().
+         */
+        $allowed = collect(TimesheetVenture::allowedValues());
+
+        $extra = collect($data['ventures'] ?? [])
+            ->map(fn ($one) => trim((string) $one))
+            ->filter()
+            ->filter(fn (string $one) => $allowed->contains(
+                fn (string $known) => strcasecmp($known, $one) === 0
+            ));
+
+        if ($typed = trim((string) ($data['new_venture'] ?? ''))) {
+            if ($remembered = TimesheetVenture::remember($typed)) {
+                $extra = $extra->push($remembered);
+            }
+        }
+
+        $data['ventures'] = $extra
+            ->prepend($data['venture'])
+            ->filter()
+            ->unique(fn (string $one) => mb_strtolower($one))
+            ->values()
+            ->all();
+
+        unset($data['new_venture']);
         $data['task_type'] = $data['task_type'] ?? TimesheetEntry::inferTaskType($data['task']);
 
         return $data;
