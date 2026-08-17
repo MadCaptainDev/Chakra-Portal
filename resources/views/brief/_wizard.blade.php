@@ -20,7 +20,9 @@
     |   $showName   whether to ask who is filling it in (public link only)
     */
     $answers = $brief->exists ? $brief->answerMap() : [];
-    $steps = BrandBrief::STEPS;
+    // The seven shared groups, plus this client's own group when they have
+    // one. The controller has already said whose brief this is.
+    $steps = BrandBrief::stepsForClient();
     $answered = $brief->exists ? $brief->requiredAnswered() : 0;
     $total = $brief->exists ? $brief->requiredTotal() : count(BrandBrief::requiredKeys());
 @endphp
@@ -94,7 +96,7 @@
                     <p class="mt-1 text-sm text-brand-100/60">{{ $step['blurb'] }}</p>
                 </div>
 
-                @foreach (BrandBrief::questionsFor($step['id']) as $key => $q)
+                @foreach ($step['questions'] as $key => $q)
                     @php $visible = BrandBrief::isVisible($key, $answers); @endphp
                     {{-- Conditional questions are rendered but hidden, and the
                          condition is re-evaluated live by Alpine: a client who
@@ -129,7 +131,7 @@
                         </button>
                     </div>
                     <dl class="px-5 pb-4">
-                        @foreach (BrandBrief::questionsFor($step['id']) as $key => $q)
+                        @foreach ($step['questions'] as $key => $q)
                             @continue (! BrandBrief::isVisible($key, $answers))
                             @php
                                 $shown = $brief->exists ? $brief->displayAnswer($key) : '';

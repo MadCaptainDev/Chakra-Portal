@@ -35,6 +35,7 @@ class BriefController extends Controller
     public function edit(Request $request): View
     {
         $client = $this->client($request);
+        BrandBrief::forClient($client);
 
         /*
          * make(), not firstOrCreate(). Opening the form must not create a row:
@@ -54,6 +55,7 @@ class BriefController extends Controller
     public function update(ClientBriefRequest $request): RedirectResponse|JsonResponse
     {
         $client = $this->client($request);
+        BrandBrief::forClient($client);
         $brief = $this->saveBrief($client, $request);
 
         // Autosave posts in the background and wants an answer, not a page.
@@ -77,6 +79,7 @@ class BriefController extends Controller
     public function submit(ClientBriefRequest $request): RedirectResponse
     {
         $client = $this->client($request);
+        BrandBrief::forClient($client);
         $brief = $this->saveBrief($client, $request);
 
         /*

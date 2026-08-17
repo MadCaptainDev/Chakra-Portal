@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Models\Client;
+
 /**
  * What the studio asks a client before writing for them.
  *
@@ -267,6 +269,21 @@ class BrandBrief
     /** @var array<string, array<string, array<string, mixed>>>|null */
     private static ?array $custom = null;
 
+    /**
+     * Which client the catalogue is currently being assembled for.
+     *
+     * Most of the brief is the same for everybody; a few clients have their
+     * own group of questions nobody else is asked. Rather than thread a client
+     * through eight call sites -- the wizard, the validator, the progress
+     * count, the export, the staff view -- the catalogue is told once who it
+     * is building for and the caches are keyed to it.
+     *
+     * Null means the shared questions only, and that is the safe default: a
+     * caller that forgets to say gets everybody's questions, never one
+     * client's private ones.
+     */
+    private static ?int $clientId = null;
+
     public static function questions(): array
     {
         if (self::$flat !== null) {
@@ -275,8 +292,8 @@ class BrandBrief
 
         $flat = [];
 
-        foreach (self::STEPS as $index => $step) {
-            foreach (self::questionsFor($step['id']) as $key => $question) {
+        foreach (self::stepsForClient() as $index => $step) {
+            foreach ($step['questions'] as $key => $question) {
                 $flat[$key] = $question + ['step' => $index, 'section' => $step['id']];
             }
         }
@@ -327,7 +344,11 @@ class BrandBrief
         $grouped = [];
 
         try {
-            $stored = \App\Models\BriefQuestion::query()->live()->ordered()->get();
+            $stored = \App\Models\BriefQuestion::query()
+                ->live()
+                ->forClient(self::$clientId)
+                ->ordered()
+                ->get();
         } catch (\Throwable) {
             return self::$custom = [];
         }
@@ -335,10 +356,24 @@ class BrandBrief
         $stepIds = array_column(self::STEPS, 'id');
         $fallback = end($stepIds) ?: 'business';
 
+        self::$clientLabel = null;
+
         foreach ($stored as $question) {
-            // A question whose group no longer exists lands in the last group
-            // rather than vanishing -- an invisible question is one the studio
-            // keeps re-adding, wondering why it never appears.
+            if ($question->isPrivate()) {
+                /*
+                 * This client's own group. It keeps its own step id -- it is a
+                 * tab of its own, not a question smuggled into a shared group
+                 * it was never written for.
+                 */
+                $grouped[$question->step_id][$question->key] = $question->toCatalogue();
+                self::$clientLabel = $question->group_label ?: self::$clientLabel;
+
+                continue;
+            }
+
+            // A shared question whose group no longer exists lands in the last
+            // group rather than vanishing -- an invisible question is one the
+            // studio keeps re-adding, wondering why it never appears.
             $stepId = in_array($question->step_id, $stepIds, true) ? $question->step_id : $fallback;
 
             $grouped[$stepId][$question->key] = $question->toCatalogue();
@@ -370,6 +405,127 @@ class BrandBrief
     {
         self::$flat = null;
         self::$custom = null;
+    }
+
+    /**
+     * Assemble the catalogue for this client until told otherwise.
+     *
+     * Switching client throws the caches away, because they hold that client's
+     * questions -- a clients list rendering six briefs in one request must not
+     * show the fifth one the fourth one's private group.
+     */
+    public static function forClient(Client|int|null $client): void
+    {
+        $id = $client instanceof Client ? $client->id : $client;
+
+        if ($id === self::$clientId) {
+            return;
+        }
+
+        self::$clientId = $id;
+        self::flush();
+    }
+
+    /**
+     * Run something with the catalogue built for one client, then put it back.
+     *
+     * The safe way to render one client inside a loop over many: whatever the
+     * callback does, the previous context is restored even if it throws.
+     *
+     * @template T
+     *
+     * @param  callable(): T  $callback
+     * @return T
+     */
+    public static function using(Client|int|null $client, callable $callback): mixed
+    {
+        $previous = self::$clientId;
+        self::forClient($client);
+
+        try {
+            return $callback();
+        } finally {
+            self::forClient($previous);
+        }
+    }
+
+    /**
+     * The extra group a client's own questions appear under, or null when they
+     * have none. Appended after the seven shared steps.
+     *
+     * @return array{id: string, label: string, title: string, blurb: string}|null
+     */
+    public static function clientStep(): ?array
+    {
+        if (! self::$clientId) {
+            return null;
+        }
+
+        $stepId = \App\Models\BriefQuestion::stepIdFor(self::$clientId);
+
+        if (($self = self::customQuestions()[$stepId] ?? []) === []) {
+            return null;
+        }
+
+        $label = self::$clientLabel ?: 'Your work';
+
+        return [
+            'id' => $stepId,
+            'label' => $label,
+            'title' => $label,
+            'blurb' => 'A few questions just for you — these help us write in your voice.',
+            'questions' => $self,
+        ];
+    }
+
+    /** The label of the client-specific group, read alongside its questions. */
+    private static ?string $clientLabel = null;
+
+    /**
+     * The steps a client actually walks: the seven shared ones, plus their own
+     * group when they have one.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    /**
+     * The groups a client actually has, keyed by step id -- the shared seven
+     * plus their own. The read-view counterpart of stepsForClient().
+     *
+     * @return array<string, array{label: string, title: string, blurb: string}>
+     */
+    public static function sectionsForClient(): array
+    {
+        $sections = [];
+
+        foreach (self::stepsForClient() as $step) {
+            $sections[$step['id']] = [
+                'label' => $step['label'],
+                'title' => $step['title'],
+                'blurb' => $step['blurb'],
+            ];
+        }
+
+        return $sections;
+    }
+
+    public static function stepsForClient(): array
+    {
+        /*
+         * The override goes on the LEFT of + on purpose. `+` keeps the left
+         * operand's keys, and every step in STEPS already has a `questions`
+         * key -- putting it on the right silently discards the studio's own
+         * questions and the merge does nothing at all.
+         */
+        $steps = array_map(
+            fn (array $step) => ['questions' => self::questionsFor($step['id'])] + $step,
+            self::STEPS
+        );
+
+        if ($own = self::clientStep()) {
+            $steps[] = $own;
+        }
+
+        return $steps;
     }
 
     /** @return array<string, array{label: string, title: string, blurb: string}> */

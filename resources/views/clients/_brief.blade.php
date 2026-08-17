@@ -20,6 +20,12 @@
      */
     $keys = $keys ?? null;
     $compact = $compact ?? false;
+    // This partial is rendered from a client page and from the script
+    // editor, neither of which is a brief controller, so it names the client
+    // itself. Without this a client's private group would be missing here
+    // while showing on their own form.
+    BrandBrief::forClient($brief?->client_id);
+
     $answers = $brief?->keyedAnswers() ?? collect();
     $given = $brief?->exists ? $brief->answerMap() : [];
 
@@ -31,7 +37,7 @@
         : collect(BrandBrief::questions());
 
     // Groups that actually have something to show, with their answered count.
-    $groups = collect(BrandBrief::sections())
+    $groups = collect(BrandBrief::sectionsForClient())
         ->map(function (array $section, string $sectionKey) use ($show, $answers, $given, $brief) {
             $questions = $show
                 ->filter(fn ($q) => $q['section'] === $sectionKey)

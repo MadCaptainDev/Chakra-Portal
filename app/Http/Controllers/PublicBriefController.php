@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\SavesClientBrief;
 use App\Http\Requests\ClientBriefRequest;
 use App\Models\ClientBrief;
+use App\Support\BrandBrief;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -120,6 +121,13 @@ class PublicBriefController extends Controller
         // A write against a closed link is refused rather than redirected, so
         // a stale tab left open overnight cannot overwrite a submitted brief.
         abort_if($forWriting && ! $brief->acceptsPublicEdits(), 403);
+
+        /*
+         * Everything past here -- the form, the validation, the progress count
+         * -- is assembled for THIS client, so their own question group is
+         * included and nobody else's ever is.
+         */
+        BrandBrief::forClient($brief->client_id);
 
         return $brief;
     }

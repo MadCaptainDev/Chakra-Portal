@@ -41,7 +41,9 @@ class BriefQuestion extends Model
      * answers.
      */
     protected $fillable = [
+        'client_id',
         'step_id',
+        'group_label',
         'type',
         'label',
         'help',
@@ -77,6 +79,51 @@ class BriefQuestion extends Model
     public function scopeLive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    /** Questions asked of everybody. */
+    public function scopeShared(Builder $query): Builder
+    {
+        return $query->whereNull('client_id');
+    }
+
+    /**
+     * What one client is asked: the shared questions plus their own.
+     *
+     * Null means the shared set alone, which is what a brief with no client in
+     * hand should see -- never one client's private questions.
+     */
+    public function scopeForClient(Builder $query, ?int $clientId): Builder
+    {
+        return $query->where(function (Builder $q) use ($clientId) {
+            $q->whereNull('client_id');
+
+            if ($clientId) {
+                $q->orWhere('client_id', $clientId);
+            }
+        });
+    }
+
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
+    }
+
+    /** Whether this question belongs to one client rather than everybody. */
+    public function isPrivate(): bool
+    {
+        return $this->client_id !== null;
+    }
+
+    /**
+     * The step id these questions live under.
+     *
+     * A client's own questions get a step of their own so they read as a tab
+     * rather than being mixed into a group the question was never written for.
+     */
+    public static function stepIdFor(int $clientId): string
+    {
+        return 'client_' . $clientId;
     }
 
     public function scopeOrdered(Builder $query): Builder

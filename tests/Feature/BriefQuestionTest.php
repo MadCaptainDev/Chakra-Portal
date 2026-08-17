@@ -216,4 +216,83 @@ class BriefQuestionTest extends TestCase
             ->assertOk()
             ->assertSee('Brand Brief Questions');
     }
+    public function test_a_clients_own_question_is_asked_only_of_them(): void
+    {
+        $zira = Client::create(['name' => 'Zira Bridal Studio']);
+        $other = Client::create(['name' => 'SVA Silks']);
+
+        BriefQuestion::create([
+            'client_id' => $zira->id,
+            'step_id' => BriefQuestion::stepIdFor($zira->id),
+            'group_label' => 'Your craft',
+            'type' => BrandBrief::TYPE_TEXTAREA,
+            'label' => 'Who inspired you to enter the makeup industry?',
+        ]);
+
+        // Hers, on her form...
+        $hers = $zira->brief()->create([])->issuePublicToken();
+        $this->get(route('brief.public', $hers))
+            ->assertOk()
+            ->assertSee('Who inspired you to enter the makeup industry?')
+            ->assertSee('Your craft');
+
+        // ...and nowhere near anybody else's.
+        $theirs = $other->brief()->create([])->issuePublicToken();
+        $this->get(route('brief.public', $theirs))
+            ->assertOk()
+            ->assertDontSee('Who inspired you to enter the makeup industry?')
+            ->assertDontSee('Your craft');
+    }
+
+    public function test_switching_client_does_not_leak_the_previous_ones_questions(): void
+    {
+        $zira = Client::create(['name' => 'Zira Bridal Studio']);
+        $other = Client::create(['name' => 'SVA Silks']);
+
+        BriefQuestion::create([
+            'client_id' => $zira->id,
+            'step_id' => BriefQuestion::stepIdFor($zira->id),
+            'group_label' => 'Your craft',
+            'type' => BrandBrief::TYPE_TEXT,
+            'label' => 'What is your biggest USP?',
+        ]);
+
+        // The catalogue is static and request-cached, so a page rendering two
+        // clients in turn is exactly where a leak would show up.
+        BrandBrief::forClient($zira);
+        $this->assertArrayHasKey('what_is_your_biggest_usp', BrandBrief::questions());
+
+        BrandBrief::forClient($other);
+        $this->assertArrayNotHasKey('what_is_your_biggest_usp', BrandBrief::questions());
+
+        BrandBrief::forClient(null);
+        $this->assertArrayNotHasKey('what_is_your_biggest_usp', BrandBrief::questions());
+    }
+
+    public function test_a_private_question_does_not_change_another_clients_progress(): void
+    {
+        $zira = Client::create(['name' => 'Zira Bridal Studio']);
+        $other = Client::create(['name' => 'SVA Silks']);
+
+        BriefQuestion::create([
+            'client_id' => $zira->id,
+            'step_id' => BriefQuestion::stepIdFor($zira->id),
+            'group_label' => 'Your craft',
+            'type' => BrandBrief::TYPE_TEXT,
+            'label' => 'What do you want to be known for?',
+            'required' => true,
+        ]);
+
+        $hers = $zira->brief()->create([]);
+        $theirs = $other->brief()->create([]);
+
+        BrandBrief::forClient($zira);
+        $ziraTotal = $hers->requiredTotal();
+
+        BrandBrief::forClient($other);
+        $otherTotal = $theirs->requiredTotal();
+
+        // Her extra required question counts for her and for nobody else.
+        $this->assertSame($otherTotal + 1, $ziraTotal);
+    }
 }
