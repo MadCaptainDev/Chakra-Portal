@@ -9,11 +9,11 @@ use Illuminate\Validation\Rule;
 /**
  * The shape of a brief submission, generated from the question catalogue.
  *
- * One class for both the partial save and the final submit. The difference
- * between them is whether the required questions are enforced, and that is
- * decided by the ROUTE NAME -- not by a posted field. A posted "intent" flag
- * is one crafted request away from skipping every required question; the route
- * is the thing the middleware has already vouched for.
+ * One class for three callers now: the partial save, the autosave and the final
+ * submit. The difference is only whether the required questions are enforced,
+ * and that is decided by the ROUTE NAME -- not by a posted field. A posted
+ * "intent" flag is one crafted request away from skipping every required
+ * question; the route is the thing the middleware has already vouched for.
  */
 class ClientBriefRequest extends FormRequest
 {
@@ -23,7 +23,7 @@ class ClientBriefRequest extends FormRequest
         return true;
     }
 
-    /** Whether this request is the final submit rather than a partial save. */
+    /** Whether this request is the final submit rather than a save. */
     public function isSubmitting(): bool
     {
         // Both doors onto the same form: the signed-in portal and the public
@@ -38,8 +38,9 @@ class ClientBriefRequest extends FormRequest
      * Dropped rather than rejected, on the same reasoning as EnquiryRequest's
      * treatment of `source`: a stray key is our problem, not the client's, and
      * failing their whole submission over one is how a ten-minute form becomes
-     * an email instead. Empty strings and empty arrays are normalised to null
-     * so that clearing a field reads as unanswered everywhere.
+     * an email instead. Empty strings, empty arrays and empty contact groups
+     * are normalised to null so that clearing a field reads as unanswered
+     * everywhere.
      */
     protected function prepareForValidation(): void
     {
@@ -51,8 +52,20 @@ class ClientBriefRequest extends FormRequest
                 continue;
             }
 
+            $type = BrandBrief::question($key)['type'] ?? null;
+
+            if ($type === BrandBrief::TYPE_CONTACT) {
+                $clean[$key] = $this->cleanContact($value);
+
+                continue;
+            }
+
             if (is_array($value)) {
-                $value = array_values(array_filter($value, fn ($one) => $one !== null && $one !== ''));
+                $value = array_values(array_filter(
+                    array_map(fn ($one) => is_scalar($one) ? trim((string) $one) : null, $value),
+                    fn ($one) => $one !== null && $one !== ''
+                ));
+
                 $clean[$key] = $value === [] ? null : $value;
 
                 continue;
@@ -66,49 +79,81 @@ class ClientBriefRequest extends FormRequest
     }
 
     /**
+     * A contact group is kept only if somebody is actually named in it. Three
+     * blank boxes are not an answer, and storing them would make the review
+     * screen claim the question was done.
+     *
+     * @return array<string, string>|null
+     */
+    private function cleanContact(mixed $value): ?array
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        $contact = [];
+
+        foreach (array_keys(BrandBrief::CONTACT_FIELDS) as $field) {
+            $one = $value[$field] ?? null;
+            $one = is_scalar($one) ? trim((string) $one) : '';
+
+            if ($one !== '') {
+                $contact[$field] = $one;
+            }
+        }
+
+        return $contact === [] ? null : $contact;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function rules(): array
     {
         $rules = ['answers' => ['array']];
         $submitting = $this->isSubmitting();
+        $answers = $this->input('answers', []);
 
-        foreach (BrandBrief::QUESTIONS as $key => $question) {
+        foreach (BrandBrief::questions() as $key => $question) {
             $field = "answers.{$key}";
 
-            // Required only on the way in for good. A partial save must be
-            // able to hold three answers and nothing else, or "save and come
-            // back" is a promise the form cannot keep.
-            $presence = ($submitting && $question['required']) ? 'required' : 'nullable';
+            /*
+             * Required only on the way in for good, and only when the question
+             * is actually being asked. A conditional question the client never
+             * saw must never block their submit -- and a partial save must be
+             * able to hold three answers and nothing else, or "save and come
+             * back" is a promise the form cannot keep.
+             */
+            $required = $submitting
+                && ($question['required'] ?? false)
+                && BrandBrief::isVisible($key, is_array($answers) ? $answers : []);
 
-            $taxonomy = BrandBrief::taxonomyFor($key);
+            $presence = $required ? 'required' : 'nullable';
             $options = BrandBrief::optionsFor($key);
 
             switch ($question['type']) {
-                case BrandBrief::TYPE_MULTISELECT:
-                    $rules[$field] = [$presence, 'array', 'max:'.($question['limit'] ?? 10)];
-                    $rules[$field.'.*'] = $taxonomy
-                        ? [$this->term($taxonomy)]
-                        : [Rule::in(array_keys($options))];
+                case BrandBrief::TYPE_CHIPS:
+                case BrandBrief::TYPE_CHECKS:
+                    if ($question['multi'] ?? false) {
+                        $rules[$field] = [$presence, 'array', 'max:'.count($options)];
+                        $rules[$field.'.*'] = [Rule::in($options)];
+                    } else {
+                        $rules[$field] = [$presence, Rule::in($options)];
+                    }
                     break;
 
-                case BrandBrief::TYPE_SELECT:
-                    // Pinned to its own list. Without the type constraint a tag
-                    // id posted into objective_id would validate, and the brief
-                    // would show a tag where the objective should be.
-                    $rules[$field] = [$presence, $this->term($taxonomy)];
+                case BrandBrief::TYPE_URLS:
+                    $rules[$field] = [$presence, 'array', 'max:'.BrandBrief::MAX_URLS];
+                    // url:http,https rather than plain url: without it "javascript:"
+                    // and "data:" both pass, and these get clicked by staff.
+                    $rules[$field.'.*'] = ['string', 'url:http,https', 'max:255'];
                     break;
 
-                case BrandBrief::TYPE_CHOICE:
-                    $rules[$field] = [$presence, Rule::in(array_keys($options))];
-                    break;
-
-                case BrandBrief::TYPE_URL:
-                    $rules[$field] = [$presence, 'string', 'url', 'max:255'];
-                    break;
-
-                case BrandBrief::TYPE_NUMBER:
-                    $rules[$field] = [$presence, 'numeric'];
+                case BrandBrief::TYPE_CONTACT:
+                    $rules[$field] = [$presence, 'array'];
+                    $rules[$field.'.name'] = [$required ? 'required' : 'nullable', 'string', 'max:120'];
+                    $rules[$field.'.phone'] = ['nullable', 'string', 'max:40'];
+                    $rules[$field.'.email'] = ['nullable', 'email', 'max:190'];
                     break;
 
                 default:
@@ -120,16 +165,19 @@ class ClientBriefRequest extends FormRequest
             }
         }
 
+        // The free text beside a chosen "Other". Never required: the chip
+        // itself carries the answer, and this only sharpens it.
+        foreach (BrandBrief::questions() as $key => $question) {
+            if ($question['other'] ?? false) {
+                $rules["answers.{$key}_other"] = ['nullable', 'string', 'max:255'];
+            }
+        }
+
         return $rules;
     }
 
-    private function term(string $type): \Illuminate\Validation\Rules\Exists
-    {
-        return Rule::exists('taxonomy_terms', 'id')->where('type', $type);
-    }
-
     /**
-     * Errors name the question the client read, not "answers.usp".
+     * Errors name the question the client read, not "answers.perception".
      *
      * @return array<string, string>
      */
@@ -137,8 +185,13 @@ class ClientBriefRequest extends FormRequest
     {
         $attributes = [];
 
-        foreach (BrandBrief::QUESTIONS as $key => $question) {
-            $attributes["answers.{$key}"] = mb_strtolower(rtrim($question['label'], '?'));
+        foreach (BrandBrief::questions() as $key => $question) {
+            $label = mb_strtolower(rtrim($question['label'], '?.'));
+
+            $attributes["answers.{$key}"] = $label;
+            $attributes["answers.{$key}.name"] = 'contact name';
+            $attributes["answers.{$key}.email"] = 'contact email';
+            $attributes["answers.{$key}.phone"] = 'contact phone';
         }
 
         return $attributes;

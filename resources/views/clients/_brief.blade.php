@@ -21,8 +21,8 @@
     // BrandBrief leaves its answers behind on purpose, and they must not
     // resurface here as an unlabelled blob.
     $show = $keys
-        ? collect($keys)->mapWithKeys(fn ($k) => [$k => BrandBrief::QUESTIONS[$k] ?? null])->filter()
-        : collect(BrandBrief::QUESTIONS);
+        ? collect($keys)->mapWithKeys(fn ($k) => [$k => BrandBrief::question($k)])->filter()
+        : collect(BrandBrief::questions());
 @endphp
 
 @if (! $brief || ! $brief->exists)
@@ -70,7 +70,7 @@
                             <dd class="mt-0.5 text-sm {{ $answered ? 'text-gray-900 whitespace-pre-line' : 'text-gray-400' }}">
                                 {{-- Plain {{ }}. These are answers a client typed,
                                      rendered as text and never as markup. --}}
-                                {{ $answered ? $answer->display() : '—' }}
+                                {{ $answered ? $brief->displayAnswer($key) : '—' }}
                             </dd>
                         </div>
                     @endforeach

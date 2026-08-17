@@ -2,556 +2,408 @@
 
 namespace App\Support;
 
-use App\Models\TaxonomyTerm;
-
 /**
  * What the studio asks a client before writing for them.
  *
- * The question set lives here, in code, for the same reason the module list
- * lives in App\Support\Permission and the master lists live on TaxonomyTerm:
- * it changes about twice a year, git versions it for free, and the
- * alternative -- questions in a table -- buys an editing screen nobody opens
- * and the problem of what a reworded question does to thirty stored answers.
+ * Ported from the design system's OnboardingSchema.jsx, and declarative for the
+ * reason that file gives: every step, the review list and the staff-side
+ * summary all read from this one array, so a question can be added without
+ * touching layout code.
  *
- * Answers are rows (see the create_client_brief_tables migration), because
- * they do change constantly and have to be queryable.
+ * In code rather than a table for the same reason the module list lives in
+ * App\Support\Permission -- it changes about twice a year, git versions it for
+ * free, and questions in a table buy an editing screen nobody opens plus the
+ * problem of what a reworded question does to stored answers.
  *
- * Adding a question is one entry in QUESTIONS. No migration, no Blade: the
- * form, the validation rules, the progress count and the staff-side view are
- * all loops over this array. Removing one leaves its answers in the table,
- * invisible and recoverable, which is the intended behaviour.
+ * ADDING A QUESTION is one entry under a step's `questions`. Adding a GROUP is
+ * one entry in STEPS. Neither needs a migration or a line of Blade: the wizard,
+ * the validation, the progress count, the review screen and the staff view are
+ * all loops over this array. Removing a question leaves its answers in the
+ * table, invisible and recoverable, which is intended.
  *
  * Question shape:
- *   section   key from SECTIONS
- *   type      text | textarea | url | number | select | multiselect | choice
- *   required  whether Submit is refused without it. Keep this set small --
- *             see the note on the required count below.
- *   label     the question as the client reads it. A question, not a field
- *             name: "Who buys from you?" beats "Target audience".
- *   hint      optional, and the most valuable part of most questions. A client
- *             who does not know what a good answer looks like writes nothing.
- *   max       character limit for the text types (default 2000 for textarea).
- *   taxonomy  for select/multiselect: the TaxonomyTerm type it draws on.
- *   options   for choice/multiselect: a hardcoded key => label list.
- *   limit     for multiselect: how many may be picked.
+ *   type      textarea | text | chips | checks | urls | contact
+ *   multi     chips/checks only -- many answers rather than one
+ *   other     chips only -- offers "Other" with a free-text box beside it
+ *   showIf    [otherKey, value] -- only asked when that answer was given
+ *   required  blocks the step's Continue, and Submit
+ *   optional  labelled "Optional" rather than merely left unmarked
+ *   rows      textarea height
+ *   max       character cap (default DEFAULT_MAX)
  */
 class BrandBrief
 {
-    public const TYPE_TEXT = 'text';
-
     public const TYPE_TEXTAREA = 'textarea';
 
-    public const TYPE_URL = 'url';
+    public const TYPE_TEXT = 'text';
 
-    public const TYPE_NUMBER = 'number';
+    public const TYPE_CHIPS = 'chips';
 
-    public const TYPE_SELECT = 'select';
+    public const TYPE_CHECKS = 'checks';
 
-    public const TYPE_MULTISELECT = 'multiselect';
+    public const TYPE_URLS = 'urls';
 
-    public const TYPE_CHOICE = 'choice';
+    public const TYPE_CONTACT = 'contact';
 
-    /** Types whose answer is a list, and so lives in value_json. */
-    public const MULTI_TYPES = [self::TYPE_MULTISELECT];
-
-    /** How long a long answer may be when the question does not say. */
+    /** How long a written answer may be when the question does not say. */
     public const DEFAULT_MAX = 2000;
 
+    /** How many links the inspiration list accepts. */
+    public const MAX_URLS = 6;
+
+    /** The three fields a contact question collects, in order. */
+    public const CONTACT_FIELDS = [
+        'name' => ['label' => 'Name', 'placeholder' => 'Full name'],
+        'phone' => ['label' => 'Phone Number', 'placeholder' => '+91 …'],
+        'email' => ['label' => 'Email', 'placeholder' => 'name@company.com'],
+    ];
+
     /**
-     * @var array<string, array{label: string, blurb: string}>
+     * The steps, in the order the client walks them.
+     *
+     * @var array<int, array{id: string, label: string, title: string, blurb: string, questions: array<string, array<string, mixed>>}>
      */
-    public const SECTIONS = [
-        'brand' => [
-            'label' => 'Your brand',
-            'blurb' => 'The basics, so we are not guessing what you do.',
+    public const STEPS = [
+        [
+            'id' => 'business',
+            'label' => 'Business',
+            'title' => 'About your business',
+            'blurb' => 'Start with the basics — this is the part our writers read first.',
+            'questions' => [
+                'about' => [
+                    'type' => self::TYPE_TEXTAREA, 'rows' => 5, 'required' => true,
+                    'label' => 'Briefly describe your business.',
+                    'placeholder' => 'Tell us about your business, what you offer, and what makes your brand special.',
+                ],
+            ],
         ],
-        'audience' => [
-            'label' => 'Who you sell to',
-            'blurb' => 'Every line we write is aimed at somebody. Tell us who.',
+        [
+            'id' => 'goals',
+            'label' => 'Goals',
+            'title' => 'Business goals',
+            'blurb' => 'What should marketing actually move for you?',
+            'questions' => [
+                'mainGoal' => [
+                    'type' => self::TYPE_CHIPS, 'multi' => true, 'required' => true, 'other' => true,
+                    'label' => 'What is your main goal with digital marketing?',
+                    'help' => 'Pick as many as apply.',
+                    'options' => ['Increase Brand Awareness', 'Generate Leads', 'Increase Sales', 'Increase Store Visits', 'Grow Social Media', 'Build Brand Identity', 'Other'],
+                ],
+                'horizon' => [
+                    'type' => self::TYPE_TEXTAREA, 'rows' => 4,
+                    'label' => 'What do you want to achieve in the next 3–6 months?',
+                    'placeholder' => 'e.g. 500 enquiries a month from Instagram, or a full product catalogue shot.',
+                ],
+                'hero' => [
+                    'type' => self::TYPE_TEXTAREA, 'rows' => 3,
+                    'label' => 'Which product or service do you want to promote the most?',
+                    'placeholder' => 'The one thing you would put on a billboard.',
+                ],
+            ],
         ],
-        'voice' => [
-            'label' => 'How you sound',
-            'blurb' => 'The difference between a script that sounds like you and one that sounds like everyone.',
+        [
+            'id' => 'audience',
+            'label' => 'Audience',
+            'title' => 'Target audience',
+            'blurb' => 'Who we are talking to, and where they are.',
+            'questions' => [
+                'idealCustomer' => [
+                    'type' => self::TYPE_TEXTAREA, 'rows' => 4, 'required' => true,
+                    'label' => 'Who is your ideal customer?',
+                    'placeholder' => 'Age, work, what they care about, why they buy from you.',
+                ],
+                'locations' => [
+                    'type' => self::TYPE_TEXT, 'max' => 255,
+                    'label' => 'Which locations do you want to target?',
+                    'placeholder' => 'Trichy, Manapparai, Chennai, Tamil Nadu…',
+                ],
+                'ageGroups' => [
+                    'type' => self::TYPE_CHIPS, 'multi' => true,
+                    'label' => 'What age group are your main customers?',
+                    'options' => ['Below 18', '18–24', '25–34', '35–44', '45–54', '55+', 'All Age Groups'],
+                ],
+            ],
         ],
-        'goals' => [
-            'label' => 'What this is for',
-            'blurb' => 'What the videos have to actually do for the business.',
+        [
+            'id' => 'brand',
+            'label' => 'Brand',
+            'title' => 'Brand & content',
+            'blurb' => 'How it should feel, and what we should make.',
+            'questions' => [
+                'perception' => [
+                    'type' => self::TYPE_CHIPS, 'multi' => true, 'required' => true, 'other' => true,
+                    'label' => 'How do you want your brand to be perceived?',
+                    'options' => ['Premium', 'Friendly', 'Professional', 'Modern', 'Traditional', 'Youthful', 'Luxury', 'Affordable', 'Bold', 'Other'],
+                ],
+                'contentTypes' => [
+                    'type' => self::TYPE_CHIPS, 'multi' => true, 'other' => true,
+                    'label' => 'Which type of content do you prefer?',
+                    'options' => ['Reels', 'Product Videos', 'Educational Content', 'Promotional Content', 'Customer Testimonials', 'Behind the Scenes', 'Static Posts', 'Carousels', 'Stories', 'Other'],
+                ],
+                'language' => [
+                    'type' => self::TYPE_CHIPS, 'other' => true,
+                    'label' => 'Which language do you prefer?',
+                    'options' => ['Tamil', 'English', 'Tanglish', 'Hindi', 'Other'],
+                ],
+                'onCamera' => [
+                    'type' => self::TYPE_CHIPS,
+                    'label' => 'Are you comfortable appearing in videos?',
+                    'options' => ['Yes', 'No', 'Sometimes'],
+                ],
+                'avoid' => [
+                    'type' => self::TYPE_TEXTAREA, 'rows' => 3, 'optional' => true,
+                    'label' => 'Any topics or content styles you don’t want us to create?',
+                    'placeholder' => 'Optional — anything off limits for your brand.',
+                ],
+            ],
         ],
-        'references' => [
-            'label' => 'Who else is out there',
-            'blurb' => 'Optional, and worth more than you would think.',
+        [
+            'id' => 'competitors',
+            'label' => 'Competitors',
+            'title' => 'Competitors & inspiration',
+            'blurb' => 'Show us the work you wish was yours.',
+            'questions' => [
+                'competitors' => [
+                    'type' => self::TYPE_TEXTAREA, 'rows' => 4,
+                    'label' => 'Who are your main competitors?',
+                    'placeholder' => 'Names, or Instagram handles if you have them.',
+                ],
+                'inspiration' => [
+                    'type' => self::TYPE_URLS,
+                    'label' => 'Share 2–3 Instagram pages or brands whose content you like.',
+                    'help' => 'Paste full links — we check them before the first shoot.',
+                    'placeholder' => 'https://instagram.com/…',
+                ],
+            ],
         ],
-        'practical' => [
-            'label' => 'How we work together',
-            'blurb' => 'The logistics that decide how fast this moves.',
+        [
+            'id' => 'marketing',
+            'label' => 'Marketing',
+            'title' => 'Marketing history',
+            'blurb' => 'What you have already tried saves us repeating it.',
+            'questions' => [
+                'doneBefore' => [
+                    'type' => self::TYPE_CHIPS, 'required' => true,
+                    'label' => 'Have you done digital marketing before?',
+                    'options' => ['Yes', 'No'],
+                ],
+                'whatWorked' => [
+                    'type' => self::TYPE_TEXTAREA, 'rows' => 4, 'showIf' => ['doneBefore', 'Yes'],
+                    'label' => 'What worked well, and what didn’t?',
+                    'placeholder' => 'Channels, agencies, campaigns — the good and the bad.',
+                ],
+                'paidAds' => [
+                    'type' => self::TYPE_CHIPS,
+                    'label' => 'Do you currently run paid advertisements?',
+                    'options' => ['Yes', 'No', 'Not Sure'],
+                ],
+                'budget' => [
+                    'type' => self::TYPE_CHIPS,
+                    'label' => 'Approximate monthly marketing / advertising budget?',
+                    'options' => ['Below ₹10,000', '₹10,000 – ₹25,000', '₹25,000 – ₹50,000', '₹50,000 – ₹1,00,000', '₹1,00,000+', 'Prefer not to disclose'],
+                ],
+            ],
         ],
-        'guardrails' => [
-            'label' => "Do's and don'ts",
-            'blurb' => 'The things we would otherwise only find out by getting them wrong.',
+        [
+            'id' => 'approval',
+            'label' => 'Content & Approval',
+            'title' => 'Content & approval',
+            'blurb' => 'Who we call, and who signs off.',
+            'questions' => [
+                'contact' => [
+                    'type' => self::TYPE_CONTACT, 'required' => true,
+                    'label' => 'Who will be the main point of contact?',
+                ],
+                'approver' => [
+                    'type' => self::TYPE_CHIPS,
+                    'label' => 'Who will approve the content?',
+                    'options' => ['Same as above', 'Different Person'],
+                ],
+                'approverPerson' => [
+                    'type' => self::TYPE_CONTACT, 'showIf' => ['approver', 'Different Person'],
+                    'label' => 'Approver details',
+                ],
+                'shootFrequency' => [
+                    'type' => self::TYPE_CHIPS,
+                    'label' => 'How frequently can we arrange shoots?',
+                    'options' => ['Weekly', 'Twice a Month', 'Once a Month', 'As Required', 'Not Required'],
+                ],
+                'assets' => [
+                    'type' => self::TYPE_CHECKS, 'multi' => true,
+                    'label' => 'Do you already have photos, videos, logo and brand assets?',
+                    'options' => ['Logo', 'Brand Guidelines', 'Product Photos', 'Product Videos', 'Previous Creatives', 'Brand Fonts / Colours', 'None'],
+                ],
+            ],
         ],
     ];
 
     /**
-     * Eleven of these are required. That number is deliberate: a client can
-     * finish the required set in about ten minutes, which is the difference
-     * between a brief that comes back and one that sits open for a month. The
-     * other twenty-one are what make a writer's day easier, and are prompted
-     * for rather than demanded.
-     *
-     * @var array<string, array<string, mixed>>
+     * What the script drawer shows, in the order a writer wants it. Named here
+     * rather than in the Blade so the drawer and the catalogue stay in step.
      */
-    public const QUESTIONS = [
-        // -- Your brand ---------------------------------------------------
-        'business_description' => [
-            'section' => 'brand',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => true,
-            'label' => 'In a line or two, what does your business do?',
-            'hint' => 'Say it the way you would to a stranger at a wedding. No jargon.',
-            'max' => 600,
-        ],
-        'industry_id' => [
-            'section' => 'brand',
-            'type' => self::TYPE_SELECT,
-            'required' => true,
-            'label' => 'Which sector best describes you?',
-            'taxonomy' => TaxonomyTerm::TYPE_INDUSTRY,
-        ],
-        'products_services' => [
-            'section' => 'brand',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => true,
-            'label' => 'What do you sell? List your main products or services.',
-        ],
-        'hero_offering' => [
-            'section' => 'brand',
-            'type' => self::TYPE_TEXT,
-            'required' => false,
-            'label' => 'If we could only film one product or service, which would it be?',
-            'hint' => 'The one that pays the bills, or the one you want to grow.',
-        ],
-        'usp' => [
-            'section' => 'brand',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => true,
-            'label' => "What can you do that your competitors can't?",
-            'hint' => 'The one thing a customer would miss if they went elsewhere.',
-        ],
-        'price_position' => [
-            'section' => 'brand',
-            'type' => self::TYPE_CHOICE,
-            'required' => false,
-            'label' => 'Where do you sit on price?',
-            'options' => [
-                'budget' => 'Budget — we compete on price',
-                'mid' => 'Mid-market — fair price, good quality',
-                'premium' => 'Premium — you pay for the quality',
-                'luxury' => 'Luxury — price is not the point',
-            ],
-        ],
-        'founder_story' => [
-            'section' => 'brand',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => false,
-            'label' => 'Is there a founder or origin story worth telling on camera?',
-        ],
-        'service_area' => [
-            'section' => 'brand',
-            'type' => self::TYPE_TEXT,
-            'required' => false,
-            'label' => 'Which cities or areas do you serve?',
-            'max' => 255,
-        ],
+    public const WRITER_KEYS = ['about', 'perception', 'language', 'idealCustomer', 'contentTypes', 'avoid'];
 
-        // -- Who you sell to ----------------------------------------------
-        'audience_primary' => [
-            'section' => 'audience',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => true,
-            'label' => 'Who buys from you? Describe your main customer.',
-            'hint' => 'Age, where they live, what they do. A real person, not a demographic.',
-        ],
-        'audience_secondary' => [
-            'section' => 'audience',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => false,
-            'label' => 'Anyone else you want to reach?',
-        ],
-        'audience_language_ids' => [
-            'section' => 'audience',
-            'type' => self::TYPE_MULTISELECT,
-            'required' => true,
-            'label' => 'What language should we speak to them in?',
-            'hint' => 'Pick all that apply.',
-            'taxonomy' => TaxonomyTerm::TYPE_LANGUAGE,
-            'limit' => 6,
-        ],
-        'customer_objection' => [
-            'section' => 'audience',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => false,
-            'label' => 'What makes someone hesitate before buying?',
-            'hint' => 'The doubt we can answer on camera.',
-        ],
-        'buying_trigger' => [
-            'section' => 'audience',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => false,
-            'label' => 'What usually makes someone finally buy?',
-        ],
-
-        // -- How you sound -------------------------------------------------
-        /*
-         * tone_traits is a hardcoded list, not a taxonomy, and the difference
-         * matters. Master data is the studio's own operational lists, edited
-         * by staff on /master-data. Tone vocabulary is part of the question:
-         * if somebody renames "warm" to "friendly", every past answer silently
-         * changes meaning. If this ever needs to be staff-editable, adding
-         * TYPE_TONE to TaxonomyTerm::TYPES and swapping 'options' for
-         * 'taxonomy' below is the whole change.
-         */
-        'tone_traits' => [
-            'section' => 'voice',
-            'type' => self::TYPE_MULTISELECT,
-            'required' => true,
-            'label' => 'Pick up to three words for how your brand should sound.',
-            'hint' => 'Three is the limit on purpose. Everything cannot be the priority.',
-            'limit' => 3,
-            'options' => [
-                'warm' => 'Warm',
-                'playful' => 'Playful',
-                'premium' => 'Premium',
-                'straight' => 'Straight-talking',
-                'expert' => 'Expert',
-                'energetic' => 'Energetic',
-                'calm' => 'Calm',
-                'cheeky' => 'Cheeky',
-                'traditional' => 'Traditional',
-                'modern' => 'Modern',
-                'aspirational' => 'Aspirational',
-                'reassuring' => 'Reassuring',
-            ],
-        ],
-        'tone_avoid' => [
-            'section' => 'voice',
-            'type' => self::TYPE_TEXT,
-            'required' => false,
-            'label' => 'Anything in that list you definitely do not want to sound like?',
-            'max' => 255,
-        ],
-        'speaker' => [
-            'section' => 'voice',
-            'type' => self::TYPE_CHOICE,
-            'required' => false,
-            'label' => 'Should the videos speak as the brand, or as a person?',
-            'options' => [
-                'brand' => 'The brand — "we"',
-                'founder' => 'The founder',
-                'customer' => 'A customer',
-                'narrator' => 'A narrator',
-            ],
-        ],
-        'sample_copy' => [
-            'section' => 'voice',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => false,
-            'label' => "Paste a line or two of copy you're happy with.",
-            'hint' => 'A caption, a tagline, even a WhatsApp broadcast you wrote yourself. Nothing beats an example.',
-        ],
-        'tagline' => [
-            'section' => 'voice',
-            'type' => self::TYPE_TEXT,
-            'required' => false,
-            'label' => 'Your tagline or slogan, if you have one.',
-            'max' => 255,
-        ],
-
-        // -- What this is for ----------------------------------------------
-        'objective_id' => [
-            'section' => 'goals',
-            'type' => self::TYPE_SELECT,
-            'required' => true,
-            'label' => 'What should this content do for you first?',
-            'hint' => 'First. There is usually more than one, but only one can lead.',
-            'taxonomy' => TaxonomyTerm::TYPE_OBJECTIVE,
-        ],
-        'success_metric' => [
-            'section' => 'goals',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => true,
-            'label' => 'Six months from now, what would make you say this worked?',
-            'hint' => 'Enquiries, walk-ins, followers, phone calls — whatever you actually count.',
-        ],
-        'platform_ids' => [
-            'section' => 'goals',
-            'type' => self::TYPE_MULTISELECT,
-            'required' => true,
-            'label' => 'Where will these go?',
-            'taxonomy' => TaxonomyTerm::TYPE_PLATFORM,
-            'limit' => 10,
-        ],
-        'default_cta' => [
-            'section' => 'goals',
-            'type' => self::TYPE_TEXT,
-            'required' => false,
-            'label' => 'What do you want a viewer to do at the end?',
-            'hint' => 'Call, DM, visit the store, click the link.',
-            'max' => 255,
-        ],
-        'upcoming' => [
-            'section' => 'goals',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => false,
-            'label' => 'Anything coming up we should be planning for?',
-            'hint' => 'Festivals, launches, a new branch, a sale.',
-        ],
-
-        // -- Who else is out there ------------------------------------------
-        'competitors' => [
-            'section' => 'references',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => false,
-            'label' => 'Name two or three competitors.',
-        ],
-        'competitor_view' => [
-            'section' => 'references',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => false,
-            'label' => 'What do they do well, and what would you do differently?',
-        ],
-        /*
-         * A textarea and not a url field. Clients paste four links at once,
-         * and a single-URL input turns that into four failed submissions.
-         */
-        'reference_links' => [
-            'section' => 'references',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => false,
-            'label' => 'Links to videos you love — yours, theirs, or anyone at all.',
-            'hint' => 'One link per line. They do not have to be from your industry.',
-        ],
-        'reference_why' => [
-            'section' => 'references',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => false,
-            'label' => 'What is it about those you like?',
-            'hint' => 'The pace, the music, the writing, the look.',
-        ],
-
-        // -- How we work together --------------------------------------------
-        'approver_name' => [
-            'section' => 'practical',
-            'type' => self::TYPE_TEXT,
-            'required' => true,
-            'label' => 'Who signs off on scripts?',
-            'hint' => 'One name. Scripts that go to a committee take three times as long.',
-            'max' => 255,
-        ],
-        'approval_turnaround' => [
-            'section' => 'practical',
-            'type' => self::TYPE_CHOICE,
-            'required' => false,
-            'label' => 'How long do you usually need to approve a script?',
-            'hint' => 'An honest answer here saves a chase.',
-            'options' => [
-                'same_day' => 'Same day',
-                'few_days' => '2–3 days',
-                'week' => 'About a week',
-                'longer' => 'Longer than a week',
-            ],
-        ],
-        'on_camera' => [
-            'section' => 'practical',
-            'type' => self::TYPE_CHOICE,
-            'required' => false,
-            'label' => 'Is anyone willing to appear on camera?',
-            'options' => [
-                'founder' => 'The founder',
-                'staff' => 'Staff',
-                'models' => 'Hired models or actors',
-                'none' => 'No faces — product only',
-                'unsure' => 'Not sure yet',
-            ],
-        ],
-        'assets_available' => [
-            'section' => 'practical',
-            'type' => self::TYPE_MULTISELECT,
-            'required' => false,
-            'label' => 'What do you already have that we can use?',
-            'limit' => 7,
-            'options' => [
-                'logo' => 'Logo files',
-                'brand_kit' => 'Brand colours and fonts',
-                'photos' => 'Product photos',
-                'videos' => 'Existing videos',
-                'testimonials' => 'Customer testimonials',
-                'premises' => 'Store or factory footage',
-                'nothing' => 'Nothing yet',
-            ],
-        ],
-        'website_url' => [
-            'section' => 'practical',
-            'type' => self::TYPE_URL,
-            'required' => false,
-            'label' => 'Your website',
-        ],
-        'instagram_url' => [
-            'section' => 'practical',
-            'type' => self::TYPE_URL,
-            'required' => false,
-            'label' => 'Your Instagram',
-        ],
-
-        // -- Do's and don'ts ---------------------------------------------------
-        'must_include' => [
-            'section' => 'guardrails',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => false,
-            'label' => 'Anything that must appear in every video?',
-            'hint' => 'A legal line, a guarantee, an offer code, a phone number.',
-        ],
-        /*
-         * High value, and deliberately not required. Forcing it produces "no"
-         * from every client who has not thought about it, which is worse than
-         * a blank we can ask about on a call. HIGH_VALUE_OPTIONAL below is how
-         * the form asks for it without demanding it.
-         */
-        'never_say' => [
-            'section' => 'guardrails',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => false,
-            'label' => 'Anything we must never say or show?',
-            'hint' => 'Claims you cannot back up, a competitor by name, a discontinued product.',
-        ],
-        'sensitivities' => [
-            'section' => 'guardrails',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => false,
-            'label' => 'Any cultural, religious or regional sensitivities we should know about?',
-        ],
-        'compliance' => [
-            'section' => 'guardrails',
-            'type' => self::TYPE_TEXTAREA,
-            'required' => false,
-            'label' => 'Any regulatory wording you are bound by?',
-            'hint' => 'Common in healthcare, finance and food.',
-        ],
-    ];
-
-    /**
-     * Optional questions the form nudges for before Submit.
-     *
-     * These are the ones a writer misses most, and none of them can be made
-     * required without turning them into noise. Naming them at the end -- "the
-     * ones worth a minute if you have one" -- is the compromise.
-     */
-    public const HIGH_VALUE_OPTIONAL = [
-        'never_say',
-        'sample_copy',
-        'reference_links',
-        'customer_objection',
-    ];
-
-    /**
-     * The condensed set a writer sees on the script editor.
-     *
-     * Not "everything, collapsed": a drawer that has to be read is a drawer
-     * that gets closed. These are the answers that change the next sentence
-     * somebody types.
-     *
-     * @var list<string>
-     */
-    public const WRITER_KEYS = [
-        'tone_traits',
-        'audience_primary',
-        'objective_id',
-        'default_cta',
-        'must_include',
-        'never_say',
-        'sample_copy',
-    ];
-
-    /**
-     * @return array<string, array{label: string, blurb: string}>
-     */
-    public static function sections(): array
+    public static function stepCount(): int
     {
-        return self::SECTIONS;
+        return count(self::STEPS);
     }
 
     /**
+     * Every question, flattened and keyed, each stamped with the step it came
+     * from. The wizard walks STEPS; everything that only needs "what is
+     * question X" walks this.
+     *
      * @return array<string, array<string, mixed>>
      */
-    public static function questionsFor(string $section): array
+    public static function questions(): array
     {
-        return array_filter(self::QUESTIONS, fn (array $q) => $q['section'] === $section);
+        static $flat = null;
+
+        if ($flat !== null) {
+            return $flat;
+        }
+
+        $flat = [];
+
+        foreach (self::STEPS as $index => $step) {
+            foreach ($step['questions'] as $key => $question) {
+                $flat[$key] = $question + ['step' => $index, 'section' => $step['id']];
+            }
+        }
+
+        return $flat;
     }
 
-    /**
-     * @return array<string, mixed>|null
-     */
+    /** @return array<string, array<string, mixed>> */
+    public static function questionsFor(string $stepId): array
+    {
+        foreach (self::STEPS as $step) {
+            if ($step['id'] === $stepId) {
+                return $step['questions'];
+            }
+        }
+
+        return [];
+    }
+
+    /** @return array<string, array{label: string, title: string, blurb: string}> */
+    public static function sections(): array
+    {
+        $sections = [];
+
+        foreach (self::STEPS as $step) {
+            $sections[$step['id']] = [
+                'label' => $step['label'],
+                'title' => $step['title'],
+                'blurb' => $step['blurb'],
+            ];
+        }
+
+        return $sections;
+    }
+
     public static function question(string $key): ?array
     {
-        return self::QUESTIONS[$key] ?? null;
+        return self::questions()[$key] ?? null;
     }
 
-    /**
-     * The gate. Anything not in the catalogue never reaches the database --
-     * see ClientBriefRequest::prepareForValidation().
-     */
     public static function isKnownKey(string $key): bool
     {
-        return isset(self::QUESTIONS[$key]);
+        // The "_other" companion of a chips question is a real stored answer,
+        // not a stray key: it holds what the client typed beside "Other".
+        return isset(self::questions()[$key]) || self::otherParent($key) !== null;
+    }
+
+    /** The question an "_other" key belongs to, or null if it is not one. */
+    public static function otherParent(string $key): ?string
+    {
+        if (! str_ends_with($key, '_other')) {
+            return null;
+        }
+
+        $parent = substr($key, 0, -6);
+
+        return (self::question($parent)['other'] ?? false) ? $parent : null;
     }
 
     /**
-     * @return list<string>
-     */
-    public static function requiredKeys(): array
-    {
-        return array_keys(array_filter(self::QUESTIONS, fn (array $q) => $q['required']));
-    }
-
-    /**
-     * @return list<string>
-     */
-    public static function keys(): array
-    {
-        return array_keys(self::QUESTIONS);
-    }
-
-    /** The TaxonomyTerm type a question draws on, if it draws on one. */
-    public static function taxonomyFor(string $key): ?string
-    {
-        return self::QUESTIONS[$key]['taxonomy'] ?? null;
-    }
-
-    /**
-     * The hardcoded key => label list for a choice or multiselect.
+     * Whether a question stores many values rather than one.
      *
-     * @return array<string, string>
+     * urls and contact count: a list of links and a name/phone/email group are
+     * both arrays, and everything that is not a scalar goes in value_json.
      */
-    public static function optionsFor(string $key): array
-    {
-        return self::QUESTIONS[$key]['options'] ?? [];
-    }
-
-    /** Whether this question's answer is a list, and so lives in value_json. */
     public static function isMulti(string $key): bool
     {
-        return in_array(self::QUESTIONS[$key]['type'] ?? '', self::MULTI_TYPES, true);
+        $question = self::question($key);
+
+        if (! $question) {
+            return false;
+        }
+
+        return ($question['multi'] ?? false)
+            || in_array($question['type'], [self::TYPE_URLS, self::TYPE_CONTACT], true);
+    }
+
+    /** @return list<string> */
+    public static function requiredKeys(): array
+    {
+        return array_keys(array_filter(
+            self::questions(),
+            fn (array $question) => $question['required'] ?? false
+        ));
+    }
+
+    /** @return list<string> */
+    public static function optionsFor(string $key): array
+    {
+        return self::question($key)['options'] ?? [];
     }
 
     /**
-     * Every taxonomy type the brief needs, so the controller can load the
-     * option lists in one pass rather than a query per question.
+     * Whether a question is asked at all, given what has been answered so far.
      *
-     * @return list<string>
+     * The one piece of logic that must agree exactly between the client's form,
+     * the server's validation and the staff read view: a question hidden on the
+     * form must not be demanded on submit, and must not show as blank in the
+     * summary.
+     *
+     * @param  array<string, mixed>  $answers
      */
-    public static function taxonomyTypes(): array
+    public static function isVisible(string $key, array $answers): bool
     {
-        return array_values(array_unique(array_filter(
-            array_map(fn (array $q) => $q['taxonomy'] ?? null, self::QUESTIONS)
-        )));
+        $question = self::question($key);
+
+        if (! $question || ! isset($question['showIf'])) {
+            return true;
+        }
+
+        [$dependsOn, $expected] = $question['showIf'];
+
+        return ($answers[$dependsOn] ?? null) === $expected;
+    }
+
+    /**
+     * Whether an answer counts as given.
+     *
+     * A contact needs a name and one way to reach them -- a row with only a
+     * phone number in it is not a point of contact.
+     */
+    public static function isAnswered(string $key, mixed $value): bool
+    {
+        if ($value === null || $value === '') {
+            return false;
+        }
+
+        if (self::question($key)['type'] === self::TYPE_CONTACT) {
+            return is_array($value)
+                && filled($value['name'] ?? null)
+                && (filled($value['phone'] ?? null) || filled($value['email'] ?? null));
+        }
+
+        if (is_array($value)) {
+            return array_filter($value, fn ($one) => $one !== null && $one !== '') !== [];
+        }
+
+        return trim((string) $value) !== '';
     }
 }

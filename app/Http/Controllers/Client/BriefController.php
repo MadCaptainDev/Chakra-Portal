@@ -9,8 +9,8 @@ use App\Http\Requests\ClientBriefRequest;
 use App\Models\Client;
 use App\Models\ClientBrief;
 use App\Models\ClientBriefAnswer;
-use App\Models\TaxonomyTerm;
 use App\Support\BrandBrief;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -48,14 +48,24 @@ class BriefController extends Controller
             'client' => $client,
             'brief' => $brief,
             'answers' => $brief->exists ? $brief->keyedAnswers() : collect(),
-            'options' => $this->taxonomyOptions($brief),
         ]);
     }
 
-    public function update(ClientBriefRequest $request): RedirectResponse
+    public function update(ClientBriefRequest $request): RedirectResponse|JsonResponse
     {
         $client = $this->client($request);
         $brief = $this->saveBrief($client, $request);
+
+        // Autosave posts in the background and wants an answer, not a page.
+        // The counts ride along so the progress line stays honest mid-typing.
+        if ($request->wantsJson()) {
+            return response()->json([
+                'saved_at' => now()->toIso8601String(),
+                'answered' => $brief->requiredAnswered(),
+                'total' => $brief->requiredTotal(),
+                'complete' => $brief->isComplete(),
+            ]);
+        }
 
         return redirect()
             ->route('client.brief')

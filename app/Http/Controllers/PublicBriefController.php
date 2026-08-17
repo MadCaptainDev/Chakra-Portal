@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\SavesClientBrief;
 use App\Http\Requests\ClientBriefRequest;
 use App\Models\ClientBrief;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -48,16 +49,30 @@ class PublicBriefController extends Controller
             'client' => $brief->client,
             'brief' => $brief,
             'answers' => $brief->exists ? $brief->keyedAnswers() : collect(),
-            'options' => $this->taxonomyOptions($brief),
             'token' => $token,
         ]);
     }
 
-    public function update(ClientBriefRequest $request, string $token): RedirectResponse
+    public function update(ClientBriefRequest $request, string $token): RedirectResponse|JsonResponse
     {
         $brief = $this->resolve($token, forWriting: true);
 
-        $this->saveBrief($brief->client, $request);
+        $saved = $this->saveBrief($brief->client, $request);
+
+        /*
+         * Autosave posts the same form in the background and wants an answer,
+         * not a page. The saved counts come back with it so the step rail and
+         * the "n of m answered" line stay honest without a reload -- otherwise
+         * the client watches a stale number while typing.
+         */
+        if ($request->wantsJson()) {
+            return response()->json([
+                'saved_at' => now()->toIso8601String(),
+                'answered' => $saved->requiredAnswered(),
+                'total' => $saved->requiredTotal(),
+                'complete' => $saved->isComplete(),
+            ]);
+        }
 
         return redirect()
             ->route('brief.public', $token)

@@ -20,10 +20,6 @@ class ClientBriefTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        // The term-name lookup on ClientBriefAnswer is memoised per process,
-        // and these tests create terms between assertions.
-        ClientBriefAnswer::forgetTermNames();
     }
 
     private function client(array $overrides = []): Client
@@ -91,16 +87,14 @@ class ClientBriefTest extends TestCase
         $answers = [];
 
         foreach (BrandBrief::requiredKeys() as $key) {
-            $question = BrandBrief::QUESTIONS[$key];
-            $taxonomy = BrandBrief::taxonomyFor($key);
-            $options = BrandBrief::optionsFor($key);
+            $question = BrandBrief::question($key);
 
-            $answers[$key] = match (true) {
-                $taxonomy && BrandBrief::isMulti($key) => [$this->term($taxonomy, 'Term '.$key)->id],
-                (bool) $taxonomy => (string) $this->term($taxonomy, 'Term '.$key)->id,
-                BrandBrief::isMulti($key) => [array_key_first($options)],
-                $options !== [] => array_key_first($options),
-                default => 'An answer for '.$key,
+            $answers[$key] = match ($question['type']) {
+                BrandBrief::TYPE_CONTACT => ['name' => 'Vinupriya', 'phone' => '+91 90000 00000'],
+                BrandBrief::TYPE_CHIPS, BrandBrief::TYPE_CHECKS => ($question['multi'] ?? false)
+                    ? [$question['options'][0]]
+                    : $question['options'][0],
+                default => 'An answer for ' . $key,
             };
         }
 
@@ -114,8 +108,8 @@ class ClientBriefTest extends TestCase
         $mine = $this->client(['name' => 'Mine']);
         $theirs = $this->client(['name' => 'Theirs']);
 
-        $this->answered($mine, ['usp' => 'We weave our own silk']);
-        $this->answered($theirs, ['usp' => 'A secret that is not mine to read']);
+        $this->answered($mine, ['about' => 'We weave our own silk']);
+        $this->answered($theirs, ['about' => 'A secret that is not mine to read']);
 
         $this->actingAs($this->loginFor($mine))
             ->get(route('client.brief'))
@@ -132,16 +126,16 @@ class ClientBriefTest extends TestCase
     {
         $mine = $this->client(['name' => 'Mine']);
         $theirs = $this->client(['name' => 'Theirs']);
-        $other = $this->answered($theirs, ['usp' => 'Untouched']);
+        $other = $this->answered($theirs, ['about' => 'Untouched']);
 
         $this->actingAs($this->loginFor($mine))
             ->post(route('client.brief.update'), [
-                'answers' => ['usp' => 'Mine only', 'client_id' => $theirs->id],
+                'answers' => ['about' => 'Mine only', 'client_id' => $theirs->id],
             ])
             ->assertRedirect(route('client.brief'));
 
-        $this->assertSame('Untouched', $other->answers()->where('question_key', 'usp')->value('value'));
-        $this->assertSame('Mine only', $mine->fresh()->brief->answer('usp'));
+        $this->assertSame('Untouched', $other->answers()->where('question_key', 'about')->value('value'));
+        $this->assertSame('Mine only', $mine->fresh()->brief->answer('about'));
         $this->assertSame(2, ClientBrief::count());
     }
 
@@ -177,7 +171,7 @@ class ClientBriefTest extends TestCase
     public function test_staff_without_the_clients_module_cannot_read_a_brief(): void
     {
         $client = $this->client();
-        $this->answered($client, ['usp' => 'We weave our own silk']);
+        $this->answered($client, ['about' => 'We weave our own silk']);
 
         $this->actingAs($this->staff(['scripts' => ['view']]))
             ->get(route('clients.show', $client))
@@ -196,7 +190,7 @@ class ClientBriefTest extends TestCase
     public function test_a_writer_sees_the_brief_on_the_script_editor_without_the_clients_module(): void
     {
         $client = $this->client();
-        $this->answered($client, ['audience_primary' => 'Brides in Coimbatore']);
+        $this->answered($client, ['idealCustomer' => 'Brides in Coimbatore']);
         $script = Script::create(['title' => 'Diwali film', 'client_id' => $client->id, 'status' => Script::STATUS_DRAFT, 'priority' => Script::PRIORITY_NORMAL]);
 
         $this->actingAs($this->staff(['scripts' => ['view', 'edit']]))
@@ -208,7 +202,7 @@ class ClientBriefTest extends TestCase
     public function test_the_full_brief_link_is_hidden_from_a_writer_without_clients_view(): void
     {
         $client = $this->client();
-        $this->answered($client, ['audience_primary' => 'Brides in Coimbatore']);
+        $this->answered($client, ['idealCustomer' => 'Brides in Coimbatore']);
         $script = Script::create(['title' => 'Diwali film', 'client_id' => $client->id, 'status' => Script::STATUS_DRAFT, 'priority' => Script::PRIORITY_NORMAL]);
 
         $this->actingAs($this->staff(['scripts' => ['view', 'edit']]))
@@ -221,8 +215,8 @@ class ClientBriefTest extends TestCase
         $subject = $this->client(['name' => 'Subject']);
         $other = $this->client(['name' => 'Other']);
 
-        $this->answered($subject, ['audience_primary' => 'Brides in Coimbatore']);
-        $this->answered($other, ['audience_primary' => 'Nobody else should read this']);
+        $this->answered($subject, ['idealCustomer' => 'Brides in Coimbatore']);
+        $this->answered($other, ['idealCustomer' => 'Nobody else should read this']);
 
         $script = Script::create(['title' => 'Diwali film', 'client_id' => $subject->id, 'status' => Script::STATUS_DRAFT, 'priority' => Script::PRIORITY_NORMAL]);
 
@@ -239,7 +233,7 @@ class ClientBriefTest extends TestCase
         $client = $this->client();
 
         $this->actingAs($this->loginFor($client))
-            ->post(route('client.brief.update'), ['answers' => ['usp' => 'Only this one']])
+            ->post(route('client.brief.update'), ['answers' => ['about' => 'Only this one']])
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('client.brief'));
 
@@ -250,11 +244,11 @@ class ClientBriefTest extends TestCase
     {
         $client = $this->client();
         $payload = $this->completePayload();
-        unset($payload['usp']);
+        unset($payload['about']);
 
         $this->actingAs($this->loginFor($client))
             ->post(route('client.brief.submit'), ['answers' => $payload])
-            ->assertSessionHasErrors('answers.usp');
+            ->assertSessionHasErrors('answers.about');
 
         // Nothing was stored, so the brief has not even started.
         $this->assertNull($client->fresh()->brief);
@@ -288,15 +282,15 @@ class ClientBriefTest extends TestCase
         $this->travel(1)->days();
 
         $this->actingAs($login)
-            ->post(route('client.brief.update'), ['answers' => ['usp' => 'We changed our mind']])
+            ->post(route('client.brief.update'), ['answers' => ['about' => 'We changed our mind']])
             ->assertSessionHasNoErrors();
 
         $brief = $client->fresh()->brief;
 
         $this->assertTrue($firstSubmit->equalTo($brief->submitted_at));
         $this->assertSame(ClientBrief::STATUS_SUBMITTED, $brief->status);
-        $this->assertSame('We changed our mind', $brief->answer('usp'));
-        $this->assertTrue($brief->editedSinceSubmit('usp'));
+        $this->assertSame('We changed our mind', $brief->answer('about'));
+        $this->assertTrue($brief->editedSinceSubmit('about'));
     }
 
     /** Pins the unique index and the upsert that depends on it. */
@@ -305,33 +299,39 @@ class ClientBriefTest extends TestCase
         $client = $this->client();
         $login = $this->loginFor($client);
 
-        $this->actingAs($login)->post(route('client.brief.update'), ['answers' => ['usp' => 'First']]);
-        $this->actingAs($login)->post(route('client.brief.update'), ['answers' => ['usp' => 'Second']]);
+        $this->actingAs($login)->post(route('client.brief.update'), ['answers' => ['about' => 'First']]);
+        $this->actingAs($login)->post(route('client.brief.update'), ['answers' => ['about' => 'Second']]);
 
-        $this->assertSame(1, ClientBriefAnswer::where('question_key', 'usp')->count());
-        $this->assertSame('Second', $client->fresh()->brief->answer('usp'));
+        $this->assertSame(1, ClientBriefAnswer::where('question_key', 'about')->count());
+        $this->assertSame('Second', $client->fresh()->brief->answer('about'));
     }
 
-    public function test_a_taxonomy_answer_must_come_from_its_own_list(): void
+    public function test_a_chip_answer_must_come_from_its_own_list(): void
     {
         $client = $this->client();
-        $tag = $this->term(TaxonomyTerm::TYPE_TAG, 'Not an objective');
 
+        // The chips are the whole vocabulary of the question. Accepting a
+        // value that was never offered would let anything through the one
+        // control on the form that is supposed to be closed.
         $this->actingAs($this->loginFor($client))
-            ->post(route('client.brief.update'), ['answers' => ['objective_id' => (string) $tag->id]])
-            ->assertSessionHasErrors('answers.objective_id');
+            ->post(route('client.brief.update'), [
+                'answers' => ['perception' => ['Premium', 'Not An Option']],
+            ])
+            ->assertSessionHasErrors('answers.perception.1');
 
         $this->assertSame(0, ClientBriefAnswer::count());
     }
 
-    public function test_a_multiselect_is_capped(): void
+    public function test_a_multi_chip_stores_every_choice(): void
     {
         $client = $this->client();
-        $tones = array_slice(array_keys(BrandBrief::optionsFor('tone_traits')), 0, 5);
+        $picked = array_slice(BrandBrief::optionsFor('perception'), 0, 3);
 
         $this->actingAs($this->loginFor($client))
-            ->post(route('client.brief.update'), ['answers' => ['tone_traits' => $tones]])
-            ->assertSessionHasErrors('answers.tone_traits');
+            ->post(route('client.brief.update'), ['answers' => ['perception' => $picked]])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame($picked, $client->fresh()->brief->answer('perception'));
     }
 
     public function test_an_unknown_question_key_is_dropped_rather_than_stored(): void
@@ -340,24 +340,12 @@ class ClientBriefTest extends TestCase
 
         $this->actingAs($this->loginFor($client))
             ->post(route('client.brief.update'), [
-                'answers' => ['usp' => 'Real', 'evil_key' => 'Should never land'],
+                'answers' => ['about' => 'Real', 'evil_key' => 'Should never land'],
             ])
             ->assertSessionHasNoErrors();
 
         $this->assertSame(0, ClientBriefAnswer::where('question_key', 'evil_key')->count());
         $this->assertSame(1, ClientBriefAnswer::count());
-    }
-
-    public function test_the_industry_answer_writes_back_to_the_client_record(): void
-    {
-        $client = $this->client();
-        $industry = $this->term(TaxonomyTerm::TYPE_INDUSTRY, 'Textiles');
-
-        $this->actingAs($this->loginFor($client))
-            ->post(route('client.brief.update'), ['answers' => ['industry_id' => (string) $industry->id]])
-            ->assertSessionHasNoErrors();
-
-        $this->assertSame($industry->id, $client->fresh()->industry_id);
     }
 
     public function test_progress_counts_only_the_required_questions(): void
@@ -366,9 +354,9 @@ class ClientBriefTest extends TestCase
 
         // Six optional answers, none of them required.
         $brief = $this->answered($client, [
-            'hero_offering' => 'Bridal sarees',
-            'founder_story' => 'Three generations',
-            'service_area' => 'Coimbatore',
+            'hero' => 'Bridal sarees',
+            'competitors' => 'Three generations',
+            'locations' => 'Coimbatore',
             'tagline' => 'Woven with care',
             'competitors' => 'Two others',
             'default_cta' => 'Visit the store',
@@ -384,31 +372,11 @@ class ClientBriefTest extends TestCase
         $client = $this->client();
         $login = $this->loginFor($client);
 
-        $this->actingAs($login)->post(route('client.brief.update'), ['answers' => ['usp' => 'Something']]);
+        $this->actingAs($login)->post(route('client.brief.update'), ['answers' => ['about' => 'Something']]);
         $this->assertSame(1, $client->fresh()->brief->requiredAnswered());
 
-        $this->actingAs($login)->post(route('client.brief.update'), ['answers' => ['usp' => '   ']]);
+        $this->actingAs($login)->post(route('client.brief.update'), ['answers' => ['about' => '   ']]);
         $this->assertSame(0, $client->fresh()->brief->requiredAnswered());
-    }
-
-    public function test_a_retired_taxonomy_term_still_renders_the_clients_answer(): void
-    {
-        $client = $this->client();
-        $industry = $this->term(TaxonomyTerm::TYPE_INDUSTRY, 'Handloom Textiles');
-        $this->answered($client, ['industry_id' => (string) $industry->id]);
-
-        $industry->update(['is_active' => false]);
-        ClientBriefAnswer::forgetTermNames();
-
-        $this->actingAs($this->loginFor($client))
-            ->get(route('client.brief'))
-            ->assertOk()
-            ->assertSee('Handloom Textiles');
-
-        $this->actingAs($this->staff(['clients' => ['view']]))
-            ->get(route('clients.show', $client))
-            ->assertOk()
-            ->assertSee('Handloom Textiles');
     }
 
     public function test_an_unanswered_brief_prompts_on_the_client_dashboard(): void
@@ -424,7 +392,7 @@ class ClientBriefTest extends TestCase
     public function test_a_submitted_brief_no_longer_prompts(): void
     {
         $client = $this->client();
-        $this->answered($client, ['usp' => 'Done'], submitted: true);
+        $this->answered($client, ['about' => 'Done'], submitted: true);
 
         $this->actingAs($this->loginFor($client))
             ->get(route('client.dashboard'))
@@ -451,7 +419,7 @@ class ClientBriefTest extends TestCase
     public function test_an_answer_is_escaped_not_rendered(): void
     {
         $client = $this->client();
-        $this->answered($client, ['usp' => '<script>alert(1)</script>']);
+        $this->answered($client, ['about' => '<script>alert(1)</script>']);
 
         $this->actingAs($this->staff(['clients' => ['view']]))
             ->get(route('clients.show', $client))
@@ -473,7 +441,7 @@ class ClientBriefTest extends TestCase
         $before = Invoice::count();
 
         $this->actingAs($login)->get(route('client.brief'))->assertOk();
-        $this->actingAs($login)->post(route('client.brief.update'), ['answers' => ['usp' => 'Anything']]);
+        $this->actingAs($login)->post(route('client.brief.update'), ['answers' => ['about' => 'Anything']]);
 
         $this->assertSame($before, Invoice::count());
     }

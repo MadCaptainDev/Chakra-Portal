@@ -6,7 +6,6 @@ use App\Http\Requests\ClientBriefRequest;
 use App\Models\Client;
 use App\Models\ClientBrief;
 use App\Models\ClientBriefAnswer;
-use App\Models\TaxonomyTerm;
 use App\Support\BrandBrief;
 use Illuminate\Support\Facades\DB;
 
@@ -59,56 +58,8 @@ trait SavesClientBrief
                 $brief->update(['status' => ClientBrief::STATUS_IN_PROGRESS]);
             }
 
-            /*
-             * The sector answer is also a field on the client record, and the
-             * client is the authority on it. Writing it back means the studio's
-             * own reporting picks it up without anybody retyping it.
-             */
-            if (array_key_exists('industry_id', $answers)) {
-                $client->update(['industry_id' => $answers['industry_id']]);
-            }
-
             return $brief->load('answers');
         });
     }
 
-    /**
-     * The picker contents, one query per list rather than one per question.
-     *
-     * `keep` is passed the client's current answer so a term the studio has
-     * since retired stays selectable on the form that already uses it --
-     * otherwise saving an unrelated section would silently drop it.
-     *
-     * @return array<string, \Illuminate\Support\Collection>
-     */
-    protected function taxonomyOptions(ClientBrief $brief): array
-    {
-        $options = [];
-
-        foreach (BrandBrief::QUESTIONS as $key => $question) {
-            $type = BrandBrief::taxonomyFor($key);
-
-            if (! $type) {
-                continue;
-            }
-
-            $current = $brief->exists ? $brief->answer($key) : null;
-            $keep = is_array($current) ? null : (int) $current;
-
-            $options[$key] = TaxonomyTerm::options($type, $keep ?: null);
-
-            // A multi-select cannot pass a single id to keep(), so any retired
-            // terms it already holds are unioned back in explicitly.
-            if (is_array($current) && $current !== []) {
-                $missing = TaxonomyTerm::query()
-                    ->whereIn('id', $current)
-                    ->whereNotIn('id', $options[$key]->pluck('id'))
-                    ->get();
-
-                $options[$key] = $options[$key]->concat($missing);
-            }
-        }
-
-        return $options;
-    }
 }

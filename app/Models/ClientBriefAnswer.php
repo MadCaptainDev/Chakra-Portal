@@ -59,72 +59,10 @@ class ClientBriefAnswer extends Model
     {
         $value = $this->answer();
 
-        return is_array($value)
-            ? $value !== []
-            : ($value !== null && trim((string) $value) !== '');
+        // Delegated so the catalogue owns what "answered" means -- a contact
+        // group needs a name and one way to reach them, which no generic
+        // emptiness check can know.
+        return BrandBrief::isAnswered($this->question_key, $value);
     }
 
-    /**
-     * id => name for every term the brief can point at, loaded once.
-     *
-     * Without this, rendering a brief is a find() per term -- and a client who
-     * picked ten platforms and six languages turns one read view into twenty
-     * queries. Static because it is master data that does not change inside a
-     * request; the property is reset between requests with the process.
-     *
-     * @var array<int, string>|null
-     */
-    private static ?array $termNames = null;
-
-    /**
-     * @return array<int, string>
-     */
-    private static function termNames(): array
-    {
-        return self::$termNames ??= TaxonomyTerm::query()
-            ->whereIn('type', BrandBrief::taxonomyTypes())
-            ->pluck('name', 'id')
-            ->all();
-    }
-
-    /** Drops the memo. For tests, which create terms between assertions. */
-    public static function forgetTermNames(): void
-    {
-        self::$termNames = null;
-    }
-
-    /**
-     * The answer rendered for a human, resolving term ids and option keys back
-     * to their labels.
-     *
-     * A retired taxonomy term still renders here: the lookup carries no active
-     * scope, because an answer that vanishes from the screen when somebody
-     * tidies master data is worse than a stale label.
-     */
-    public function display(): string
-    {
-        $key = $this->question_key;
-
-        if (! BrandBrief::question($key) || ! $this->isAnswered()) {
-            return '';
-        }
-
-        $taxonomy = BrandBrief::taxonomyFor($key);
-        $options = BrandBrief::optionsFor($key);
-        $value = $this->answer();
-
-        $label = function ($one) use ($taxonomy, $options): string {
-            if ($taxonomy) {
-                return self::termNames()[(int) $one] ?? '';
-            }
-
-            return $options[$one] ?? (string) $one;
-        };
-
-        if (is_array($value)) {
-            return collect($value)->map($label)->filter()->implode(', ');
-        }
-
-        return $taxonomy || $options ? $label($value) : (string) $value;
-    }
 }

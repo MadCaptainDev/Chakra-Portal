@@ -198,32 +198,38 @@ class ClientBrief extends Model
     }
 
     /**
-     * One answer as a human would read it -- taxonomy ids resolved to their
-     * names, lists joined. The stored value is an id because reporting wants
-     * one; nobody wants to read "37".
+     * One answer as a human would read it: lists joined, a chosen "Other"
+     * shown with what the client typed beside it, a contact group flattened.
+     *
+     * The single place that knows how each answer type reads, so the export,
+     * the review screen and the staff summary cannot disagree about it.
      */
     public function displayAnswer(string $key): string
     {
         $value = $this->answer($key);
+        $type = BrandBrief::question($key)['type'] ?? null;
+
+        if ($value === null || $value === '' || $value === []) {
+            return '';
+        }
+
+        if ($type === BrandBrief::TYPE_CONTACT) {
+            return collect(array_keys(BrandBrief::CONTACT_FIELDS))
+                ->map(fn (string $field) => is_array($value) ? ($value[$field] ?? null) : null)
+                ->filter()
+                ->implode(' · ');
+        }
+
+        // "Other" on its own tells a reader nothing; it is the free text
+        // beside it that carries the answer.
+        $other = $this->answer($key.'_other');
+        $label = fn ($one) => ($one === 'Other' && filled($other)) ? 'Other: '.$other : (string) $one;
 
         if (is_array($value)) {
-            $value = array_map(fn ($v) => self::termName($v), $value);
-
-            return implode(', ', array_filter($value));
+            return collect($value)->filter()->map($label)->implode(', ');
         }
 
-        return (string) self::termName($value);
-    }
-
-    private static function termName(mixed $value): mixed
-    {
-        // Numeric answers are taxonomy term ids; anything else is what the
-        // client typed and is already readable.
-        if (! is_numeric($value)) {
-            return $value;
-        }
-
-        return TaxonomyTerm::find((int) $value)?->name ?? $value;
+        return $label($value);
     }
 
     /** Whether a question has an answer worth showing. */
@@ -247,27 +253,49 @@ class ClientBrief extends Model
      */
     public function requiredAnswered(): int
     {
-        $answers = $this->keyedAnswers();
-
-        return collect(BrandBrief::requiredKeys())
-            ->filter(fn (string $key) => $answers->get($key)?->isAnswered() ?? false)
-            ->count();
+        return $this->requiredTotal() - count($this->missingRequired());
     }
 
+    /**
+     * How many required questions are actually being asked.
+     *
+     * Conditional questions count only when their condition holds, so the
+     * denominator moves with the answers -- "3 of 5" must not include a
+     * question the client will never be shown.
+     */
     public function requiredTotal(): int
     {
-        return count(BrandBrief::requiredKeys());
+        $answers = $this->answerMap();
+
+        return collect(BrandBrief::requiredKeys())
+            ->filter(fn (string $key) => BrandBrief::isVisible($key, $answers))
+            ->count();
     }
 
     /** The required questions still outstanding, for the Submit refusal. */
     public function missingRequired(): array
     {
-        $answers = $this->keyedAnswers();
+        $stored = $this->keyedAnswers();
+        $answers = $this->answerMap();
 
         return array_values(array_filter(
             BrandBrief::requiredKeys(),
-            fn (string $key) => ! ($answers->get($key)?->isAnswered() ?? false)
+            fn (string $key) => BrandBrief::isVisible($key, $answers)
+                && ! ($stored->get($key)?->isAnswered() ?? false)
         ));
+    }
+
+    /**
+     * Every stored answer as key => value, which is the shape BrandBrief's
+     * showIf checks read. Built once per call rather than per question.
+     *
+     * @return array<string, mixed>
+     */
+    public function answerMap(): array
+    {
+        return $this->keyedAnswers()
+            ->map(fn (ClientBriefAnswer $answer) => $answer->answer())
+            ->all();
     }
 
     public function isComplete(): bool
@@ -293,15 +321,28 @@ class ClientBrief extends Model
      */
     public function sectionProgress(string $section): array
     {
-        $questions = BrandBrief::questionsFor($section);
-        $answers = $this->keyedAnswers();
+        $stored = $this->keyedAnswers();
+        $answers = $this->answerMap();
+
+        // Hidden questions are excluded from both halves, so a step does not
+        // read "2 of 4" when only three of its questions are ever shown.
+        $asked = collect(array_keys(BrandBrief::questionsFor($section)))
+            ->filter(fn (string $key) => BrandBrief::isVisible($key, $answers));
 
         return [
-            'answered' => collect(array_keys($questions))
-                ->filter(fn (string $key) => $answers->get($key)?->isAnswered() ?? false)
+            'answered' => $asked
+                ->filter(fn (string $key) => $stored->get($key)?->isAnswered() ?? false)
                 ->count(),
-            'total' => count($questions),
+            'total' => $asked->count(),
         ];
+    }
+
+    /** Whether every question this step asks has been answered. */
+    public function sectionComplete(string $section): bool
+    {
+        $progress = $this->sectionProgress($section);
+
+        return $progress['total'] > 0 && $progress['answered'] === $progress['total'];
     }
 
     /**

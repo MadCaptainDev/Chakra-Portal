@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Client;
 use App\Models\ClientBrief;
-use App\Models\TaxonomyTerm;
 use App\Models\User;
 use App\Models\UserPermission;
 use App\Support\BrandBrief;
@@ -37,43 +36,29 @@ class PublicBriefLinkTest extends TestCase
         return $user->refresh();
     }
 
-    /** Every required question, so a submit can succeed. */
+    /**
+     * Every required question, answered validly.
+     *
+     * Built from the catalogue rather than hardcoded: chips must be answered
+     * with one of their own options, so a question added later is answered
+     * here without anybody editing this list.
+     *
+     * @return array<string, mixed>
+     */
     private function completeAnswers(): array
     {
         $answers = [];
 
         foreach (BrandBrief::requiredKeys() as $key) {
-            /*
-             * Taxonomy-backed questions validate their value against the term
-             * table, so a real term has to exist. Built from the catalogue
-             * rather than hardcoded, so a question added later is answered
-             * here without anybody editing this list.
-             */
-            if ($type = BrandBrief::taxonomyFor($key)) {
-                $term = TaxonomyTerm::create([
-                    'type' => $type,
-                    'name' => 'Term for '.$key,
-                    'slug' => 'term-for-'.str_replace('_', '-', $key),
-                ]);
-                $answers[$key] = BrandBrief::isMulti($key) ? [$term->id] : $term->id;
+            $question = BrandBrief::question($key);
 
-                continue;
-            }
-
-            /*
-             * Questions with a fixed option list (tone_traits and friends)
-             * validate against it, so the first option is picked rather than
-             * free text. Read from the catalogue for the same reason as above.
-             */
-            $options = array_keys(BrandBrief::QUESTIONS[$key]['options'] ?? []);
-
-            if ($options !== []) {
-                $answers[$key] = BrandBrief::isMulti($key) ? [$options[0]] : $options[0];
-
-                continue;
-            }
-
-            $answers[$key] = BrandBrief::isMulti($key) ? ['An answer.'] : 'An answer.';
+            $answers[$key] = match ($question['type']) {
+                BrandBrief::TYPE_CONTACT => ['name' => 'Vinupriya', 'phone' => '+91 90000 00000'],
+                BrandBrief::TYPE_CHIPS, BrandBrief::TYPE_CHECKS => ($question['multi'] ?? false)
+                    ? [$question['options'][0]]
+                    : $question['options'][0],
+                default => 'An answer.',
+            };
         }
 
         return $answers;
@@ -87,7 +72,7 @@ class PublicBriefLinkTest extends TestCase
 
         $this->get(route('brief.public', $token))
             ->assertOk()
-            ->assertSee('Before we write for you')
+            ->assertSee('Brand brief')
             ->assertSee($client->name);
     }
 
@@ -104,12 +89,12 @@ class PublicBriefLinkTest extends TestCase
         $token = $client->brief()->create([])->issuePublicToken();
 
         $this->post(route('brief.public.update', $token), [
-            'answers' => ['business_description' => 'We sell sarees.'],
+            'answers' => ['about' => 'We sell sarees.'],
         ])->assertRedirect(route('brief.public', $token));
 
         $brief = $client->brief->fresh()->load('answers');
 
-        $this->assertSame('We sell sarees.', $brief->answer('business_description'));
+        $this->assertSame('We sell sarees.', $brief->answer('about'));
         $this->assertFalse($brief->isSubmitted());
         // Still open, so the client can come back to the same link.
         $this->assertTrue($brief->acceptsPublicEdits());
@@ -143,7 +128,7 @@ class PublicBriefLinkTest extends TestCase
         $this->get(route('brief.public', $token))
             ->assertOk()
             ->assertSee('Thank you')
-            ->assertDontSee('Save for later');
+            ->assertDontSee('Save &amp; continue');
     }
 
     public function test_a_stale_tab_cannot_write_over_a_submitted_brief(): void
@@ -153,7 +138,7 @@ class PublicBriefLinkTest extends TestCase
         $token = $brief->issuePublicToken();
 
         $this->post(route('brief.public.update', $token), [
-            'answers' => ['business_description' => 'The real answer.'],
+            'answers' => ['about' => 'The real answer.'],
         ]);
 
         $brief->forceFill(['status' => ClientBrief::STATUS_SUBMITTED, 'submitted_at' => now()])->save();
@@ -161,10 +146,10 @@ class PublicBriefLinkTest extends TestCase
         // The link is closed, so a form left open overnight is refused rather
         // than silently overwriting what was sent in.
         $this->post(route('brief.public.update', $token), [
-            'answers' => ['business_description' => 'Overwritten later.'],
+            'answers' => ['about' => 'Overwritten later.'],
         ])->assertForbidden();
 
-        $this->assertSame('The real answer.', $client->brief->fresh()->load('answers')->answer('business_description'));
+        $this->assertSame('The real answer.', $client->brief->fresh()->load('answers')->answer('about'));
     }
 
     public function test_reissuing_kills_the_previous_link(): void
@@ -224,14 +209,18 @@ class PublicBriefLinkTest extends TestCase
         $this->actingAs($this->staff())->post(route('clients.brief.reopen', $client))->assertRedirect();
 
         $this->assertFalse($client->brief->fresh()->isSubmitted());
-        $this->get(route('brief.public', $token))->assertOk()->assertSee('Save for later');
+        // The wizard is back, rather than the thank-you page.
+        $this->get(route('brief.public', $token))
+            ->assertOk()
+            ->assertSee('Review your information')
+            ->assertDontSee('Thank you');
     }
 
     public function test_the_brief_exports_as_readable_text(): void
     {
         $client = $this->client();
         $brief = $client->brief()->create([]);
-        $brief->answers()->create(['question_key' => 'business_description', 'value' => 'We sell sarees in Trichy.']);
+        $brief->answers()->create(['question_key' => 'about', 'value' => 'We sell sarees in Trichy.']);
 
         $response = $this->actingAs($this->staff(['view']))
             ->get(route('clients.brief.export', $client));
