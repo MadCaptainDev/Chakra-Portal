@@ -179,6 +179,25 @@
                     </p>
                 </div>
 
+                <div class="mb-6 pt-5 border-t border-gray-100">
+                    <x-input-label for="sync_throttle_minutes" value="Sync throttle" />
+                    <div class="mt-1 flex items-center gap-2">
+                        <x-text-input id="sync_throttle_minutes" name="sync_throttle_minutes" type="number"
+                                      min="{{ \App\Models\InstagramSetting::MIN_SYNC_THROTTLE_MINUTES }}"
+                                      max="{{ \App\Models\InstagramSetting::MAX_SYNC_THROTTLE_MINUTES }}"
+                                      class="w-28"
+                                      value="{{ old('sync_throttle_minutes', $settings->sync_throttle_minutes) }}" />
+                        <span class="text-sm text-gray-600">minutes between syncs, per account</span>
+                    </div>
+                    <x-input-error :messages="$errors->get('sync_throttle_minutes')" class="mt-2" />
+                    <p class="text-xs text-gray-500 mt-1">
+                        Applies to both the client page's <span class="font-medium">Sync now</span> button and
+                        <span class="font-mono">php artisan instagram:sync</span>. An account synced more recently
+                        than this is skipped rather than calling Instagram again — the numbers cannot have changed
+                        in the meantime, and every skipped call is one less against Meta's rate limit.
+                    </p>
+                </div>
+
                 <div class="flex items-center gap-3">
                     <x-primary-button>Save</x-primary-button>
                     @if ($settings->updatedBy)

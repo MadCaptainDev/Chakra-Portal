@@ -201,6 +201,31 @@ so a failed batch is retried one metric at a time and only the bad ones are
 logged and dropped. `php artisan instagram:sync` prints which were skipped,
 if any.
 
+**Sync throttle.** There was no throttle at all: the Sync now button posted
+straight to the sync service on every click, so a double-click or a refresh-
+and-press-again fired the same batch of Instagram calls twice in a row for no
+benefit — the data cannot have changed in the seconds between clicks, and a
+studio running this against several clients' accounts could burn through
+Meta's rate limit on repeat clicks alone. Each account now tracks
+`last_synced_at`, and `SocialAccount::canSyncNow()` refuses a sync — both from
+the client page and from `php artisan instagram:sync` — until
+`sync_throttle_minutes` has passed since the last one. The interval is one
+number on **Setup → Instagram** (default 15 minutes, admin-editable, applies
+per account), not a constant buried in a controller. The command accepts
+`--force` to sync a throttled account anyway; the summary line reports how
+many accounts were skipped as throttled versus synced or failed.
+
+**Content performance respects the selected date range.** The table used to
+ignore `$since`/`$until` entirely and always show the most recently *synced*
+items overall, so picking "Last 7 days" could still surface a post from weeks
+ago sitting inside that most-recent-N window. It now filters by each item's
+own `posted_at` falling inside the selected range. This is a different fix
+from the one-value-per-range limitation above: Meta's *media* insights answer
+with a single current total for a piece of content, not a per-day series the
+way account metrics do, so there is no equivalent "reach as of the 12th" for
+one post — filtering which posts appear is the correct and only fix for that
+report.
+
 ## 10. Production notes
 
 - Tokens last ~60 days and are refreshed by being used. There is no automatic

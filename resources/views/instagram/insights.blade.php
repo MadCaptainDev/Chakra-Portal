@@ -46,16 +46,48 @@
                         <div>
                             <p class="text-sm font-semibold text-gray-900">{{ $account->handle() }}</p>
                             <p class="text-xs text-gray-500">
-                                {{ $account->last_synced_at ? 'Synced ' . $account->last_synced_at->diffForHumans() : 'Never synced' }}
+                                {{-- The exact date and time, not "2 hours ago": a
+                                     number on a client-facing screen should say
+                                     precisely when it was true, in the studio's
+                                     own timezone, not leave that to guesswork. --}}
+                                @if ($account->last_synced_at)
+                                    Synced {{ $account->last_synced_at->format('j M Y, g:i A') }} IST
+                                    ({{ $account->last_synced_at->diffForHumans() }})
+                                @else
+                                    Never synced
+                                @endif
                             </p>
                         </div>
                     </div>
 
-                    <form method="POST" action="{{ route('instagram.insights.sync', $client) }}?range={{ $rangeKey }}">
-                        @csrf
-                        <x-secondary-button type="submit">Sync now</x-secondary-button>
-                    </form>
+                    <div class="text-right">
+                        <form method="POST" action="{{ route('instagram.insights.sync', $client) }}?range={{ $rangeKey }}">
+                            @csrf
+                            <x-secondary-button type="submit" :disabled="! $account->canSyncNow()">
+                                Sync now
+                            </x-secondary-button>
+                        </form>
+                        {{-- Shown before the click, not just after a refused
+                             one: a disabled-looking button with no explanation
+                             reads as broken rather than as "already synced". --}}
+                        @unless ($account->canSyncNow())
+                            <p class="mt-1 text-[11px] text-gray-400">
+                                Again in {{ now()->diffForHumans($account->nextSyncAllowedAt(), true) }}
+                            </p>
+                        @endunless
+                    </div>
                 </div>
+
+                {{-- The exact window every number below covers. Ranges like
+                     "This month" mean nothing without saying which month, and
+                     Instagram's own day boundary does not line up with an IST
+                     midnight -- see InstagramInsights for why -- so the dates
+                     shown are the studio's own IST calendar days, not
+                     Instagram's Pacific-anchored ones underneath them. --}}
+                <p class="mt-3 text-xs text-gray-500">
+                    Showing <span class="font-medium text-gray-700">{{ $since->format('j M Y') }}</span>
+                    to <span class="font-medium text-gray-700">{{ $until->format('j M Y') }}</span> (Asia/Kolkata).
+                </p>
 
                 @if ($account->last_error)
                     <p class="mt-3 text-sm text-amber-800 bg-amber-50 ring-1 ring-amber-100 rounded-lg px-3 py-2">
@@ -110,20 +142,56 @@
                     :accent="($overview['follower_growth'] ?? 0) > 0 ? 'green' : (($overview['follower_growth'] ?? 0) < 0 ? 'red' : 'gray')" />
             </div>
 
-            {{-- Trend --}}
-            <x-charts.metric-trend :days="$trend" title="Reach, day by day"
-                empty="No reach data cached for this range yet — press Sync now." />
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                {{-- Trend --}}
+                <div class="lg:col-span-3">
+                    <x-charts.metric-trend :days="$trend" title="Reach, day by day"
+                        empty="No reach data cached for this range yet — press Sync now." />
+
+                    @php
+                        $lastDay = end($trend);
+                        $isPartial = $lastDay && $lastDay['date'] === now()->toDateString();
+                    @endphp
+                    <p class="mt-2 text-[11px] text-gray-400">
+                        Dates are Instagram's own daily figures, read in Asia/Kolkata.
+                        @if ($isPartial)
+                            Today's bar is still accumulating — check back later for the full day.
+                        @endif
+                    </p>
+                </div>
+
+                {{-- Engagement breakdown --}}
+                <x-card padding="md" class="lg:col-span-2">
+                    <x-section-heading title="Engagement breakdown"
+                        subtitle="What the {{ number_format($overview['engagement']) }} total engagements were made of." />
+                    <x-charts.bar-list :items="$breakdown" empty="No engagement data cached for this range yet." />
+                    @if (collect($breakdown)->sum('value') > 0 && collect($breakdown)->sum('value') != $overview['engagement'])
+                        <p class="mt-3 text-[11px] text-gray-400">
+                            These six add up to {{ number_format(collect($breakdown)->sum('value')) }}. Instagram's total
+                            can include a few interaction types the studio does not break out individually.
+                        </p>
+                    @endif
+                </x-card>
+            </div>
 
             {{-- Content performance --}}
             <x-card padding="none">
                 <div class="p-4 sm:p-5 pb-0">
                     <x-section-heading title="Content performance"
-                        subtitle="Recent posts and reels, ranked by reach. Sync now to bring this up to date." />
+                        subtitle="Posts and reels published {{ $since->format('j M') }}–{{ $until->format('j M Y') }}, ranked by reach." />
                 </div>
 
                 @if ($content->isEmpty())
                     <div class="p-4 sm:p-5">
-                        <x-empty-state message="No media cached yet — press Sync now to pull recent posts." />
+                        @if ($account->socialMediaItems()->exists())
+                            {{-- Media has been synced, just nothing was posted in
+                                 THIS range -- a different message from "nothing
+                                 has ever been synced", since Sync now would not
+                                 fix this one. --}}
+                            <x-empty-state message="Nothing was posted in this date range. Try a wider range." />
+                        @else
+                            <x-empty-state message="No media cached yet — press Sync now to pull recent posts." />
+                        @endif
                     </div>
                 @else
                     <div class="overflow-x-auto">

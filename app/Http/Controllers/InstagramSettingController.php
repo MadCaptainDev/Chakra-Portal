@@ -34,6 +34,11 @@ class InstagramSettingController extends Controller
         $validated = $request->validate([
             'app_id' => ['nullable', 'string', 'max:64'],
             'app_secret' => ['nullable', 'string', 'max:255'],
+            'sync_throttle_minutes' => [
+                'required', 'integer',
+                'min:'.InstagramSetting::MIN_SYNC_THROTTLE_MINUTES,
+                'max:'.InstagramSetting::MAX_SYNC_THROTTLE_MINUTES,
+            ],
         ]);
 
         /*

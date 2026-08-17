@@ -28,7 +28,8 @@ class SyncInstagramInsights extends Command
 {
     protected $signature = 'instagram:sync
         {--client= : Sync only the account belonging to this client id}
-        {--days=30 : How many days of account-level history to pull}';
+        {--days=30 : How many days of account-level history to pull}
+        {--force : Sync even an account still inside its throttle window}';
 
     protected $description = 'Fetch and cache Instagram analytics for connected accounts';
 
@@ -51,10 +52,18 @@ class SyncInstagramInsights extends Command
         $until = now()->endOfDay();
         $insights = InstagramInsights::make();
         $failures = 0;
+        $throttled = 0;
 
         foreach ($accounts as $account) {
             $label = $account->client?->name ?? 'client #'.$account->client_id;
             $this->line("→ {$label} ({$account->handle()})");
+
+            if (! $this->option('force') && ! $account->canSyncNow()) {
+                $throttled++;
+                $this->comment('  Skipped — synced too recently. Use --force to sync anyway.');
+
+                continue;
+            }
 
             try {
                 $result = $insights->syncAll($account, $since, $until);
@@ -90,7 +99,12 @@ class SyncInstagramInsights extends Command
         }
 
         $this->newLine();
-        $this->line(sprintf('%d synced, %d failed.', $accounts->count() - $failures, $failures));
+        $this->line(sprintf(
+            '%d synced, %d failed, %d throttled.',
+            $accounts->count() - $failures - $throttled,
+            $failures,
+            $throttled,
+        ));
 
         return $failures > 0 ? self::FAILURE : self::SUCCESS;
     }

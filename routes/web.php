@@ -363,8 +363,12 @@ Route::middleware(['auth', 'module:clients,view'])->scopeBindings()->group(funct
      */
     Route::get('clients/{client}/instagram/insights', [InstagramInsightsController::class, 'show'])
         ->name('instagram.insights');
+    // throttle:10,1 is a request-rate ceiling, not the real throttle -- the
+    // one that matters is SocialAccount::canSyncNow(), configurable at Setup
+    // → Instagram. This is only here so the route itself cannot be hammered
+    // by something faster than a person clicking a button.
     Route::post('clients/{client}/instagram/insights/sync', [InstagramInsightsController::class, 'sync'])
-        ->middleware('module:clients,edit')->name('instagram.insights.sync');
+        ->middleware(['module:clients,edit', 'throttle:10,1'])->name('instagram.insights.sync');
 
     // Stored logins. scopeBindings() means a credential belonging to another
     // client 404s on the binding, before the controller runs.

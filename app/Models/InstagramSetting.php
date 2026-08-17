@@ -13,9 +13,15 @@ use Illuminate\Database\QueryException;
  */
 class InstagramSetting extends Model
 {
+    /** The floor and ceiling a person can set the sync throttle to. */
+    public const MIN_SYNC_THROTTLE_MINUTES = 1;
+
+    public const MAX_SYNC_THROTTLE_MINUTES = 1440;
+
     protected $fillable = [
         'app_id',
         'app_secret',
+        'sync_throttle_minutes',
         'updated_by_id',
     ];
 
@@ -25,6 +31,7 @@ class InstagramSetting extends Model
         'app_secret' => 'encrypted',
         'verified_at' => 'datetime',
         'webhook_verified_at' => 'datetime',
+        'sync_throttle_minutes' => 'integer',
     ];
 
     /**
@@ -56,7 +63,21 @@ class InstagramSetting extends Model
             // forceCreate: verify_token is generated here and is not fillable,
             // so mass assignment would silently drop it and leave a row that
             // can never complete a handshake.
-            return static::forceCreate(['id' => 1, 'verify_token' => self::freshToken()]);
+            //
+            // sync_throttle_minutes is passed explicitly, matching the
+            // migration's own column default, rather than left to that DB
+            // default alone -- forceCreate()'s returned model only carries
+            // what was actually passed to it, not what the database filled
+            // in for the columns that were not. Leaving it out meant the
+            // very first call to current() in a fresh install returned a
+            // model with sync_throttle_minutes null in PHP even though the
+            // row in the database correctly held 15, and addMinutes(null)
+            // on that value silently added nothing to the throttle.
+            return static::forceCreate([
+                'id' => 1,
+                'verify_token' => self::freshToken(),
+                'sync_throttle_minutes' => 15,
+            ]);
         } catch (QueryException $e) {
             return static::query()->whereKey(1)->first() ?? throw $e;
         }

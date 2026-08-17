@@ -52,7 +52,8 @@ class InstagramInsightsController extends Controller
 
         $overview = $this->overview($account, $since, $until);
         $trend = $this->trend($account, 'reach', $since, $until);
-        $content = $this->contentPerformance($account);
+        $breakdown = $this->engagementBreakdown($account, $since, $until);
+        $content = $this->contentPerformance($account, $since, $until);
 
         return view('instagram.insights', [
             'client' => $client,
@@ -63,6 +64,7 @@ class InstagramInsightsController extends Controller
             'until' => $until,
             'overview' => $overview,
             'trend' => $trend,
+            'breakdown' => $breakdown,
             'content' => $content,
         ]);
     }
@@ -81,6 +83,13 @@ class InstagramInsightsController extends Controller
 
         if (! $account) {
             return back()->with('status', 'Connect Instagram for this client before syncing.');
+        }
+
+        if (! $account->canSyncNow()) {
+            $wait = now()->diffForHumans($account->nextSyncAllowedAt(), true);
+
+            return back()->with('status', "Synced too recently — you can sync again in about {$wait}. "
+                .'The throttle is set under Setup → Instagram.');
         }
 
         [$since, $until] = $this->resolveRange($request);
@@ -143,6 +152,44 @@ class InstagramInsightsController extends Controller
     }
 
     /**
+     * Engagement, taken apart into what it is made of.
+     *
+     * "Engagement" alone tells a client a number moved; a like, a save and a
+     * share are three different reasons to make more of something, and the
+     * total flattens them into one indistinguishable figure. Every one of
+     * these is already synced for the overview total_interactions figure --
+     * this reads the same cached rows, no extra API call.
+     *
+     * Named counts rather than a percentage of the total: Meta's own
+     * total_interactions sometimes includes interaction types this account
+     * does not break out individually (poll votes, sticker taps), so the six
+     * components below will not always sum to exactly the overview figure,
+     * and implying they do with a 100%-stacked bar would be a precision the
+     * data does not have.
+     *
+     * @return list<array{label: string, value: int}>
+     */
+    private function engagementBreakdown(SocialAccount $account, Carbon $since, Carbon $until): array
+    {
+        $metrics = ['likes' => 'Likes', 'comments' => 'Comments', 'shares' => 'Shares',
+            'saves' => 'Saves', 'reposts' => 'Reposts', 'replies' => 'Replies'];
+
+        $totals = SocialInsight::query()
+            ->where('social_account_id', $account->id)
+            ->accountLevel()
+            ->between($since, $until)
+            ->whereIn('metric', array_keys($metrics))
+            ->selectRaw('metric, SUM(value) as total')
+            ->groupBy('metric')
+            ->pluck('total', 'metric');
+
+        return collect($metrics)
+            ->map(fn (string $label, string $metric) => ['label' => $label, 'value' => (int) ($totals[$metric] ?? 0)])
+            ->values()
+            ->all();
+    }
+
+    /**
      * One metric, one row per day in the range -- what the trend chart draws.
      *
      * Every day in the range is represented even when nothing was fetched for
@@ -172,15 +219,30 @@ class InstagramInsightsController extends Controller
     }
 
     /**
-     * Recent media, each with what was captured for it. Sorted by reach so the
-     * best performer leads -- "what worked" is the question this table answers.
+     * Media actually posted within the selected range, sorted by reach so the
+     * best performer leads -- "what worked" is the question this table
+     * answers.
+     *
+     * Filtered by posted_at, which was the bug reported and confirmed:
+     * without it, this ignored $since/$until entirely and always showed the
+     * most recent items overall, so picking "Last 7 days" could still surface
+     * a post from three weeks ago sitting inside the most-recent-N window.
+     *
+     * The insight VALUES themselves are not range-scoped the way the metric
+     * is filtered here -- Meta's media insights answer with a single current
+     * total for a piece of content, not a per-day series the way account
+     * metrics do, confirmed empirically (see InstagramInsights). Filtering
+     * the row's own posted_at is the correct fix for "which posts am I
+     * looking at"; there is no equivalent fix for "reach as of the 12th" on a
+     * single post, because Meta does not offer that number.
      *
      * @return \Illuminate\Support\Collection<int, \App\Models\SocialMediaItem>
      */
-    private function contentPerformance(SocialAccount $account, int $limit = 12)
+    private function contentPerformance(SocialAccount $account, Carbon $since, Carbon $until, int $limit = 25)
     {
         return $account->socialMediaItems()
             ->with('insights')
+            ->whereBetween('posted_at', [$since, $until])
             ->newestFirst()
             ->limit($limit)
             ->get()

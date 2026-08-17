@@ -243,7 +243,7 @@ class InstagramInsights
                 // total_value: one number for the whole range.
                 $value = $metric['total_value']['value'] ?? null;
 
-                if ($value === null) {
+                if ($value === null || ! self::isStorableCount($value)) {
                     continue;
                 }
 
@@ -263,11 +263,39 @@ class InstagramInsights
 
             // time_series: one row per day.
             foreach ($metric['values'] ?? [] as $point) {
-                if (! isset($point['value'], $point['end_time'])) {
+                if (! isset($point['value'], $point['end_time']) || ! self::isStorableCount($point['value'])) {
                     continue;
                 }
 
-                $day = Carbon::parse($point['end_time'])->toDateString();
+                /*
+                 * Instagram's own daily buckets are anchored to a fixed
+                 * boundary Meta does not expose or let you change -- in
+                 * practice, empirically, midnight Pacific (end_time arrives
+                 * as "...T07:00:00+0000" / "...T08:00:00+0000" depending on
+                 * daylight saving). end_time is that boundary in UTC, and it
+                 * is NOT the app's timezone.
+                 *
+                 * setTimezone(), not a bare Carbon::parse()->toDateString().
+                 * Carbon::parse() keeps whatever offset the string itself
+                 * carries (UTC here), so calling toDateString() straight
+                 * after reads off the UTC calendar date -- correct only by
+                 * coincidence for whichever hour of the day the boundary
+                 * happens to land on. Converting explicitly to the studio's
+                 * own timezone is what makes "the 16th" on this chart mean
+                 * the 16th in Asia/Kolkata, which is the date a person
+                 * looking at it actually means.
+                 *
+                 * The day this cannot make exact: Instagram's Pacific-day
+                 * boundary and an IST calendar day are never the same 24-hour
+                 * window, so a "day" here is Instagram's nearest bucket to
+                 * that IST date, not a clean IST midnight-to-midnight sum.
+                 * total_value metrics below have no such limit, because their
+                 * [since, until] is one this class chooses itself, already in
+                 * the app's timezone.
+                 */
+                $day = Carbon::parse($point['end_time'])
+                    ->setTimezone(config('app.timezone'))
+                    ->toDateString();
 
                 SocialInsight::record([
                     'social_account_id' => $account->id,
@@ -332,7 +360,7 @@ class InstagramInsights
             // Media insights answer as a single current value, either shape.
             $value = $metric['values'][0]['value'] ?? $metric['total_value']['value'] ?? null;
 
-            if (! $name || $value === null) {
+            if (! $name || $value === null || ! self::isStorableCount($value)) {
                 continue;
             }
 
@@ -350,5 +378,26 @@ class InstagramInsights
         }
 
         return $stored;
+    }
+
+    /**
+     * Whether a value from Meta is safe to write into `value` (an unsigned
+     * bigint).
+     *
+     * Found, not anticipated: a live sync against a real connected account
+     * crashed on a genuine production day where Meta answered `total_value:
+     * {"value": -1}` for total_interactions and reposts -- both otherwise
+     * ordinary non-negative counters. Nowhere in Meta's documentation
+     * mentions -1 as a sentinel, but it is exactly the shape one would use
+     * for "not computable for this day" without changing the response
+     * schema, and treating it as a metric that quietly has no data for that
+     * day is the closest honest reading. The alternative readings are both
+     * worse: storing -1 corrupts every SUM this table is for, and crashing
+     * the sync loses every OTHER metric and day in the same run over one
+     * anomalous number.
+     */
+    private static function isStorableCount(mixed $value): bool
+    {
+        return is_numeric($value) && (float) $value >= 0;
     }
 }

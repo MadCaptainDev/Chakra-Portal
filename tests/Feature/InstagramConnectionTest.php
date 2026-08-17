@@ -360,7 +360,11 @@ class InstagramConnectionTest extends TestCase
     public function test_saving_the_settings_blank_keeps_the_existing_secret(): void
     {
         $this->actingAs(User::factory()->create(['role' => User::ROLE_ADMIN]))
-            ->put(route('instagram-settings.update'), ['app_id' => '9988776655', 'app_secret' => ''])
+            ->put(route('instagram-settings.update'), [
+                'app_id' => '9988776655',
+                'app_secret' => '',
+                'sync_throttle_minutes' => 15,
+            ])
             ->assertRedirect(route('instagram-settings.edit'));
 
         $settings = InstagramSetting::current();

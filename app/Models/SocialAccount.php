@@ -113,10 +113,27 @@ class SocialAccount extends Model
         return $query->where('platform', $platform);
     }
 
-    /** Accounts a sync should actually attempt. */
+    /**
+     * Accounts a sync should actually attempt.
+     *
+     * NOT `where('status', STATUS_CONNECTED)` -- that excludes STATUS_ERROR,
+     * and found in production: a transient failure (a bad value from Meta,
+     * a dropped connection, anything not the token itself being dead) sets
+     * ERROR, and requiring exactly CONNECTED then means the account is never
+     * tried again, ever, until somebody notices and repeats the whole OAuth
+     * flow for a problem that was never theirs. A retry loop that only
+     * retries once is not a retry loop.
+     *
+     * REVOKED is excluded, correctly: disconnect() and the deauthorize
+     * webhook both null the token when they set that status, so a revoked
+     * account has nothing to call Instagram with regardless of this scope --
+     * `whereNotNull('access_token')` is what actually does the excluding.
+     * The explicit status check exists only to say that intent out loud
+     * rather than depend on the token-nulling being a coincidence.
+     */
     public function scopeConnected(Builder $query): Builder
     {
-        return $query->where('status', self::STATUS_CONNECTED)->whereNotNull('access_token');
+        return $query->where('status', '!=', self::STATUS_REVOKED)->whereNotNull('access_token');
     }
 
     public function isConnected(): bool
@@ -133,6 +150,32 @@ class SocialAccount extends Model
     {
         return $this->token_expires_at !== null
             && $this->token_expires_at->isBefore(now()->addDays(self::REFRESH_MARGIN_DAYS));
+    }
+
+    /**
+     * Whether "Sync now" is allowed to actually call Instagram right now.
+     *
+     * There was no throttle at all: the button posted straight to the sync
+     * service on every click, so a double-click or an impatient refresh fired
+     * the same batch of Instagram calls twice for data that cannot have
+     * changed in the seconds between clicks. The interval is the studio's
+     * own setting (Setup → Instagram), not a constant, so it is a number
+     * staff can see and change rather than one buried in a controller.
+     */
+    public function canSyncNow(): bool
+    {
+        return $this->nextSyncAllowedAt()->isPast();
+    }
+
+    public function nextSyncAllowedAt(): \Illuminate\Support\Carbon
+    {
+        if (! $this->last_synced_at) {
+            return now()->subMinute();
+        }
+
+        $minutes = InstagramSetting::current()->sync_throttle_minutes;
+
+        return $this->last_synced_at->copy()->addMinutes($minutes);
     }
 
     public function platformLabel(): string
@@ -162,8 +205,18 @@ class SocialAccount extends Model
         ])->save();
     }
 
+    /**
+     * A sync just succeeded: the error is over, and so is whatever status it
+     * left behind. Only ever called after a real sync, which scopeConnected()
+     * already restricted to non-revoked accounts, so this is never the thing
+     * that reactivates a genuinely dead connection.
+     */
     public function clearFailure(): void
     {
-        $this->forceFill(['last_error' => null, 'last_error_at' => null])->save();
+        $this->forceFill([
+            'last_error' => null,
+            'last_error_at' => null,
+            'status' => self::STATUS_CONNECTED,
+        ])->save();
     }
 }
