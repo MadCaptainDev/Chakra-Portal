@@ -37,24 +37,44 @@ class InstagramReportData
             ->groupBy('metric')
             ->pluck('total', 'metric');
 
-        $followerSeries = SocialInsight::query()
+        $followers = SocialInsight::query()
             ->where('social_account_id', $account->id)
             ->accountLevel()
             ->metric('follower_count')
             ->between($since, $until)
-            ->orderBy('period_start')
-            ->get(['value', 'period_start']);
+            ->selectRaw('SUM(value) as total, COUNT(*) as days')
+            ->first();
 
         return [
             'reach' => (int) ($totals['reach'] ?? 0),
             'views' => (int) ($totals['views'] ?? 0),
             'engagement' => (int) ($totals['total_interactions'] ?? 0),
-            // The account's current count, not a range sum -- a follower
-            // count summed over days is not a number anybody means.
+            // The account's current count, not a range sum -- this one IS a
+            // point-in-time gauge, unlike follower_count below.
             'followers' => $account->followers_count,
-            'follower_growth' => $followerSeries->count() > 1
-                ? (int) $followerSeries->last()->value - (int) $followerSeries->first()->value
-                : null,
+            /*
+             * SUM across the range, not last-value-minus-first-value.
+             *
+             * Confirmed empirically against a real connected account
+             * (janethospitaltrichy): despite Meta's own stock description
+             * for this metric ("Total number of unique accounts subscribed
+             * to this profile"), the actual per-day values returned under
+             * period=day are small numbers (0-688 on this account)
+             * completely unrelated to its real follower count (4,000+) --
+             * a daily NET NEW follower count, not a running total. Treating
+             * it as a running total and subtracting the range's first day
+             * from its last (the original implementation) compared two
+             * arbitrary single days' new-follower counts against each
+             * other and called the difference "growth", which produced
+             * results with no relationship to what actually happened
+             * (e.g. a real, substantial net gain over 90 days read out as
+             * NEGATIVE). Summing every day's new-follower count in the
+             * range is the correct "how many net new followers in this
+             * window" -- and matches what the UI copy ("net new this
+             * period") already promised, even though the arithmetic behind
+             * it didn't deliver that.
+             */
+            'follower_growth' => $followers->days > 0 ? (int) $followers->total : null,
         ];
     }
 

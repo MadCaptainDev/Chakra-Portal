@@ -458,6 +458,43 @@ class InstagramInsightsTest extends TestCase
         }
     }
 
+    public function test_follower_growth_sums_the_daily_metric_rather_than_diffing_first_and_last(): void
+    {
+        // The bug as reported live against janethospitaltrichy: despite its
+        // stock description ("Total number of unique accounts subscribed to
+        // this profile"), Meta's follower_count metric under period=day
+        // answers with a small daily NET NEW figure (confirmed empirically
+        // -- see InstagramReportData::overview()), not a running total. The
+        // account's real follower count on the days below is in the
+        // thousands; these values are what one day's worth of new follows
+        // looks like. Diffing the range's last value against its first
+        // (the original bug) compared two arbitrary single days against
+        // each other and called a real, substantial net gain "-33".
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+
+        foreach ([42, 23, 18, 33, 29] as $i => $value) {
+            SocialInsight::record([
+                'social_account_id' => $account->id,
+                'metric' => 'follower_count',
+                'metric_type' => SocialInsight::TYPE_TIME_SERIES,
+                'value' => $value,
+                'period' => 'day',
+                'period_start' => now()->subDays(4 - $i)->toDateString(),
+            ]);
+        }
+
+        // 42+23+18+33+29 = 145 net new followers over the range -- not
+        // 29-42 = -13, what the old last-minus-first arithmetic would have
+        // reported.
+        $response = $this->actingAs($this->staff())
+            ->get(route('instagram.insights', $client))
+            ->assertOk();
+
+        $response->assertSee('+145');
+        $response->assertDontSee('-13');
+    }
+
     public function test_the_page_still_works_with_nothing_connected(): void
     {
         $this->actingAs($this->staff())
