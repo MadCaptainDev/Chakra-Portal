@@ -30,7 +30,12 @@ class MonthlyReportTest extends TestCase
         return Client::create(['name' => $name]);
     }
 
-    private function connectedAccount(?Client $client = null): SocialAccount
+    // Recently synced by default -- see the identical note in
+    // InstagramInsightsTest::connectedAccount(): MonthlyReportController::show()
+    // also calls InstagramSyncRunner::ensureFresh() now, and a null
+    // last_synced_at here would trigger a real ~90-day backfill attempt
+    // against whatever narrow Http::fake() each test sets up.
+    private function connectedAccount(?Client $client = null, bool $neverSynced = false): SocialAccount
     {
         $client ??= $this->client();
         $platformUserId = (string) self::$nextPlatformUserId++;
@@ -43,7 +48,11 @@ class MonthlyReportTest extends TestCase
             'status' => SocialAccount::STATUS_CONNECTED,
         ]);
 
-        $account->forceFill(['access_token' => 'IGQV-token', 'connected_at' => now()])->save();
+        $account->forceFill([
+            'access_token' => 'IGQV-token',
+            'connected_at' => now(),
+            'last_synced_at' => $neverSynced ? null : now()->subHour(),
+        ])->save();
 
         return $account->fresh();
     }

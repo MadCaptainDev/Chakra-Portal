@@ -36,6 +36,17 @@ class InstagramInsightsTest extends TestCase
         ?Client $client = null,
         string $platformUserId = '17841476964090891',
         string $username = 'thechakra_productions',
+        // Recently synced by default: this account behaves like every other
+        // helper-built account in this suite, which is testing something
+        // OTHER than the first-sync/backfill behavior (that has its own
+        // dedicated suite, InstagramSyncRunnerTest). Leaving last_synced_at
+        // null here meant InstagramSyncRunner::ensureFresh() -- triggered
+        // by every show() call, including in tests that never touch
+        // sync-related code at all -- tried a real ~90-day backfill against
+        // whatever narrow Http::fake() that specific test set up, timing
+        // out on every unmatched call. Pass neverSynced: true for the one
+        // or two tests that genuinely want that state.
+        bool $neverSynced = false,
     ): SocialAccount {
         $client ??= $this->client();
 
@@ -47,7 +58,11 @@ class InstagramInsightsTest extends TestCase
             'status' => SocialAccount::STATUS_CONNECTED,
         ]);
 
-        $account->forceFill(['access_token' => 'IGQV-token', 'connected_at' => now()])->save();
+        $account->forceFill([
+            'access_token' => 'IGQV-token',
+            'connected_at' => now(),
+            'last_synced_at' => $neverSynced ? null : now()->subHour(),
+        ])->save();
 
         return $account->fresh();
     }
@@ -571,7 +586,7 @@ class InstagramInsightsTest extends TestCase
 
     public function test_a_never_synced_account_is_never_throttled(): void
     {
-        $account = $this->connectedAccount();
+        $account = $this->connectedAccount(neverSynced: true);
 
         $this->assertTrue($account->canSyncNow());
     }
@@ -635,5 +650,235 @@ class InstagramInsightsTest extends TestCase
 
         $response->assertSee('Inside the window');
         $response->assertDontSee('Three weeks ago');
+    }
+
+    // -- Content performance sorting -----------------------------------------
+
+    private function mediaItemWithMetrics(SocialAccount $account, string $id, array $metrics, ?\Illuminate\Support\Carbon $postedAt = null): SocialMediaItem
+    {
+        $item = SocialMediaItem::create([
+            'social_account_id' => $account->id, 'platform_media_id' => $id,
+            'media_type' => 'IMAGE', 'caption' => $id,
+            'posted_at' => $postedAt ?? now(), 'cached_at' => now(),
+        ]);
+
+        foreach ($metrics as $metric => $value) {
+            SocialInsight::record([
+                'social_account_id' => $account->id,
+                'social_media_item_id' => $item->id,
+                'metric' => $metric,
+                'metric_type' => SocialInsight::TYPE_TOTAL_VALUE,
+                'value' => $value,
+                'period' => 'lifetime',
+                'period_start' => now()->toDateString(),
+                'period_end' => now()->toDateString(),
+            ]);
+        }
+
+        return $item;
+    }
+
+    public function test_content_performance_defaults_to_reach_descending_unchanged_from_before_sorting_existed(): void
+    {
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+
+        $this->mediaItemWithMetrics($account, 'low-reach', ['reach' => 10]);
+        $this->mediaItemWithMetrics($account, 'high-reach', ['reach' => 500]);
+
+        $response = $this->actingAs($this->staff())
+            ->get(route('instagram.insights', $client))
+            ->assertOk();
+
+        // "high-reach" (the caption, here doubling as an identifiable
+        // marker) must appear before "low-reach" in the rendered HTML.
+        $html = $response->getContent();
+        $this->assertLessThan(strpos($html, 'low-reach'), strpos($html, 'high-reach'));
+    }
+
+    public function test_content_performance_can_be_sorted_by_views_engagement_or_date_in_either_direction(): void
+    {
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+
+        $this->mediaItemWithMetrics($account, 'post-alpha', ['reach' => 500, 'views' => 10, 'total_interactions' => 300], now()->subDay());
+        $this->mediaItemWithMetrics($account, 'post-beta', ['reach' => 10, 'views' => 900, 'total_interactions' => 5], now());
+
+        // Sorted by views desc: "post-beta" (900) before "post-alpha" (10)
+        // -- the opposite of the reach-desc default, proving the sort
+        // actually took effect.
+        $html = $this->actingAs($this->staff())
+            ->get(route('instagram.insights', $client).'?sort=views&direction=desc')
+            ->assertOk()->getContent();
+        $this->assertLessThan(strpos($html, 'post-alpha'), strpos($html, 'post-beta'));
+
+        // Sorted by engagement asc: "post-beta" (5) before "post-alpha" (300).
+        $html = $this->actingAs($this->staff())
+            ->get(route('instagram.insights', $client).'?sort=engagement&direction=asc')
+            ->assertOk()->getContent();
+        $this->assertLessThan(strpos($html, 'post-alpha'), strpos($html, 'post-beta'));
+
+        // Sorted by date desc: "post-beta" (posted today) before
+        // "post-alpha" (posted yesterday).
+        $html = $this->actingAs($this->staff())
+            ->get(route('instagram.insights', $client).'?sort=date&direction=desc')
+            ->assertOk()->getContent();
+        $this->assertLessThan(strpos($html, 'post-alpha'), strpos($html, 'post-beta'));
+    }
+
+    public function test_an_unrecognized_sort_key_falls_back_to_reach_instead_of_erroring(): void
+    {
+        $client = $this->client();
+        $this->connectedAccount($client);
+
+        $this->actingAs($this->staff())
+            ->get(route('instagram.insights', $client).'?sort=not-a-real-column')
+            ->assertOk();
+    }
+
+    public function test_the_active_sort_column_shows_a_direction_indicator(): void
+    {
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+        $this->mediaItemWithMetrics($account, 'only-post', ['reach' => 1, 'views' => 1]);
+
+        $this->actingAs($this->staff())
+            ->get(route('instagram.insights', $client).'?sort=views&direction=asc')
+            ->assertOk()
+            ->assertSee('▲', false);
+    }
+
+    // -- Format-count tile strip ----------------------------------------------
+
+    public function test_format_breakdown_counts_correctly_by_type_and_never_counts_a_reel_as_a_video(): void
+    {
+        $account = $this->connectedAccount();
+
+        $photo = SocialMediaItem::create(['social_account_id' => $account->id, 'platform_media_id' => 'p1', 'media_type' => 'IMAGE', 'media_product_type' => 'FEED', 'posted_at' => now(), 'cached_at' => now()]);
+        $video = SocialMediaItem::create(['social_account_id' => $account->id, 'platform_media_id' => 'p2', 'media_type' => 'VIDEO', 'media_product_type' => 'FEED', 'posted_at' => now(), 'cached_at' => now()]);
+        $reel1 = SocialMediaItem::create(['social_account_id' => $account->id, 'platform_media_id' => 'p3', 'media_type' => 'VIDEO', 'media_product_type' => 'REELS', 'posted_at' => now(), 'cached_at' => now()]);
+        $reel2 = SocialMediaItem::create(['social_account_id' => $account->id, 'platform_media_id' => 'p4', 'media_type' => 'VIDEO', 'media_product_type' => 'REELS', 'posted_at' => now(), 'cached_at' => now()]);
+        $carousel = SocialMediaItem::create(['social_account_id' => $account->id, 'platform_media_id' => 'p5', 'media_type' => 'CAROUSEL_ALBUM', 'media_product_type' => 'CAROUSEL_ALBUM', 'posted_at' => now(), 'cached_at' => now()]);
+
+        $formats = \App\Services\Instagram\InstagramReportData::formatBreakdown(
+            collect([$photo, $video, $reel1, $reel2, $carousel])
+        );
+
+        $byLabel = collect($formats)->pluck('count', 'label');
+
+        // media_type=VIDEO on p2 (a feed post) counts as "Video"; the SAME
+        // media_type on p3/p4 does not, because media_product_type=REELS
+        // takes precedence -- this is "No of Video Shared" correctly
+        // excluding Reels.
+        $this->assertSame(1, $byLabel['Video']);
+        $this->assertSame(2, $byLabel['Reel']);
+        $this->assertSame(1, $byLabel['Photo']);
+        $this->assertSame(1, $byLabel['Carousel']);
+    }
+
+    public function test_the_insights_page_renders_a_publishing_summary_with_the_total_piece_count(): void
+    {
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+
+        SocialMediaItem::create(['social_account_id' => $account->id, 'platform_media_id' => 'p1', 'media_type' => 'IMAGE', 'media_product_type' => 'FEED', 'posted_at' => now(), 'cached_at' => now()]);
+        SocialMediaItem::create(['social_account_id' => $account->id, 'platform_media_id' => 'p2', 'media_type' => 'VIDEO', 'media_product_type' => 'REELS', 'posted_at' => now(), 'cached_at' => now()]);
+
+        $this->actingAs($this->staff())
+            ->get(route('instagram.insights', $client))
+            ->assertOk()
+            ->assertSee('What was published')
+            ->assertSee('2 piece(s)');
+    }
+
+    // -- Sync now on a custom range (regression) -------------------------------
+
+    public function test_sync_now_on_a_custom_range_syncs_that_range_not_the_default_thirty_days(): void
+    {
+        // The bug as reported: the Sync now form only posted ?range=custom
+        // with no from/to, so resolveRange() on the POST fell back to the
+        // last-30-days default and silently synced the wrong window.
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+
+        $from = now()->subDays(70)->toDateString();
+        $to = now()->subDays(65)->toDateString();
+
+        $requestedSince = null;
+
+        Http::fake(function ($request) use (&$requestedSince) {
+            if (str_contains($request->url(), 'metric=reach')) {
+                parse_str(parse_url($request->url(), PHP_URL_QUERY), $q);
+                $requestedSince ??= (int) ($q['since'] ?? 0);
+            }
+
+            return Http::response(['data' => []]);
+        });
+
+        $this->actingAs($this->staff(['view', 'edit']))
+            ->post(route('instagram.insights.sync', $client).'?range=custom&from='.$from.'&to='.$to)
+            ->assertSessionHas('status', fn (string $s) => str_contains($s, 'Synced'));
+
+        $this->assertNotNull($requestedSince);
+        // The requested window starts on $from, not ~30 days ago.
+        $this->assertSame(\Illuminate\Support\Carbon::parse($from)->startOfDay()->timestamp, $requestedSince);
+    }
+
+    // -- syncMedia() pagination -------------------------------------------------
+
+    public function test_syncing_media_with_a_since_floor_follows_pagination_until_the_floor_is_reached(): void
+    {
+        $account = $this->connectedAccount();
+
+        $page1 = ['data' => [
+            ['id' => 'recent-1', 'media_type' => 'IMAGE', 'media_product_type' => 'FEED', 'timestamp' => now()->toIso8601String()],
+        ], 'paging' => ['cursors' => ['after' => 'cursor-2']]];
+
+        $page2 = ['data' => [
+            ['id' => 'older-1', 'media_type' => 'IMAGE', 'media_product_type' => 'FEED', 'timestamp' => now()->subDays(40)->toIso8601String()],
+        ], 'paging' => ['cursors' => ['after' => 'cursor-3']]];
+
+        // The oldest item on this page is already past the floor -- the
+        // loop must stop here and never ask for a fourth page.
+        $page3 = ['data' => [
+            ['id' => 'oldest-1', 'media_type' => 'IMAGE', 'media_product_type' => 'FEED', 'timestamp' => now()->subDays(100)->toIso8601String()],
+        ], 'paging' => ['cursors' => ['after' => 'cursor-4']]];
+
+        Http::fake([
+            'graph.instagram.com/*/media?*after=cursor-3*' => Http::response($page3),
+            'graph.instagram.com/*/media?*after=cursor-2*' => Http::response($page2),
+            'graph.instagram.com/*/media?*' => Http::response($page1),
+            'graph.instagram.com/*/insights*' => Http::response(['data' => []]),
+        ]);
+
+        $result = InstagramInsights::make()->syncMedia($account, since: now()->subDays(90));
+
+        $this->assertSame(3, $result['items']);
+        $this->assertNotNull(SocialMediaItem::where('platform_media_id', 'recent-1')->first());
+        $this->assertNotNull(SocialMediaItem::where('platform_media_id', 'older-1')->first());
+        $this->assertNotNull(SocialMediaItem::where('platform_media_id', 'oldest-1')->first());
+        // Exactly 3 /media calls -- one per page, stopping at the page whose
+        // oldest item is already past the floor.
+        Http::assertSentCount(3 + 3); // 3 /media pages + 3 per-item /insights calls.
+    }
+
+    public function test_syncing_media_without_a_since_floor_never_paginates_past_the_first_page(): void
+    {
+        // Every caller except the one-time backfill (ordinary "Sync now",
+        // instagram:sync) must stay exactly what it always was: one call,
+        // the latest 25, even when Meta says more are available.
+        $account = $this->connectedAccount();
+
+        Http::fake([
+            'graph.instagram.com/*/media?*' => Http::response([
+                'data' => [['id' => 'only-1', 'media_type' => 'IMAGE', 'media_product_type' => 'FEED', 'timestamp' => now()->toIso8601String()]],
+                'paging' => ['cursors' => ['after' => 'cursor-2']],
+            ]),
+            'graph.instagram.com/*/insights*' => Http::response(['data' => []]),
+        ]);
+
+        InstagramInsights::make()->syncMedia($account);
+
+        Http::assertSentCount(1 + 1); // 1 /media page + 1 per-item /insights call.
     }
 }

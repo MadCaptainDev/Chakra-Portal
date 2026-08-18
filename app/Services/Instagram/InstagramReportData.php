@@ -4,7 +4,9 @@ namespace App\Services\Instagram;
 
 use App\Models\SocialAccount;
 use App\Models\SocialInsight;
+use App\Models\SocialMediaItem;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * The cached-data computations behind an Instagram report for one account
@@ -123,10 +125,18 @@ class InstagramReportData
         return $days;
     }
 
+    /** @var array<string, string> */
+    public const SORTABLE = [
+        'reach' => 'Reach',
+        'views' => 'Views',
+        'engagement' => 'Engagement',
+        'date' => 'Date',
+    ];
+
     /**
-     * Media actually posted within the selected range, sorted by reach so the
-     * best performer leads -- "what worked" is the question this table
-     * answers.
+     * Media actually posted within the selected range, sorted by
+     * $sortBy/$direction -- default reach/desc, byte-for-byte what this
+     * always did before it could be sorted any other way.
      *
      * Filtered by posted_at: without it, this would ignore $since/$until
      * entirely and always show the most recent items overall, so picking
@@ -141,17 +151,56 @@ class InstagramReportData
      * looking at"; there is no equivalent fix for "reach as of the 12th" on a
      * single post, because Meta does not offer that number.
      *
-     * @return \Illuminate\Support\Collection<int, \App\Models\SocialMediaItem>
+     * $sortBy is matched against SORTABLE's keys with an unrecognized value
+     * (or none) falling back to 'reach' -- callers passing a raw query
+     * string value straight through never need to validate it first.
+     *
+     * @return Collection<int, SocialMediaItem>
      */
-    public static function contentPerformance(SocialAccount $account, Carbon $since, Carbon $until, int $limit = 25)
-    {
-        return $account->socialMediaItems()
+    public static function contentPerformance(
+        SocialAccount $account,
+        Carbon $since,
+        Carbon $until,
+        int $limit = 25,
+        string $sortBy = 'reach',
+        string $direction = 'desc',
+    ): Collection {
+        $items = $account->socialMediaItems()
             ->with('insights')
             ->whereBetween('posted_at', [$since, $until])
             ->newestFirst()
             ->limit($limit)
-            ->get()
-            ->sortByDesc(fn ($item) => $item->metricValue('reach') ?? -1)
-            ->values();
+            ->get();
+
+        $key = match ($sortBy) {
+            'views' => fn (SocialMediaItem $item) => $item->metricValue('views') ?? -1,
+            'engagement' => fn (SocialMediaItem $item) => $item->metricValue('total_interactions') ?? -1,
+            'date' => fn (SocialMediaItem $item) => $item->posted_at,
+            default => fn (SocialMediaItem $item) => $item->metricValue('reach') ?? -1,
+        };
+
+        return $items->sortBy($key, SORT_REGULAR, $direction === 'desc')->values();
+    }
+
+    /**
+     * Content grouped by type -- Reel/Carousel/Video/Photo, the same
+     * typeLabel() the Content Performance table already shows, so "No of
+     * Video Shared" and friends mean exactly what the table's own Type
+     * column means. No "Story" bucket: Instagram's /media edge (what
+     * syncMedia() reads) does not return them, so there is no honest count
+     * to show for one -- and a Reel is never counted as a Video, since
+     * typeLabel() checks isReel() first.
+     *
+     * @param  Collection<int, SocialMediaItem>  $content
+     * @return list<array{label: string, count: int}>
+     */
+    public static function formatBreakdown(Collection $content): array
+    {
+        return $content
+            ->groupBy(fn (SocialMediaItem $item) => $item->typeLabel())
+            ->map(fn (Collection $items, string $label) => ['label' => $label, 'count' => $items->count()])
+            ->sortByDesc('count')
+            ->values()
+            ->all();
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Client;
 use App\Models\MonthlyReportNote;
 use App\Models\SocialAccount;
+use App\Services\Instagram\InstagramSyncRunner;
 use App\Services\MonthlyReportData;
 use App\Services\MonthlyReportDocumentRenderer;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -19,11 +20,15 @@ use Illuminate\View\View;
  * Studio/Client on-screen preview toggle, and a downloadable PDF built from
  * the same month's data.
  *
- * Reads ONLY local caches -- see InstagramInsights for why nothing here
- * calls Instagram on a page load. "Sync now" on the Instagram Insights
- * screen is what refreshes all of it; this screen and its PDF are just
- * another read of the same cache. See MonthlyReportData for exactly what
- * is gathered, shared verbatim with the PDF renderer.
+ * Mostly reads local caches -- "Sync now" on the Instagram Insights screen
+ * is the deliberate way to refresh them. show() also calls
+ * InstagramSyncRunner::ensureFresh() first, same as the Insights screen:
+ * a never-synced account gets its first 90 days backfilled automatically,
+ * a specific never-fetched month gets filled in on demand -- see
+ * InstagramSyncRunner for the full reasoning. The PDF (pdf(), below) does
+ * not call it -- generating a report is assumed to happen after the screen
+ * has already been opened and is current. See MonthlyReportData for
+ * exactly what is gathered, shared verbatim with the PDF renderer.
  */
 class MonthlyReportController extends Controller
 {
@@ -42,6 +47,14 @@ class MonthlyReportController extends Controller
                 'until' => $until,
             ]);
         }
+
+        // checkWindow: false -- this screen only ever gets the first-time
+        // 90-day backfill (below); auto-syncing a specific already-synced
+        // account's missing month on every view was not asked for and adds
+        // an API round trip to a screen that wasn't in scope for it. The
+        // Insights screen's custom date picker is where "fetch again if
+        // there's no data for the dates I chose" was actually requested.
+        InstagramSyncRunner::ensureFresh($account, $since, $until, checkWindow: false);
 
         return view('instagram.report', [
             'client' => $client,

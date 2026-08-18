@@ -5,10 +5,8 @@ namespace App\Services;
 use App\Models\Client;
 use App\Models\SocialAccount;
 use App\Models\SocialAudienceSnapshot;
-use App\Models\SocialMediaItem;
 use App\Services\Instagram\InstagramReportData;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 
 /**
  * Everything a monthly Instagram report reads for one client, account and
@@ -45,34 +43,13 @@ class MonthlyReportData
             'trend' => InstagramReportData::trend($account, 'reach', $since, $until),
             'breakdown' => InstagramReportData::engagementBreakdown($account, $since, $until),
             'content' => $content,
-            'formats' => self::formatBreakdown($content),
+            'formats' => InstagramReportData::formatBreakdown($content),
             'ageBreakdown' => self::snapshot($account, SocialAudienceSnapshot::DIMENSION_AGE_GENDER)?->ageBreakdown() ?? [],
             'genderBreakdown' => self::snapshot($account, SocialAudienceSnapshot::DIMENSION_AGE_GENDER)?->genderBreakdown() ?? [],
             'topCities' => self::snapshot($account, SocialAudienceSnapshot::DIMENSION_CITY)?->topCities() ?? [],
             'audienceSyncedAt' => self::snapshot($account, SocialAudienceSnapshot::DIMENSION_AGE_GENDER)?->fetched_at,
             'shoots' => $client->shoots()->whereBetween('starts_at', [$since, $until])->ordered()->get(),
         ];
-    }
-
-    /**
-     * What was posted that month, by the same type label the Content
-     * Performance table already shows (Reel/Carousel/Video/Photo) -- no
-     * separate categorisation invented for this screen. Stories are
-     * deliberately not a category here: Instagram's /media edge (what
-     * syncMedia() reads) does not return them, so there is no honest count
-     * to show.
-     *
-     * @param  Collection<int, SocialMediaItem>  $content
-     * @return list<array{label: string, count: int}>
-     */
-    private static function formatBreakdown(Collection $content): array
-    {
-        return $content
-            ->groupBy(fn (SocialMediaItem $item) => $item->typeLabel())
-            ->map(fn (Collection $items, string $label) => ['label' => $label, 'count' => $items->count()])
-            ->sortByDesc('count')
-            ->values()
-            ->all();
     }
 
     private static function snapshot(SocialAccount $account, string $dimension): ?SocialAudienceSnapshot

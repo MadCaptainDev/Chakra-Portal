@@ -68,6 +68,11 @@ class PortfolioInstagramMappingTest extends TestCase
 
     private static int $nextPlatformUserId = 17841476964090891;
 
+    // Recently synced by default -- see the identical note in
+    // InstagramInsightsTest::connectedAccount(): InstagramInsightsController::show()
+    // now calls InstagramSyncRunner::ensureFresh(), and a null
+    // last_synced_at here would trigger a real ~90-day backfill attempt
+    // against whatever narrow Http::fake() each test sets up.
     private function connectedAccount(?Client $client = null): SocialAccount
     {
         $client ??= $this->client();
@@ -81,7 +86,11 @@ class PortfolioInstagramMappingTest extends TestCase
             'status' => SocialAccount::STATUS_CONNECTED,
         ]);
 
-        $account->forceFill(['access_token' => 'IGQV-token', 'connected_at' => now()])->save();
+        $account->forceFill([
+            'access_token' => 'IGQV-token',
+            'connected_at' => now(),
+            'last_synced_at' => now()->subHour(),
+        ])->save();
 
         return $account->fresh();
     }

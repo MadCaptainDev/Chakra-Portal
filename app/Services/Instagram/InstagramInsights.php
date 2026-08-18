@@ -64,8 +64,17 @@ class InstagramInsights
      */
     public const AUDIENCE_METRIC = 'follower_demographics';
 
-    /** How many recent items a sync caches insights for. */
+    /** How many items a single /media call asks for. */
     private const MEDIA_SYNC_LIMIT = 25;
+
+    /**
+     * Hard ceiling on how many pages syncMedia() will follow when given a
+     * $since floor (the one-time 90-day backfill -- see InstagramSyncRunner).
+     * 10 pages * 25 items = 250, generous for a quarter's worth of posts for
+     * any studio client, and a safety net against an unbounded loop should
+     * Meta ever answer with a cursor that doesn't converge.
+     */
+    private const MEDIA_SYNC_MAX_PAGES = 10;
 
     public function __construct(private readonly InstagramGraph $graph) {}
 
@@ -129,45 +138,90 @@ class InstagramInsights
     }
 
     /**
-     * Recent media, cached, with their own insights.
+     * Media, cached, with their own insights.
+     *
+     * Without $since (every caller today except the one-time backfill --
+     * see InstagramSyncRunner): exactly the latest 25 items, one call,
+     * byte-for-byte the same request this always made. A routine "Sync
+     * now"/`instagram:sync` does not get slower because this method grew a
+     * new capability.
+     *
+     * With $since: follows Meta's own cursor pagination (`paging.cursors.after`
+     * on this call feeds `after` on the next) across additional pages,
+     * stopping as soon as a page's oldest item is older than $since, or
+     * after MEDIA_SYNC_MAX_PAGES as a hard ceiling. The cursor mechanism
+     * itself is Meta's standard, stable, identically-documented pagination
+     * convention used across every Graph API list edge -- unlike the metric
+     * shapes elsewhere in this class, this one did not need empirical
+     * probing to trust. It HAS NOT been exercised against a real account
+     * with more than 25 posts in one sync (neither connected account has
+     * posted that often), so review this path's behavior the first time an
+     * account actually crosses that line.
      *
      * @return array{items: int, synced: int, skipped: list<string>}
      */
-    public function syncMedia(SocialAccount $account): array
+    public function syncMedia(SocialAccount $account, ?Carbon $since = null): array
     {
-        $media = $this->graph->get($account->platform_user_id.'/media', $account->access_token, [
-            'fields' => 'id,caption,media_type,media_product_type,timestamp,permalink,thumbnail_url,media_url',
-            'limit' => self::MEDIA_SYNC_LIMIT,
-        ]);
-
         $skipped = [];
         $synced = 0;
         $items = 0;
+        $after = null;
+        $pages = 0;
 
-        foreach ($media['data'] ?? [] as $entry) {
-            $item = SocialMediaItem::updateOrCreate(
-                ['social_account_id' => $account->id, 'platform_media_id' => $entry['id']],
-                [
-                    'media_type' => $entry['media_type'] ?? null,
-                    'media_product_type' => $entry['media_product_type'] ?? null,
-                    'caption' => $entry['caption'] ?? null,
-                    'permalink' => $entry['permalink'] ?? null,
-                    'thumbnail_url' => $entry['thumbnail_url'] ?? null,
-                    'media_url' => $entry['media_url'] ?? null,
-                    'posted_at' => isset($entry['timestamp']) ? Carbon::parse($entry['timestamp']) : null,
-                    'cached_at' => now(),
-                ]
-            );
-            $items++;
+        do {
+            $query = [
+                'fields' => 'id,caption,media_type,media_product_type,timestamp,permalink,thumbnail_url,media_url',
+                'limit' => self::MEDIA_SYNC_LIMIT,
+            ];
 
-            $metrics = self::MEDIA_METRICS_COMMON;
-
-            if (($entry['media_product_type'] ?? null) === SocialMediaItem::PRODUCT_REELS) {
-                $metrics = [...$metrics, ...self::MEDIA_METRICS_REELS];
+            if ($after !== null) {
+                $query['after'] = $after;
             }
 
-            $synced += $this->fetchAndStoreMedia($account, $item, $metrics, $skipped);
-        }
+            $media = $this->graph->get($account->platform_user_id.'/media', $account->access_token, $query);
+            $pages++;
+
+            $entries = $media['data'] ?? [];
+            $oldestOnPage = null;
+
+            foreach ($entries as $entry) {
+                $item = SocialMediaItem::updateOrCreate(
+                    ['social_account_id' => $account->id, 'platform_media_id' => $entry['id']],
+                    [
+                        'media_type' => $entry['media_type'] ?? null,
+                        'media_product_type' => $entry['media_product_type'] ?? null,
+                        'caption' => $entry['caption'] ?? null,
+                        'permalink' => $entry['permalink'] ?? null,
+                        'thumbnail_url' => $entry['thumbnail_url'] ?? null,
+                        'media_url' => $entry['media_url'] ?? null,
+                        'posted_at' => isset($entry['timestamp']) ? Carbon::parse($entry['timestamp']) : null,
+                        'cached_at' => now(),
+                    ]
+                );
+                $items++;
+
+                if (isset($entry['timestamp'])) {
+                    $postedAt = Carbon::parse($entry['timestamp']);
+                    $oldestOnPage = $oldestOnPage === null || $postedAt->lt($oldestOnPage) ? $postedAt : $oldestOnPage;
+                }
+
+                $metrics = self::MEDIA_METRICS_COMMON;
+
+                if (($entry['media_product_type'] ?? null) === SocialMediaItem::PRODUCT_REELS) {
+                    $metrics = [...$metrics, ...self::MEDIA_METRICS_REELS];
+                }
+
+                $synced += $this->fetchAndStoreMedia($account, $item, $metrics, $skipped);
+            }
+
+            $after = $media['paging']['cursors']['after'] ?? null;
+
+            $keepGoing = $since !== null
+                && $after !== null
+                && $entries !== []
+                && ($oldestOnPage === null || $oldestOnPage->gte($since))
+                && $pages < self::MEDIA_SYNC_MAX_PAGES;
+        } while ($keepGoing);
 
         return ['items' => $items, 'synced' => $synced, 'skipped' => array_unique($skipped)];
     }
@@ -235,13 +289,19 @@ class InstagramInsights
      * Every half for one account, tolerating a partial failure in any of
      * them.
      *
+     * $mediaSince is null on every ordinary call ("Sync now", `instagram:sync`)
+     * -- media stays the fast, unpaginated latest-25 fetch. Only the
+     * one-time first-sync backfill (InstagramSyncRunner) passes a real
+     * floor, since that is the one case where "the studio's most recent
+     * quarter of posts" actually needs more than the newest 25.
+     *
      * @return array{account: array, media: array, audience: array}
      */
-    public function syncAll(SocialAccount $account, Carbon $since, Carbon $until): array
+    public function syncAll(SocialAccount $account, Carbon $since, Carbon $until, ?Carbon $mediaSince = null): array
     {
         return [
             'account' => $this->syncAccount($account, $since, $until),
-            'media' => $this->syncMedia($account),
+            'media' => $this->syncMedia($account, $mediaSince),
             'audience' => $this->syncAudience($account),
         ];
     }

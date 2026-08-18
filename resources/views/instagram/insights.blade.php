@@ -39,6 +39,21 @@
             </a>
         </x-card>
     @else
+        @php
+            // A sortable column header, carrying the current range alongside
+            // the sort choice -- picking a column must not reset whatever
+            // dates are on screen. Clicking the already-active column flips
+            // direction; clicking a different one starts it at desc
+            // (highest first is the more useful default for "what worked").
+            $sortLink = fn (string $key) => route('instagram.insights', $client) . '?' . http_build_query([
+                'range' => $rangeKey,
+                'from' => $since->toDateString(),
+                'to' => $until->toDateString(),
+                'sort' => $key,
+                'direction' => ($sortBy === $key && $direction === 'desc') ? 'asc' : 'desc',
+            ]);
+        @endphp
+
         <div class="space-y-6">
 
             {{-- Account strip: who, and how fresh the numbers are. --}}
@@ -67,7 +82,15 @@
                     </div>
 
                     <div class="text-right">
-                        <form method="POST" action="{{ route('instagram.insights.sync', $client) }}?range={{ $rangeKey }}">
+                        {{-- from/to are carried alongside range, not just
+                             range alone: on a custom range, resolveRange()
+                             needs them to reconstruct the exact window
+                             being viewed -- without them, a custom-range
+                             "Sync now" silently synced the last-30-days
+                             default instead of the dates actually on
+                             screen. Harmless extra params on a preset
+                             range, since those branches ignore from/to. --}}
+                        <form method="POST" action="{{ route('instagram.insights.sync', $client) }}?range={{ $rangeKey }}&from={{ $since->toDateString() }}&to={{ $until->toDateString() }}">
                             @csrf
                             <x-secondary-button type="submit" :disabled="! $account->canSyncNow()">
                                 Sync now
@@ -180,11 +203,33 @@
                 </x-card>
             </div>
 
+            {{-- What was published, by type -- "No of Video Shared" and
+                 friends. Same tile markup as the Monthly Report's own
+                 "What we published" section, so the two screens read the
+                 same way. A Reel is never counted as a Video --
+                 typeLabel() checks isReel() first. --}}
+            <x-card padding="md">
+                <x-section-heading title="What was published"
+                    subtitle="{{ $content->count() }} piece(s) {{ $since->format('j M') }}–{{ $until->format('j M Y') }}." />
+                @if ($formats)
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        @foreach ($formats as $format)
+                            <div class="rounded-lg bg-gray-50 ring-1 ring-gray-900/5 px-4 py-3">
+                                <p class="text-2xl font-bold text-gray-900 tabular-nums">{{ $format['count'] }}</p>
+                                <p class="mt-1 text-[11px] font-semibold uppercase tracking-wider text-gray-500">{{ $format['label'] }}{{ $format['count'] === 1 ? '' : 's' }}</p>
+                            </div>
+                        @endforeach
+                    </div>
+                @else
+                    <x-empty-state message="Nothing was posted in this date range." />
+                @endif
+            </x-card>
+
             {{-- Content performance --}}
             <x-card padding="none">
                 <div class="p-4 sm:p-5 pb-0">
                     <x-section-heading title="Content performance"
-                        subtitle="Posts and reels published {{ $since->format('j M') }}–{{ $until->format('j M Y') }}, ranked by reach." />
+                        subtitle="Posts and reels published {{ $since->format('j M') }}–{{ $until->format('j M Y') }}, sorted by {{ strtolower(\App\Services\Instagram\InstagramReportData::SORTABLE[$sortBy]) }} ({{ $direction === 'desc' ? 'highest first' : 'lowest first' }})." />
                 </div>
 
                 @if ($content->isEmpty())
@@ -204,11 +249,25 @@
                         <table class="min-w-full text-sm">
                             <thead>
                                 <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">
-                                    <th class="px-4 sm:px-5 py-2.5">Content</th>
+                                    <th class="px-4 sm:px-5 py-2.5">
+                                        <a href="{{ $sortLink('date') }}" class="inline-flex items-center gap-1 hover:text-gray-700">
+                                            Content
+                                            @if ($sortBy === 'date')
+                                                <span aria-hidden="true">{{ $direction === 'desc' ? '▼' : '▲' }}</span>
+                                            @endif
+                                        </a>
+                                    </th>
                                     <th class="px-3 py-2.5">Type</th>
-                                    <th class="px-3 py-2.5 text-right">Reach</th>
-                                    <th class="px-3 py-2.5 text-right">Views</th>
-                                    <th class="px-3 py-2.5 text-right">Engagement</th>
+                                    @foreach (['reach' => 'Reach', 'views' => 'Views', 'engagement' => 'Engagement'] as $key => $label)
+                                        <th class="px-3 py-2.5 text-right">
+                                            <a href="{{ $sortLink($key) }}" class="inline-flex items-center gap-1 hover:text-gray-700">
+                                                {{ $label }}
+                                                @if ($sortBy === $key)
+                                                    <span aria-hidden="true">{{ $direction === 'desc' ? '▼' : '▲' }}</span>
+                                                @endif
+                                            </a>
+                                        </th>
+                                    @endforeach
                                     @can('portfolio.create')
                                         <th class="px-3 py-2.5"><span class="sr-only">Actions</span></th>
                                     @endcan

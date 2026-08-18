@@ -4,9 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Models\SocialAccount;
-use App\Services\Instagram\InstagramException;
-use App\Services\Instagram\InstagramInsights;
 use App\Services\Instagram\InstagramReportData;
+use App\Services\Instagram\InstagramSyncRunner;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -15,9 +14,14 @@ use Illuminate\View\View;
 /**
  * The Instagram analytics screen for one client.
  *
- * Reads ONLY the local social_insights cache -- see InstagramInsights for why
- * nothing here calls Instagram on a page load. "Sync now" is the one action
- * that does, and it is opt-in and rate-visible to whoever clicks it.
+ * Mostly reads the local social_insights cache -- "Sync now" is the
+ * deliberate, opt-in, rate-visible way to refresh it. show() is the one
+ * exception: it calls InstagramSyncRunner::ensureFresh() first, which
+ * silently backfills a never-synced account's first 90 days, or fills in a
+ * specific range that has never been fetched (a custom range picked via
+ * "Go") -- both throttle-respecting and a no-op on every ordinary view
+ * where the cache already covers what's being looked at. See
+ * InstagramSyncRunner for the full reasoning.
  *
  * scopeBindings() on the route group is what makes this safe across clients:
  * {client} and the account it resolves are bound together, so client B's
@@ -50,10 +54,21 @@ class InstagramInsightsController extends Controller
             ]);
         }
 
+        InstagramSyncRunner::ensureFresh($account, $since, $until, checkWindow: $rangeKey === 'custom');
+
+        [$sortBy, $direction] = $this->resolveSort($request);
+
         $overview = InstagramReportData::overview($account, $since, $until);
         $trend = InstagramReportData::trend($account, 'reach', $since, $until);
         $breakdown = InstagramReportData::engagementBreakdown($account, $since, $until);
-        $content = InstagramReportData::contentPerformance($account, $since, $until);
+        // 200, not the old bare 25: with sorting now user-controlled, the DB
+        // cap has to hold enough of the range for a sort to mean something --
+        // capping at 25 THEN sorting only reorders whichever 25 were most
+        // recently posted, silently hiding a high-reach older post from its
+        // own "sort by reach" (the same fix Monthly Report already needed
+        // its own limit bump for, same reasoning).
+        $content = InstagramReportData::contentPerformance($account, $since, $until, limit: 200, sortBy: $sortBy, direction: $direction);
+        $formats = InstagramReportData::formatBreakdown($content);
 
         return view('instagram.insights', [
             'client' => $client,
@@ -66,6 +81,9 @@ class InstagramInsightsController extends Controller
             'trend' => $trend,
             'breakdown' => $breakdown,
             'content' => $content,
+            'formats' => $formats,
+            'sortBy' => $sortBy,
+            'direction' => $direction,
         ]);
     }
 
@@ -94,31 +112,7 @@ class InstagramInsightsController extends Controller
 
         [$since, $until] = $this->resolveRange($request);
 
-        try {
-            $result = InstagramInsights::make()->syncAll($account, $since, $until);
-
-            $account->forceFill(['last_synced_at' => now()])->save();
-            $account->clearFailure();
-            $account->refreshLinkedPortfolioItems();
-
-            $skipped = array_unique([
-                ...$result['account']['skipped'],
-                ...$result['media']['skipped'],
-                ...$result['audience']['skipped'],
-            ]);
-
-            $status = sprintf('Synced. %d item(s) checked.', $result['media']['items']);
-
-            if ($skipped !== []) {
-                $status .= ' Not available for this account: '.implode(', ', $skipped).'.';
-            }
-
-            return back()->with('status', $status);
-        } catch (InstagramException $e) {
-            $account->recordFailure($e->userMessage(), fatal: $e->isAuthFailure());
-
-            return back()->with('status', 'Could not sync: '.$e->userMessage());
-        }
+        return back()->with('status', InstagramSyncRunner::run($account, $since, $until));
     }
 
     /**
@@ -170,6 +164,21 @@ class InstagramInsightsController extends Controller
         }
 
         return [$from, $to->min(now()->endOfDay()), 'custom'];
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function resolveSort(Request $request): array
+    {
+        $sortBy = $request->query('sort', 'reach');
+        $direction = $request->query('direction', 'desc');
+
+        if (! array_key_exists($sortBy, InstagramReportData::SORTABLE)) {
+            $sortBy = 'reach';
+        }
+
+        return [$sortBy, $direction === 'asc' ? 'asc' : 'desc'];
     }
 
     private function instagramFor(Client $client): ?SocialAccount
