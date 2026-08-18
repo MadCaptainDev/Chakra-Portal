@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 /**
@@ -31,6 +32,58 @@ class PublicUpload
         $name = Str::random(16).'-'.Str::limit($stem, 60, '').'.'.$extension;
 
         $file->move(public_path('uploads/'.$folder), $name);
+
+        return 'uploads/'.$folder.'/'.$name;
+    }
+
+    /**
+     * Download a remote file (an Instagram CDN thumbnail) and store it exactly
+     * like a local upload, under public/uploads/{folder}.
+     *
+     * Never throws. A dead or expired signed URL -- which is the normal
+     * failure mode for Instagram's thumbnail_url/media_url, see
+     * SocialMediaItem -- must degrade to "no thumbnail", not break a
+     * portfolio save. Returns null on any failure: an unreachable host, a
+     * non-2xx response, a content type that isn't a recognised image, an
+     * empty body, or a body over the size ceiling.
+     */
+    public static function storeFromUrl(string $url, string $folder, int $maxKb = 8192): ?string
+    {
+        try {
+            $response = Http::timeout(10)->get($url);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (! $response->successful()) {
+            return null;
+        }
+
+        // Content-type allowlist, not extension-sniffing off the URL --
+        // Instagram's CDN URLs carry a signed token as their path, not a
+        // reliable file extension.
+        $extension = match (true) {
+            str_contains((string) $response->header('Content-Type'), 'jpeg') => 'jpg',
+            str_contains((string) $response->header('Content-Type'), 'png') => 'png',
+            str_contains((string) $response->header('Content-Type'), 'webp') => 'webp',
+            default => null,
+        };
+
+        $body = $response->body();
+
+        if ($extension === null || $body === '' || strlen($body) > $maxKb * 1024) {
+            return null;
+        }
+
+        $folder = trim($folder, '/');
+        $name = Str::random(16).'-instagram.'.$extension;
+        $dir = public_path('uploads/'.$folder);
+
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        file_put_contents($dir.'/'.$name, $body);
 
         return 'uploads/'.$folder.'/'.$name;
     }

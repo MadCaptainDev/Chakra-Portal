@@ -440,6 +440,12 @@ Route::middleware(['auth', 'module:equipment,view'])->group(function () {
  */
 Route::middleware(['auth', 'module:portfolio,view'])->group(function () {
     Route::get('portfolio-items', [PortfolioItemController::class, 'index'])->name('portfolio.index');
+    // Recent Instagram posts for the client picked on the create/edit form --
+    // see PortfolioItemController::instagramMedia(). Sits at `view` like the
+    // rest of this group; the controller itself asserts create-or-edit, since
+    // there is no single ability that names "can see the picker".
+    Route::get('portfolio-items/instagram-media', [PortfolioItemController::class, 'instagramMedia'])
+        ->name('portfolio.instagram-media');
     Route::get('portfolio-items/create', [PortfolioItemController::class, 'create'])
         ->middleware('module:portfolio,create')->name('portfolio.create');
     Route::post('portfolio-items', [PortfolioItemController::class, 'store'])

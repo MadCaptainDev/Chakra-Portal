@@ -56,7 +56,7 @@ class PublicPortfolioController extends Controller
         // a hidden category -- the same rule the grid applies.
         abort_unless($portfolioItem->is_visible, 404);
 
-        $portfolioItem->loadMissing(['category', 'client', 'platformTerm', 'formatTerm', 'objectiveTerm', 'tags']);
+        $portfolioItem->loadMissing(['category', 'client', 'platformTerm', 'formatTerm', 'objectiveTerm', 'tags', 'socialMediaItem']);
 
         if ($portfolioItem->category && ! $portfolioItem->category->is_visible) {
             abort(404);

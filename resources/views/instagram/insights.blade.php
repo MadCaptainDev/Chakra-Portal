@@ -203,6 +203,9 @@
                                     <th class="px-3 py-2.5 text-right">Reach</th>
                                     <th class="px-3 py-2.5 text-right">Views</th>
                                     <th class="px-3 py-2.5 text-right">Engagement</th>
+                                    @can('portfolio.create')
+                                        <th class="px-3 py-2.5"><span class="sr-only">Actions</span></th>
+                                    @endcan
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100">
@@ -242,6 +245,14 @@
                                         <td class="px-3 py-2.5 text-right tabular-nums text-gray-900">
                                             {{ $item->metricValue('total_interactions') !== null ? number_format($item->metricValue('total_interactions')) : '—' }}
                                         </td>
+                                        @can('portfolio.create')
+                                            <td class="px-3 py-2.5 whitespace-nowrap">
+                                                <a href="{{ route('portfolio.create', ['client_id' => $client->id, 'media_id' => $item->id]) }}"
+                                                   class="text-xs font-semibold text-brand-600 hover:text-brand-700">
+                                                    Add to portfolio
+                                                </a>
+                                            </td>
+                                        @endcan
                                     </tr>
                                 @endforeach
                             </tbody>

@@ -111,6 +111,14 @@
     $coverRatio = $vertical ? 'aspect-[9/16]' : 'aspect-video';
 
     $playback = $item->playbackUrl();
+
+    /*
+    | 'file' plays the uploaded video inline; 'instagram' embeds the real
+    | Instagram post inline via Meta's public embed.js widget; 'link' (e.g. a
+    | YouTube link) opens in a new tab, unchanged from before this piece could
+    | be mapped to Instagram at all.
+    */
+    $playbackKind = $item->isUploaded() ? 'file' : ($item->isMappedToInstagram() ? 'instagram' : 'link');
 @endphp
 
 <x-public-layout
@@ -121,7 +129,7 @@
     {{-- Hero: the film, who it was for, and the headline numbers.           --}}
     {{-- ------------------------------------------------------------------ --}}
     <section class="relative overflow-hidden border-b border-white/10"
-             x-data="portfolioPlayer(@js($playback), @js($item->isUploaded() ? 'file' : 'link'))">
+             x-data="portfolioPlayer(@js($playback), @js($playbackKind))">
 
         {{-- A soft teal wash behind the fold, the brand's version of the
              mockup's glow. Decorative only. --}}
@@ -168,6 +176,21 @@
 
                         <div aria-hidden="true"
                              class="absolute inset-0 bg-gradient-to-b from-brand-900/50 via-transparent to-brand-900/80"></div>
+
+                        {{-- Visible regardless of play state -- a way to the
+                             real post that doesn't depend on pressing play,
+                             unlike the button below it which only shows when
+                             there is something to play at all. --}}
+                        @if ($item->isMappedToInstagram())
+                            <a href="{{ $item->socialMediaItem->permalink }}" target="_blank" rel="noopener"
+                               @click.stop
+                               class="absolute bottom-3 right-3 z-10 pointer-events-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-900/70 backdrop-blur text-[10px] font-semibold uppercase tracking-widest hover:bg-brand-900/90 transition-colors">
+                                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M12 2.16c3.2 0 3.58.01 4.85.07 3.25.15 4.77 1.69 4.92 4.92.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.15 3.23-1.66 4.77-4.92 4.92-1.27.06-1.64.07-4.85.07s-3.58-.01-4.85-.07c-3.26-.15-4.77-1.7-4.92-4.92-.06-1.27-.07-1.65-.07-4.85s.02-3.58.07-4.85c.15-3.23 1.67-4.77 4.92-4.92 1.27-.06 1.65-.07 4.85-.07zM12 0C8.74 0 8.33.01 7.05.07c-4.35.2-6.78 2.62-6.98 6.98C.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.2 4.36 2.62 6.78 6.98 6.98C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c4.35-.2 6.78-2.62 6.98-6.98.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.2-4.35-2.62-6.78-6.98-6.98C15.67.01 15.26 0 12 0zm0 5.84A6.16 6.16 0 1 0 18.16 12 6.16 6.16 0 0 0 12 5.84zM12 16a4 4 0 1 1 4-4 4 4 0 0 1-4 4zm6.41-10.84a1.44 1.44 0 1 1-1.44-1.44 1.44 1.44 0 0 1 1.44 1.44z" />
+                                </svg>
+                                View on Instagram
+                            </a>
+                        @endif
 
                         <div class="absolute top-3 inset-x-3 flex items-center justify-between gap-2 pointer-events-none">
                             @if ($platform)
@@ -315,10 +338,19 @@
                     </button>
                 </div>
 
-                <template x-if="playing">
-                    <video controls autoplay playsinline class="w-full max-h-[75vh] rounded-lg bg-black"
-                           src="{{ $playback }}"></video>
-                </template>
+                @if ($playbackKind === 'instagram')
+                    <template x-if="playing">
+                        <div class="max-h-[75vh] overflow-y-auto rounded-lg bg-white flex justify-center p-2">
+                            <blockquote class="instagram-media" data-instgrm-permalink="{{ $item->socialMediaItem?->permalink }}"
+                                        data-instgrm-version="14" style="width:100%; max-width:540px; margin:0;"></blockquote>
+                        </div>
+                    </template>
+                @else
+                    <template x-if="playing">
+                        <video controls autoplay playsinline class="w-full max-h-[75vh] rounded-lg bg-black"
+                               src="{{ $playback }}"></video>
+                    </template>
+                @endif
             </div>
         </div>
     </section>
@@ -768,7 +800,10 @@
                         if (! src) return;
 
                         // A linked film lives on someone else's player, so send
-                        // the visitor there rather than embedding it.
+                        // the visitor there rather than embedding it. An
+                        // Instagram-mapped piece is different: it renders the
+                        // real post inline instead, so it falls through to the
+                        // modal below like an uploaded file does.
                         if (kind === 'link') {
                             window.open(src, '_blank', 'noopener');
                             return;
@@ -776,11 +811,33 @@
 
                         this.playing = true;
                         document.body.classList.add('overflow-hidden');
+
+                        if (kind === 'instagram') {
+                            this.$nextTick(() => this.loadInstagramEmbed());
+                        }
                     },
 
                     close() {
                         this.playing = false;
                         document.body.classList.remove('overflow-hidden');
+                    },
+
+                    // Loaded once, lazily -- only when an Instagram-mapped
+                    // piece is actually opened, not on every portfolio page.
+                    // No API token and no per-view call to Instagram: this is
+                    // Meta's own public client-side widget rendering the post
+                    // as it stands right now.
+                    loadInstagramEmbed() {
+                        if (window.instgrm) {
+                            window.instgrm.Embeds.process();
+                            return;
+                        }
+
+                        const script = document.createElement('script');
+                        script.src = 'https://www.instagram.com/embed.js';
+                        script.async = true;
+                        script.onload = () => window.instgrm?.Embeds.process();
+                        document.body.appendChild(script);
                     },
                 };
             }

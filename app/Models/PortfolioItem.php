@@ -55,6 +55,7 @@ class PortfolioItem extends Model
     protected $fillable = [
         'portfolio_category_id',
         'client_id',
+        'social_media_item_id',
         'platform_id',
         'format_id',
         'objective_id',
@@ -93,6 +94,9 @@ class PortfolioItem extends Model
         'is_visible' => 'boolean',
         'show_business_impact' => 'boolean',
         'published_on' => 'date',
+        // Not fillable -- written only by refreshFromInstagram() itself,
+        // never from request input.
+        'instagram_refreshed_at' => 'datetime',
         'duration_seconds' => 'integer',
         'views' => 'integer',
         'reach' => 'integer',
@@ -130,6 +134,11 @@ class PortfolioItem extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
+    }
+
+    public function socialMediaItem(): BelongsTo
+    {
+        return $this->belongsTo(SocialMediaItem::class);
     }
 
     /*
@@ -367,6 +376,92 @@ class PortfolioItem extends Model
         }
 
         return $notes;
+    }
+
+    /** True once this piece is tied to a specific cached Instagram post/reel. */
+    public function isMappedToInstagram(): bool
+    {
+        return $this->social_media_item_id !== null;
+    }
+
+    /**
+     * First-time mapping: the fields staff would otherwise have typed by
+     * hand. Called once, from the controller, only when a NEW
+     * social_media_item_id is being attached to this piece -- never from an
+     * unattended sync (see refreshFromInstagram()), which must not clobber a
+     * link or thumbnail staff have since replaced by hand while keeping the
+     * piece linked.
+     *
+     * thumbnail_path is set by the caller: downloading it needs PublicUpload,
+     * a concern this model does not have.
+     */
+    public function mapToInstagram(SocialMediaItem $media): void
+    {
+        $this->social_media_item_id = $media->id;
+        $this->video_url = $media->permalink;
+
+        if ($this->published_on === null && $media->posted_at) {
+            $this->published_on = $media->posted_at->toDateString();
+        }
+
+        $this->refreshFromInstagram($media);
+    }
+
+    /**
+     * Performance numbers only, from the media's cached insights. Safe to
+     * call on every Instagram sync -- touches nothing staff typed by hand.
+     *
+     * Never touches: any BUSINESS_FIELDS (no Instagram equivalent),
+     * profile_visits, enquiries, completion_rate, watch_hours (no cached
+     * source for any of these), or title/description/is_visible/is_featured/
+     * category/tags/client_name/creative fields (all staff-authored).
+     *
+     * engagement_rate is deliberately not computed here: it would need a
+     * follower/reach count as of the post date, and only a CURRENT snapshot
+     * (SocialAccount::followers_count) exists -- computing against today's
+     * count would misrepresent an older post.
+     */
+    public function refreshFromInstagram(?SocialMediaItem $media = null): void
+    {
+        $media ??= $this->socialMediaItem;
+
+        if (! $media) {
+            return;
+        }
+
+        $map = [
+            'views' => 'views',
+            'reach' => 'reach',
+            'likes' => 'likes',
+            'comments' => 'comments',
+            'shares' => 'shares',
+            // Instagram's own metric key is "saved" (singular, past tense);
+            // this column is "saves" -- the one name translation needed.
+            'saves' => 'saved',
+        ];
+
+        foreach ($map as $field => $metric) {
+            $value = $media->metricValue($metric);
+
+            if ($value !== null) {
+                $this->{$field} = $value;
+            }
+        }
+
+        if ($media->isReel()) {
+            $avgWatch = $media->metricValue('ig_reels_avg_watch_time');
+
+            // Confirmed empirically against a real synced reel (11446 against
+            // 112,659 views -- 11.4 seconds of average watch time, not 11446
+            // seconds): Meta returns this metric in milliseconds despite the
+            // name, so it is converted here rather than stored raw.
+            if ($avgWatch !== null) {
+                $this->avg_watch_seconds = round($avgWatch / 1000, 1);
+            }
+        }
+
+        $this->instagram_refreshed_at = now();
+        $this->save();
     }
 
     /**

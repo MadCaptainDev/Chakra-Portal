@@ -219,4 +219,30 @@ class SocialAccount extends Model
             'status' => self::STATUS_CONNECTED,
         ])->save();
     }
+
+    /**
+     * Every portfolio piece mapped to one of this account's cached posts,
+     * refreshed with whatever this sync just wrote to social_insights.
+     *
+     * Failure-isolated on purpose, at two levels: one bad row's exception is
+     * caught and reported without stopping the rest, and this method is
+     * called from inside the sync's own success path -- a portfolio refresh
+     * going wrong must never turn a successful Instagram sync into a failed
+     * one, since the sync's own data is good regardless of whether its
+     * portfolio mirror updates cleanly.
+     */
+    public function refreshLinkedPortfolioItems(): void
+    {
+        PortfolioItem::query()
+            ->whereHas('socialMediaItem', fn (Builder $query) => $query->where('social_account_id', $this->id))
+            ->with('socialMediaItem.insights')
+            ->get()
+            ->each(function (PortfolioItem $item) {
+                try {
+                    $item->refreshFromInstagram();
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            });
+    }
 }

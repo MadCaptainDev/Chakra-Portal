@@ -99,6 +99,7 @@ class InstagramInsightsController extends Controller
 
             $account->forceFill(['last_synced_at' => now()])->save();
             $account->clearFailure();
+            $account->refreshLinkedPortfolioItems();
 
             $skipped = array_unique([...$result['account']['skipped'], ...$result['media']['skipped']]);
 

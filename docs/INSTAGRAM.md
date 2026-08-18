@@ -226,7 +226,42 @@ way account metrics do, so there is no equivalent "reach as of the 12th" for
 one post — filtering which posts appear is the correct and only fix for that
 report.
 
-## 10. Production notes
+## 10. Mapping a post into the Portfolio
+
+A Portfolio piece (`portfolio_items`) can point at one cached post/reel
+(`social_media_item_id`) instead of everything being hand-typed — see
+`PortfolioItem::mapToInstagram()`/`refreshFromInstagram()`.
+
+- **Where staff do it**: the client picker on the Portfolio create/edit form
+  shows recent posts for the picked client, when that client has a connected,
+  synced Instagram account (`GET portfolio-items/instagram-media`). Or, from
+  a client's Instagram Insights → Content performance table, "Add to
+  portfolio" opens the create form pre-selected to that exact post.
+- **What's copied once, at map time**: `video_url` (the permalink, not the
+  short-lived CDN URL), the thumbnail (downloaded and stored locally under
+  `public/uploads/portfolio/thumbnails`, never hot-linked to Instagram's
+  signed CDN URL — see `PublicUpload::storeFromUrl()`), and `published_on` if
+  it was blank. Re-mapping to a different post repeats this; re-saving the
+  same mapping does not.
+- **What refreshes automatically, and when**: the performance fields
+  (`views`, `reach`, `likes`, `comments`, `shares`, `saves`, and
+  `avg_watch_seconds` for reels) are refreshed from cached `social_insights`
+  every time that client's Instagram account is synced — the Sync now button
+  or `instagram:sync`, not a separate schedule (`SocialAccount::refreshLinkedPortfolioItems()`).
+  Business-impact figures, title, description, and every other case-study
+  field are never touched — Instagram has no equivalent for them, and they
+  stay exactly what staff typed.
+- **Playback**: the public case-study page embeds the real Instagram post
+  inline via Meta's public `embed.js` widget when pressed play — no token, no
+  API call per page view. A small "View on Instagram" badge on the cover
+  links to the real post independent of the play button.
+- **What breaks the link**: disconnecting the account, or the underlying
+  cached post being purged (re-sync churn, a data-deletion request),
+  unlinks the mapping (`nullOnDelete`) but leaves the portfolio piece intact
+  with whatever thumbnail and numbers were last written — a published case
+  study is never deleted by something happening on the Instagram side.
+
+## 11. Production notes
 
 - Tokens last ~60 days and are refreshed by being used. There is no automatic
   refresh yet; a connection left completely idle for two months will need

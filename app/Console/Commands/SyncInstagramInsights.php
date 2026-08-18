@@ -70,6 +70,7 @@ class SyncInstagramInsights extends Command
 
                 $account->forceFill(['last_synced_at' => now()])->save();
                 $account->clearFailure();
+                $account->refreshLinkedPortfolioItems();
 
                 $this->info(sprintf(
                     '  OK — %d account metric(s), %d item(s) with %d media metric(s)',

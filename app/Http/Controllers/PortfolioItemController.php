@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Client;
 use App\Models\PortfolioCategory;
 use App\Models\PortfolioItem;
+use App\Models\SocialAccount;
+use App\Models\SocialMediaItem;
 use App\Models\TaxonomyTerm;
 use App\Support\PublicUpload;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -57,11 +60,81 @@ class PortfolioItemController extends Controller
         ]);
     }
 
-    public function create(): View
+    /**
+     * Recent Instagram posts/reels for the client picked on the form, so
+     * staff can map a piece to one instead of typing everything by hand.
+     *
+     * Not inside a scopeBindings() route group -- this endpoint is not
+     * nested under clients/{client}/... the way the client-facing Instagram
+     * routes are -- so the ownership check is done by hand: media is only
+     * ever looked up THROUGH $client->socialAccounts(), which makes it
+     * structurally impossible to return another client's account's media
+     * regardless of what client_id is posted.
+     */
+    public function instagramMedia(Request $request): JsonResponse
+    {
+        abort_unless(
+            $request->user()->can('portfolio.create') || $request->user()->can('portfolio.edit'),
+            403
+        );
+
+        $client = Client::find($request->integer('client_id'));
+
+        $account = $client?->socialAccounts()
+            ->forPlatform(SocialAccount::PLATFORM_INSTAGRAM)
+            ->connected()
+            ->first();
+
+        if (! $account) {
+            // No client, no connected account, or (below) nothing cached --
+            // the picker treats all three as one condition: nothing to show.
+            return response()->json(['items' => []]);
+        }
+
+        $items = $account->socialMediaItems()
+            ->with('insights')
+            ->newestFirst()
+            ->limit(25)
+            ->get()
+            ->map(fn (SocialMediaItem $item) => [
+                'id' => $item->id,
+                // thumbnail_url is frequently absent (Meta only sets it for
+                // some media types) -- media_url is the same fallback
+                // instagram/insights.blade.php's Content Performance table
+                // already uses. A raw video file falling through here is
+                // caught downstream: storeFromUrl() only accepts an image
+                // content-type and quietly returns null on anything else.
+                'thumbnail_url' => $item->thumbnail_url ?: $item->media_url,
+                'permalink' => $item->permalink,
+                'caption' => $item->shortCaption(80),
+                'posted_at' => $item->posted_at?->format('j M Y'),
+                'posted_at_iso' => $item->posted_at?->toDateString(),
+                'type' => $item->typeLabel(),
+                'reach' => $item->metricValue('reach'),
+                'views' => $item->metricValue('views'),
+            ]);
+
+        return response()->json(['items' => $items]);
+    }
+
+    public function create(Request $request): View
     {
         $item = new PortfolioItem(['is_visible' => true]);
+        $preselectClientId = $request->integer('client_id') ?: null;
+        $preselectMedia = null;
 
-        return view('portfolio.create', $this->formData($item));
+        if ($preselectClientId && $request->integer('media_id')) {
+            $preselectMedia = $this->resolveMappedMedia($request->integer('media_id'), $preselectClientId);
+        }
+
+        if ($preselectClientId) {
+            // Pre-selects the <select> via old()/$item fallback in the form.
+            $item->client_id = $preselectClientId;
+        }
+
+        return view('portfolio.create', $this->formData($item) + [
+            'preselectMedia' => $preselectMedia,
+        ]);
     }
 
     /**
@@ -98,15 +171,34 @@ class PortfolioItemController extends Controller
     {
         $data = $this->validated($request);
 
+        $media = $this->resolveMappedMedia($data['social_media_item_id'] ?? null, $data['client_id'] ?? null);
+        // Set via mapToInstagram() below, not mass assignment -- and an
+        // unresolved (missing or spoofed) id must not fall through either.
+        unset($data['social_media_item_id']);
+
         if ($request->hasFile('video')) {
             $data['video_path'] = PublicUpload::store($request->file('video'), 'portfolio/videos');
         }
 
         if ($request->hasFile('thumbnail')) {
             $data['thumbnail_path'] = PublicUpload::store($request->file('thumbnail'), 'portfolio/thumbnails');
+        } elseif ($media && $this->mediaThumbnailSource($media)) {
+            // Only when no file was uploaded in this request -- an uploaded
+            // file always wins, the same precedence
+            // PortfolioItem::playbackUrl() already gives video_path over
+            // video_url. storeFromUrl() degrades to null on a dead/expired
+            // CDN URL (or a non-image one, e.g. a raw video file behind the
+            // media_url fallback) rather than throwing, so a save never
+            // fails over this.
+            $data['thumbnail_path'] ??= PublicUpload::storeFromUrl($this->mediaThumbnailSource($media), 'portfolio/thumbnails');
         }
 
         $item = PortfolioItem::create($data);
+
+        if ($media) {
+            $item->mapToInstagram($media);
+        }
+
         $item->tags()->sync($this->tagIds($request));
 
         return redirect()->route('portfolio.index')->with('status', 'Portfolio piece added.');
@@ -114,7 +206,7 @@ class PortfolioItemController extends Controller
 
     public function edit(PortfolioItem $portfolio): View
     {
-        $portfolio->load('tags');
+        $portfolio->load(['tags', 'socialMediaItem']);
 
         return view('portfolio.edit', $this->formData($portfolio));
     }
@@ -122,6 +214,10 @@ class PortfolioItemController extends Controller
     public function update(Request $request, PortfolioItem $portfolio): RedirectResponse
     {
         $data = $this->validated($request);
+
+        $wasMapped = $portfolio->social_media_item_id;
+        $media = $this->resolveMappedMedia($data['social_media_item_id'] ?? null, $data['client_id'] ?? null);
+        unset($data['social_media_item_id']);
 
         // A replacement upload drops the file it replaces, so retries and
         // re-crops don't silently fill the disk.
@@ -135,12 +231,63 @@ class PortfolioItemController extends Controller
             $previous = $portfolio->thumbnail_path;
             $data['thumbnail_path'] = PublicUpload::store($request->file('thumbnail'), 'portfolio/thumbnails');
             PublicUpload::delete($previous);
+        } elseif ($media && $media->id !== $wasMapped && $this->mediaThumbnailSource($media)) {
+            // Only for a NEW mapping, not every save of an already-linked
+            // item -- see mapToInstagram() vs refreshFromInstagram().
+            $stored = PublicUpload::storeFromUrl($this->mediaThumbnailSource($media), 'portfolio/thumbnails');
+
+            if ($stored) {
+                PublicUpload::delete($portfolio->thumbnail_path);
+                $data['thumbnail_path'] = $stored;
+            }
         }
 
         $portfolio->update($data);
+
+        if ($media && $media->id !== $wasMapped) {
+            $portfolio->mapToInstagram($media);
+        } elseif (! $media && $wasMapped) {
+            // The client changed, or the picker's selection was cleared --
+            // an explicit unlink, not silently keeping a stale link.
+            $portfolio->forceFill(['social_media_item_id' => null])->save();
+        }
+
         $portfolio->tags()->sync($this->tagIds($request));
 
         return redirect()->route('portfolio.index')->with('status', 'Portfolio piece updated.');
+    }
+
+    /**
+     * Where to fetch a mapped item's thumbnail from. thumbnail_url is
+     * frequently absent -- Meta only sets it for some media types, confirmed
+     * against the real cache -- so this falls back to media_url exactly like
+     * instagram/insights.blade.php's Content Performance table already does.
+     * A raw video file behind that fallback isn't a special case here:
+     * PublicUpload::storeFromUrl() only accepts an image content-type and
+     * quietly returns null on anything else.
+     */
+    private function mediaThumbnailSource(SocialMediaItem $media): ?string
+    {
+        return $media->thumbnail_url ?: $media->media_url;
+    }
+
+    /**
+     * The submitted social_media_item_id, re-verified server-side rather
+     * than trusted: it must belong to an Instagram account connected to
+     * THIS SAME client, closing both a spoofed hidden input and the "client
+     * was changed after the picker loaded" case -- either one fails this
+     * lookup and the piece simply saves unmapped.
+     */
+    private function resolveMappedMedia(mixed $mediaId, mixed $clientId): ?SocialMediaItem
+    {
+        if (! $mediaId || ! $clientId) {
+            return null;
+        }
+
+        return SocialMediaItem::with('insights')
+            ->whereKey((int) $mediaId)
+            ->whereHas('socialAccount', fn ($query) => $query->where('client_id', (int) $clientId))
+            ->first();
     }
 
     public function destroy(PortfolioItem $portfolio): RedirectResponse
@@ -182,6 +329,7 @@ class PortfolioItemController extends Controller
         $rules = [
             'portfolio_category_id' => ['nullable', 'exists:portfolio_categories,id'],
             'client_id' => ['nullable', 'exists:clients,id'],
+            'social_media_item_id' => ['nullable', 'integer', 'exists:social_media_items,id'],
             'title' => ['required', 'string', 'max:255'],
             'client_name' => ['nullable', 'string', 'max:255'],
             'tags' => ['nullable', 'array', 'max:30'],
