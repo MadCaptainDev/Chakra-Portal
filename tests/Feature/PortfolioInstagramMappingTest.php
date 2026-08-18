@@ -423,6 +423,50 @@ class PortfolioInstagramMappingTest extends TestCase
         $this->assertNull($item->fresh()->social_media_item_id);
     }
 
+    public function test_uploading_a_video_for_an_already_mapped_piece_plays_the_upload_not_the_instagram_link(): void
+    {
+        // The public detail page decides playback kind from isUploaded()
+        // FIRST, isMappedToInstagram() only as the fallback -- so a piece
+        // that is still linked to Instagram (video_url still the permalink,
+        // social_media_item_id still set) but now also has an uploaded file
+        // must play that file inline, not redirect/embed Instagram. This is
+        // the exact "linked video, then I upload a video" scenario reported.
+        $account = $this->connectedAccount();
+        $media = $this->media($account);
+
+        $item = PortfolioItem::create([
+            'title' => 'Mapped piece', 'client_id' => $account->client_id, 'is_visible' => true,
+        ]);
+        $item->mapToInstagram($media);
+
+        // Saved again with an uploaded file, and WITHOUT touching the
+        // picker -- the hidden social_media_item_id input still carries the
+        // same id, exactly like a real edit where only the video field
+        // changed.
+        $this->actingAs($this->admin())->put(route('portfolio.update', $item), [
+            'title' => $item->title,
+            'client_id' => $account->client_id,
+            'social_media_item_id' => $media->id,
+            'is_visible' => '1',
+            'video' => UploadedFile::fake()->create('film.mp4', 64, 'video/mp4'),
+        ])->assertRedirect(route('portfolio.index'));
+
+        $this->trackUploads();
+        $item->refresh();
+
+        $this->assertNotNull($item->video_path);
+        $this->assertTrue($item->isUploaded());
+        // Still linked -- picker selection was untouched -- but playback
+        // must prefer the upload regardless.
+        $this->assertSame($media->id, $item->social_media_item_id);
+
+        // @js() JSON-escapes forward slashes in the asset URL, so this checks
+        // the kind argument specifically rather than the literal call string.
+        $response = $this->get(route('portfolio.detail', $item))->assertOk();
+        $response->assertSee("', 'file')", false);
+        $response->assertDontSee("', 'instagram')", false);
+    }
+
     // -- Auto-refresh on Instagram sync -----------------------------------------
 
     public function test_syncing_an_account_from_the_controller_refreshes_its_linked_portfolio_items(): void
