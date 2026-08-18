@@ -1,0 +1,287 @@
+@php
+    /*
+     * The monthly Instagram report for one client -- read entirely from
+     * local caches, see MonthlyReportController for why nothing here calls
+     * Instagram. "Sync now" is the Instagram Insights screen's own action,
+     * reused here rather than duplicated.
+     *
+     * The Studio/Client toggle is an on-screen PREVIEW only (Alpine,
+     * client-side, no reload, no new route) -- there is no client-facing
+     * link for this report. Delivery is the downloaded PDF.
+     */
+    $monthParam = $month->format('Y-m');
+@endphp
+
+<x-app-layout title="Monthly Report">
+    <x-slot name="header">
+        <x-page-header :title="$client->name" eyebrow="Monthly Report">
+            <x-slot name="actions">
+                <a href="{{ route('clients.show', $client) }}#social"
+                   class="text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                    ← Back to client
+                </a>
+            </x-slot>
+        </x-page-header>
+    </x-slot>
+
+    @if (! $account)
+        <x-card padding="md" class="max-w-lg">
+            <p class="text-sm text-gray-600">
+                No Instagram account is connected for {{ $client->name }} yet.
+            </p>
+            <a href="{{ route('clients.show', $client) }}#social"
+               class="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                Connect Instagram
+            </a>
+        </x-card>
+    @else
+        <div class="space-y-6" x-data="{ isClient: false }">
+
+            {{-- Month switcher + Studio/Client preview + Print --}}
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <x-month-nav route="instagram.report" :month="$month" :params="['client' => $client]" class="max-w-xs" />
+
+                <div class="flex flex-wrap items-center gap-2" data-chrome>
+                    <div class="inline-flex items-center gap-1 p-1 rounded-xl bg-gray-100 ring-1 ring-gray-900/5">
+                        <button type="button" @click="isClient = false"
+                                :class="! isClient ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'"
+                                class="min-h-[40px] px-3 rounded-lg text-sm font-semibold transition-colors">
+                            Studio view
+                        </button>
+                        <button type="button" @click="isClient = true"
+                                :class="isClient ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'"
+                                class="min-h-[40px] px-3 rounded-lg text-sm font-semibold transition-colors">
+                            Client preview
+                        </button>
+                    </div>
+                    <a href="{{ route('instagram.report.pdf', ['client' => $client, 'month' => $monthParam]) }}"
+                       class="inline-flex items-center gap-2 min-h-[44px] px-4 rounded-md bg-brand-500 text-white text-sm font-semibold shadow-sm hover:bg-brand-600">
+                        <x-icon name="document" class="w-4 h-4" />
+                        Print / PDF
+                    </a>
+                </div>
+            </div>
+
+            {{-- Account strip --}}
+            <x-card padding="md" data-chrome x-show="! isClient">
+                <div class="flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        @if ($account->profile_picture_url)
+                            <img src="{{ $account->profile_picture_url }}" alt="" onerror="this.remove()"
+                                 class="w-10 h-10 rounded-full object-cover ring-1 ring-gray-900/5">
+                        @endif
+                        <div>
+                            <p class="text-sm font-semibold text-gray-900">{{ $account->handle() }}</p>
+                            <p class="text-xs text-gray-500">
+                                @if ($account->last_synced_at)
+                                    Synced {{ $account->last_synced_at->format('j M Y, g:i A') }} IST
+                                    ({{ $account->last_synced_at->diffForHumans() }})
+                                @else
+                                    Never synced
+                                @endif
+                            </p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <p class="text-xs text-gray-400">Instagram Graph API · cached</p>
+                        <form method="POST" action="{{ route('instagram.insights.sync', $client) }}">
+                            @csrf
+                            <x-secondary-button type="submit" :disabled="! $account->canSyncNow()">
+                                Sync now
+                            </x-secondary-button>
+                        </form>
+                    </div>
+                </div>
+                <p class="mt-3 text-xs text-gray-500">
+                    Showing <span class="font-medium text-gray-700">{{ $since->format('j M Y') }}</span>
+                    to <span class="font-medium text-gray-700">{{ $until->format('j M Y') }}</span> (Asia/Kolkata).
+                </p>
+            </x-card>
+
+            {{-- Note --}}
+            <x-card padding="md" class="bg-brand-50/60 ring-1 ring-brand-200/70" id="note">
+                <div class="flex items-baseline justify-between gap-3 mb-2">
+                    <h3 class="text-sm font-semibold text-gray-900">The month in one paragraph</h3>
+                    <p class="text-[11px] text-gray-500" data-chrome x-show="! isClient">
+                        @if ($note->updated_at)
+                            Last edited {{ $note->updated_at->diffForHumans() }}
+                        @else
+                            Not written yet
+                        @endif
+                    </p>
+                </div>
+
+                <div data-chrome x-show="! isClient">
+                    <form method="POST" action="{{ route('instagram.report.note', $client) }}">
+                        @csrf
+                        <input type="hidden" name="month" value="{{ $monthParam }}">
+                        <x-textarea name="note" rows="4"
+                                    placeholder="What carried the month, what's planned next -- this is what the client sees on the PDF."
+                                    class="w-full">{{ old('note', $note->note) }}</x-textarea>
+                        <div class="mt-2 flex justify-end">
+                            <x-secondary-button type="submit">Save note</x-secondary-button>
+                        </div>
+                    </form>
+                </div>
+
+                <div x-show="isClient" x-cloak>
+                    @if ($note->note)
+                        <p class="text-sm text-gray-700 leading-relaxed max-w-3xl">{{ $note->note }}</p>
+                    @else
+                        <p class="text-sm text-gray-400 italic">No note written for this month yet.</p>
+                    @endif
+                </div>
+            </x-card>
+
+            {{-- KPIs --}}
+            <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                <x-stat-card label="Followers" :value="number_format($overview['followers'])" icon="users" accent="gray">at {{ $until->format('j M') }}</x-stat-card>
+                <x-stat-card label="Follower growth"
+                    :value="$overview['follower_growth'] !== null ? ($overview['follower_growth'] >= 0 ? '+' : '').number_format($overview['follower_growth']) : '—'"
+                    icon="trending-up"
+                    :accent="($overview['follower_growth'] ?? 0) > 0 ? 'green' : (($overview['follower_growth'] ?? 0) < 0 ? 'red' : 'gray')">net new this month</x-stat-card>
+                <x-stat-card label="Engagement" :value="number_format($overview['engagement'])" icon="sparkles" accent="green">likes, comments, saves, shares</x-stat-card>
+                <x-stat-card label="Accounts reached" :value="number_format($overview['reach'])" icon="trending-up" accent="brand" />
+                <x-stat-card label="Published" :value="number_format($content->count())" icon="check-circle" accent="brand">posts and reels</x-stat-card>
+            </div>
+
+            {{-- Growth + engagement --}}
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                <div class="lg:col-span-3">
+                    <x-charts.metric-trend :days="$trend" title="Follower growth, day by day"
+                        empty="No reach data cached for this month yet — press Sync now." />
+                </div>
+                <x-card padding="md" class="lg:col-span-2">
+                    <x-section-heading title="Engagement breakdown"
+                        subtitle="What the {{ number_format($overview['engagement']) }} total interactions were made of." />
+                    <x-charts.bar-list :items="$breakdown" empty="No engagement data cached for this month yet." />
+                </x-card>
+            </div>
+
+            {{-- Audience --}}
+            <x-card padding="md">
+                <x-section-heading title="Who is following"
+                    subtitle="{{ number_format($overview['followers']) }} followers, as of the last sync." />
+
+                @if ($audienceSyncedAt)
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Age, %</p>
+                            <x-charts.bar-list :items="$ageBreakdown" decimals="0" />
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Gender, %</p>
+                            <x-charts.bar-list :items="$genderBreakdown" decimals="0" />
+                            <p class="mt-3 text-[11px] text-gray-400">Instagram reports gender only where a follower has set it.</p>
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Top cities</p>
+                            <x-charts.bar-list :items="$topCities" />
+                        </div>
+                    </div>
+                    <p class="mt-4 text-[11px] text-gray-400">Audience synced {{ $audienceSyncedAt->diffForHumans() }}.</p>
+                @else
+                    <x-empty-state message="Audience demographics haven't been synced for this account yet — press Sync now." />
+                @endif
+            </x-card>
+
+            {{-- Publishing summary --}}
+            <x-card padding="md">
+                <x-section-heading title="What we published" subtitle="{{ $content->count() }} piece(s) this month." />
+                @if ($formats)
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        @foreach ($formats as $format)
+                            <div class="rounded-lg bg-gray-50 ring-1 ring-gray-900/5 px-4 py-3">
+                                <p class="text-2xl font-bold text-gray-900 tabular-nums">{{ $format['count'] }}</p>
+                                <p class="mt-1 text-[11px] font-semibold uppercase tracking-wider text-gray-500">{{ $format['label'] }}{{ $format['count'] === 1 ? '' : 's' }}</p>
+                            </div>
+                        @endforeach
+                    </div>
+                @else
+                    <x-empty-state message="Nothing was posted in this month." />
+                @endif
+            </x-card>
+
+            {{-- Top posts --}}
+            <x-card padding="none">
+                <div class="p-4 sm:p-5 pb-0">
+                    <x-section-heading title="The posts that worked hardest" subtitle="Ranked by accounts reached." />
+                </div>
+
+                @if ($content->isEmpty())
+                    <div class="p-4 sm:p-5">
+                        <x-empty-state message="Nothing was posted in this month." />
+                    </div>
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead>
+                                <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">
+                                    <th class="px-4 sm:px-5 py-2.5">Content</th>
+                                    <th class="px-3 py-2.5">Type</th>
+                                    <th class="px-3 py-2.5 text-right">Reach</th>
+                                    <th class="px-3 py-2.5 text-right">Views</th>
+                                    <th class="px-3 py-2.5 text-right">Engagement</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                @foreach ($content->take(5) as $item)
+                                    <tr>
+                                        <td class="px-4 sm:px-5 py-2.5">
+                                            <div class="min-w-0">
+                                                @if ($item->permalink)
+                                                    <a href="{{ $item->permalink }}" target="_blank" rel="noopener"
+                                                       class="text-gray-900 font-medium hover:text-brand-600 truncate block max-w-xs">
+                                                        {{ $item->shortCaption() }}
+                                                    </a>
+                                                @else
+                                                    <span class="text-gray-900 font-medium truncate block max-w-xs">{{ $item->shortCaption() }}</span>
+                                                @endif
+                                                <span class="text-xs text-gray-400">{{ $item->posted_at?->format('j M Y') }}</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-3 py-2.5 whitespace-nowrap">
+                                            <x-badge color="{{ $item->isReel() ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600' }}">
+                                                {{ $item->typeLabel() }}
+                                            </x-badge>
+                                        </td>
+                                        <td class="px-3 py-2.5 text-right tabular-nums text-gray-900">
+                                            {{ $item->metricValue('reach') !== null ? number_format($item->metricValue('reach')) : '—' }}
+                                        </td>
+                                        <td class="px-3 py-2.5 text-right tabular-nums text-gray-900">
+                                            {{ $item->metricValue('views') !== null ? number_format($item->metricValue('views')) : '—' }}
+                                        </td>
+                                        <td class="px-3 py-2.5 text-right tabular-nums text-gray-900">
+                                            {{ $item->metricValue('total_interactions') !== null ? number_format($item->metricValue('total_interactions')) : '—' }}
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </x-card>
+
+            {{-- Shoots --}}
+            @if ($shoots->isNotEmpty())
+                <x-card padding="md" data-chrome x-show="! isClient">
+                    <x-section-heading title="Shoots this month" />
+                    <ul class="divide-y divide-gray-100">
+                        @foreach ($shoots as $shoot)
+                            <li class="py-2.5 flex items-center gap-3">
+                                <span class="text-xs font-semibold text-brand-600 w-14 shrink-0 tabular-nums">{{ $shoot->starts_at?->format('j M') }}</span>
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-sm font-medium text-gray-900">{{ $shoot->title }}</p>
+                                    @if ($shoot->location)
+                                        <p class="text-xs text-gray-500">{{ $shoot->location }}</p>
+                                    @endif
+                                </div>
+                                <x-badge status="{{ $shoot->status }}" />
+                            </li>
+                        @endforeach
+                    </ul>
+                </x-card>
+            @endif
+        </div>
+    @endif
+</x-app-layout>

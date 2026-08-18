@@ -14,6 +14,12 @@
     <x-slot name="header">
         <x-page-header :title="$client->name" eyebrow="Instagram Analytics">
             <x-slot name="actions">
+                @if ($account)
+                    <a href="{{ route('instagram.report', $client) }}"
+                       class="text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                        Monthly report
+                    </a>
+                @endif
                 <a href="{{ route('clients.show', $client) }}#social"
                    class="text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
                     ← Back to client

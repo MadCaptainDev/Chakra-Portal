@@ -79,7 +79,11 @@ class SyncInstagramInsights extends Command
                     $result['media']['synced'],
                 ));
 
-                $skipped = array_unique([...$result['account']['skipped'], ...$result['media']['skipped']]);
+                $skipped = array_unique([
+                    ...$result['account']['skipped'],
+                    ...$result['media']['skipped'],
+                    ...$result['audience']['skipped'],
+                ]);
 
                 if ($skipped !== []) {
                     $this->comment('  Not supported for this account, skipped: '.implode(', ', $skipped));

@@ -23,6 +23,7 @@ use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InstagramConnectionController;
 use App\Http\Controllers\InstagramInsightsController;
+use App\Http\Controllers\MonthlyReportController;
 use App\Http\Controllers\InstagramSettingController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoiceTemplateController;
@@ -369,6 +370,19 @@ Route::middleware(['auth', 'module:clients,view'])->scopeBindings()->group(funct
     // by something faster than a person clicking a button.
     Route::post('clients/{client}/instagram/insights/sync', [InstagramInsightsController::class, 'sync'])
         ->middleware(['module:clients,edit', 'throttle:10,1'])->name('instagram.insights.sync');
+
+    /*
+     * Monthly report: the same cached data as Insights, reshaped for one
+     * calendar month with an audience section and a downloadable PDF.
+     * Studio-only -- there is no client-facing route for this at all, the
+     * client's copy is whatever PDF the studio hands them.
+     */
+    Route::get('clients/{client}/instagram/report', [MonthlyReportController::class, 'show'])
+        ->name('instagram.report');
+    Route::post('clients/{client}/instagram/report/note', [MonthlyReportController::class, 'updateNote'])
+        ->middleware('module:clients,edit')->name('instagram.report.note');
+    Route::get('clients/{client}/instagram/report/pdf', [MonthlyReportController::class, 'pdf'])
+        ->name('instagram.report.pdf');
 
     // Stored logins. scopeBindings() means a credential belonging to another
     // client 404s on the binding, before the controller runs.

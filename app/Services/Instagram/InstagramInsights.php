@@ -3,6 +3,7 @@
 namespace App\Services\Instagram;
 
 use App\Models\SocialAccount;
+use App\Models\SocialAudienceSnapshot;
 use App\Models\SocialInsight;
 use App\Models\SocialMediaItem;
 use Illuminate\Support\Carbon;
@@ -49,6 +50,19 @@ class InstagramInsights
 
     /** Only asked for when media_product_type is REELS -- Meta refuses them otherwise. */
     public const MEDIA_METRICS_REELS = ['ig_reels_avg_watch_time', 'ig_reels_video_view_total_time', 'reels_skip_rate'];
+
+    /**
+     * Who follows the account -- confirmed empirically against both live
+     * connected accounts (see docs/MONTHLY_REPORT.md): `period=lifetime` +
+     * `metric_type=total_value` + `breakdown=age,gender` in ONE call
+     * returns a joint distribution (`dimension_keys: ["age","gender"]`);
+     * `breakdown=city` is a SEPARATE call, Meta does not accept all three
+     * dimensions in one request. Answers as
+     * `total_value.breakdowns[0].results[]`, each a
+     * `{dimension_values: [...], value: int}` row -- a shape social_insight
+     * cannot hold (one metric -> one int), hence SocialAudienceSnapshot.
+     */
+    public const AUDIENCE_METRIC = 'follower_demographics';
 
     /** How many recent items a sync caches insights for. */
     private const MEDIA_SYNC_LIMIT = 25;
@@ -159,15 +173,76 @@ class InstagramInsights
     }
 
     /**
-     * Both halves for one account, tolerating a partial failure in either.
+     * Follower demographics -- age×gender and city, each a separate call
+     * (see the AUDIENCE_METRIC docblock for why they cannot be combined).
+     * A snapshot, not a time series: each call overwrites the account's one
+     * row for that dimension via SocialAudienceSnapshot's upsert, so a
+     * re-sync reflects "who follows right now", not an accumulating log.
      *
-     * @return array{account: array, media: array}
+     * @return array{synced: int, skipped: list<string>}
+     */
+    public function syncAudience(SocialAccount $account): array
+    {
+        $skipped = [];
+        $synced = 0;
+
+        $synced += $this->fetchAndStoreAudience($account, SocialAudienceSnapshot::DIMENSION_AGE_GENDER, 'age,gender', $skipped);
+        $synced += $this->fetchAndStoreAudience($account, SocialAudienceSnapshot::DIMENSION_CITY, 'city', $skipped);
+
+        return ['synced' => $synced, 'skipped' => $skipped];
+    }
+
+    /**
+     * @param  list<string>  $skipped
+     */
+    private function fetchAndStoreAudience(SocialAccount $account, string $dimension, string $breakdown, array &$skipped): int
+    {
+        try {
+            $response = $this->graph->get($account->platform_user_id.'/insights', $account->access_token, [
+                'metric' => self::AUDIENCE_METRIC,
+                'period' => 'lifetime',
+                'metric_type' => 'total_value',
+                'breakdown' => $breakdown,
+            ]);
+
+            $results = $response['data'][0]['total_value']['breakdowns'][0]['results'] ?? null;
+
+            if (! is_array($results)) {
+                $skipped[] = self::AUDIENCE_METRIC.':'.$dimension;
+
+                return 0;
+            }
+
+            SocialAudienceSnapshot::updateOrCreate(
+                ['social_account_id' => $account->id, 'dimension' => $dimension],
+                ['data' => $results, 'fetched_at' => now()],
+            );
+
+            return 1;
+        } catch (InstagramException $e) {
+            Log::info('Instagram audience demographics unsupported for this account, skipped.', [
+                'client_id' => $account->client_id,
+                'dimension' => $dimension,
+                'reason' => $e->getMessage(),
+            ]);
+            $skipped[] = self::AUDIENCE_METRIC.':'.$dimension;
+
+            return 0;
+        }
+    }
+
+    /**
+     * Every half for one account, tolerating a partial failure in any of
+     * them.
+     *
+     * @return array{account: array, media: array, audience: array}
      */
     public function syncAll(SocialAccount $account, Carbon $since, Carbon $until): array
     {
         return [
             'account' => $this->syncAccount($account, $since, $until),
             'media' => $this->syncMedia($account),
+            'audience' => $this->syncAudience($account),
         ];
     }
 

@@ -88,6 +88,11 @@
                     View Analytics
                 </a>
 
+                <a href="{{ route('instagram.report', $client) }}"
+                   class="inline-flex items-center gap-1.5 rounded-md border border-brand-300 px-3 py-2 text-xs font-semibold uppercase tracking-widest text-brand-700 hover:bg-brand-50">
+                    Monthly Report
+                </a>
+
                 <form method="POST" action="{{ route('instagram.disconnect', $client) }}"
                       onsubmit="return confirm('Disconnect {{ $instagram->handle() }}? The stored access token is discarded and analytics stop updating. Anything already collected is kept, and you can reconnect the same account later.')">
                     @csrf @method('DELETE')

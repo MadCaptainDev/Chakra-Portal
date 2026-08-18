@@ -201,6 +201,10 @@ so a failed batch is retried one metric at a time and only the bad ones are
 logged and dropped. `php artisan instagram:sync` prints which were skipped,
 if any.
 
+Every sync also refreshes the account's follower demographics (age, gender,
+city) — see `docs/MONTHLY_REPORT.md` for the API shape and the monthly
+report screen this feeds.
+
 **Sync throttle.** There was no throttle at all: the Sync now button posted
 straight to the sync service on every click, so a double-click or a refresh-
 and-press-again fired the same batch of Instagram calls twice in a row for no

@@ -103,6 +103,11 @@ class SocialAccount extends Model
         return $this->hasMany(SocialInsight::class);
     }
 
+    public function audienceSnapshots(): HasMany
+    {
+        return $this->hasMany(SocialAudienceSnapshot::class);
+    }
+
     public function connectedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'connected_by_id');
