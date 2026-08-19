@@ -159,6 +159,24 @@
                 </form>
             </div>
 
+            @if ($beyondAccountInsights)
+                {{-- Not a "press Sync now" situation -- Instagram itself no
+                     longer serves account-wide daily data this old (its own
+                     90-day retention on reach/follower/views/engagement),
+                     so no sync, ours or anyone else's, can populate it.
+                     Individual posts published in this range are a
+                     separate story -- Content Performance below still shows
+                     them, since per-post metrics are not bound by the same
+                     90-day wall. --}}
+                <p class="text-xs text-amber-800 bg-amber-50 ring-1 ring-amber-100 rounded-lg px-3 py-2">
+                    Part of this range is older than Instagram's own 90-day window for account-wide numbers
+                    (Reach, Follower growth, Views trend, Engagement breakdown below) — those will look thin
+                    or empty for dates before {{ now()->subDays(90)->format('j M Y') }}, and no amount of
+                    syncing brings that back. Individual posts from this range still show their own numbers
+                    in Content performance further down.
+                </p>
+            @endif
+
             {{-- Overview --}}
             <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
                 <x-stat-card label="Reach" :value="number_format($overview['reach'])" icon="trending-up" accent="brand" />

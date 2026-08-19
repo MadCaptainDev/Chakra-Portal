@@ -270,11 +270,17 @@ A Portfolio piece (`portfolio_items`) can point at one cached post/reel
 - Tokens last ~60 days and are refreshed by being used. There is no automatic
   refresh yet; a connection left completely idle for two months will need
   reconnecting.
-- **There is no cron and no queue worker on this server.** `schedule:run`
-  never fires, so `instagram:sync` is run by hand or from the client page's
-  Sync now button. A real cron entry, or the catch-up-middleware approach this
-  codebase already uses for recurring invoices
-  (`EnsureRecurringInvoicesGenerated`), are the two ways to automate it —
-  worth settling before relying on daily-fresh numbers.
+- **No queue worker on this server**, but there is now a real crontab entry
+  (`* * * * * php artisan schedule:run`) driving Laravel's scheduler --
+  `instagram:sync --force` runs daily at 2am IST (see routes/console.php),
+  on top of the page-view-triggered sync in `InstagramSyncRunner`. Both
+  matter: page views keep whatever a staff member is actively looking at
+  fresh immediately; the cron job is what protects every OTHER connected
+  client from silently losing account-level history to Instagram's 90-day
+  retention just because nobody happened to open their page in time. (Found
+  live on Digital Harvest/Janet Hospitals, before this cron entry existed:
+  April's daily reach and follower trend were already gone by the time
+  anyone asked for them, because the account had never been synced before
+  and nothing was driving a sync in the background.)
 - App Review is required before clients outside your app roles can connect.
   `instagram_business_manage_insights` is the scope that needs it.

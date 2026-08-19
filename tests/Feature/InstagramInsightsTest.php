@@ -689,6 +689,109 @@ class InstagramInsightsTest extends TestCase
         $response->assertDontSee('Three weeks ago');
     }
 
+    // -- Custom range reaching past the 90-day account-insights window ------
+
+    public function test_a_custom_range_can_reach_far_beyond_the_ninety_day_account_insights_window(): void
+    {
+        // The picker's own floor is CONTENT_HISTORY_DAYS (730), not
+        // Instagram's 90-day account-insights ceiling -- confirmed live
+        // that individual posts and their own metrics reach back much
+        // further than the account-wide daily figures do (see
+        // InstagramInsightsController).
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+
+        SocialMediaItem::create([
+            'social_account_id' => $account->id, 'platform_media_id' => 'old-post',
+            'media_type' => 'IMAGE', 'caption' => 'From way back',
+            'posted_at' => now()->subDays(200), 'cached_at' => now(),
+        ]);
+        // Seeded so ensureFresh()'s scoped-sync branch has cached data for
+        // this exact window and does not attempt a real HTTP call --
+        // irrelevant to what this test is checking.
+        SocialInsight::record([
+            'social_account_id' => $account->id,
+            'metric' => 'reach',
+            'metric_type' => SocialInsight::TYPE_TIME_SERIES,
+            'value' => 1,
+            'period' => 'day',
+            'period_start' => now()->subDays(200)->toDateString(),
+        ]);
+
+        $from = now()->subDays(210)->toDateString();
+        $to = now()->subDays(190)->toDateString();
+
+        $response = $this->actingAs($this->staff())
+            ->get(route('instagram.insights', $client).'?range=custom&from='.$from.'&to='.$to)
+            ->assertOk();
+
+        // Not clamped up to a 90-day floor -- the old post is visible,
+        // proving the picker actually honored the requested window.
+        $response->assertSee('From way back');
+    }
+
+    public function test_a_custom_range_beyond_two_years_is_still_clamped_somewhere(): void
+    {
+        // CONTENT_HISTORY_DAYS is generous, not unlimited -- a wildly old
+        // request (a typo, or someone testing the edges) is pulled back to
+        // the picker's floor rather than asking Instagram for a date range
+        // measured in decades. Regression coverage for the inversion bug
+        // this exposed: clamping $from up to the floor while a $to that
+        // ALSO predates the floor (2000-01-31, here) is left untouched
+        // produces $from > $to -- an inverted range -- unless $to is pulled
+        // up to match.
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+
+        // Seeded at the floor date itself so ensureFresh()'s scoped-sync
+        // branch finds cached data for the (correctly non-inverted) clamped
+        // window and does not attempt a real HTTP call.
+        SocialInsight::record([
+            'social_account_id' => $account->id,
+            'metric' => 'reach',
+            'metric_type' => SocialInsight::TYPE_TIME_SERIES,
+            'value' => 1,
+            'period' => 'day',
+            'period_start' => now()->subDays(730)->toDateString(),
+        ]);
+
+        $response = $this->actingAs($this->staff())
+            ->get(route('instagram.insights', $client).'?range=custom&from=2000-01-01&to=2000-01-31')
+            ->assertOk();
+
+        $response->assertSee('older than Instagram\'s own 90-day window', false);
+    }
+
+    public function test_the_beyond_account_insights_notice_shows_only_when_the_range_predates_the_ninety_day_window(): void
+    {
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+
+        SocialInsight::record([
+            'social_account_id' => $account->id,
+            'metric' => 'reach',
+            'metric_type' => SocialInsight::TYPE_TIME_SERIES,
+            'value' => 1,
+            'period' => 'day',
+            'period_start' => now()->subDays(150)->toDateString(),
+        ]);
+
+        // Inside 90 days: no notice, nothing to explain.
+        $this->actingAs($this->staff())
+            ->get(route('instagram.insights', $client))
+            ->assertOk()
+            ->assertDontSee('older than Instagram\'s own 90-day window', false);
+
+        // A custom range starting well before the 90-day floor: notice shows.
+        $from = now()->subDays(150)->toDateString();
+        $to = now()->subDays(140)->toDateString();
+
+        $this->actingAs($this->staff())
+            ->get(route('instagram.insights', $client).'?range=custom&from='.$from.'&to='.$to)
+            ->assertOk()
+            ->assertSee('older than Instagram\'s own 90-day window', false);
+    }
+
     // -- Content performance sorting -----------------------------------------
 
     private function mediaItemWithMetrics(SocialAccount $account, string $id, array $metrics, ?\Illuminate\Support\Carbon $postedAt = null): SocialMediaItem

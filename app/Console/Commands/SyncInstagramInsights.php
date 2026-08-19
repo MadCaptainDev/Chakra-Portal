@@ -20,9 +20,12 @@ use Throwable;
  * invoice. A studio with twenty connected clients should not lose the other
  * nineteen because one token expired overnight.
  *
- * NOT scheduled to run automatically yet. See routes/console.php: this
- * server has no crontab, so `Schedule::command()` entries never fire without
- * one. Run this by hand, or via SSH cron, until that is set up.
+ * Scheduled daily at 2am IST via routes/console.php (`--force`, since the
+ * per-account throttle is pointless friction against a job that only runs
+ * once a day) -- see that file for why: a client nobody opens for a while
+ * would otherwise silently lose account-level history as it ages past
+ * Instagram's 90-day retention, unrecoverable once gone. Still safe to run
+ * by hand any time, e.g. `--client=13` to catch one account up immediately.
  */
 class SyncInstagramInsights extends Command
 {

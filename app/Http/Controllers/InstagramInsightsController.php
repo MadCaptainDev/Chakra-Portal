@@ -38,6 +38,27 @@ class InstagramInsightsController extends Controller
         'previous_month' => 'Previous month',
     ];
 
+    /**
+     * How far back the custom-range picker will go -- NOT the same wall as
+     * Instagram's 90-day account-insights retention (ACCOUNT_INSIGHTS_DAYS
+     * below), and deliberately more generous. Confirmed live against a real
+     * connected account (janethospitaltrichy): individual posts and their
+     * own per-post metrics (reach/views/likes on that specific post) are
+     * still fully available for posts from ~4 months back, well outside the
+     * 90-day account-level window -- Content Performance can use a range
+     * this old even though the account-wide charts above it (Reach,
+     * Follower growth, Views trend, Engagement breakdown) cannot, because
+     * those read a different, harder-capped metric family. There is no
+     * confirmed outer edge for per-post retention; 2 years is a deliberately
+     * conservative guess at "further back than any real client will need",
+     * not an empirically confirmed limit -- revisit if a client's history
+     * turns out to need more.
+     */
+    private const CONTENT_HISTORY_DAYS = 730;
+
+    /** Instagram's own hard retention ceiling for account-level daily insights -- confirmed, not a guess. */
+    private const ACCOUNT_INSIGHTS_DAYS = 90;
+
     public function show(Request $request, Client $client): View
     {
         $account = $this->instagramFor($client);
@@ -84,6 +105,12 @@ class InstagramInsightsController extends Controller
             'formats' => $formats,
             'sortBy' => $sortBy,
             'direction' => $direction,
+            // True whenever ANY part of the selected range is older than
+            // Instagram's 90-day account-insights ceiling -- the view uses
+            // this to explain why Reach/Follower growth/Views/Engagement
+            // can look thin or empty for that portion, instead of pointing
+            // at "Sync now" for something no sync can ever fetch.
+            'beyondAccountInsights' => $since->lt(now()->subDays(self::ACCOUNT_INSIGHTS_DAYS)->startOfDay()),
         ]);
     }
 
@@ -155,12 +182,25 @@ class InstagramInsightsController extends Controller
             [$from, $to] = [$to->copy()->startOfDay(), $from->copy()->endOfDay()];
         }
 
-        // Instagram keeps 90 days of account insights; asking further back
-        // always returns nothing, which would look like a bug rather than a
-        // documented limit.
-        $earliest = now()->subDays(90)->startOfDay();
+        // CONTENT_HISTORY_DAYS, not ACCOUNT_INSIGHTS_DAYS -- see the
+        // constant's own comment. Individual posts reach back further than
+        // account-level insights do, so the picker's floor is set by the
+        // more generous of the two; the account-wide charts showing empty
+        // for the portion of the range past 90 days is a real, honest
+        // limit the view itself explains, not something to hide by
+        // clamping the whole picker to the tighter number.
+        $earliest = now()->subDays(self::CONTENT_HISTORY_DAYS)->startOfDay();
         if ($from->lt($earliest)) {
             $from = $earliest;
+
+            // A $to that ALSO predates the floor (someone asking for a
+            // window entirely before it, e.g. a stray old date) just got
+            // walked past by the clamp above -- $from is now after $to,
+            // an inverted range no query layer should be asked to make
+            // sense of. Pull $to up to match rather than let that through.
+            if ($to->lt($from)) {
+                $to = $from->copy()->endOfDay();
+            }
         }
 
         return [$from, $to->min(now()->endOfDay()), 'custom'];
