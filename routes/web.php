@@ -5,7 +5,8 @@ use App\Http\Controllers\BillController;
 use App\Http\Controllers\BrowserSessionController;
 use App\Http\Controllers\McpTokenController;
 use App\Http\Controllers\CallSheetController;
-use App\Http\Controllers\ContentBoardController;
+use App\Http\Controllers\ContentAccountController;
+use App\Http\Controllers\ContentDashboardController;
 use App\Http\Controllers\Client\BriefController as ClientBriefController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
@@ -724,6 +725,16 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
     Route::put('notion', [NotionSettingController::class, 'update'])->name('notion.update');
     Route::post('notion/recheck', [NotionSettingController::class, 'recheck'])->name('notion.recheck');
 
+    /*
+     * Which Notion venture belongs to which account, and each account's
+     * monthly target. Admin-only alongside the other Setup screens: this
+     * decides whose numbers are whose on the Content Dashboard.
+     */
+    Route::get('content-accounts', [ContentAccountController::class, 'edit'])->name('content-accounts.edit');
+    Route::put('content-accounts', [ContentAccountController::class, 'update'])->name('content-accounts.update');
+    Route::post('content-accounts', [ContentAccountController::class, 'store'])->name('content-accounts.store');
+    Route::delete('content-accounts/{contentAccount}', [ContentAccountController::class, 'destroy'])->name('content-accounts.destroy');
+
     Route::get('brief-questions', [BriefQuestionController::class, 'index'])->name('brief-questions.index');
     Route::post('brief-questions', [BriefQuestionController::class, 'store'])->name('brief-questions.store');
     Route::put('brief-questions/{briefQuestion}', [BriefQuestionController::class, 'update'])->name('brief-questions.update');
@@ -745,12 +756,12 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
     Route::get('editors', [EditorOutputController::class, 'index'])->name('editors.index');
 
     /*
-     * The read-only content board -- Reel planner and Shoots, mirrored from
-     * Notion. Deliberately a single GET: no drag-and-drop, no status edit,
-     * nothing here ever writes anywhere. A status change happens in Notion;
-     * the next sync (manual or scheduled) is what brings it here.
+     * Videos published per client account per month, against target.
+     * Read-only over the local Notion cache -- the POST refreshes that
+     * cache, it does not write to Notion.
      */
-    Route::get('content-board', [ContentBoardController::class, 'index'])->name('content-board.index');
+    Route::get('content-dashboard', [ContentDashboardController::class, 'index'])->name('content-dashboard.index');
+    Route::post('content-dashboard/refresh', [ContentDashboardController::class, 'refresh'])->name('content-dashboard.refresh');
 
     Route::resource('users', UserController::class)->except(['show']);
     Route::put('users/{user}/password', [UserController::class, 'updatePassword'])->name('users.password');

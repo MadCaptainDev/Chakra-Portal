@@ -82,8 +82,8 @@
             <x-sidebar-link icon="trending-up" :href="route('editors.index')" :active="request()->routeIs('editors.*')">
                 Editor Output
             </x-sidebar-link>
-            <x-sidebar-link icon="template" :href="route('content-board.index')" :active="request()->routeIs('content-board.*')">
-                Content Board
+            <x-sidebar-link icon="template" :href="route('content-dashboard.index')" :active="request()->routeIs('content-dashboard.*')">
+                Content Dashboard
             </x-sidebar-link>
         </x-nav-section>
 
@@ -121,6 +121,9 @@
             </x-sidebar-link>
             <x-sidebar-link icon="document" :href="route('notion.edit')" :active="request()->routeIs('notion.*')">
                 Notion
+            </x-sidebar-link>
+            <x-sidebar-link icon="users" :href="route('content-accounts.edit')" :active="request()->routeIs('content-accounts.*')">
+                Content Accounts
             </x-sidebar-link>
             <x-sidebar-link icon="inbox" :href="route('brief-questions.index')" :active="request()->routeIs('brief-questions.*')">
                 Brief Questions

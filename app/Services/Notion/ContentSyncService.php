@@ -65,42 +65,46 @@ class ContentSyncService
             return 0;
         }
 
-        $databaseId = $this->resolveDatabaseId($config);
+        $databaseIds = $this->resolveDatabaseIds($config);
 
-        if (! $databaseId) {
+        if ($databaseIds === []) {
             Log::warning("Notion sync skipped for [{$source}]: no database matching '{$config['name_contains']}' is shared with the integration.");
 
             return 0;
         }
 
         $synced = 0;
-        $cursor = null;
 
-        try {
-            do {
-                $payload = array_filter([
-                    'page_size' => 100,
-                    'start_cursor' => $cursor,
-                ]);
+        // One source can span several databases -- see config/notion.php.
+        // Each is wrapped separately so one unreachable database costs only
+        // its own rows, not the ones already read from its siblings.
+        foreach ($databaseIds as $databaseId) {
+            $cursor = null;
 
-                $body = $this->client()
-                    ->post(self::API_BASE."/databases/{$databaseId}/query", $payload)
-                    ->throw()
-                    ->json();
+            try {
+                do {
+                    $payload = array_filter([
+                        'page_size' => 100,
+                        'start_cursor' => $cursor,
+                    ]);
 
-                foreach ($body['results'] ?? [] as $page) {
-                    $source === NotionShoot::SOURCE
-                        ? $this->upsertShootPage($page)
-                        : $this->upsertPage($source, $page);
-                    $synced++;
-                }
+                    $body = $this->client()
+                        ->post(self::API_BASE."/databases/{$databaseId}/query", $payload)
+                        ->throw()
+                        ->json();
 
-                $cursor = ($body['has_more'] ?? false) ? ($body['next_cursor'] ?? null) : null;
-            } while ($cursor);
-        } catch (Throwable $e) {
-            Log::warning("Notion sync failed for source [{$source}]: {$e->getMessage()}");
+                    foreach ($body['results'] ?? [] as $page) {
+                        $source === NotionShoot::SOURCE
+                            ? $this->upsertShootPage($page)
+                            : $this->upsertPage($source, $page);
+                        $synced++;
+                    }
 
-            return $synced;
+                    $cursor = ($body['has_more'] ?? false) ? ($body['next_cursor'] ?? null) : null;
+                } while ($cursor);
+            } catch (Throwable $e) {
+                Log::warning("Notion sync failed for source [{$source}] database [{$databaseId}]: {$e->getMessage()}");
+            }
         }
 
         return $synced;
@@ -122,7 +126,10 @@ class ContentSyncService
             $options = [];
 
             foreach (config('notion.databases', []) as $config) {
-                $databaseId = $this->resolveDatabaseId($config);
+                // Only the first database of a multi-database source: the
+                // Venture select is the same list in each, and this is a
+                // dropdown's contents, not a count.
+                $databaseId = $this->resolveDatabaseIds($config)[0] ?? null;
 
                 if (! $databaseId) {
                     continue;
@@ -207,7 +214,7 @@ class ContentSyncService
         $available = [];
 
         foreach (config('notion.databases', []) as $source => $config) {
-            $available[$source] = $this->resolveDatabaseId($config) !== null;
+            $available[$source] = $this->resolveDatabaseIds($config) !== [];
         }
 
         return $available;
@@ -220,25 +227,66 @@ class ContentSyncService
     }
 
     /**
-     * Prefer a live title match over the configured id, since ids change when
-     * a database is duplicated and a stale one 404s silently.
+     * Every database a source should read from.
+     *
+     * Configured ids win, and a source may legitimately name several -- see
+     * config/notion.php for the two real findings that forced this
+     * (non-unique titles across twelve near-identical databases, and one
+     * source genuinely spanning two databases).
+     *
+     * An id is used only if the integration can actually still see it, so a
+     * database that was deleted or unshared falls through to the title
+     * search rather than 404ing every sync forever.
+     *
+     * @return list<string>
      */
-    private function resolveDatabaseId(array $config): ?string
+    private function resolveDatabaseIds(array $config): array
     {
-        $needle = Str::lower($config['name_contains'] ?? '');
+        $databases = $this->discoverDatabases();
 
-        if ($needle !== '') {
-            foreach ($this->discoverDatabases() as $database) {
-                if (Str::contains(Str::lower($database['title']), $needle)) {
-                    return $database['id'];
-                }
-            }
+        // Dashes are cosmetic in Notion ids; compare without them so a
+        // config value copied from a URL still matches the API's form.
+        $visible = collect($databases)->keyBy(fn (array $d) => str_replace('-', '', $d['id']));
+
+        $configured = collect($config['ids'] ?? [])
+            ->map(fn (string $id) => $visible[str_replace('-', '', $id)]['id'] ?? null)
+            ->filter()
+            ->values()
+            ->all();
+
+        if ($configured !== []) {
+            return $configured;
         }
 
-        // Nothing matched by name. Only trust the configured id if the
-        // integration can see nothing at all (e.g. the search call failed) --
-        // otherwise a successful search proves the database is not shared.
-        return $this->discoverDatabases() === [] ? ($config['id'] ?? null) : null;
+        // Fallback: nothing configured is reachable. Match by title, but
+        // deterministically -- prefer a title WITHOUT a "(n)" duplicate
+        // suffix, then the shortest, then by id, so the same workspace
+        // always resolves the same way instead of following whatever order
+        // search happened to return.
+        $needle = Str::lower($config['name_contains'] ?? '');
+
+        if ($needle === '') {
+            return [];
+        }
+
+        $matched = collect($databases)
+            ->filter(fn (array $d) => Str::contains(Str::lower($d['title']), $needle))
+            ->sortBy([
+                fn (array $d) => preg_match('/\(\d+\)\s*$/', $d['title']) ? 1 : 0,
+                fn (array $d) => mb_strlen($d['title']),
+                fn (array $d) => $d['id'],
+            ])
+            ->values();
+
+        if ($matched->isNotEmpty()) {
+            return [$matched->first()['id']];
+        }
+
+        // The integration can see nothing at all (e.g. the search call
+        // failed) -- fall back to the configured ids unverified, since a
+        // successful-but-empty search is what proves a database is not
+        // shared, and this was not that.
+        return $databases === [] ? ($config['ids'] ?? []) : [];
     }
 
     private function upsertPage(string $source, array $page): void

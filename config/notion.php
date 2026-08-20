@@ -14,38 +14,63 @@ return [
     /*
      * Chakra Productions' content-planning databases.
      *
-     * `id` is only a fallback. The sync service resolves the real id by
-     * searching the workspace for a database whose title contains
-     * `name_contains`, because Notion ids change when a database is
-     * duplicated or recreated — which already silently broke the Post
-     * planner once. Property names/types are detected from the API payload
-     * rather than configured here, for the same reason.
+     * `ids` is a LIST and is authoritative. Two things forced that, both
+     * found on the real workspace rather than anticipated:
+     *
+     * 1. Title matching is not unique. Twelve databases have titles
+     *    containing "content planner" (one real, eleven empty "(1)"
+     *    duplicates), two contain "reel planner", two "post planner".
+     *    Notion's search does not guarantee an order, so resolving by title
+     *    picked a different database on different runs -- which is exactly
+     *    what happened: one sync wrote 465 post rows from one database, the
+     *    next wrote 60 from another, and the table ended up holding a mix
+     *    from two sources with no way to tell them apart.
+     *
+     * 2. A source can legitimately span more than one database. "Post
+     *    Planner - Instagram" and "Post Planner - Instagram (1)" both hold
+     *    real, DIFFERENT content -- confirmed by comparing every title in
+     *    each: zero overlap, the older holding May-June and the newer
+     *    June-August. Reading only one silently loses half the studio's
+     *    posts.
+     *
+     * `name_contains` remains as a self-healing fallback for the case the
+     * original comment was written for: an id that no longer resolves
+     * because the database was duplicated or recreated. It is only
+     * consulted when NONE of the configured ids are reachable, and it now
+     * prefers a title without a "(n)" copy suffix.
      */
     'databases' => [
         'youtube' => [
             'label' => 'YouTube',
             'name_contains' => 'content planner',
-            'id' => '68032af9-aff5-82c1-a830-8139d96cbb6e',
+            // The eleven "Content Planner - YT (1)" duplicates are all
+            // empty; only this one has ever held rows.
+            'ids' => ['68032af9-aff5-82c1-a830-8139d96cbb6e'],
         ],
         'reel' => [
             'label' => 'Reel',
             'name_contains' => 'reel planner',
-            'id' => '2ba32af9-aff5-8063-af78-e65c7319f8b9',
+            // "Reel Planner - Instagram (1)" is empty.
+            'ids' => ['2ba32af9-aff5-8063-af78-e65c7319f8b9'],
         ],
         'post' => [
             'label' => 'Post',
             'name_contains' => 'post planner',
-            'id' => '37d32af9-aff5-807b-be4b-de3d252f53e8',
+            // BOTH, deliberately -- see note 2 above. Newer first.
+            'ids' => [
+                '37f32af9-aff5-807a-9a9b-d2630826f66b', // Post Planner - Instagram
+                '37d32af9-aff5-807b-be4b-de3d252f53e8', // Post Planner - Instagram (1)
+            ],
         ],
         'story' => [
             'label' => 'Story',
             'name_contains' => 'story tracker',
-            'id' => '37d32af9-aff5-8018-a74b-c397079c1df3',
+            'ids' => ['37d32af9-aff5-8018-a74b-c397079c1df3'],
         ],
         'shoot' => [
             'label' => 'Shoots',
             'name_contains' => 'shoots',
-            'id' => '61632af9-aff5-8244-a7a9-0169f924c9d9',
+            'ids' => ['61632af9-aff5-8244-a7a9-0169f924c9d9'],
         ],
     ],
 
