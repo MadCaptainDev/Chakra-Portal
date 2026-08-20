@@ -190,7 +190,17 @@
             </div>
         </div>
 
-        <p class="mt-3.5 text-center text-xs text-brand-100/40">
+        {{-- A failed save gets its own loud, differently-coloured line rather
+             than folding into the calm status text below -- that text used
+             to say "Answers save as you type" regardless of whether saving
+             had ever actually succeeded, which is exactly how a real
+             client's brief went unsaved for a full session without them
+             noticing anything was wrong. --}}
+        <p class="mt-3.5 text-center text-xs" x-show="saveFailed" x-cloak>
+            <span class="text-red-300 font-semibold">Your answers aren't saving right now.</span>
+            <span class="text-brand-100/50">Please don't close this tab -- try reloading the page in a new tab to check your connection, or contact us if this continues.</span>
+        </p>
+        <p class="mt-3.5 text-center text-xs text-brand-100/40" x-show="! saveFailed">
             <span x-show="saving">Saving…</span>
             <span x-show="! saving && savedAt" x-cloak>Saved automatically. You can close this and pick up where you left off.</span>
             <span x-show="! saving && ! savedAt">Answers save as you type. You can close this and pick up where you left off.</span>
@@ -221,6 +231,7 @@
                     total: config.total,
                     answers: {},
                     timer: null,
+                    saveFailed: false,
 
                     init() {
                         this.readAnswers();
@@ -274,17 +285,41 @@
                                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                                 body: new FormData(this.$refs.form),
                             });
+                            /*
+                             * fetch() only rejects on a NETWORK failure (DNS,
+                             * connection refused) -- an HTTP error response
+                             * (419, 422, 500, a throttle 429) resolves
+                             * normally with res.ok === false and would
+                             * previously fall straight through this block
+                             * silently, with nothing telling the client their
+                             * answers were not actually being saved. This is
+                             * the exact bug that lost a real client's brief
+                             * (Thillai Pets Clinic): the session expired
+                             * partway through a long form, every autosave
+                             * after that quietly 419'd, and the one visible
+                             * signal ("Saved automatically" vs "Answers save
+                             * as you type") never distinguished "saving" from
+                             * "has never once succeeded" clearly enough to
+                             * notice.
+                             */
                             if (res.ok) {
                                 const json = await res.json();
                                 this.answered = json.answered;
                                 this.total = json.total;
                                 this.savedAt = json.saved_at;
                                 this.dirty = false;
+                                this.saveFailed = false;
+                            } else {
+                                this.saveFailed = true;
                             }
                         } catch (e) {
-                            // A failed autosave is not worth interrupting the
-                            // client over: the answers are still in the form,
-                            // and beforeunload still guards the tab.
+                            // A genuine network failure -- same visible
+                            // treatment as an HTTP error response. The
+                            // answers are still in the form and beforeunload
+                            // still guards the tab either way, but the client
+                            // needs to know saving is NOT currently working
+                            // rather than assume it is.
+                            this.saveFailed = true;
                         }
                         this.saving = false;
                     },

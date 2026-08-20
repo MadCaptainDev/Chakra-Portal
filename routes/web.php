@@ -88,8 +88,37 @@ Route::view('/terms', 'terms')->name('terms');
  */
 Route::middleware('throttle:30,1')->group(function () {
     Route::get('brief/{token}', [PublicBriefController::class, 'show'])->name('brief.public');
-    Route::post('brief/{token}', [PublicBriefController::class, 'update'])->name('brief.public.update');
-    Route::post('brief/{token}/submit', [PublicBriefController::class, 'submit'])->name('brief.public.submit');
+
+    /*
+     * withoutMiddleware(ValidateCsrfToken) on these two route objects
+     * directly, not a global except() URI pattern in bootstrap/app.php --
+     * the logged-in client portal's own brief routes live under client/brief
+     * (see the "client." group further down) so a pattern scoped to this
+     * prefix would not actually collide with them, but a route-level
+     * exemption needs no such reasoning about paths at all: it is tied to
+     * the exact route object, so it is correct by construction regardless of
+     * what either URI looks like today or is renamed to later.
+     *
+     * The exemption itself is deliberate, not an oversight: the long random
+     * token in the path IS this route's real credential, and it cannot be
+     * embedded in a forged cross-site form by anyone who does not already
+     * have it -- at which point they already have full access regardless of
+     * CSRF. Session-based CSRF protects ambient cookie authority, and there
+     * is no ambient authority here to protect. What it was actually doing
+     * was silently breaking a long brief-filling session: the wizard
+     * autosaves via fetch() every ~900ms of typing, and once the PHP session
+     * (SESSION_LIFETIME=120 minutes) expired mid-fill, both autosave and the
+     * final submit started failing with 419 -- and fetch() does not treat an
+     * HTTP error status as a failure, so the autosave failures were
+     * completely silent (see the JS's own saveNow(), which only checks
+     * res.ok). A real client (Thillai Pets Clinic) filled out a full brief
+     * that was never saved anywhere, client-side or server-side, because of
+     * exactly this.
+     */
+    Route::withoutMiddleware(\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class)->group(function () {
+        Route::post('brief/{token}', [PublicBriefController::class, 'update'])->name('brief.public.update');
+        Route::post('brief/{token}/submit', [PublicBriefController::class, 'submit'])->name('brief.public.submit');
+    });
 });
 
 // Public enquiry form. Throttled because it is unauthenticated and sends mail.

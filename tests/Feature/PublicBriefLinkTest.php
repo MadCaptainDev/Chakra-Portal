@@ -7,7 +7,9 @@ use App\Models\ClientBrief;
 use App\Models\User;
 use App\Models\UserPermission;
 use App\Support\BrandBrief;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 /**
@@ -241,5 +243,54 @@ class PublicBriefLinkTest extends TestCase
         $client->brief()->create([]);
 
         $this->get(route('clients.brief.export', $client))->assertRedirect(route('login'));
+    }
+
+    // -- CSRF exemption on the public routes ---------------------------------
+
+    /**
+     * The regression this suite's ordinary POST tests above cannot catch:
+     * Laravel's ValidateCsrfToken middleware skips verification for EVERY
+     * request in the testing environment (see VerifyCsrfToken::runningUnitTests()),
+     * so `$this->post(...)` succeeding here proves nothing about whether the
+     * route itself carries the exemption -- only the route DEFINITION does,
+     * which is what these assert directly.
+     *
+     * Real bug this is coverage for: a client (Thillai Pets Clinic) filled
+     * out a full brand brief that was never saved anywhere. The wizard
+     * autosaves via fetch() every ~900ms of typing; once the session
+     * (SESSION_LIFETIME=120 minutes) expired mid-fill, every autosave AND
+     * the final submit started failing with 419, and fetch() does not treat
+     * an HTTP error status as a failure, so every autosave failure was
+     * completely silent. The public routes' only real credential is the long
+     * random token already in the URL -- session-based CSRF was protecting
+     * nothing here that the token's own secrecy doesn't already cover, while
+     * actively breaking any brief that took longer to fill than one session
+     * lifetime.
+     */
+    public function test_the_public_update_and_submit_routes_are_exempt_from_csrf(): void
+    {
+        $update = Route::getRoutes()->getByName('brief.public.update');
+        $submit = Route::getRoutes()->getByName('brief.public.submit');
+
+        $this->assertContains(ValidateCsrfToken::class, $update->excludedMiddleware());
+        $this->assertContains(ValidateCsrfToken::class, $submit->excludedMiddleware());
+    }
+
+    /**
+     * The exemption is attached to these two route objects directly rather
+     * than a URI-pattern except() in bootstrap/app.php specifically so it
+     * cannot leak onto the logged-in client portal's OWN brief/submit
+     * routes, which sit at URIs a wildcard pattern like 'brief/*' would also
+     * match. Those routes are reached through a real authenticated session
+     * and should keep full CSRF protection -- this is the regression test
+     * for that leak never happening.
+     */
+    public function test_the_authenticated_portal_brief_routes_still_require_csrf(): void
+    {
+        $update = Route::getRoutes()->getByName('client.brief.update');
+        $submit = Route::getRoutes()->getByName('client.brief.submit');
+
+        $this->assertNotContains(ValidateCsrfToken::class, $update->excludedMiddleware());
+        $this->assertNotContains(ValidateCsrfToken::class, $submit->excludedMiddleware());
     }
 }
