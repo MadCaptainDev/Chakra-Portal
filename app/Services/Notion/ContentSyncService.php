@@ -3,6 +3,8 @@
 namespace App\Services\Notion;
 
 use App\Models\ContentItem;
+use App\Models\NotionSetting;
+use App\Models\NotionShoot;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -16,6 +18,20 @@ class ContentSyncService
     private const API_VERSION = '2022-06-28';
 
     private const DISCOVERY_CACHE_KEY = 'notion.discovered_databases';
+
+    /**
+     * Memoised per instance, not just per call: client() reads apiKey() on
+     * every HTTP request, and one sync makes dozens of them. Without this a
+     * full sync is dozens of DB queries plus AES decrypts for the same
+     * value. The bool (rather than a plain ??=) is what makes "no key
+     * saved" memoise too, instead of re-querying on every call in the null
+     * case. Safe to hold for the life of the instance: ContentSyncService
+     * is resolved fresh per request/command, so this cannot go stale
+     * within a process.
+     */
+    private ?string $apiKey = null;
+
+    private bool $apiKeyResolved = false;
 
     /**
      * Sync every configured Notion database and return a per-source count.
@@ -73,7 +89,9 @@ class ContentSyncService
                     ->json();
 
                 foreach ($body['results'] ?? [] as $page) {
-                    $this->upsertPage($source, $page);
+                    $source === NotionShoot::SOURCE
+                        ? $this->upsertShootPage($page)
+                        : $this->upsertPage($source, $page);
                     $synced++;
                 }
 
@@ -255,6 +273,40 @@ class ContentSyncService
     }
 
     /**
+     * Same shape as upsertPage(), against notion_shoots and
+     * notion.shoot_properties instead -- a separate config key rather than
+     * folding shoot-only names into 'properties', since that map is also
+     * read for the 4 content sources and a shoot-only name like "Location"
+     * has no business matching there.
+     */
+    private function upsertShootPage(array $page): void
+    {
+        $properties = $page['properties'] ?? [];
+        $names = config('notion.shoot_properties', []);
+
+        NotionShoot::updateOrCreate(
+            ['notion_page_id' => $page['id']],
+            [
+                'notion_url' => $page['url'] ?? null,
+                'title' => $this->extractTitle($properties),
+                'status' => $this->value($properties, $names['status'] ?? []),
+                'client' => $this->value($properties, $names['client'] ?? []),
+                'team' => $this->value($properties, $names['team'] ?? []),
+                'host_model' => $this->value($properties, $names['host_model'] ?? []),
+                'location' => $this->value($properties, $names['location'] ?? []),
+                'shoot_date' => $this->value($properties, $names['shoot_date'] ?? []),
+                'duration' => $this->value($properties, $names['duration'] ?? []),
+                'video_count' => $this->value($properties, $names['video_count'] ?? []),
+                'gear_needed' => $this->value($properties, $names['gear_needed'] ?? []),
+                'weather_forecast' => $this->value($properties, $names['weather_forecast'] ?? []),
+                'photo_url' => $this->value($properties, $names['photo_url'] ?? []),
+                'notion_created_at' => $page['created_time'] ?? null,
+                'synced_at' => now(),
+            ]
+        );
+    }
+
+    /**
      * The title property is found by type, not name, so it works on any
      * database regardless of what the column is called.
      */
@@ -299,6 +351,19 @@ class ContentSyncService
             'number' => isset($property['number']) ? (string) $property['number'] : '',
             'checkbox' => ! empty($property['checkbox']) ? 'Yes' : 'No',
             'formula' => (string) ($property['formula']['string'] ?? $property['formula']['number'] ?? ''),
+            // A file property carries a LIST; a card only ever shows one, so
+            // take the first. 'file' entries are Notion-hosted (S3
+            // pre-signed, expire in about an hour); 'external' entries are
+            // a stable URL somebody pasted in. Either is stored -- see
+            // NotionShoot's board card for why an internal one is not
+            // rendered as an <img>.
+            'files' => collect($property['files'] ?? [])
+                ->map(fn (array $f) => $f['file']['url'] ?? $f['external']['url'] ?? null)
+                ->filter()->first() ?? '',
+            // Deliberately empty. A relation carries only related-page ids,
+            // not a title -- resolving one would cost a GET /v1/pages/{id}
+            // per related row per sync, for a label nothing here reads.
+            'relation' => '',
             default => '',
         };
 
@@ -340,7 +405,12 @@ class ContentSyncService
 
     private function apiKey(): ?string
     {
-        return config('notion.api_key');
+        if (! $this->apiKeyResolved) {
+            $this->apiKey = NotionSetting::current()->api_key ?: null;
+            $this->apiKeyResolved = true;
+        }
+
+        return $this->apiKey;
     }
 
     private function client()

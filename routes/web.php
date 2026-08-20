@@ -5,6 +5,7 @@ use App\Http\Controllers\BillController;
 use App\Http\Controllers\BrowserSessionController;
 use App\Http\Controllers\McpTokenController;
 use App\Http\Controllers\CallSheetController;
+use App\Http\Controllers\ContentBoardController;
 use App\Http\Controllers\Client\BriefController as ClientBriefController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
@@ -25,6 +26,7 @@ use App\Http\Controllers\InstagramConnectionController;
 use App\Http\Controllers\InstagramInsightsController;
 use App\Http\Controllers\MonthlyReportController;
 use App\Http\Controllers\InstagramSettingController;
+use App\Http\Controllers\NotionSettingController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoiceTemplateController;
 use App\Http\Controllers\LandingController;
@@ -713,6 +715,15 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
     Route::put('instagram-settings', [InstagramSettingController::class, 'update'])->name('instagram-settings.update');
     Route::post('instagram-settings/rotate-token', [InstagramSettingController::class, 'rotate'])->name('instagram-settings.rotate');
 
+    /*
+     * The Notion integration. Admin-only, same reasoning as WhatsApp/
+     * Instagram above: this one token reads the studio's entire
+     * content-planning and shoot-scheduling pipeline.
+     */
+    Route::get('notion', [NotionSettingController::class, 'edit'])->name('notion.edit');
+    Route::put('notion', [NotionSettingController::class, 'update'])->name('notion.update');
+    Route::post('notion/recheck', [NotionSettingController::class, 'recheck'])->name('notion.recheck');
+
     Route::get('brief-questions', [BriefQuestionController::class, 'index'])->name('brief-questions.index');
     Route::post('brief-questions', [BriefQuestionController::class, 'store'])->name('brief-questions.store');
     Route::put('brief-questions/{briefQuestion}', [BriefQuestionController::class, 'update'])->name('brief-questions.update');
@@ -732,6 +743,14 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
      * make on purpose rather than by ticking a permission box.
      */
     Route::get('editors', [EditorOutputController::class, 'index'])->name('editors.index');
+
+    /*
+     * The read-only content board -- Reel planner and Shoots, mirrored from
+     * Notion. Deliberately a single GET: no drag-and-drop, no status edit,
+     * nothing here ever writes anywhere. A status change happens in Notion;
+     * the next sync (manual or scheduled) is what brings it here.
+     */
+    Route::get('content-board', [ContentBoardController::class, 'index'])->name('content-board.index');
 
     Route::resource('users', UserController::class)->except(['show']);
     Route::put('users/{user}/password', [UserController::class, 'updatePassword'])->name('users.password');

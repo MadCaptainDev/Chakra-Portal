@@ -10,6 +10,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * NOT App\Models\NotionShoot -- that is a read-only mirror of Notion's
+ * "Shoots" database, synced by ContentSyncService and never written to.
+ * This is the portal's own first-class, writable shoot-booking record. The
+ * two share a name by one word and nothing else; do not conflate them.
+ */
 class Shoot extends Model
 {
     use HasFactory;

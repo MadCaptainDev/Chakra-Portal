@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\ContentItem;
+use App\Models\NotionSetting;
 use App\Services\Notion\ContentSyncService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -20,7 +21,7 @@ class ContentSyncServiceTest extends TestCase
     {
         parent::setUp();
 
-        config(['notion.api_key' => 'secret_test']);
+        NotionSetting::current()->update(['api_key' => 'secret_test']);
     }
 
     /**
@@ -138,9 +139,9 @@ class ContentSyncServiceTest extends TestCase
         $service = app(ContentSyncService::class);
         $counts = $service->syncAll();
 
-        $this->assertSame(['youtube' => 0, 'reel' => 1, 'post' => 0, 'story' => 0], $counts);
+        $this->assertSame(['youtube' => 0, 'reel' => 1, 'post' => 0, 'story' => 0, 'shoot' => 0], $counts);
         $this->assertSame(
-            ['youtube' => false, 'reel' => true, 'post' => false, 'story' => false],
+            ['youtube' => false, 'reel' => true, 'post' => false, 'story' => false, 'shoot' => false],
             $service->sourceAvailability()
         );
     }
@@ -197,12 +198,12 @@ class ContentSyncServiceTest extends TestCase
 
     public function test_sync_without_api_key_is_a_no_op(): void
     {
-        config(['notion.api_key' => null]);
+        NotionSetting::current()->forceFill(['api_key' => null])->save();
         Http::fake();
 
         $counts = app(ContentSyncService::class)->syncAll();
 
-        $this->assertSame(['youtube' => 0, 'reel' => 0, 'post' => 0, 'story' => 0], $counts);
+        $this->assertSame(['youtube' => 0, 'reel' => 0, 'post' => 0, 'story' => 0, 'shoot' => 0], $counts);
         Http::assertNothingSent();
     }
 

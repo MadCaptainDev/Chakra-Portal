@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\NotionSetting;
 use App\Services\Notion\ContentSyncService;
 use Illuminate\Console\Command;
 
@@ -19,12 +20,12 @@ class SyncNotionContent extends Command
      *
      * @var string
      */
-    protected $description = 'Pull the latest items from the YouTube, Reel, Post, and Story Notion planners into the local content_items table.';
+    protected $description = 'Pull the latest items from the YouTube, Reel, Post, Story and Shoots Notion databases into the portal.';
 
     public function handle(ContentSyncService $service): int
     {
-        if (! config('notion.api_key')) {
-            $this->error('NOTION_API_KEY is not set.');
+        if (! NotionSetting::current()->api_key) {
+            $this->error('No Notion API key saved. Add one under Setup → Notion.');
 
             return self::FAILURE;
         }
