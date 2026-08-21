@@ -338,15 +338,12 @@ Route::middleware(['auth', 'module:shoots,view'])->scopeBindings()->group(functi
     Route::get('shoots', [ShootController::class, 'index'])->name('shoots.index');
 
     /*
-     * Notion's own shoot planner, and the one-way bridge into the portal's
-     * Shoots module above. Read + import only: the Notion token cannot
-     * write, so nothing here pushes back.
+     * "Sync from Notion" on the Shoots screen. One action: fetch Notion's
+     * Shoots database, map clients, import into real Shoot rows. There is
+     * no separate Notion Shoots page any more -- see NotionShootImporter.
      */
-    Route::get('notion-shoots', [NotionShootController::class, 'index'])->name('notion-shoots.index');
-    Route::post('notion-shoots/import', [NotionShootController::class, 'importAll'])
-        ->middleware('module:shoots,create')->name('notion-shoots.import-all');
-    Route::post('notion-shoots/{notionShoot}/import', [NotionShootController::class, 'import'])
-        ->middleware('module:shoots,create')->name('notion-shoots.import');
+    Route::post('shoots/sync-notion', [NotionShootController::class, 'sync'])
+        ->middleware('module:shoots,create')->name('shoots.sync-notion');
 
     // Before {shoot}, or "create" binds as a shoot id.
     Route::get('shoots/create', [ShootController::class, 'create'])

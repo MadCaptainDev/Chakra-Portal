@@ -276,8 +276,8 @@
                 <div class="{{ $cardClass }} p-5 sm:p-6">
                     <div class="flex items-baseline justify-between gap-3 mb-3">
                         <p class="text-sm font-semibold text-white">Next shoots</p>
-                        <a href="{{ route('notion-shoots.index') }}"
-                           class="text-[11px] font-semibold uppercase tracking-widest text-brand-300 hover:text-white">From Notion →</a>
+                        <a href="{{ route('shoots.index') }}"
+                           class="text-[11px] font-semibold uppercase tracking-widest text-brand-300 hover:text-white">All shoots →</a>
                     </div>
 
                     @forelse ($content['upcomingShoots'] as $shoot)
@@ -297,8 +297,8 @@
 
                     @if ($content['shootsToImport'] > 0)
                         <p class="mt-3 pt-3 border-t border-white/5 text-[11px] text-amber-300/80">
-                            {{ $content['shootsToImport'] }} Notion shoot(s) not imported yet.
-                            <a href="{{ route('notion-shoots.index', ['show' => 'unimported']) }}" class="underline hover:text-white">Import them</a>.
+                            {{ $content['shootsToImport'] }} Notion shoot(s) waiting on the next sync.
+                            <a href="{{ route('shoots.index') }}" class="underline hover:text-white">Sync now</a>.
                         </p>
                     @endif
                 </div>

@@ -217,6 +217,64 @@
             @endcan
         </x-card>
 
+        @if ($shoot->notionShoot)
+            @php $ns = $shoot->notionShoot; @endphp
+            <x-card class="p-4 sm:p-5">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                    <p class="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                        <x-icon name="globe" class="w-4 h-4 text-gray-400" />
+                        From Notion
+                    </p>
+                    @if ($ns->notion_url)
+                        <a href="{{ $ns->notion_url }}" target="_blank" rel="noopener"
+                           class="text-xs font-semibold text-brand-600 hover:text-brand-800">Open in Notion ↗</a>
+                    @endif
+                </div>
+
+                <dl class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3 text-sm">
+                    @if ($ns->video_count)
+                        <div><dt class="text-xs text-gray-400">Videos planned</dt><dd class="text-gray-900">{{ $ns->video_count }}</dd></div>
+                    @endif
+                    @if ($ns->duration)
+                        <div><dt class="text-xs text-gray-400">Duration</dt><dd class="text-gray-900">{{ $ns->duration }}h</dd></div>
+                    @endif
+                    @if ($ns->host_model)
+                        <div><dt class="text-xs text-gray-400">Host / Model</dt><dd class="text-gray-900">{{ $ns->host_model }}</dd></div>
+                    @endif
+                    @if ($ns->gear_needed)
+                        <div class="col-span-2 sm:col-span-3"><dt class="text-xs text-gray-400">Gear needed</dt><dd class="text-gray-900">{{ $ns->gear_needed }}</dd></div>
+                    @endif
+                    @if ($ns->weather_forecast)
+                        <div class="col-span-2 sm:col-span-3"><dt class="text-xs text-gray-400">Weather forecast</dt><dd class="text-gray-900">{{ $ns->weather_forecast }}</dd></div>
+                    @endif
+                </dl>
+
+                @if ($ns->teamMembers() !== [])
+                    <div class="mt-4 pt-4 border-t border-gray-100">
+                        <p class="text-xs text-gray-400 mb-2">Team in Notion</p>
+                        <div class="flex flex-wrap gap-1.5">
+                            @php
+                                $crewNames = $shoot->crew->pluck('user.name')->filter()->map(fn ($n) => \Illuminate\Support\Str::lower(trim($n)))->all();
+                            @endphp
+                            @foreach ($ns->teamMembers() as $name)
+                                @php
+                                    $matched = collect($crewNames)->contains(fn ($n) => $n === \Illuminate\Support\Str::lower($name) || \Illuminate\Support\Str::before($n, ' ') === \Illuminate\Support\Str::lower($name));
+                                @endphp
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs {{ $matched ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' }}">
+                                    {{ $name }}
+                                    @unless ($matched) <span title="No matching portal user — add them below">?</span> @endunless
+                                </span>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
+                <p class="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-400">
+                    Notion owns this shoot's title, date, location and status — a re-sync refreshes them here, but never touches kit, scripts or notes.
+                </p>
+            </x-card>
+        @endif
+
         @if ($shoot->notes)
             <x-card class="p-4 sm:p-5">
                 <p class="text-sm font-semibold text-gray-900 mb-2">Notes</p>

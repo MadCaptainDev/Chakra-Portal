@@ -85,9 +85,6 @@
             <x-sidebar-link icon="template" :href="route('content-dashboard.index')" :active="request()->routeIs('content-dashboard.*')">
                 Content Dashboard
             </x-sidebar-link>
-            <x-sidebar-link icon="camera" :href="route('notion-shoots.index')" :active="request()->routeIs('notion-shoots.*')">
-                Notion Shoots
-            </x-sidebar-link>
         </x-nav-section>
 
         <x-nav-section label="Team">

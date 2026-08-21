@@ -6,21 +6,28 @@ use App\Models\Client;
 use App\Models\ContentAccountVenture;
 use App\Models\NotionShoot;
 use App\Models\Shoot;
+use App\Models\ShootCrew;
+use App\Models\User;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 /**
  * Turns Notion shoots into real portal shoots.
  *
  * The portal's Shoots module is where crew, kit and call sheets live;
- * Notion is where the studio actually plans. Until now those were two
- * disconnected lists -- 82 shoots in Notion and 0 in the portal -- so
- * nothing planned could ever have a van packed for it.
+ * Notion is where the studio actually plans. These used to be two
+ * disconnected lists shown on two separate screens -- a shoot could exist
+ * in Notion with nobody able to pack a van for it, or exist here with no
+ * link back to the plan it came from. Now every Notion sync runs this
+ * automatically (see NotionShootController::sync()) and the Shoots screen
+ * is the only place either kind is shown.
  *
  * One-way, because the integration token is read-only. Notion owns what a
- * shoot IS (title, date, location, status); the portal owns everything it
- * adds around it (crew, kits, scripts), and a re-import never touches those.
- * A shoot created directly in the portal has no Notion counterpart and is
- * marked as such rather than pretending the two are in step.
+ * shoot IS (title, date, location, status, crew); the portal owns
+ * everything it adds around it (kits, scripts, notes), and a re-sync never
+ * touches those. A shoot created directly in the portal has no Notion
+ * counterpart and is marked as such rather than pretending the two are in
+ * step.
  */
 class NotionShootImporter
 {
@@ -56,9 +63,11 @@ class NotionShootImporter
      * updateOrCreate on notion_shoot_id, which is unique -- pressing import
      * twice refreshes rather than growing a duplicate.
      *
-     * Only the fields Notion owns are written. notes, crew, kits and
-     * scripts are portal-side and are deliberately absent from the update
-     * so an import cannot wipe work somebody did here.
+     * Only the fields Notion owns are written on the Shoot row itself --
+     * notes, kits and scripts are portal-side and are deliberately absent
+     * from the update so an import cannot wipe work somebody did here.
+     * Crew is the one exception: syncCrew() below adds portal crew for
+     * Notion's Team names, but only ever adds, never removes.
      */
     public function import(NotionShoot $notionShoot): ?Shoot
     {
@@ -66,7 +75,7 @@ class NotionShootImporter
             return null;
         }
 
-        return Shoot::updateOrCreate(
+        $shoot = Shoot::updateOrCreate(
             ['notion_shoot_id' => $notionShoot->id],
             [
                 'title' => $notionShoot->title ?: 'Untitled Notion shoot',
@@ -79,6 +88,66 @@ class NotionShootImporter
                 'status' => $notionShoot->portalStatus(),
             ]
         );
+
+        $this->syncCrew($notionShoot, $shoot);
+
+        return $shoot;
+    }
+
+    /**
+     * Add portal crew for the names on Notion's Team property.
+     *
+     * Notion's Team is first names only, so matching is exact-fold against
+     * the full name first, then a first-token match -- but only when
+     * exactly one user's first name matches. Two Arons on staff would make
+     * a first-name match a guess, and a wrong crew member on a call sheet
+     * is worse than a name the sync left for a person to add by hand.
+     *
+     * Only adds. A crew member somebody removed here on purpose must not
+     * reappear on the next sync, so existing rows are never touched and a
+     * name nothing matches is simply skipped rather than invented.
+     */
+    private function syncCrew(NotionShoot $notionShoot, Shoot $shoot): void
+    {
+        $names = $notionShoot->teamMembers();
+
+        if ($names === []) {
+            return;
+        }
+
+        $users = User::all();
+        $existingUserIds = $shoot->crew()->pluck('user_id')->all();
+
+        foreach ($names as $name) {
+            $user = $this->matchUser($name, $users);
+
+            if (! $user || in_array($user->id, $existingUserIds, true)) {
+                continue;
+            }
+
+            ShootCrew::create(['shoot_id' => $shoot->id, 'user_id' => $user->id]);
+            $existingUserIds[] = $user->id;
+        }
+    }
+
+    /**
+     * @param  Collection<int, User>  $users
+     */
+    private function matchUser(string $name, Collection $users): ?User
+    {
+        $folded = $this->fold($name);
+
+        $exact = $users->first(fn (User $user) => $this->fold($user->name) === $folded);
+
+        if ($exact) {
+            return $exact;
+        }
+
+        $firstNameMatches = $users->filter(
+            fn (User $user) => $this->fold(Str::before($user->name, ' ')) === $folded
+        );
+
+        return $firstNameMatches->count() === 1 ? $firstNameMatches->first() : null;
     }
 
     /**

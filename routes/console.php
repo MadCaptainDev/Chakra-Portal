@@ -28,8 +28,15 @@ Schedule::command('invoices:generate-recurring')->dailyAt('08:00');
 // clear of the 8am invoices job.
 Schedule::command('instagram:sync --force')->dailyAt('02:00')->timezone(config('app.timezone'));
 
-// The Notion content module is switched off for now. The sync service, the
-// notion:sync-content command and the synced content_items rows are all still
-// in place -- only the schedule and the UI are disabled, so re-enabling it is
-// uncommenting this line and restoring the routes/views.
+// The Notion content module (YouTube/Reel/Post/Story board) is switched off
+// for now. The sync service, the notion:sync-content command and the synced
+// content_items rows are all still in place -- only the schedule and the UI
+// are disabled, so re-enabling it is uncommenting this line and restoring
+// the routes/views.
 // Schedule::command('notion:sync-content')->everyThirtyMinutes();
+
+// Shoots are a different story: the portal's Shoots screen is the only
+// place either a portal-made or a Notion-made shoot is shown, and this is
+// what keeps it current without someone opening the screen and pressing
+// "Sync from Notion" themselves. See NotionShootImporter.
+Schedule::command('notion:sync-shoots')->everyThirtyMinutes();

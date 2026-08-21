@@ -168,53 +168,74 @@ class NotionShootImportTest extends TestCase
         $this->assertSame($chosen->id, $shoot->fresh()->client_id);
     }
 
-    // -- The screen ----------------------------------------------------------
+    // -- Crew matching ---------------------------------------------------------
 
-    public function test_the_screen_lists_notion_shoots(): void
+    public function test_import_adds_crew_for_names_that_match_a_portal_user(): void
     {
-        $this->notionShoot(['title' => 'Janet August Shoot']);
+        $aron = User::factory()->create(['name' => 'Aron Sham']);
+        $nitis = User::factory()->create(['name' => 'Nitis']);
+        $this->notionShoot(['team' => 'Aron, Nitis, Somebody Unrecognised']);
 
-        $this->actingAs($this->admin())
-            ->get(route('notion-shoots.index'))
-            ->assertOk()
-            ->assertSee('Janet August Shoot');
+        (new NotionShootImporter)->importAll();
+
+        $crewIds = Shoot::sole()->crew->pluck('user_id')->sort()->values()->all();
+        $this->assertSame([$aron->id, $nitis->id], collect($crewIds)->sort()->values()->all());
     }
 
-    public function test_import_all_from_the_screen_creates_portal_shoots(): void
+    public function test_import_never_adds_the_same_crew_member_twice_on_a_re_sync(): void
+    {
+        User::factory()->create(['name' => 'Nitis']);
+        $notionShoot = $this->notionShoot(['team' => 'Nitis']);
+        $importer = new NotionShootImporter;
+
+        $importer->importAll();
+        $importer->importAll();
+
+        $this->assertSame(1, Shoot::sole()->crew()->count());
+    }
+
+    public function test_import_never_removes_crew_a_person_added_by_hand(): void
+    {
+        $manual = User::factory()->create(['name' => 'Manually Added']);
+        $notionShoot = $this->notionShoot(['team' => null]);
+        $importer = new NotionShootImporter;
+        $importer->importAll();
+
+        Shoot::sole()->crew()->create(['user_id' => $manual->id]);
+        $notionShoot->forceFill(['team' => 'Nobody Matching'])->save();
+        $importer->importAll();
+
+        $this->assertTrue(Shoot::sole()->crew()->where('user_id', $manual->id)->exists());
+    }
+
+    public function test_an_ambiguous_first_name_is_left_unmatched(): void
+    {
+        User::factory()->create(['name' => 'Aron Sham']);
+        User::factory()->create(['name' => 'Aron Kumar']);
+        $this->notionShoot(['team' => 'Aron']);
+
+        (new NotionShootImporter)->importAll();
+
+        $this->assertSame(0, Shoot::sole()->crew()->count());
+    }
+
+    // -- The screen ----------------------------------------------------------
+
+    public function test_syncing_from_the_shoots_screen_creates_portal_shoots(): void
     {
         $this->notionShoot();
 
         $this->actingAs($this->admin())
-            ->post(route('notion-shoots.import-all'))
-            ->assertRedirect(route('notion-shoots.index'));
+            ->post(route('shoots.sync-notion'))
+            ->assertRedirect(route('shoots.index'));
 
         $this->assertSame(1, Shoot::count());
     }
 
-    public function test_importing_one_shoot_lands_on_it(): void
-    {
-        $notionShoot = $this->notionShoot();
-
-        $this->actingAs($this->admin())
-            ->post(route('notion-shoots.import', $notionShoot))
-            ->assertRedirect(route('shoots.show', Shoot::sole()));
-    }
-
-    public function test_importing_an_undated_shoot_says_why_rather_than_failing(): void
-    {
-        $notionShoot = $this->notionShoot(['shoot_date' => null]);
-
-        $this->actingAs($this->admin())
-            ->post(route('notion-shoots.import', $notionShoot))
-            ->assertRedirect(route('notion-shoots.index'))
-            ->assertSessionHas('status', fn (string $s) => str_contains($s, 'no date'));
-
-        $this->assertSame(0, Shoot::count());
-    }
-
     public function test_a_guest_reaches_none_of_it(): void
     {
-        $this->get(route('notion-shoots.index'))->assertRedirect(route('login'));
+        $this->get(route('shoots.index'))->assertRedirect(route('login'));
+        $this->post(route('shoots.sync-notion'))->assertRedirect(route('login'));
     }
 
     public function test_a_portal_created_shoot_is_not_from_notion(): void

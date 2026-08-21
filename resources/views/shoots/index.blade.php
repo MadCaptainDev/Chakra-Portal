@@ -6,15 +6,38 @@
     <x-slot name="header">
         <x-page-header title="Shoots" eyebrow="Production"
                        subtitle="What is coming up, who is on it, and whether the kit is packed.">
-            @can('shoots.create')
-                <x-slot name="actions">
+            <x-slot name="actions">
+                @can('shoots.create')
+                    <form method="POST" action="{{ route('shoots.sync-notion') }}">
+                        @csrf
+                        <x-btn type="submit" variant="secondary" icon="refresh">Sync from Notion</x-btn>
+                    </form>
                     <x-btn :href="route('shoots.create')" icon="plus">Plan a shoot</x-btn>
-                </x-slot>
-            @endcan
+                @endcan
+            </x-slot>
         </x-page-header>
     </x-slot>
 
     <div class="space-y-4">
+        @can('shoots.create')
+            @if ($notionPending > 0 || $notionUndated > 0 || $notionUnmapped > 0)
+                <div class="rounded-xl bg-blue-50 border border-blue-200 p-4 flex items-start gap-3">
+                    <x-icon name="globe" class="w-5 h-5 shrink-0 mt-0.5 text-blue-600" />
+                    <div class="text-sm text-blue-900 space-y-0.5">
+                        @if ($notionPending > 0)
+                            <p>{{ $notionPending }} {{ Str::plural('shoot', $notionPending) }} in Notion {{ $notionPending === 1 ? "hasn't" : "haven't" }} synced here yet — press <span class="font-semibold">Sync from Notion</span> above.</p>
+                        @endif
+                        @if ($notionUnmapped > 0)
+                            <p>{{ $notionUnmapped }} Notion {{ Str::plural('shoot', $notionUnmapped) }} {{ $notionUnmapped === 1 ? 'has' : 'have' }} a client Notion doesn't recognise, so nothing was mapped automatically.</p>
+                        @endif
+                        @if ($notionUndated > 0)
+                            <p>{{ $notionUndated }} Notion {{ Str::plural('shoot', $notionUndated) }} {{ $notionUndated === 1 ? "hasn't" : "haven't" }} a date set, so {{ $notionUndated === 1 ? 'it' : 'they' }} can't be scheduled here yet — add one in Notion.</p>
+                        @endif
+                    </div>
+                </div>
+            @endif
+        @endcan
+
         <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             <x-stat-card label="Upcoming" :value="$upcomingCount" accent="brand" icon="camera" />
             <x-stat-card label="This week" :value="$thisWeek" accent="gray" icon="calendar" />
@@ -93,6 +116,11 @@
                                 <x-badge :status="$shoot->status" />
                                 @if ($shoot->hasKitProblems())
                                     <x-badge status="overdue">Kit issue</x-badge>
+                                @endif
+                                @if ($shoot->isFromNotion())
+                                    <span title="Synced from Notion" class="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400">
+                                        <x-icon name="globe" class="w-3.5 h-3.5" />
+                                    </span>
                                 @endif
                             </div>
 

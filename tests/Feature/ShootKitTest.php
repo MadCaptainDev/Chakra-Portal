@@ -77,7 +77,7 @@ class ShootKitTest extends TestCase
 
         $this->assertSame(2, (int) $committed[$item->id]->committed);
         $this->assertSame(2, (int) $committed[$item->id]->reserved);
-        $this->assertSame(0, (int) $committed[$item->id]->out);
+        $this->assertSame(0, (int) $committed[$item->id]->checked_out);
     }
 
     public function test_a_shoot_on_the_next_day_does_not_clash(): void

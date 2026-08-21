@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Models\EquipmentItem;
+use App\Models\NotionShoot;
 use App\Models\Script;
 use App\Models\Shoot;
 use App\Models\ShootKit;
@@ -26,7 +27,7 @@ class ShootController extends Controller
         ];
 
         $shoots = Shoot::query()
-            ->with(['client', 'crew.user', 'kits'])
+            ->with(['client', 'crew.user', 'kits', 'notionShoot'])
             ->when($filters['q'] !== '', fn ($query) => $query->where(
                 fn ($inner) => $inner
                     ->where('title', 'like', "%{$filters['q']}%")
@@ -62,6 +63,12 @@ class ShootController extends Controller
             'upcomingCount' => Shoot::upcoming()->count(),
             'thisWeek' => Shoot::upcoming()->where('starts_at', '<', now()->endOfWeek())->count(),
             'overdueKit' => $overdue,
+            // Notion shoots that a sync cannot turn into a portal shoot
+            // yet -- surfaced here rather than on a page of their own, so
+            // fixing them starts from the same screen that needs them.
+            'notionPending' => NotionShoot::whereDoesntHave('shoot')->whereNotNull('shoot_date')->count(),
+            'notionUndated' => NotionShoot::whereDoesntHave('shoot')->whereNull('shoot_date')->count(),
+            'notionUnmapped' => NotionShoot::whereNull('client_id')->whereNotNull('client')->count(),
         ]);
     }
 
@@ -86,7 +93,7 @@ class ShootController extends Controller
 
     public function show(Shoot $shoot): View
     {
-        $shoot->load(['client', 'crew.user', 'kits.item.category', 'kits.checkedOutBy', 'scripts', 'createdBy']);
+        $shoot->load(['client', 'crew.user', 'kits.item.category', 'kits.checkedOutBy', 'scripts', 'createdBy', 'notionShoot']);
 
         // One query for the whole picker, never one per row.
         $committed = KitAvailability::during($shoot);

@@ -3,75 +3,38 @@
 namespace App\Http\Controllers;
 
 use App\Models\NotionShoot;
+use App\Services\Notion\ContentSyncService;
 use App\Services\Notion\NotionShootImporter;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\View\View;
 
 /**
- * Notion's shoot planner, and the bridge into the portal's own Shoots
- * module.
- *
- * The studio plans shoots in Notion; the portal is where crew, kit and call
- * sheets live. Until these were joined the two were separate lists -- 82
- * shoots in Notion and none in the portal -- so nothing planned could ever
- * have a van packed for it.
- *
- * Importing is one-way and explicit. The Notion token is read-only, so a
- * shoot created in the portal cannot be pushed back, and a re-import
- * refreshes only the fields Notion owns (title, date, location, status),
- * never the crew or kit somebody added here.
+ * Pulls Notion's Shoots database and folds it straight into the portal's
+ * own Shoots screen -- fetch, map clients, import. There is no separate
+ * Notion Shoots page any more: this is a "sync now" button on the Shoots
+ * index, not a bridge someone has to visit and operate on its own.
  */
 class NotionShootController extends Controller
 {
-    public function index(Request $request): View
+    public function sync(ContentSyncService $syncService, NotionShootImporter $importer): RedirectResponse
     {
-        $filter = $request->query('show', 'all');
+        if (! ($syncService->sourceAvailability()[NotionShoot::SOURCE] ?? false)) {
+            return redirect()->route('shoots.index')->with('status',
+                "Couldn't reach the Shoots database in Notion. Check Setup → Notion, and that the database is shared with the integration.");
+        }
 
-        $shoots = NotionShoot::query()
-            ->with(['mappedClient', 'shoot'])
-            ->when($filter === 'unimported', fn ($q) => $q->whereDoesntHave('shoot'))
-            ->when($filter === 'unmapped', fn ($q) => $q->whereNull('client_id'))
-            ->orderByDesc('shoot_date')
-            ->get();
-
-        return view('notion-shoots.index', [
-            'shoots' => $shoots,
-            'filter' => $filter,
-            'total' => NotionShoot::count(),
-            'unmappedCount' => NotionShoot::whereNull('client_id')->count(),
-            'unimportedCount' => NotionShoot::whereDoesntHave('shoot')->count(),
-            'undatedCount' => NotionShoot::whereNull('shoot_date')->count(),
-        ]);
-    }
-
-    /** Import every dated Notion shoot, creating or refreshing its portal shoot. */
-    public function importAll(NotionShootImporter $importer): RedirectResponse
-    {
+        $syncService->syncSource(NotionShoot::SOURCE);
+        $importer->autoMapClients();
         $result = $importer->importAll();
 
-        $status = "Imported {$result['imported']}, refreshed {$result['updated']}.";
+        $status = "Synced from Notion: {$result['imported']} new, {$result['updated']} refreshed.";
 
         if ($result['skipped'] > 0) {
-            // Said plainly rather than counted as success: a shoot with no
-            // date cannot go on a calendar, and the fix is in Notion.
-            $status .= " Skipped {$result['skipped']} with no date in Notion.";
+            // Said plainly rather than folded into the count above: a
+            // shoot with no date cannot go on a calendar, and the fix is
+            // in Notion, not here.
+            $status .= " {$result['skipped']} skipped (no date set in Notion).";
         }
 
-        return redirect()->route('notion-shoots.index')->with('status', $status);
-    }
-
-    /** Import one shoot, for when only a particular one is wanted in the portal. */
-    public function import(NotionShoot $notionShoot, NotionShootImporter $importer): RedirectResponse
-    {
-        $shoot = $importer->import($notionShoot);
-
-        if (! $shoot) {
-            return redirect()->route('notion-shoots.index')
-                ->with('status', 'That shoot has no date in Notion, so it cannot be scheduled here yet.');
-        }
-
-        return redirect()->route('shoots.show', $shoot)
-            ->with('status', 'Imported from Notion. Crew and kit can be added here.');
+        return redirect()->route('shoots.index')->with('status', $status);
     }
 }
