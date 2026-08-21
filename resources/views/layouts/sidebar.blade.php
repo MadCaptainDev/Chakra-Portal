@@ -125,6 +125,9 @@
             <x-sidebar-link icon="document" :href="route('notion.edit')" :active="request()->routeIs('notion.*')">
                 Notion
             </x-sidebar-link>
+            <x-sidebar-link icon="bell" :href="route('push.edit')" :active="request()->routeIs('push.*')">
+                Notifications
+            </x-sidebar-link>
             <x-sidebar-link icon="users" :href="route('content-accounts.edit')" :active="request()->routeIs('content-accounts.*')">
                 Content Accounts
             </x-sidebar-link>

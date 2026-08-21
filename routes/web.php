@@ -28,6 +28,7 @@ use App\Http\Controllers\InstagramInsightsController;
 use App\Http\Controllers\MonthlyReportController;
 use App\Http\Controllers\InstagramSettingController;
 use App\Http\Controllers\NotionSettingController;
+use App\Http\Controllers\PushSettingController;
 use App\Http\Controllers\NotionShootController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoiceTemplateController;
@@ -736,6 +737,14 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
     Route::get('notion', [NotionSettingController::class, 'edit'])->name('notion.edit');
     Route::put('notion', [NotionSettingController::class, 'update'])->name('notion.update');
     Route::post('notion/recheck', [NotionSettingController::class, 'recheck'])->name('notion.recheck');
+
+    /*
+     * The Firebase push connection. Admin-only, same reasoning again: the
+     * service account here can send a push as the studio to every device.
+     */
+    Route::get('push', [PushSettingController::class, 'edit'])->name('push.edit');
+    Route::put('push', [PushSettingController::class, 'update'])->name('push.update');
+    Route::post('push/test', [PushSettingController::class, 'test'])->name('push.test');
 
     /*
      * Which Notion venture belongs to which account, and each account's
