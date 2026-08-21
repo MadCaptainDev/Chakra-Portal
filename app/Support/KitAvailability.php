@@ -31,7 +31,7 @@ class KitAvailability
      *
      * The shoot's own rows are excluded -- an item does not clash with itself.
      *
-     * @return Collection<int, object{committed: int, out: int, reserved: int}>
+     * @return Collection<int, object{committed: int, checked_out: int, reserved: int}>
      */
     public static function during(Shoot $shoot): Collection
     {
@@ -47,7 +47,8 @@ class KitAvailability
             ->groupBy('shoot_kit.equipment_item_id')
             ->selectRaw('shoot_kit.equipment_item_id as item_id')
             ->selectRaw('SUM(shoot_kit.quantity) as committed')
-            ->selectRaw('SUM(CASE WHEN shoot_kit.checked_out_at IS NOT NULL THEN shoot_kit.quantity ELSE 0 END) as out')
+            // "out" is a reserved word in MySQL/MariaDB and breaks unquoted as an alias.
+            ->selectRaw('SUM(CASE WHEN shoot_kit.checked_out_at IS NOT NULL THEN shoot_kit.quantity ELSE 0 END) as checked_out')
             ->selectRaw('SUM(CASE WHEN shoot_kit.checked_out_at IS NULL THEN shoot_kit.quantity ELSE 0 END) as reserved')
             ->get()
             ->keyBy('item_id');
