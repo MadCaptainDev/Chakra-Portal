@@ -4,11 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\TimesheetDay;
 use App\Models\User;
+use App\Notifications\TimesheetDayRejected;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Throwable;
 
 /**
  * Accepting or rejecting a whole day of someone's timesheet.
@@ -58,6 +62,14 @@ class TimesheetDayController extends Controller
             'reviewed_at' => now(),
             'reviewed_by_id' => $request->user()->id,
         ])->save();
+
+        if ($validated['review_state'] === TimesheetDay::REJECTED) {
+            try {
+                Notification::send($employee, new TimesheetDayRejected($decision));
+            } catch (Throwable $e) {
+                Log::error('Timesheet day rejection push failed.', ['timesheet_day_id' => $decision->id, 'error' => $e->getMessage()]);
+            }
+        }
 
         $verb = $validated['review_state'] === TimesheetDay::APPROVED ? 'approved' : 'rejected';
 

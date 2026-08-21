@@ -5,11 +5,16 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\SavesClientBrief;
 use App\Http\Requests\ClientBriefRequest;
 use App\Models\ClientBrief;
+use App\Models\User;
+use App\Notifications\BriefSubmitted;
 use App\Support\BrandBrief;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\View\View;
+use Throwable;
 
 /**
  * The brand brief, filled by a client who has no login.
@@ -86,6 +91,12 @@ class PublicBriefController extends Controller
 
         $saved = $this->saveBrief($brief->client, $request);
 
+        // Captured before the forceFill below sets submitted_at -- a client
+        // may keep editing after sending a brief in, and that write always
+        // leaves submitted_at non-null, so reading it AFTER would make every
+        // re-submission look like a first one.
+        $alreadySubmitted = $saved->submitted_at !== null;
+
         /*
          * The name is asked for at the moment of submitting rather than at the
          * top of the form. There is no account behind a public link, so
@@ -99,6 +110,14 @@ class PublicBriefController extends Controller
             'public_submitted_at' => now(),
             'public_submitted_name' => $request->string('submitted_name')->trim()->value() ?: null,
         ])->save();
+
+        if (! $alreadySubmitted) {
+            try {
+                Notification::send(User::canSee('clients')->get(), new BriefSubmitted($saved));
+            } catch (Throwable $e) {
+                Log::error('Brief submission push failed.', ['brief_id' => $saved->id, 'error' => $e->getMessage()]);
+            }
+        }
 
         return redirect()->route('brief.public', $token);
     }

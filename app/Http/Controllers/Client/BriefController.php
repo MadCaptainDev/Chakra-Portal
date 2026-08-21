@@ -9,12 +9,17 @@ use App\Http\Requests\ClientBriefRequest;
 use App\Models\Client;
 use App\Models\ClientBrief;
 use App\Models\ClientBriefAnswer;
+use App\Models\User;
+use App\Notifications\BriefSubmitted;
 use App\Support\BrandBrief;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\View\View;
+use Throwable;
 
 /**
  * The client answering the studio's discovery questions.
@@ -82,6 +87,11 @@ class BriefController extends Controller
         BrandBrief::forClient($client);
         $brief = $this->saveBrief($client, $request);
 
+        // Captured before the forceFill below sets submitted_at -- see
+        // PublicBriefController::submit() for why reading it after would
+        // make every re-submission look like a first one.
+        $alreadySubmitted = $brief->submitted_at !== null;
+
         /*
          * submitted_at records the FIRST time this came in and never moves. A
          * client may keep editing afterwards -- brands change -- and the studio
@@ -93,6 +103,14 @@ class BriefController extends Controller
             'submitted_at' => $brief->submitted_at ?? now(),
             'submitted_by_id' => $request->user()->id,
         ])->save();
+
+        if (! $alreadySubmitted) {
+            try {
+                Notification::send(User::canSee('clients')->get(), new BriefSubmitted($brief));
+            } catch (Throwable $e) {
+                Log::error('Brief submission push failed.', ['brief_id' => $brief->id, 'error' => $e->getMessage()]);
+            }
+        }
 
         return redirect()
             ->route('client.dashboard')

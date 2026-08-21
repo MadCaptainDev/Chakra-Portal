@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Http\Requests\EnquiryRequest;
 use App\Models\CompanySetting;
 use App\Models\Enquiry;
+use App\Models\User;
 use App\Notifications\EnquiryReceived;
+use App\Notifications\EnquiryReceivedPush;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -42,6 +44,18 @@ class EnquiryController extends Controller
             Log::error('Enquiry email failed', [
                 'enquiry_id' => $enquiry->id,
                 'recipient' => $recipient,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // Its own try/catch, separate from the mail above: a push failure
+        // must not be reported as though the mail failed, or the other way
+        // round -- each channel's outage is its own line in the log.
+        try {
+            Notification::send(User::canSee('enquiries')->get(), new EnquiryReceivedPush($enquiry));
+        } catch (Throwable $e) {
+            Log::error('Enquiry push failed', [
+                'enquiry_id' => $enquiry->id,
                 'error' => $e->getMessage(),
             ]);
         }

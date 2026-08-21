@@ -4,11 +4,24 @@ namespace Tests\Feature;
 
 use App\Mcp\Tools\CreateTodo;
 use App\Models\Announcement;
+use App\Models\Client;
+use App\Models\Enquiry;
+use App\Models\Shoot;
+use App\Models\TimesheetDay;
+use App\Models\TimesheetEntry;
 use App\Models\Todo;
 use App\Models\User;
 use App\Notifications\AnnouncementPosted;
+use App\Notifications\BriefSubmitted;
+use App\Notifications\EnquiryReceivedPush;
+use App\Notifications\ShootCrewAdded;
+use App\Notifications\TimesheetDayRejected;
 use App\Notifications\TodoAssigned;
+use App\Notifications\TodoSentBack;
+use App\Support\BrandBrief;
+use App\Support\TimesheetVenture;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
@@ -197,5 +210,298 @@ class PushNotificationEventsTest extends TestCase
         (new CreateTodo)->handle(['title' => 'Note to self'], $caller);
 
         Notification::assertNothingSentTo($caller);
+    }
+
+    private function finishedTodo(User $manager, User $owner): Todo
+    {
+        $todo = Todo::create([
+            'user_id' => $owner->id,
+            'assigned_by_id' => $manager->id,
+            'title' => 'Cut the teaser',
+            'venture' => TimesheetVenture::ALL_CLIENTS,
+            'starts_on' => today()->toDateString(),
+            'due_on' => today()->toDateString(),
+        ]);
+        $todo->moveTo(Todo::STATUS_COMPLETED, $owner);
+
+        return $todo->fresh();
+    }
+
+    public function test_sending_a_todo_back_notifies_the_person_it_belongs_to(): void
+    {
+        Notification::fake();
+
+        $manager = $this->staff();
+        $owner = $this->staff();
+        $owner->managers()->attach($manager);
+        $todo = $this->finishedTodo($manager, $owner);
+
+        $this->actingAs($manager)->post(route('todos.review', $todo), [
+            'review_state' => Todo::REVIEW_REJECTED,
+            'review_note' => 'The grade is off in the second half.',
+        ])->assertRedirect();
+
+        Notification::assertSentTo($owner, TodoSentBack::class);
+    }
+
+    public function test_checking_off_a_todo_does_not_notify(): void
+    {
+        Notification::fake();
+
+        $manager = $this->staff();
+        $owner = $this->staff();
+        $owner->managers()->attach($manager);
+        $todo = $this->finishedTodo($manager, $owner);
+
+        $this->actingAs($manager)->post(route('todos.review', $todo), [
+            'review_state' => Todo::REVIEW_APPROVED,
+        ])->assertRedirect();
+
+        Notification::assertNothingSentTo($owner);
+    }
+
+    public function test_rejecting_a_timesheet_day_notifies_the_employee(): void
+    {
+        Notification::fake();
+
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $employee = $this->staff();
+        TimesheetEntry::create([
+            'user_id' => $employee->id,
+            'worked_on' => today()->toDateString(),
+            'task' => 'Shoot',
+            'task_type' => TimesheetEntry::TASK_SHOOTING,
+            'venture' => TimesheetVenture::ALL_CLIENTS,
+            'minutes' => 120,
+        ]);
+
+        $this->actingAs($admin)->post(route('timesheets.day', $employee), [
+            'worked_on' => today()->toDateString(),
+            'review_state' => TimesheetDay::REJECTED,
+            'review_note' => 'Hours look off for this day.',
+        ])->assertRedirect();
+
+        Notification::assertSentTo($employee, TimesheetDayRejected::class);
+    }
+
+    public function test_approving_a_timesheet_day_does_not_notify(): void
+    {
+        Notification::fake();
+
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $employee = $this->staff();
+
+        $this->actingAs($admin)->post(route('timesheets.day', $employee), [
+            'worked_on' => today()->toDateString(),
+            'review_state' => TimesheetDay::APPROVED,
+        ])->assertRedirect();
+
+        Notification::assertNothingSentTo($employee);
+    }
+
+    public function test_a_new_enquiry_notifies_staff_who_can_see_enquiries(): void
+    {
+        Notification::fake();
+
+        $granted = $this->staff();
+        $granted->syncPermissions(['enquiries' => ['view']]);
+        $granted->refresh();
+        $ungranted = $this->staff();
+
+        $this->post(route('enquiry.store'), [
+            'name' => 'Prospective Client',
+            'email' => 'prospect@example.com',
+            'message' => 'We would like a promo video.',
+        ])->assertRedirect();
+
+        $this->assertSame(1, Enquiry::count());
+        Notification::assertSentTo($granted, EnquiryReceivedPush::class);
+        Notification::assertNothingSentTo($ungranted);
+    }
+
+    private function shoot(array $overrides = []): Shoot
+    {
+        return Shoot::create($overrides + [
+            'title' => 'Tea montage',
+            'starts_at' => now()->addDays(3),
+            'status' => Shoot::STATUS_PLANNED,
+        ]);
+    }
+
+    private function producer(): User
+    {
+        $user = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
+        $user->syncPermissions(['shoots' => ['view', 'edit']]);
+
+        return $user->refresh();
+    }
+
+    public function test_being_added_to_a_shoots_crew_notifies_them(): void
+    {
+        Notification::fake();
+
+        $producer = $this->producer();
+        $crewMember = $this->staff();
+        $shoot = $this->shoot();
+
+        $this->actingAs($producer)->post(route('shoots.crew.store', $shoot), [
+            'user_id' => $crewMember->id,
+        ])->assertRedirect();
+
+        Notification::assertSentTo($crewMember, ShootCrewAdded::class);
+    }
+
+    public function test_editing_a_crew_members_call_time_does_not_re_notify(): void
+    {
+        $producer = $this->producer();
+        $crewMember = $this->staff();
+        $shoot = $this->shoot();
+
+        $this->actingAs($producer)->post(route('shoots.crew.store', $shoot), [
+            'user_id' => $crewMember->id,
+        ]);
+
+        Notification::fake();
+
+        $this->actingAs($producer)->post(route('shoots.crew.store', $shoot), [
+            'user_id' => $crewMember->id,
+            'call_time' => '09:00',
+        ])->assertRedirect();
+
+        Notification::assertNothingSentTo($crewMember);
+    }
+
+    public function test_a_producer_crewing_themselves_does_not_notify(): void
+    {
+        Notification::fake();
+
+        $producer = $this->producer();
+        $shoot = $this->shoot();
+
+        $this->actingAs($producer)->post(route('shoots.crew.store', $shoot), [
+            'user_id' => $producer->id,
+        ])->assertRedirect();
+
+        Notification::assertNothingSentTo($producer);
+    }
+
+    public function test_crewing_a_cancelled_shoot_does_not_notify(): void
+    {
+        Notification::fake();
+
+        $producer = $this->producer();
+        $crewMember = $this->staff();
+        $shoot = $this->shoot(['status' => Shoot::STATUS_CANCELLED]);
+
+        $this->actingAs($producer)->post(route('shoots.crew.store', $shoot), [
+            'user_id' => $crewMember->id,
+        ])->assertRedirect();
+
+        Notification::assertNothingSentTo($crewMember);
+    }
+
+    public function test_crewing_a_shoot_already_in_the_past_does_not_notify(): void
+    {
+        Notification::fake();
+
+        $producer = $this->producer();
+        $crewMember = $this->staff();
+        $shoot = $this->shoot(['starts_at' => now()->subDay()]);
+
+        $this->actingAs($producer)->post(route('shoots.crew.store', $shoot), [
+            'user_id' => $crewMember->id,
+        ])->assertRedirect();
+
+        Notification::assertNothingSentTo($crewMember);
+    }
+
+    /**
+     * Every required question, answered validly. Built from the catalogue
+     * rather than hardcoded, matching PublicBriefLinkTest and ClientBriefTest.
+     *
+     * @return array<string, mixed>
+     */
+    private function completeBriefAnswers(): array
+    {
+        $answers = [];
+
+        foreach (BrandBrief::requiredKeys() as $key) {
+            $question = BrandBrief::question($key);
+
+            $answers[$key] = match ($question['type']) {
+                BrandBrief::TYPE_CONTACT => ['name' => 'Vinupriya', 'phone' => '+91 90000 00000'],
+                BrandBrief::TYPE_CHIPS, BrandBrief::TYPE_CHECKS => ($question['multi'] ?? false)
+                    ? [$question['options'][0]]
+                    : $question['options'][0],
+                default => 'An answer.',
+            };
+        }
+
+        return $answers;
+    }
+
+    public function test_submitting_a_public_brief_notifies_staff_who_can_see_clients(): void
+    {
+        Notification::fake();
+
+        $client = Client::create(['name' => 'SVA Silks']);
+        $granted = $this->staff();
+        $granted->syncPermissions(['clients' => ['view']]);
+        $granted->refresh();
+        $ungranted = $this->staff();
+        $token = $client->brief()->create([])->issuePublicToken();
+
+        $this->post(route('brief.public.submit', $token), [
+            'answers' => $this->completeBriefAnswers(),
+            'submitted_name' => 'Vinupriya',
+        ])->assertRedirect();
+
+        Notification::assertSentTo($granted, BriefSubmitted::class);
+        Notification::assertNothingSentTo($ungranted);
+    }
+
+    public function test_submitting_a_signed_in_clients_brief_notifies_staff(): void
+    {
+        Notification::fake();
+
+        $client = Client::create(['name' => 'SVA Silks']);
+        $login = User::factory()->create(['role' => User::ROLE_CLIENT, 'client_id' => $client->id]);
+        $granted = $this->staff();
+        $granted->syncPermissions(['clients' => ['view']]);
+        $granted->refresh();
+
+        $this->actingAs($login)->post(route('client.brief.submit'), [
+            'answers' => $this->completeBriefAnswers(),
+        ])->assertRedirect();
+
+        Notification::assertSentTo($granted, BriefSubmitted::class);
+    }
+
+    /**
+     * Unlike the public link (which closes on first submit -- see
+     * PublicBriefController::submit()'s own 403 on a second write), a
+     * signed-in client CAN submit() again after their first submission:
+     * submitted_at is preserved rather than reset, so this is the one place
+     * that actually exercises the "already submitted" guard.
+     */
+    public function test_resubmitting_a_signed_in_clients_brief_does_not_re_notify(): void
+    {
+        $client = Client::create(['name' => 'SVA Silks']);
+        $login = User::factory()->create(['role' => User::ROLE_CLIENT, 'client_id' => $client->id]);
+        $staff = $this->staff();
+        $staff->syncPermissions(['clients' => ['view']]);
+        $staff->refresh();
+
+        $this->actingAs($login)->post(route('client.brief.submit'), [
+            'answers' => $this->completeBriefAnswers(),
+        ]);
+
+        Notification::fake();
+
+        $this->actingAs($login)->post(route('client.brief.submit'), [
+            'answers' => $this->completeBriefAnswers(),
+        ])->assertRedirect();
+
+        Notification::assertNothingSent();
     }
 }

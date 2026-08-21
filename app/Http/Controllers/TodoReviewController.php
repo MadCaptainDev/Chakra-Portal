@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Todo;
+use App\Notifications\TodoSentBack;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\Rule;
+use Throwable;
 
 /**
  * A manager checking a finished to-do.
@@ -40,6 +44,14 @@ class TodoReviewController extends Controller
         }
 
         $todo->review($data['review_state'], $request->user(), $data['review_note'] ?? null);
+
+        if ($todo->wasSentBack()) {
+            try {
+                Notification::send($todo->user, new TodoSentBack($todo));
+            } catch (Throwable $e) {
+                Log::error('To-do sent-back push failed.', ['todo_id' => $todo->id, 'error' => $e->getMessage()]);
+            }
+        }
 
         return back()->with('status', $todo->wasSentBack()
             ? "Sent back to {$todo->user->name}."
