@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ContentItem extends Model
 {
@@ -21,6 +22,7 @@ class ContentItem extends Model
         'source',
         'notion_page_id',
         'notion_url',
+        'social_media_item_id',
         'title',
         'venture',
         'status',
@@ -46,6 +48,17 @@ class ContentItem extends Model
         'notion_created_at' => 'datetime',
         'synced_at' => 'datetime',
     ];
+
+    /**
+     * The real Instagram post this planned item turned into, if one was
+     * matched -- see InstagramContentMatcher. Null is ordinary: only three
+     * clients have Instagram connected, and nothing posted before that
+     * connection exists locally to match against.
+     */
+    public function socialMediaItem(): BelongsTo
+    {
+        return $this->belongsTo(SocialMediaItem::class);
+    }
 
     public function sourceLabel(): string
     {

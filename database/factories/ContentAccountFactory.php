@@ -21,7 +21,9 @@ class ContentAccountFactory extends Factory
         return [
             'client_id' => Client::factory(),
             'name' => fake()->company(),
-            'monthly_target' => null,
+            'target_reel' => null,
+            'target_post' => null,
+            'target_youtube' => null,
         ];
     }
 }

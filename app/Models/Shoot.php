@@ -44,6 +44,7 @@ class Shoot extends Model
         'status',
         'notes',
         'created_by_id',
+        'notion_shoot_id',
     ];
 
     protected $casts = [
@@ -54,6 +55,25 @@ class Shoot extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
+    }
+
+    /**
+     * The Notion shoot this was imported from, or null when it was created
+     * in the portal.
+     *
+     * Null is a real state, not missing data: the Notion token is
+     * read-only, so a shoot created here cannot be pushed back and Notion
+     * genuinely does not know about it. The Shoots screen says so rather
+     * than implying the two are in step.
+     */
+    public function notionShoot(): BelongsTo
+    {
+        return $this->belongsTo(NotionShoot::class);
+    }
+
+    public function isFromNotion(): bool
+    {
+        return $this->notion_shoot_id !== null;
     }
 
     public function createdBy(): BelongsTo

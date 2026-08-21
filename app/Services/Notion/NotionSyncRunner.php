@@ -5,6 +5,7 @@ namespace App\Services\Notion;
 use App\Models\ContentItem;
 use App\Models\NotionSetting;
 use App\Models\NotionShoot;
+use App\Services\Instagram\InstagramContentMatcher;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 
@@ -53,9 +54,24 @@ class NotionSyncRunner
 
         $counts = app(ContentSyncService::class)->syncAll(fresh: $fresh);
 
-        return 'Refreshed from Notion. '.collect($counts)
+        /*
+         * Straight after the sync, not on a schedule of its own: both of
+         * these read what the sync just wrote, and leaving them to run
+         * separately is how a dashboard ends up showing this month's
+         * content against last week's Instagram matches.
+         */
+        app(NotionShootImporter::class)->autoMapClients();
+        $matched = app(InstagramContentMatcher::class)->matchAll();
+
+        $status = 'Refreshed from Notion. '.collect($counts)
             ->map(fn (int $count, string $source) => "{$source}: {$count}")
             ->implode(', ').'.';
+
+        if ($matched['matched'] > 0) {
+            $status .= " Matched {$matched['matched']} to Instagram posts.";
+        }
+
+        return $status;
     }
 
     /**

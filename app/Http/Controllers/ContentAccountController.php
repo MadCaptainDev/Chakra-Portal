@@ -6,24 +6,26 @@ use App\Models\Client;
 use App\Models\ContentAccount;
 use App\Models\ContentAccountVenture;
 use App\Models\ContentItem;
+use App\Models\NotionShoot;
+use App\Services\Notion\NotionShootImporter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 /**
- * Content accounts, their monthly targets, and which Notion ventures feed
- * them.
+ * Everything that decides whose Notion content is whose: content accounts,
+ * their per-type monthly targets, which ventures feed them, and which
+ * portal client each Notion shoot belongs to.
  *
- * Admin-only, beside the other Setup screens: this decides whose numbers
- * are whose on the Content Dashboard, and a wrong mapping there is a client
- * being told they got work they did not.
+ * Admin-only, beside the other Setup screens. A wrong mapping here is a
+ * client being told they got work they did not.
  *
  * The mapping is deliberately manual. Fuzzy name matching was tried on this
  * exact data and produced confident errors -- "thinkwithpriya" landing on
  * Riya because "p(riya)" contains it, "SVA Golds and Diamonds" landing on
- * SVA Silks on the shared "SVA" token -- see the
- * content_account_ventures migration.
+ * SVA Silks on the shared token -- see the content_account_ventures
+ * migration.
  */
 class ContentAccountController extends Controller
 {
@@ -41,12 +43,21 @@ class ContentAccountController extends Controller
                 ->selectRaw('venture, count(*) as items')
                 ->whereNotNull('venture')->where('venture', '!=', '')
                 ->groupBy('venture')->pluck('items', 'venture'),
+            'targetable' => ContentAccount::TARGETABLE,
+            // Distinct Notion shoot client spellings, with how many shoots
+            // each covers and whichever portal client it is mapped to.
+            'shootClients' => NotionShoot::query()
+                ->selectRaw('client, client_id, count(*) as shoots')
+                ->whereNotNull('client')->where('client', '!=', '')
+                ->groupBy('client', 'client_id')
+                ->orderByDesc('shoots')
+                ->get(),
         ]);
     }
 
     /**
-     * Save the whole screen at once: account names, targets, and every
-     * venture assignment.
+     * Save the whole screen at once: account names, per-type targets, every
+     * venture assignment, and the shoot-client mapping.
      *
      * One form rather than a save button per row -- the common task is
      * "sort out the mapping", which touches many rows at once, and a screen
@@ -58,31 +69,46 @@ class ContentAccountController extends Controller
         $validated = $request->validate([
             'names' => ['array'],
             'names.*' => ['required', 'string', 'max:255'],
+
             'targets' => ['array'],
-            'targets.*' => ['nullable', 'integer', 'min:0', 'max:9999'],
+            'targets.*' => ['array'],
+            'targets.*.*' => ['nullable', 'integer', 'min:0', 'max:9999'],
 
             /*
              * An indexed list carrying the venture as a VALUE, never as a
              * form key. PHP rewrites dots and spaces in request keys to
-             * underscores, so "Annamalai.mov" and "Surya’s Restaurant"
+             * underscores, so "Annamalai.mov" and "Surya's Restaurant"
              * would arrive as different strings than they are stored -- and
              * would then never match a row.
              */
             'map' => ['array'],
             'map.*.venture' => ['required', 'string'],
             'map.*.account_id' => ['nullable', 'integer', 'exists:content_accounts,id'],
+
+            // Same shape, same reason, for Notion's free-text shoot clients.
+            'shootMap' => ['array'],
+            'shootMap.*.client' => ['required', 'string'],
+            'shootMap.*.client_id' => ['nullable', 'integer', 'exists:clients,id'],
         ]);
 
         DB::transaction(function () use ($validated) {
             foreach ($validated['names'] ?? [] as $id => $name) {
                 $account = ContentAccount::find($id);
-                $account?->update([
-                    'name' => $name,
-                    // Blank clears the target here, unlike a secret field:
-                    // "no target" is a real, meaningful state on this screen
-                    // and has to be reachable.
-                    'monthly_target' => $validated['targets'][$id] ?? null,
-                ]);
+
+                if (! $account) {
+                    continue;
+                }
+
+                $targets = [];
+
+                foreach (array_keys(ContentAccount::TARGETABLE) as $source) {
+                    // Blank clears the target, unlike a secret field: "no
+                    // target" is a real, meaningful state here and has to
+                    // be reachable.
+                    $targets['target_'.$source] = $validated['targets'][$id][$source] ?? null;
+                }
+
+                $account->update(['name' => $name] + $targets);
             }
 
             foreach ($validated['map'] ?? [] as $row) {
@@ -103,6 +129,11 @@ class ContentAccountController extends Controller
                     ['content_account_id' => $accountId],
                 );
             }
+
+            foreach ($validated['shootMap'] ?? [] as $row) {
+                NotionShoot::where('client', $row['client'])
+                    ->update(['client_id' => $row['client_id'] ?? null]);
+            }
         });
 
         return redirect()->route('content-accounts.edit')->with('status', 'Content accounts saved.');
@@ -113,7 +144,9 @@ class ContentAccountController extends Controller
         $validated = $request->validate([
             'client_id' => ['required', 'exists:clients,id'],
             'name' => ['required', 'string', 'max:255'],
-            'monthly_target' => ['nullable', 'integer', 'min:0', 'max:9999'],
+            'target_reel' => ['nullable', 'integer', 'min:0', 'max:9999'],
+            'target_post' => ['nullable', 'integer', 'min:0', 'max:9999'],
+            'target_youtube' => ['nullable', 'integer', 'min:0', 'max:9999'],
         ]);
 
         ContentAccount::create($validated);
@@ -134,5 +167,19 @@ class ContentAccountController extends Controller
 
         return redirect()->route('content-accounts.edit')
             ->with('status', "Deleted {$name}. Its ventures are now unmapped.");
+    }
+
+    /**
+     * Fill in the shoot-client mappings that match a portal client exactly,
+     * so a person only has to decide the genuinely ambiguous ones.
+     */
+    public function autoMapShoots(NotionShootImporter $importer): RedirectResponse
+    {
+        $mapped = $importer->autoMapClients();
+
+        return redirect()->route('content-accounts.edit')
+            ->with('status', $mapped > 0
+                ? "Matched {$mapped} shoot(s) to a client by exact name. Check the rest by hand."
+                : 'No further shoots could be matched by exact name.');
     }
 }

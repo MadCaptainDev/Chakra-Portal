@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ContentAccount;
 use App\Services\Notion\NotionSyncRunner;
 use App\Support\ContentDashboard;
 use Illuminate\Http\RedirectResponse;
@@ -10,10 +11,11 @@ use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 
 /**
- * What each client's accounts published in a month, against their target.
+ * What each client account published in a month, per content type, against
+ * target -- and what it actually did on Instagram.
  *
- * Reads the local Notion cache -- see NotionSyncRunner for why Notion is
- * not read live, and for the staleness refresh this triggers on the way in.
+ * Reads the local Notion cache; see NotionSyncRunner for why Notion is not
+ * read live and for the staleness refresh this triggers on the way in.
  */
 class ContentDashboardController extends Controller
 {
@@ -21,8 +23,7 @@ class ContentDashboardController extends Controller
     {
         // A view of stale numbers refreshes them; a view of fresh ones costs
         // nothing. Deliberately before the data is read, so the page renders
-        // what the refresh just wrote rather than being a month behind its
-        // own sync.
+        // what the refresh just wrote rather than being a sync behind.
         NotionSyncRunner::ensureFresh();
 
         $month = $this->resolveMonth($request);
@@ -30,7 +31,28 @@ class ContentDashboardController extends Controller
         return view('content-dashboard.index', ContentDashboard::forMonth($month) + [
             'months' => ContentDashboard::availableMonths(),
             'lastSynced' => NotionSyncRunner::lastSyncedAt(),
-            'sources' => ContentDashboard::SOURCES,
+            'targeted' => ContentDashboard::TARGETED,
+        ]);
+    }
+
+    /**
+     * One account's month, item by item, with the real Instagram post each
+     * planned item turned into.
+     *
+     * The dashboard answers "did we hit the number"; this answers "which
+     * pieces, and did they work" -- the question anybody asks the moment a
+     * row looks wrong.
+     */
+    public function show(Request $request, ContentAccount $contentAccount): View
+    {
+        $month = $this->resolveMonth($request);
+
+        return view('content-dashboard.show', [
+            'account' => $contentAccount->load(['client', 'ventures']),
+            'month' => $month,
+            'months' => ContentDashboard::availableMonths(),
+            'items' => ContentDashboard::itemsFor($contentAccount, $month),
+            'targeted' => ContentDashboard::TARGETED,
         ]);
     }
 

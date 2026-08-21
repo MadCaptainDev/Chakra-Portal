@@ -3,11 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\Enquiry;
+use App\Models\NotionShoot;
+use App\Models\Shoot;
 use App\Models\Expense;
 use App\Models\ExpensePayment;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Services\ExpenseLedger;
+use App\Services\Notion\NotionSyncRunner;
+use App\Support\ContentDashboard;
 use App\Support\ContributionGraph;
 use App\Support\TeamPulse;
 use Illuminate\Support\Carbon;
@@ -181,7 +185,52 @@ class DashboardController extends Controller
             'teamMinutes' => (int) $teamHours->sum('minutes'),
             'pendingReviews' => $pendingReviews,
             'workGraph' => ContributionGraph::forTeam(),
+
+            // —— Delivery ——
+            'content' => $this->contentPulse($month),
         ]);
+    }
+
+    /**
+     * Delivery, not money: how the month's content is tracking against
+     * target, what is waiting to be shot, and what mapping is unfinished.
+     *
+     * The dashboard was entirely invoices, payroll and hours. A studio that
+     * misses its content commitments still looks healthy on that page right
+     * up to the moment a client asks why, so the thing the studio actually
+     * sells now has a read here too.
+     *
+     * @return array<string, mixed>
+     */
+    private function contentPulse(Carbon $month): array
+    {
+        $board = ContentDashboard::forMonth($month);
+
+        $upcoming = Shoot::query()
+            ->with(['client', 'notionShoot'])
+            ->whereDate('starts_at', '>=', today())
+            ->where('status', '!=', Shoot::STATUS_CANCELLED)
+            ->orderBy('starts_at')
+            ->limit(5)
+            ->get();
+
+        return [
+            'types' => $board['typeTotals'],
+            'total' => $board['grandTotal'],
+            'target' => $board['grandTarget'],
+            'previous' => $board['grandPrevious'],
+            'behind' => collect($board['clients'])
+                ->flatMap(fn (array $group) => $group['rows'])
+                ->filter(fn (array $row) => $row['target'] !== null && $row['total'] < $row['target'])
+                ->sortBy('pct')
+                ->take(5)
+                ->values(),
+            'unmappedVentures' => $board['unmapped']->count(),
+            'unmappedThisMonth' => $board['unmappedThisMonth'],
+            'upcomingShoots' => $upcoming,
+            'shootsToImport' => NotionShoot::whereDoesntHave('shoot')->whereNotNull('shoot_date')->count(),
+            'lastSynced' => NotionSyncRunner::lastSyncedAt(),
+        ];
     }
 
     /**

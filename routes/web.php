@@ -28,6 +28,7 @@ use App\Http\Controllers\InstagramInsightsController;
 use App\Http\Controllers\MonthlyReportController;
 use App\Http\Controllers\InstagramSettingController;
 use App\Http\Controllers\NotionSettingController;
+use App\Http\Controllers\NotionShootController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoiceTemplateController;
 use App\Http\Controllers\LandingController;
@@ -323,6 +324,17 @@ Route::middleware(['auth', 'client'])->prefix('client')->name('client.')->group(
  */
 Route::middleware(['auth', 'module:shoots,view'])->scopeBindings()->group(function () {
     Route::get('shoots', [ShootController::class, 'index'])->name('shoots.index');
+
+    /*
+     * Notion's own shoot planner, and the one-way bridge into the portal's
+     * Shoots module above. Read + import only: the Notion token cannot
+     * write, so nothing here pushes back.
+     */
+    Route::get('notion-shoots', [NotionShootController::class, 'index'])->name('notion-shoots.index');
+    Route::post('notion-shoots/import', [NotionShootController::class, 'importAll'])
+        ->middleware('module:shoots,create')->name('notion-shoots.import-all');
+    Route::post('notion-shoots/{notionShoot}/import', [NotionShootController::class, 'import'])
+        ->middleware('module:shoots,create')->name('notion-shoots.import');
 
     // Before {shoot}, or "create" binds as a shoot id.
     Route::get('shoots/create', [ShootController::class, 'create'])
@@ -734,6 +746,7 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
     Route::put('content-accounts', [ContentAccountController::class, 'update'])->name('content-accounts.update');
     Route::post('content-accounts', [ContentAccountController::class, 'store'])->name('content-accounts.store');
     Route::delete('content-accounts/{contentAccount}', [ContentAccountController::class, 'destroy'])->name('content-accounts.destroy');
+    Route::post('content-accounts/auto-map-shoots', [ContentAccountController::class, 'autoMapShoots'])->name('content-accounts.auto-map-shoots');
 
     Route::get('brief-questions', [BriefQuestionController::class, 'index'])->name('brief-questions.index');
     Route::post('brief-questions', [BriefQuestionController::class, 'store'])->name('brief-questions.store');
@@ -762,6 +775,7 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
      */
     Route::get('content-dashboard', [ContentDashboardController::class, 'index'])->name('content-dashboard.index');
     Route::post('content-dashboard/refresh', [ContentDashboardController::class, 'refresh'])->name('content-dashboard.refresh');
+    Route::get('content-dashboard/{contentAccount}', [ContentDashboardController::class, 'show'])->name('content-dashboard.show');
 
     Route::resource('users', UserController::class)->except(['show']);
     Route::put('users/{user}/password', [UserController::class, 'updatePassword'])->name('users.password');

@@ -5,33 +5,35 @@ namespace App\Support;
 use App\Models\ContentAccount;
 use App\Models\ContentAccountVenture;
 use App\Models\ContentItem;
+use App\Models\SocialInsight;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * What each content account actually published in a month, against what it
- * was supposed to.
+ * What each content account published in a month, per content type,
+ * against what it committed to -- plus how the published work actually
+ * performed on Instagram where that can be known.
  *
  * Counts only items Notion says are Published AND that carry a
- * published_date -- an item marked Published with no date cannot be
- * attributed to a month at all, and guessing (falling back to created or
- * synced time) would quietly credit it to the wrong one. On the real data
- * every Published row has a date, so this excludes nothing today; it is
- * here so that a future dateless row is visibly absent rather than
- * invisibly misfiled.
+ * published_date: an item marked Published with no date cannot be
+ * attributed to a month, and falling back to created or synced time would
+ * quietly credit it to the wrong one.
  *
  * Attribution is by explicit venture mapping only (content_account_ventures)
  * -- see that migration for why fuzzy matching is not trusted here.
+ *
+ * Only accounts carrying at least one target appear. An account with no
+ * target has nothing to be compared against, so a row for it would be
+ * numbers with no verdict; those live on the Content Accounts screen
+ * instead.
  */
 class ContentDashboard
 {
-    /** Sources counted, in the order the dashboard shows them. */
-    public const SOURCES = [
-        ContentItem::SOURCE_REEL => 'Reels',
-        ContentItem::SOURCE_YOUTUBE => 'YouTube',
-        ContentItem::SOURCE_POST => 'Posts',
-        ContentItem::SOURCE_STORY => 'Stories',
-    ];
+    /** Types that carry a target, in the order the dashboard shows them. */
+    public const TARGETED = ContentAccount::TARGETABLE;
+
+    /** Counted and shown, but never targeted -- nobody plans stories monthly. */
+    public const UNTARGETED = [ContentItem::SOURCE_STORY => 'Stories'];
 
     /**
      * @return array{0: Carbon, 1: Carbon}
@@ -50,25 +52,46 @@ class ContentDashboard
     {
         $current = self::countsByAccount($month);
         $previous = self::countsByAccount($month->copy()->subMonthNoOverflow());
+        $performance = self::performanceByAccount($month);
 
-        $accounts = ContentAccount::with(['client', 'ventures'])->get()
+        $accounts = ContentAccount::with(['client', 'ventures'])->targeted()->get()
             ->sortBy(fn (ContentAccount $a) => [$a->client?->name ?? '', $a->name])
             ->values();
 
-        $rows = $accounts->map(function (ContentAccount $account) use ($current, $previous) {
+        $rows = $accounts->map(function (ContentAccount $account) use ($current, $previous, $performance) {
             $counts = $current[$account->id] ?? [];
-            $total = array_sum($counts);
+
+            $types = collect(self::TARGETED)->map(function (string $label, string $source) use ($account, $counts) {
+                $actual = $counts[$source] ?? 0;
+                $target = $account->targetFor($source);
+
+                return [
+                    'label' => $label,
+                    'actual' => $actual,
+                    'target' => $target,
+                    'variance' => $target === null ? null : $actual - $target,
+                    'pct' => $target ? (int) round($actual / $target * 100) : null,
+                ];
+            })->all();
+
+            // Total is the targeted types only, so it is comparable with
+            // totalTarget. Stories are real output but nothing promised
+            // them, and folding them in would let a good story month hide
+            // a missed reel target.
+            $total = collect($types)->sum('actual');
+            $target = $account->totalTarget();
 
             return [
                 'account' => $account,
-                'counts' => $counts,
+                'types' => $types,
+                'stories' => $counts[ContentItem::SOURCE_STORY] ?? 0,
                 'total' => $total,
-                'previous' => array_sum($previous[$account->id] ?? []),
-                'target' => $account->monthly_target,
-                // null target means "nobody has said what good looks like
-                // here yet" -- shown as an em dash, never as 0% of 0.
-                'variance' => $account->monthly_target === null ? null : $total - $account->monthly_target,
-                'pct' => $account->monthly_target ? (int) round($total / $account->monthly_target * 100) : null,
+                'target' => $target,
+                'variance' => $target === null ? null : $total - $target,
+                'pct' => $target ? (int) round($total / $target * 100) : null,
+                'previous' => collect(array_keys(self::TARGETED))
+                    ->sum(fn (string $s) => $previous[$account->id][$s] ?? 0),
+                'performance' => $performance[$account->id] ?? null,
             ];
         });
 
@@ -88,12 +111,15 @@ class ContentDashboard
             'grandTotal' => $rows->sum('total'),
             'grandPrevious' => $rows->sum('previous'),
             'grandTarget' => $rows->whereNotNull('target')->sum('target') ?: null,
-            'sourceTotals' => collect(self::SOURCES)
-                ->mapWithKeys(fn (string $label, string $source) => [
-                    $source => $rows->sum(fn (array $r) => $r['counts'][$source] ?? 0),
+            'typeTotals' => collect(self::TARGETED)
+                ->map(fn (string $label, string $source) => [
+                    'label' => $label,
+                    'actual' => $rows->sum(fn (array $r) => $r['types'][$source]['actual']),
+                    'target' => $rows->sum(fn (array $r) => $r['types'][$source]['target'] ?? 0) ?: null,
                 ])->all(),
             'unmapped' => ContentAccount::unmappedVentures(),
             'unmappedThisMonth' => self::unmappedCountForMonth($month),
+            'untargetedAccounts' => ContentAccount::query()->whereNotIn('id', $accounts->pluck('id'))->count(),
         ];
     }
 
@@ -101,8 +127,8 @@ class ContentDashboard
      * Published counts for one month, keyed account id => [source => count].
      *
      * One query for the whole board: grouped by venture and source, then
-     * folded onto accounts in PHP. The alternative -- a query per account --
-     * is twenty round trips to say the same thing.
+     * folded onto accounts in PHP. The alternative -- a query per account
+     * per type -- is dozens of round trips to say the same thing.
      *
      * @return array<int, array<string, int>>
      */
@@ -134,6 +160,63 @@ class ContentDashboard
         }
 
         return $counts;
+    }
+
+    /**
+     * Real Instagram performance for the month's published items, for the
+     * accounts where that is knowable.
+     *
+     * Only items matched to an actual Instagram post contribute -- see
+     * InstagramContentMatcher. Most accounts have no connected Instagram
+     * and get null, which the view shows as a dash rather than a zero: no
+     * data and no reach are different answers.
+     *
+     * @return array<int, array{items: int, reach: int, views: int, likes: int}>
+     */
+    private static function performanceByAccount(Carbon $month): array
+    {
+        [$since, $until] = self::monthRange($month);
+
+        $ventureToAccount = ContentAccountVenture::pluck('content_account_id', 'venture');
+
+        $linked = ContentItem::query()
+            ->select(['venture', 'social_media_item_id'])
+            ->whereNotNull('social_media_item_id')
+            ->where('status', 'Published')
+            ->whereNotNull('published_date')
+            ->whereBetween('published_date', [$since, $until])
+            ->get();
+
+        if ($linked->isEmpty()) {
+            return [];
+        }
+
+        $metrics = SocialInsight::query()
+            ->selectRaw('social_media_item_id, metric, SUM(value) as total')
+            ->whereIn('social_media_item_id', $linked->pluck('social_media_item_id'))
+            ->whereIn('metric', ['reach', 'views', 'likes'])
+            ->groupBy('social_media_item_id', 'metric')
+            ->get()
+            ->groupBy('social_media_item_id');
+
+        $out = [];
+
+        foreach ($linked as $item) {
+            $accountId = $ventureToAccount[$item->venture] ?? null;
+
+            if ($accountId === null) {
+                continue;
+            }
+
+            $out[$accountId] ??= ['items' => 0, 'reach' => 0, 'views' => 0, 'likes' => 0];
+            $out[$accountId]['items']++;
+
+            foreach ($metrics->get($item->social_media_item_id, collect()) as $metric) {
+                $out[$accountId][$metric->metric] += (int) $metric->total;
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -180,5 +263,26 @@ class ContentDashboard
         }
 
         return $months;
+    }
+
+    /**
+     * One account's published items for a month, with the real Instagram
+     * post each turned into where one was matched -- the drill-down behind
+     * a dashboard row.
+     *
+     * @return Collection<int, ContentItem>
+     */
+    public static function itemsFor(ContentAccount $account, Carbon $month): Collection
+    {
+        [$since, $until] = self::monthRange($month);
+
+        return ContentItem::query()
+            ->with('socialMediaItem.insights')
+            ->whereIn('venture', $account->ventureNames() ?: ['__none__'])
+            ->where('status', 'Published')
+            ->whereNotNull('published_date')
+            ->whereBetween('published_date', [$since, $until])
+            ->orderBy('published_date')
+            ->get();
     }
 }

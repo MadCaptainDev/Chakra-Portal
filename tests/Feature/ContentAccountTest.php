@@ -44,13 +44,13 @@ class ContentAccountTest extends TestCase
             ->post(route('content-accounts.store'), [
                 'client_id' => $client->id,
                 'name' => 'SVA Womenswear',
-                'monthly_target' => 12,
+                'target_reel' => 12,
             ])
             ->assertRedirect(route('content-accounts.edit'));
 
         $account = ContentAccount::sole();
         $this->assertSame('SVA Womenswear', $account->name);
-        $this->assertSame(12, $account->monthly_target);
+        $this->assertSame(12, $account->target_reel);
         $this->assertSame($client->id, $account->client_id);
     }
 
@@ -61,14 +61,15 @@ class ContentAccountTest extends TestCase
         $this->actingAs($this->admin())
             ->put(route('content-accounts.update'), [
                 'names' => [$account->id => 'SVA Silks Main'],
-                'targets' => [$account->id => 20],
+                'targets' => [$account->id => ['reel' => 20, 'post' => 4]],
                 'map' => [['venture' => 'SVA Silks', 'account_id' => $account->id]],
             ])
             ->assertRedirect(route('content-accounts.edit'));
 
         $account->refresh();
         $this->assertSame('SVA Silks Main', $account->name);
-        $this->assertSame(20, $account->monthly_target);
+        $this->assertSame(20, $account->target_reel);
+        $this->assertSame(4, $account->target_post);
         $this->assertSame(['SVA Silks'], $account->ventures()->pluck('venture')->all());
     }
 
