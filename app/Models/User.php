@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class User extends Authenticatable
@@ -218,6 +219,23 @@ class User extends Authenticatable
         return $this->hasMany(McpToken::class);
     }
 
+    /** Browsers that have agreed to receive push notifications. */
+    public function pushTokens(): HasMany
+    {
+        return $this->hasMany(PushToken::class);
+    }
+
+    /**
+     * Where FcmChannel sends a push -- every device this person has opted
+     * in on. Empty for a client rather than throwing: clients do not get
+     * push (see the pushTokens migration), and Notification::send() calling
+     * this on one is a routing bug, not a reason to 500.
+     */
+    public function routeNotificationForFcm(): Collection
+    {
+        return $this->isClient() ? collect() : $this->pushTokens;
+    }
+
     /**
      * May this user do this thing?
      *
@@ -244,6 +262,23 @@ class User extends Authenticatable
     {
         return $this->isAdmin()
             || $this->permissions->contains(fn (UserPermission $granted) => $granted->module === $module);
+    }
+
+    /**
+     * Every user who can see a module -- the query-level twin of allows(),
+     * for "who do I notify about this" rather than "can this one person see
+     * it". Staff only: a client has no module permissions and isClient()
+     * excludes them explicitly rather than relying on that alone, since a
+     * client with a stray permission row (there should never be one) must
+     * still never be resolved as a recipient here.
+     */
+    public function scopeCanSee(Builder $query, string $module): void
+    {
+        $query->where('role', '!=', self::ROLE_CLIENT)
+            ->where(function (Builder $q) use ($module) {
+                $q->where('role', self::ROLE_ADMIN)
+                    ->orWhereHas('permissions', fn (Builder $p) => $p->where('module', $module));
+            });
     }
 
     /**
