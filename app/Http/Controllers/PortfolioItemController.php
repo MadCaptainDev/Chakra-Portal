@@ -8,6 +8,7 @@ use App\Models\PortfolioItem;
 use App\Models\SocialAccount;
 use App\Models\SocialMediaItem;
 use App\Models\TaxonomyTerm;
+use App\Support\PortfolioSuggestions;
 use App\Support\PublicUpload;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -47,6 +48,11 @@ class PortfolioItemController extends Controller
         return view('portfolio.index', [
             'items' => $items,
             'categories' => PortfolioCategory::ordered()->withCount('items')->get(),
+
+            // Independent of the filters above -- this is "what's worth
+            // adding across the whole catalogue", not a view of the
+            // filtered list.
+            'suggestions' => PortfolioSuggestions::top(),
 
             // Totals describe the whole portfolio, not the filtered view --
             // otherwise filtering makes the counters lie.

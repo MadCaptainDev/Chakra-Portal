@@ -1,4 +1,6 @@
 @php
+    use App\Support\Metric;
+
     $missingVideo = $totals['noVideo'];
     $isFiltered = $filters['q'] !== '' || $filters['category'] !== '' || $filters['status'] !== '';
 @endphp
@@ -36,6 +38,48 @@
             </x-stat-card>
             <x-stat-card label="Categories" value="{{ $categories->count() }}" accent="gray" />
         </div>
+
+        {{-- Worth adding: synced Instagram posts/reels already outperforming
+             the portfolio's own average that nobody has added yet. See
+             App\Support\PortfolioSuggestions -- the bar is the portfolio's
+             own average views/reach, not a fixed number. Independent of the
+             filters below; this reads the whole catalogue every time. --}}
+        @if ($suggestions->isNotEmpty())
+            <x-card padding="md">
+                <div class="flex items-center gap-2 mb-1">
+                    <x-icon name="sparkles" class="w-4 h-4 text-brand-500" />
+                    <h2 class="text-sm font-semibold text-gray-900">Worth adding</h2>
+                </div>
+                <p class="text-xs text-gray-500 mb-3">
+                    Synced from Instagram, already outperforming this portfolio's own average, and not added yet.
+                </p>
+
+                <div class="flex gap-3 overflow-x-auto pb-1">
+                    @foreach ($suggestions as $suggestion)
+                        @php $media = $suggestion['media']; @endphp
+                        <a href="{{ route('portfolio.create', ['client_id' => $suggestion['clientId'], 'media_id' => $media->id]) }}"
+                           class="shrink-0 w-40 text-left rounded-lg border border-gray-200 hover:border-brand-300 hover:bg-brand-50/50 overflow-hidden transition-colors">
+                            <div class="{{ $media->isReel() ? 'aspect-[9/16]' : 'aspect-video' }} bg-gray-100 relative">
+                                @if ($media->thumbnail_url ?: $media->media_url)
+                                    <img src="{{ $media->thumbnail_url ?: $media->media_url }}" alt="" loading="lazy"
+                                         class="w-full h-full object-cover">
+                                @endif
+                                <span class="absolute left-1.5 bottom-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60 text-[10px] font-semibold text-white">
+                                    <x-icon name="eye" class="w-3 h-3" />
+                                    {{ Metric::count($suggestion['value']) }}
+                                </span>
+                            </div>
+                            <div class="p-2">
+                                <p class="text-[11px] font-semibold text-gray-900 truncate">{{ $media->shortCaption(40) }}</p>
+                                <p class="mt-0.5 text-[10px] text-gray-500 truncate">
+                                    {{ $suggestion['clientName'] ?? 'Unlinked client' }} &middot; {{ $media->typeLabel() }}
+                                </p>
+                            </div>
+                        </a>
+                    @endforeach
+                </div>
+            </x-card>
+        @endif
 
         {{-- Find one piece without scrolling the lot. Plain GET, so a filtered
              view is a URL staff can bookmark or send to each other. --}}

@@ -2,8 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\Client;
 use App\Models\PortfolioCategory;
 use App\Models\PortfolioItem;
+use App\Models\SocialAccount;
+use App\Models\SocialInsight;
+use App\Models\SocialMediaItem;
 use App\Models\TaxonomyTerm;
 use App\Models\User;
 use App\Support\PublicUpload;
@@ -323,5 +327,78 @@ class PortfolioTest extends TestCase
 
         $this->assertSame($format->id, $item->fresh()->format_id);
         $this->assertSame($platform->id, $item->fresh()->platform_id);
+    }
+
+    private function connectedInstagramAccount(): SocialAccount
+    {
+        $client = Client::create(['name' => 'Chakra Production']);
+
+        $account = SocialAccount::create([
+            'client_id' => $client->id,
+            'platform' => SocialAccount::PLATFORM_INSTAGRAM,
+            'platform_user_id' => '17841470000000099',
+            'username' => 'client_'.$client->id,
+            'status' => SocialAccount::STATUS_CONNECTED,
+        ]);
+        $account->forceFill(['access_token' => 'IGQV-token', 'connected_at' => now()])->save();
+
+        return $account->fresh();
+    }
+
+    /** A cached post with a views insight already synced, not yet mapped to any portfolio piece. */
+    private function unlinkedMedia(SocialAccount $account, int $views): SocialMediaItem
+    {
+        $media = SocialMediaItem::create([
+            'social_account_id' => $account->id,
+            'platform_media_id' => (string) $account->id.'-1',
+            'media_type' => SocialMediaItem::TYPE_VIDEO,
+            'media_product_type' => SocialMediaItem::PRODUCT_REELS,
+            'caption' => 'A caption worth reading',
+            'permalink' => 'https://www.instagram.com/p/1/',
+            'posted_at' => now()->subDays(3),
+            'cached_at' => now(),
+        ]);
+
+        SocialInsight::record([
+            'social_account_id' => $account->id,
+            'social_media_item_id' => $media->id,
+            'metric' => 'views',
+            'metric_type' => SocialInsight::TYPE_TOTAL_VALUE,
+            'value' => $views,
+            'period' => 'lifetime',
+            'period_start' => now()->toDateString(),
+        ]);
+
+        return $media->fresh();
+    }
+
+    public function test_the_admin_screen_shows_a_worth_adding_strip_for_a_high_performer(): void
+    {
+        $account = $this->connectedInstagramAccount();
+        $media = $this->unlinkedMedia($account, 50000);
+
+        $response = $this->actingAs($this->admin())->get(route('portfolio.index'));
+
+        $response->assertOk();
+        $response->assertSee('Worth adding');
+
+        // Blade escapes the & in the query string to &amp; in the rendered
+        // href, same as route()'s own output never will be.
+        $expectedHref = str_replace('&', '&amp;', route('portfolio.create', [
+            'client_id' => $account->client_id,
+            'media_id' => $media->id,
+        ]));
+        $response->assertSee($expectedHref, false);
+    }
+
+    public function test_the_admin_screen_shows_no_strip_when_nothing_clears_the_bar(): void
+    {
+        $account = $this->connectedInstagramAccount();
+        $this->unlinkedMedia($account, 500);
+
+        $response = $this->actingAs($this->admin())->get(route('portfolio.index'));
+
+        $response->assertOk();
+        $response->assertDontSee('Worth adding');
     }
 }
