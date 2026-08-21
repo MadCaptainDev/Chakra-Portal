@@ -302,6 +302,11 @@
             <p x-show="uploading" x-cloak class="text-xs text-gray-500">Large videos can take a few minutes. Keep this tab open.</p>
         </div>
     </div>
+
+    {{-- Genuinely can run minutes on a large video, so this is the one spot
+         in the form worth a full attention-holding state rather than just
+         the disabled button above. --}}
+    <x-loader overlay label="Uploading" x-show="uploading" x-cloak />
 </form>
 
 @push('scripts')

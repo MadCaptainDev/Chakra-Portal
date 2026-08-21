@@ -81,6 +81,18 @@
 .animate-settle { animation: settleIn .38s cubic-bezier(.2, .8, .2, 1) both; }
 .animate-pop { animation: popIn .3s cubic-bezier(.2, .8, .2, 1) both; }
 
+/* <x-loader> -- the "film strip" loading state (design/Loading animation
+   options, variant 1B). Frames slide left inside a dark reel, a bar climbs
+   underneath, and a rec dot blinks next to the label -- the same shape as a
+   render progressing, which is what most of this app's genuine waits are. */
+@keyframes filmSlide { to { transform: translateX(-25%); } }
+@keyframes barGrow { 0% { width: 6%; } 70% { width: 88%; } 100% { width: 96%; } }
+@keyframes recBlink { 0%, 45% { opacity: 1; } 55%, 100% { opacity: .15; } }
+
+.animate-film-slide { animation: filmSlide 1.6s linear infinite; }
+.animate-bar-grow { animation: barGrow 2.6s cubic-bezier(.2, .7, .2, 1) infinite; }
+.animate-rec-blink { animation: recBlink 1.1s steps(1, end) infinite; }
+
 /* Staggering by an inline --i rather than nth-child, so a list of any length
    works and the delay stops climbing after the first screenful -- a row 40
    deep should not wait two seconds to exist. */
@@ -95,6 +107,9 @@
     .animate-halo,
     .animate-settle,
     .animate-pop,
+    .animate-film-slide,
+    .animate-bar-grow,
+    .animate-rec-blink,
     .stagger > * {
         animation: none;
     }
