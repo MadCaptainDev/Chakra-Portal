@@ -224,6 +224,21 @@ class PortfolioItem extends Model
         return $this->termLabel('format_id');
     }
 
+    /**
+     * Shot vertical (a Reel) rather than the usual landscape frame.
+     *
+     * There is no width/height captured on upload, so this reads it off the
+     * format taxonomy term instead -- see TaxonomyTerm::TYPE_FORMAT's own
+     * hint, which spells out that a format containing "9:16" is what
+     * switches a piece's cover to a vertical frame. One place for that
+     * string match: every thumbnail (admin list, public grid, case study
+     * cover, related items) calls this rather than repeating it.
+     */
+    public function isVertical(): bool
+    {
+        return str_contains((string) $this->formatLabel(), '9:16');
+    }
+
     public function objectiveLabel(): ?string
     {
         return $this->termLabel('objective_id');

@@ -1,4 +1,6 @@
 @php
+    use App\Support\Metric;
+
     /*
     | The tabbed video grid, shared by the landing page's Portfolio section and
     | the full /portfolio screen.
@@ -8,9 +10,14 @@
     | Filtering is client-side on purpose -- tapping a tab must not reload the
     | page and lose the visitor's place, and the number of pieces a studio
     | publishes stays well inside what one page can hold.
+    |
+    | Cards are small on purpose: the catalogue is now almost entirely 9:16
+    | Reels (see PortfolioItem::isVertical()), and a tile sized for a
+    | landscape still leaves a vertical one swimming in empty space. More,
+    | smaller columns read the way a Reels grid actually reads.
     */
     $activeCategory = $activeCategory ?? 'all';
-    $columns = $columns ?? 'sm:grid-cols-2 lg:grid-cols-3';
+    $columns = $columns ?? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5';
 
     // Only offer a tab that has something behind it.
     $usedCategoryIds = $items->pluck('portfolio_category_id')->filter()->unique();
@@ -27,7 +34,7 @@
 
 <div x-data="portfolioGrid(@js($tabs->contains('slug', $activeCategory) ? $activeCategory : 'all'), @js($counts))">
     @if ($tabs->isNotEmpty())
-        <div class="-mx-5 sm:mx-0 px-5 sm:px-0 overflow-x-auto">
+        <div class="-mx-3 sm:mx-0 px-3 sm:px-0 overflow-x-auto">
             <div class="flex gap-2 min-w-max sm:min-w-0 sm:flex-wrap" role="tablist" aria-label="Portfolio categories">
                 <button type="button" role="tab" @click="active = 'all'"
                         :aria-selected="active === 'all' ? 'true' : 'false'"
@@ -63,7 +70,7 @@
         </div>
     @endif
 
-    <div class="grid grid-cols-1 {{ $columns }} gap-4 sm:gap-5 mt-8">
+    <div class="grid {{ $columns }} gap-3 sm:gap-4 mt-8">
         @foreach ($items as $item)
             @php $slug = $item->category?->slug ?? 'other'; @endphp
 
@@ -76,9 +83,11 @@
                         data-title="{{ $item->title }}"
                         @unless ($item->playbackUrl()) disabled @endunless
                         class="block w-full text-left">
-                    <div class="relative aspect-video bg-brand-900/60 overflow-hidden">
+                    <div class="relative {{ $item->isVertical() ? 'aspect-[9/16]' : 'aspect-video' }} bg-brand-900/60 overflow-hidden">
                         {{-- No thumbnail falls back to the uploaded file's first
-                             frame, so a card is never a blank rectangle. --}}
+                             frame, so a card is never a blank rectangle. Ratio
+                             follows the piece's own format -- a Reel stays
+                             vertical rather than being cropped into 16:9. --}}
                         @if ($item->thumbnailUrl())
                             <img src="{{ $item->thumbnailUrl() }}" alt="{{ $item->title }}" loading="lazy"
                                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
@@ -97,35 +106,54 @@
                                 </span>
                             </span>
                         @endif
+
+                        {{-- Insight, on the thumbnail itself -- same corner
+                             Instagram's own Reels grid puts a view count in.
+                             Front-of-card is the thumbnail at this size, so
+                             this is "in front" without costing any of the
+                             card's (now small) caption space. --}}
+                        @php
+                            $headline = $item->views ?? $item->reach;
+                            $headlineLabel = $item->views !== null ? 'views' : 'reach';
+                        @endphp
+                        @if ($headline !== null)
+                            <span class="absolute left-2 bottom-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/55 backdrop-blur-sm text-[11px] font-semibold text-white">
+                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.46 12C3.73 7.94 7.52 5 12 5c4.48 0 8.27 2.94 9.54 7-1.27 4.06-5.06 7-9.54 7-4.48 0-8.27-2.94-9.54-7z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                {{ Metric::count($headline) }}
+                                <span class="sr-only">{{ $headlineLabel }}</span>
+                            </span>
+                        @endif
                     </div>
 
                 </button>
 
                 {{-- The caption sits outside the play button so a piece with a
                      case study behind it can link there without nesting a link
-                     inside a button. --}}
+                     inside a button. Kept to title + client -- the description
+                     stays on the case-study page, not repeated on every tile
+                     in what is now a dense, small-card grid. --}}
                 @php $detail = $item->hasCaseStudy() ? route('portfolio.detail', $item) : null; @endphp
 
                 @if ($detail)
-                    <a href="{{ $detail }}" class="block p-5">
+                    <a href="{{ $detail }}" class="block p-3">
                 @else
-                    <div class="p-5">
+                    <div class="p-3">
                 @endif
                     @if ($item->category)
-                        <p class="text-[11px] font-semibold uppercase tracking-widest text-brand-300 mb-1">{{ $item->category->name }}</p>
+                        <p class="text-[10px] font-semibold uppercase tracking-widest text-brand-300 mb-0.5 truncate">{{ $item->category->name }}</p>
                     @endif
-                    <p class="font-semibold">{{ $item->title }}</p>
+                    <p class="text-sm font-semibold leading-snug line-clamp-2">{{ $item->title }}</p>
                     @if ($item->clientLabel())
-                        <p class="text-sm text-brand-100/70 mt-0.5">{{ $item->clientLabel() }}</p>
-                    @endif
-                    @if ($item->description)
-                        <p class="text-sm text-brand-100/60 mt-2 leading-relaxed">{{ $item->description }}</p>
+                        <p class="text-xs text-brand-100/70 mt-0.5 truncate">{{ $item->clientLabel() }}</p>
                     @endif
 
                     @if ($detail)
-                        <span class="mt-3 inline-flex items-center gap-1.5 min-h-[44px] text-xs font-semibold uppercase tracking-widest text-brand-300 group-hover:text-brand-200">
-                            Read the case study
-                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                        <span class="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-widest text-brand-300 group-hover:text-brand-200">
+                            Case study
+                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                             </svg>
                         </span>

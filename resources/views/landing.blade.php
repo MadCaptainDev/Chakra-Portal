@@ -106,7 +106,9 @@
          panel, so an empty grid can never reach a visitor. --}}
     @if ($portfolioItems->isNotEmpty())
         <section id="work" class="scroll-mt-20">
-            <div class="max-w-7xl mx-auto px-5 sm:px-8 py-20 sm:py-24">
+            {{-- Tighter side gap than the rest of the landing page's sections
+                 -- a grid of small tiles reads better closer to the edges. --}}
+            <div class="max-w-7xl mx-auto px-3 sm:px-5 py-20 sm:py-24">
                 <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
                     <div>
                         <p class="text-brand-300 text-xs font-semibold uppercase tracking-[0.25em] mb-3">Selected work</p>

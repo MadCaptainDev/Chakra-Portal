@@ -241,11 +241,14 @@
         {{-- Thumbnail --}}
         <div class="rounded-lg border border-gray-200 p-4">
             <h4 class="font-semibold text-gray-900 text-sm">Thumbnail</h4>
-            <p class="text-xs text-gray-500 mt-0.5">The still shown in the grid. Landscape 16:9 looks best.</p>
+            <p class="text-xs text-gray-500 mt-0.5">
+                The still shown in the grid.
+                {{ $item->isVertical() ? 'This piece is 9:16 -- upload a vertical still to match.' : 'Landscape 16:9 looks best.' }}
+            </p>
 
             <div class="mt-3 flex flex-col sm:flex-row sm:items-start gap-4">
                 <div class="w-full sm:w-56 shrink-0">
-                    <div class="aspect-video rounded-md bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center">
+                    <div class="{{ $item->isVertical() ? 'aspect-[9/16]' : 'aspect-video' }} rounded-md bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center">
                         <template x-if="thumbPreview">
                             <img :src="thumbPreview" alt="" class="w-full h-full object-cover">
                         </template>

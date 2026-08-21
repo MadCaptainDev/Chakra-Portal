@@ -119,7 +119,18 @@ class PortfolioItemController extends Controller
 
     public function create(Request $request): View
     {
-        $item = new PortfolioItem(['is_visible' => true]);
+        // Everything the studio publishes now is a 9:16 Reel by default --
+        // staff can still change it per piece, but the common case should
+        // not need touching the pickers at all. Missing terms (an unseeded
+        // install) just leave the field on "Not set", same as before.
+        $defaultFormat = TaxonomyTerm::where('type', TaxonomyTerm::TYPE_FORMAT)->where('name', '9:16 vertical')->value('id');
+        $defaultPlatform = TaxonomyTerm::where('type', TaxonomyTerm::TYPE_PLATFORM)->where('name', 'Instagram Reels')->value('id');
+
+        $item = new PortfolioItem([
+            'is_visible' => true,
+            'format_id' => $defaultFormat,
+            'platform_id' => $defaultPlatform,
+        ]);
         $preselectClientId = $request->integer('client_id') ?: null;
         $preselectMedia = null;
 

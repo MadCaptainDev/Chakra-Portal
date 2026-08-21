@@ -107,7 +107,8 @@
     $funnelWidth = fn ($value) => $funnelMax > 0 ? max(28, round(sqrt($value / $funnelMax) * 100)) : 0;
 
     // A Reel is shot vertical; anything else reads better in the usual frame.
-    $vertical = str_contains((string) $format, '9:16');
+    // See PortfolioItem::isVertical() for where this reads from.
+    $vertical = $item->isVertical();
     $coverRatio = $vertical ? 'aspect-[9/16]' : 'aspect-video';
 
     $playback = $item->playbackUrl();
@@ -747,7 +748,7 @@
                     @foreach ($related as $other)
                         <a href="{{ route('portfolio.detail', $other) }}"
                            class="group rounded-xl overflow-hidden bg-white/5 border border-white/10 hover:border-brand-400/40 transition-colors">
-                            <div class="relative aspect-video bg-brand-900/60 overflow-hidden">
+                            <div class="relative {{ $other->isVertical() ? 'aspect-[9/16]' : 'aspect-video' }} bg-brand-900/60 overflow-hidden">
                                 @if ($other->thumbnailUrl())
                                     <img src="{{ $other->thumbnailUrl() }}" alt="{{ $other->title }}" loading="lazy"
                                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">

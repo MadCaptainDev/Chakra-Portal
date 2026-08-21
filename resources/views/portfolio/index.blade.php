@@ -105,7 +105,7 @@
                 @foreach ($items as $item)
                     <x-card class="p-3">
                         <div class="flex gap-3">
-                            <div class="w-28 shrink-0 aspect-video rounded-md bg-gray-100 overflow-hidden flex items-center justify-center">
+                            <div class="w-28 shrink-0 {{ $item->isVertical() ? 'aspect-[9/16]' : 'aspect-video' }} rounded-md bg-gray-100 overflow-hidden flex items-center justify-center">
                                 @if ($item->thumbnailUrl())
                                     <img src="{{ $item->thumbnailUrl() }}" alt="" class="w-full h-full object-cover">
                                 @else
@@ -166,7 +166,7 @@
                             <tr class="hover:bg-gray-50">
                                 <td class="px-4 py-3">
                                     <div class="flex items-center gap-3">
-                                        <div class="w-24 shrink-0 aspect-video rounded bg-gray-100 overflow-hidden flex items-center justify-center">
+                                        <div class="w-24 shrink-0 {{ $item->isVertical() ? 'aspect-[9/16]' : 'aspect-video' }} rounded bg-gray-100 overflow-hidden flex items-center justify-center">
                                             @if ($item->thumbnailUrl())
                                                 <img src="{{ $item->thumbnailUrl() }}" alt="" class="w-full h-full object-cover">
                                             @else

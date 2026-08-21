@@ -15,7 +15,9 @@
     </section>
 
     <section class="scroll-mt-20">
-        <div class="max-w-7xl mx-auto px-5 sm:px-8 py-12 sm:py-16">
+        {{-- Tighter side gap than the rest of the site's sections -- a grid
+             of small tiles reads better closer to the edges. --}}
+        <div class="max-w-7xl mx-auto px-3 sm:px-5 py-12 sm:py-16">
             @if ($items->isEmpty())
                 <div class="text-center py-20">
                     <p class="text-xl font-semibold">Nothing published yet.</p>

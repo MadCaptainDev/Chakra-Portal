@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\PortfolioCategory;
 use App\Models\PortfolioItem;
+use App\Models\TaxonomyTerm;
 use App\Models\User;
 use App\Support\PublicUpload;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -258,5 +259,69 @@ class PortfolioTest extends TestCase
         PublicUpload::delete('uploads/../images/chakra-logo.png');
 
         $this->assertTrue(File::exists(public_path('images/chakra-logo.png')));
+    }
+
+    private function term(string $type, string $name): TaxonomyTerm
+    {
+        return TaxonomyTerm::create([
+            'type' => $type,
+            'name' => $name,
+            'slug' => TaxonomyTerm::uniqueSlug($type, $name),
+            'sort_order' => 0,
+            'is_active' => true,
+        ]);
+    }
+
+    /**
+     * isVertical() drives whether a thumbnail renders in a 9:16 or 16:9 box
+     * everywhere it appears (admin list, public grid, case study cover,
+     * related items) -- see PortfolioItem::isVertical()'s own docblock for
+     * why this reads the format term rather than stored dimensions.
+     */
+    public function test_a_reel_shaped_format_term_is_read_as_vertical(): void
+    {
+        $reel = PortfolioItem::create([
+            'title' => 'Reel piece',
+            'format_id' => $this->term(TaxonomyTerm::TYPE_FORMAT, '9:16 vertical')->id,
+        ]);
+
+        $landscape = PortfolioItem::create([
+            'title' => 'Landscape piece',
+            'format_id' => $this->term(TaxonomyTerm::TYPE_FORMAT, '16:9 landscape')->id,
+        ]);
+
+        $noFormat = PortfolioItem::create(['title' => 'No format set']);
+
+        $this->assertTrue($reel->isVertical());
+        $this->assertFalse($landscape->isVertical());
+        $this->assertFalse($noFormat->isVertical());
+    }
+
+    public function test_a_new_piece_defaults_to_9_16_vertical_and_instagram_reels(): void
+    {
+        $format = $this->term(TaxonomyTerm::TYPE_FORMAT, '9:16 vertical');
+        $platform = $this->term(TaxonomyTerm::TYPE_PLATFORM, 'Instagram Reels');
+
+        $response = $this->actingAs($this->admin())->get(route('portfolio.create'));
+
+        $response->assertOk();
+        $item = $response->viewData('item');
+
+        $this->assertSame($format->id, $item->format_id);
+        $this->assertSame($platform->id, $item->platform_id);
+    }
+
+    public function test_the_default_format_command_sets_every_existing_piece(): void
+    {
+        $format = $this->term(TaxonomyTerm::TYPE_FORMAT, '9:16 vertical');
+        $platform = $this->term(TaxonomyTerm::TYPE_PLATFORM, 'Instagram Reels');
+        $otherFormat = $this->term(TaxonomyTerm::TYPE_FORMAT, '16:9 landscape');
+
+        $item = PortfolioItem::create(['title' => 'Old landscape piece', 'format_id' => $otherFormat->id]);
+
+        $this->artisan('portfolio:set-default-format')->assertExitCode(0);
+
+        $this->assertSame($format->id, $item->fresh()->format_id);
+        $this->assertSame($platform->id, $item->fresh()->platform_id);
     }
 }
