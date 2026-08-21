@@ -30,6 +30,18 @@
             </x-card>
         @endif
 
+        {{-- Not shown to clients -- push is staff-only. Placed immediately
+             above browser-sessions on purpose: "which devices get
+             notified" and "where you're signed in" are the same mental
+             model, and this partial reuses that one's device-kind icons. --}}
+        @unless ($user->isClient())
+            <x-card class="p-4 sm:p-8">
+                <div class="max-w-xl">
+                    @include('profile.partials.push-notifications')
+                </div>
+            </x-card>
+        @endunless
+
         {{-- Everyone gets this, admin or not. Losing a phone is not a
              privilege of rank. --}}
         <x-card class="p-4 sm:p-8">

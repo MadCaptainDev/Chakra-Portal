@@ -16,10 +16,14 @@
  * brand images. That is enough for the app to open instantly on a repeat visit
  * and to satisfy installability, without persisting a single private byte.
  *
+ * v2 adds push + notificationclick (see below). The same stance applies to
+ * both: a push payload is read once, used to show a notification, and never
+ * written to the Cache API or anywhere else this worker can reach.
+ *
  * Bump CACHE_VERSION to retire every previous cache on the next activation.
  */
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const STATIC_CACHE = `chakra-static-${CACHE_VERSION}`;
 const OFFLINE_URL = '/offline.html';
 
@@ -114,4 +118,75 @@ self.addEventListener('message', (event) => {
     if (event.data === 'clear-caches') {
         event.waitUntil(caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key)))));
     }
+});
+
+/*
+ * A push notification arriving. FCM messages are sent DATA-ONLY (no
+ * `notification` key) on purpose -- see PushMessage.php's own docblock for
+ * why: the Firebase SW SDK is not loaded here, so a `notification` key
+ * would arrive and display nothing, and Chrome would show its own generic
+ * "This site has been updated in the background" instead of anything
+ * useful. This handler is what actually shows something.
+ *
+ * Three rules, all non-negotiable:
+ *   1. The whole body is inside try/catch -- FCM sends empty pushes for
+ *      its own reasons, and a bare event.data.json() on one throws.
+ *   2. waitUntil() always resolves to a SHOWN notification, including the
+ *      catch path -- a bland fallback still opens the app on tap, which
+ *      beats the browser's own generic notification every time.
+ *   3. Never return early without calling showNotification().
+ */
+self.addEventListener('push', (event) => {
+    event.waitUntil(
+        (async () => {
+            let title = 'Chakra Portal';
+            let body = 'You have a new update.';
+            let url = '/';
+            let tag;
+
+            try {
+                const payload = event.data ? event.data.json() : {};
+                const data = payload.data ?? payload;
+
+                if (data.title) title = data.title;
+                if (data.body) body = data.body;
+                if (data.url) url = data.url;
+                if (data.tag) tag = data.tag;
+            } catch (error) {
+                // Fall through to the bland fallback above -- rule 2.
+            }
+
+            return self.registration.showNotification(title, {
+                body,
+                icon: '/icon-192.png',
+                badge: '/favicon-32x32.png',
+                tag,
+                renotify: !!tag,
+                data: { url },
+            });
+        })(),
+    );
+});
+
+/* Tapping a shown notification: focus an already-open tab on this origin if
+ * there is one, otherwise open a new one at the notification's deep link. */
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+
+    const url = event.notification.data?.url ?? '/';
+
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+            const existing = windows.find((client) => new URL(client.url).origin === self.location.origin);
+
+            if (existing) {
+                // navigate() rejects on a client this worker does not
+                // control -- fall back to opening a new window rather than
+                // leaving the tap silently doing nothing.
+                return existing.navigate(url).then((client) => client.focus()).catch(() => clients.openWindow(url));
+            }
+
+            return clients.openWindow(url);
+        }),
+    );
 });

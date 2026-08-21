@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\PushSetting;
+use App\Models\PushToken;
 use App\Support\BrowserSessions;
 use App\Support\ManagesAvatars;
 use Illuminate\Http\RedirectResponse;
@@ -23,10 +25,31 @@ class ProfileController extends Controller
         $user = $request->user();
         $user->loadMissing('employeeRecord');
 
+        /*
+         * Server-side belt-and-braces for a token the browser-side revoke
+         * missed -- a tab crashing mid-logout, a device factory-reset
+         * without ever visiting /logout. There is no cron on this host to
+         * run a sweep on a schedule, so it rides along on the one screen
+         * that already reads this user's devices.
+         */
+        PushToken::where('user_id', $user->id)
+            ->where(function ($query) {
+                $stale = now()->subDays(60);
+                $query->where('last_used_at', '<', $stale)
+                    ->orWhere(fn ($q) => $q->whereNull('last_used_at')->where('created_at', '<', $stale));
+            })
+            ->delete();
+
+        $pushSettings = PushSetting::current();
+
         return view('profile.edit', [
             'user' => $user,
             'devices' => BrowserSessions::for($user, $request->session()->getId()),
             'mcpTokens' => $user->mcpTokens()->latest()->get(),
+            'pushConfigured' => $pushSettings->isConfigured(),
+            'pushWebConfig' => $pushSettings->webConfig(),
+            'pushVapidKey' => $pushSettings->vapid_public_key,
+            'pushTokens' => $user->pushTokens()->latest()->get(),
         ]);
     }
 

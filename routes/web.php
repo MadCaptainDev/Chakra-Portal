@@ -4,6 +4,7 @@ use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\BillController;
 use App\Http\Controllers\BrowserSessionController;
 use App\Http\Controllers\McpTokenController;
+use App\Http\Controllers\PushTokenController;
 use App\Http\Controllers\CallSheetController;
 use App\Http\Controllers\ContentAccountController;
 use App\Http\Controllers\ContentDashboardController;
@@ -151,6 +152,16 @@ Route::middleware('auth')->group(function () {
     // never reach further than the person who made it.
     Route::post('/profile/mcp-tokens', [McpTokenController::class, 'store'])->name('mcp-tokens.store');
     Route::delete('/profile/mcp-tokens/{token}', [McpTokenController::class, 'destroy'])->name('mcp-tokens.destroy');
+
+    /*
+     * Push notification devices. store()/revoke() are called from
+     * resources/js/push.js with the raw FCM token, since that is all the
+     * browser has; destroy() is the server-rendered "Stop" button,
+     * route-model-bound like mcp-tokens above.
+     */
+    Route::post('/profile/push-tokens', [PushTokenController::class, 'store'])->name('push-tokens.store');
+    Route::post('/profile/push-tokens/revoke', [PushTokenController::class, 'revoke'])->name('push-tokens.revoke');
+    Route::delete('/profile/push-tokens/{pushToken}', [PushTokenController::class, 'destroy'])->name('push-tokens.destroy');
 });
 
 /*

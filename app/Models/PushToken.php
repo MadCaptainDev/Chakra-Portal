@@ -55,21 +55,28 @@ class PushToken extends Model
     {
         $device = Device::describe($userAgent);
 
-        return self::updateOrCreate(
+        $pushToken = self::updateOrCreate(
             ['token_hash' => hash('sha256', $token)],
             [
                 'user_id' => $user->id,
                 'token' => $token,
                 'device_label' => $device['label'],
                 'device_kind' => $device['kind'],
-                // A re-registration (the deferred silent refresh, or simply
-                // opting in again) is itself evidence the device is alive --
-                // clear any stale failure rather than leaving a red line
-                // under a device that just proved it works.
-                'last_failed_at' => null,
-                'failure_reason' => null,
             ],
         );
+
+        // last_failed_at / failure_reason are deliberately NOT in $fillable
+        // (see the class docblock -- they must never come from a request),
+        // so updateOrCreate()'s fill() silently drops them. forceFill()
+        // them separately: a re-registration (the deferred silent refresh,
+        // or simply opting in again) is itself evidence the device is
+        // alive -- clear any stale failure rather than leaving a red line
+        // under a device that just proved it works.
+        if ($pushToken->failure_reason !== null || $pushToken->last_failed_at !== null) {
+            $pushToken->forceFill(['last_failed_at' => null, 'failure_reason' => null])->save();
+        }
+
+        return $pushToken;
     }
 
     public function markUsed(): void
