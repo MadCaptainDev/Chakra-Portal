@@ -89,6 +89,33 @@ class GrantableModulesTest extends TestCase
         }
     }
 
+    /**
+     * User::scopeCanSee() is the DB-level twin of allows() -- "everyone who
+     * should be notified about this module" versus "can this one person see
+     * it". Two implementations of the same question drift apart silently, so
+     * this asserts they agree for an admin, a granted employee, and an
+     * ungranted one, across every module.
+     */
+    #[DataProvider('modules')]
+    public function test_can_see_agrees_with_allows_for_every_module(string $module): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+
+        $granted = $this->employee();
+        $granted->syncPermissions([$module => ['view']]);
+        $granted->refresh();
+
+        $ungranted = $this->employee();
+
+        foreach ([$admin, $granted, $ungranted] as $user) {
+            $this->assertSame(
+                $user->allows($module),
+                User::canSee($module)->whereKey($user->id)->exists(),
+                "canSee() and allows() disagree about a {$user->role} on module [{$module}]."
+            );
+        }
+    }
+
     #[DataProvider('modules')]
     public function test_every_module_declares_an_icon(string $module): void
     {

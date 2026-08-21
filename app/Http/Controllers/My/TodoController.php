@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Todo;
 use App\Models\TodoUpdate;
 use App\Models\User;
+use App\Notifications\TodoAssigned;
 use App\Support\PeriodInput;
 use App\Support\TimesheetVenture;
 use Illuminate\Http\RedirectResponse;
@@ -82,6 +83,8 @@ class TodoController extends Controller
             'from_on' => $todo->starts_on,
             'to_on' => $todo->due_on,
         ]);
+
+        TodoAssigned::notifyIfAssigned($todo);
 
         $span = $todo->spanDays() > 1
             ? " — {$todo->spanDays()} days, due {$todo->due_on->format('D j M')}"

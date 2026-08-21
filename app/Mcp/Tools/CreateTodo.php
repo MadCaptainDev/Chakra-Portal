@@ -7,6 +7,7 @@ use App\Mcp\Tool;
 use App\Models\Todo;
 use App\Models\TodoUpdate;
 use App\Models\User;
+use App\Notifications\TodoAssigned;
 use Illuminate\Support\Carbon;
 use Throwable;
 
@@ -69,6 +70,8 @@ class CreateTodo extends Tool
             'from_on' => $todo->starts_on,
             'to_on' => $todo->due_on,
         ]);
+
+        TodoAssigned::notifyIfAssigned($todo);
 
         return [
             'id' => $todo->id,
