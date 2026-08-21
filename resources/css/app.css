@@ -124,6 +124,55 @@
     }
 }
 
+/* Replace the OS-default scrollbar with one in the brand palette, everywhere
+   in the app -- the grey system bar is the one thing on every screen that
+   never picked up the design system. Firefox gets the standard-properties
+   version; WebKit/Blink (Chrome, Edge, Safari) get the pseudo-elements, since
+   neither engine honours the other's syntax. */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #8ACCE0 transparent; /* brand-300 thumb, transparent track */
+}
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #ABDAE7; /* brand-200 */
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: #67BCD4; /* brand-400 */
+}
+
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+/* The dark sign-in/auth screens sit on a near-black panel -- the light-brand
+   thumb above would nearly vanish there, so give them their own darker,
+   higher-contrast pass. */
+[data-dark-forms] {
+    scrollbar-color: #3D8CA6 transparent; /* brand-600 thumb */
+}
+
+[data-dark-forms] ::-webkit-scrollbar-thumb {
+    background-color: #2F6E84; /* brand-700 */
+}
+
+[data-dark-forms] ::-webkit-scrollbar-thumb:hover {
+    background-color: #3D8CA6; /* brand-600 */
+}
+
 /* Chrome paints an autofilled input with its own near-white background and
    near-black text, which turns the dark sign-in fields into light boxes the
    moment a saved password is offered. There is no property that clears it --
