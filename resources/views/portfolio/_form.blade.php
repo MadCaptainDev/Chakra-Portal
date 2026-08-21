@@ -195,6 +195,7 @@
             <x-input-label for="description" value="Description (optional)" />
             <x-textarea id="description" name="description" rows="3" class="mt-1"
                         placeholder="One or two lines about the piece.">{{ old('description', $item->description) }}</x-textarea>
+            <p class="mt-1 text-xs text-gray-500">Left blank and mapped to an Instagram post above? The caption fills this in for you.</p>
             <x-input-error :messages="$errors->get('description')" class="mt-2" />
         </div>
 

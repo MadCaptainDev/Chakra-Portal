@@ -102,6 +102,9 @@
                     <x-input-label for="duration_seconds" value="Duration (seconds)" />
                     <x-text-input id="duration_seconds" name="duration_seconds" type="number" min="0" max="86400" class="mt-1"
                                   value="{{ old('duration_seconds', $item->duration_seconds) }}" placeholder="32" />
+                    @if ($item->isMappedToInstagram())
+                        <p class="mt-1 text-xs text-gray-500">Instagram doesn't hand back a video's length, even for a linked reel -- type it by hand.</p>
+                    @endif
                     <x-input-error :messages="$errors->get('duration_seconds')" class="mt-2" />
                 </div>
                 <div>

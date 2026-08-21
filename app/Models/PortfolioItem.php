@@ -401,11 +401,20 @@ class PortfolioItem extends Model
 
     /**
      * First-time mapping: the fields staff would otherwise have typed by
-     * hand. Called once, from the controller, only when a NEW
+     * hand -- video_url/published_on, and now description (from the
+     * caption, only when blank) and platform_id/format_id (from
+     * media_product_type -- see the maximum this can honestly infer,
+     * below). Called once, from the controller, only when a NEW
      * social_media_item_id is being attached to this piece -- never from an
      * unattended sync (see refreshFromInstagram()), which must not clobber a
      * link or thumbnail staff have since replaced by hand while keeping the
      * piece linked.
+     *
+     * Duration is deliberately NOT among these -- confirmed against Meta's
+     * own IG Media field reference, there is no duration/width/height field
+     * on a media node at all, for a Reel or otherwise, so it stays a field
+     * staff types by hand (see the hint on that field in
+     * portfolio/_case-study-fields.blade.php).
      *
      * thumbnail_path is set by the caller: downloading it needs PublicUpload,
      * a concern this model does not have.
@@ -417,6 +426,32 @@ class PortfolioItem extends Model
 
         if ($this->published_on === null && $media->posted_at) {
             $this->published_on = $media->posted_at->toDateString();
+        }
+
+        // The caption is a real description, not a placeholder -- worth
+        // taking when nobody has written one, never worth overwriting one
+        // that has. filled() rather than a null check: a description saved
+        // as an empty string from a blanked-out textarea should still get
+        // this, the same way "never typed" would.
+        if (! filled($this->description) && filled($media->caption)) {
+            $this->description = $media->caption;
+        }
+
+        // Platform is a confident read of media_product_type -- Reels and
+        // everything else are the only two shapes this app's one connected
+        // platform posts in. Format is only set when the media is
+        // confidently a Reel: a feed photo could be square, 4:5 portrait or
+        // landscape, and Instagram's API returns none of those dimensions
+        // (confirmed against Meta's own IG Media field reference -- there is
+        // no width/height/aspect field on the media node), so guessing
+        // there would replace one unknown with a wrong-looking one.
+        $platformName = $media->isReel() ? 'Instagram Reels' : 'Instagram Post';
+        $this->platform_id = TaxonomyTerm::where('type', TaxonomyTerm::TYPE_PLATFORM)
+            ->where('name', $platformName)->value('id') ?? $this->platform_id;
+
+        if ($media->isReel()) {
+            $this->format_id = TaxonomyTerm::where('type', TaxonomyTerm::TYPE_FORMAT)
+                ->where('name', '9:16 vertical')->value('id') ?? $this->format_id;
         }
 
         $this->refreshFromInstagram($media);

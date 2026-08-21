@@ -7,6 +7,7 @@ use App\Models\PortfolioItem;
 use App\Models\SocialAccount;
 use App\Models\SocialInsight;
 use App\Models\SocialMediaItem;
+use App\Models\TaxonomyTerm;
 use App\Models\User;
 use App\Models\UserPermission;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -64,6 +65,17 @@ class PortfolioInstagramMappingTest extends TestCase
     private function client(string $name = 'Chakra Production'): Client
     {
         return Client::create(['name' => $name]);
+    }
+
+    private function term(string $type, string $name): TaxonomyTerm
+    {
+        return TaxonomyTerm::create([
+            'type' => $type,
+            'name' => $name,
+            'slug' => TaxonomyTerm::uniqueSlug($type, $name),
+            'sort_order' => 0,
+            'is_active' => true,
+        ]);
     }
 
     private static int $nextPlatformUserId = 17841476964090891;
@@ -408,6 +420,105 @@ class PortfolioInstagramMappingTest extends TestCase
         $this->trackUploads();
 
         $this->assertSame('A title staff chose themselves', PortfolioItem::firstOrFail()->title);
+    }
+
+    public function test_mapping_a_post_fills_a_blank_description_from_the_caption(): void
+    {
+        $account = $this->connectedAccount();
+        $media = $this->media($account);
+
+        Http::fake(['scontent.cdninstagram.com/*' => $this->jpegResponse()]);
+
+        $this->actingAs($this->admin())->post(route('portfolio.store'), [
+            'title' => 'Mapped piece',
+            'client_id' => $account->client_id,
+            'social_media_item_id' => $media->id,
+            'is_visible' => '1',
+        ]);
+
+        $this->trackUploads();
+
+        $this->assertSame('A real caption from the client account', PortfolioItem::firstOrFail()->description);
+    }
+
+    public function test_mapping_a_post_never_overwrites_a_staff_typed_description(): void
+    {
+        $account = $this->connectedAccount();
+        $media = $this->media($account);
+
+        Http::fake(['scontent.cdninstagram.com/*' => $this->jpegResponse()]);
+
+        $this->actingAs($this->admin())->post(route('portfolio.store'), [
+            'title' => 'Mapped piece',
+            'description' => 'What the studio actually wants to say about this.',
+            'client_id' => $account->client_id,
+            'social_media_item_id' => $media->id,
+            'is_visible' => '1',
+        ]);
+
+        $this->trackUploads();
+
+        $this->assertSame(
+            'What the studio actually wants to say about this.',
+            PortfolioItem::firstOrFail()->description
+        );
+    }
+
+    public function test_mapping_a_reel_sets_platform_and_format_from_the_media_type(): void
+    {
+        $platform = $this->term(TaxonomyTerm::TYPE_PLATFORM, 'Instagram Reels');
+        $format = $this->term(TaxonomyTerm::TYPE_FORMAT, '9:16 vertical');
+
+        $account = $this->connectedAccount();
+        $media = $this->media($account, productType: SocialMediaItem::PRODUCT_REELS);
+
+        Http::fake(['scontent.cdninstagram.com/*' => $this->jpegResponse()]);
+
+        $this->actingAs($this->admin())->post(route('portfolio.store'), [
+            'title' => 'Mapped reel',
+            'client_id' => $account->client_id,
+            'social_media_item_id' => $media->id,
+            'is_visible' => '1',
+        ]);
+
+        $this->trackUploads();
+        $item = PortfolioItem::firstOrFail();
+
+        $this->assertSame($platform->id, $item->platform_id);
+        $this->assertSame($format->id, $item->format_id);
+    }
+
+    /**
+     * Format is left alone for anything that isn't confidently a Reel --
+     * Instagram's API gives no width/height/aspect for a feed post, so
+     * guessing a shape would replace one unknown with a wrong-looking one.
+     * Platform is still inferred: Reels vs. everything else is the only
+     * distinction this app's one connected platform can make confidently.
+     */
+    public function test_mapping_a_non_reel_post_sets_platform_but_leaves_format_alone(): void
+    {
+        $reelPlatform = $this->term(TaxonomyTerm::TYPE_PLATFORM, 'Instagram Reels');
+        $postPlatform = $this->term(TaxonomyTerm::TYPE_PLATFORM, 'Instagram Post');
+        $this->term(TaxonomyTerm::TYPE_FORMAT, '9:16 vertical');
+
+        $account = $this->connectedAccount();
+        $media = $this->media($account, productType: SocialMediaItem::PRODUCT_FEED);
+
+        Http::fake(['scontent.cdninstagram.com/*' => $this->jpegResponse()]);
+
+        $this->actingAs($this->admin())->post(route('portfolio.store'), [
+            'title' => 'Mapped feed post',
+            'client_id' => $account->client_id,
+            'social_media_item_id' => $media->id,
+            'is_visible' => '1',
+        ]);
+
+        $this->trackUploads();
+        $item = PortfolioItem::firstOrFail();
+
+        $this->assertSame($postPlatform->id, $item->platform_id);
+        $this->assertNotSame($reelPlatform->id, $item->platform_id);
+        $this->assertNull($item->format_id);
     }
 
     public function test_unlinking_a_mapped_piece_clears_the_link(): void
