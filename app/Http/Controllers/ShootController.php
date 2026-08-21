@@ -26,7 +26,7 @@ class ShootController extends Controller
         ];
 
         $shoots = Shoot::query()
-            ->with(['client', 'crew.user', 'kit'])
+            ->with(['client', 'crew.user', 'kits'])
             ->when($filters['q'] !== '', fn ($query) => $query->where(
                 fn ($inner) => $inner
                     ->where('title', 'like', "%{$filters['q']}%")
