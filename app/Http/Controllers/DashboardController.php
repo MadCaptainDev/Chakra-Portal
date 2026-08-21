@@ -13,6 +13,8 @@ use App\Services\ExpenseLedger;
 use App\Services\Notion\NotionSyncRunner;
 use App\Support\ContentDashboard;
 use App\Support\ContributionGraph;
+use App\Support\Metric;
+use App\Support\PortfolioSuggestions;
 use App\Support\TeamPulse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -131,8 +133,13 @@ class DashboardController extends Controller
          */
         $unreadEnquiries = Enquiry::unread()->count();
 
+        // One candidate, not a section -- see PortfolioSuggestions::best()
+        // for why a single link is the most this can ever offer.
+        $portfolioSuggestion = PortfolioSuggestions::best();
+
         $actionItems = $this->actionItems([
             'unreadEnquiries' => $unreadEnquiries,
+            'portfolioSuggestion' => $portfolioSuggestion,
             'pendingReviews' => $pendingReviews,
             'behindCount' => $teamBehind->count(),
             'behindNames' => $teamBehind->take(2)
@@ -404,6 +411,27 @@ class DashboardController extends Controller
                 'detail' => 'Nobody has opened these yet. Leads go cold fast.',
                 'href' => route('enquiries.index'),
                 'cta' => 'Open',
+            ];
+        }
+
+        /*
+         * A post/reel already outperforming the studio's own portfolio
+         * average that nobody has added yet -- a positive opportunity, not
+         * a problem, so it gets the neutral brand tone rather than amber/red.
+         */
+        if ($ctx['portfolioSuggestion']) {
+            $suggestion = $ctx['portfolioSuggestion'];
+            $media = $suggestion['media'];
+
+            $items[] = [
+                'tone' => 'brand',
+                'domain' => 'Portfolio',
+                'title' => 'A '.strtolower($media->typeLabel()).' is outperforming your portfolio and isn\'t added',
+                'detail' => Metric::count($suggestion['value']).' '.$suggestion['metric']
+                    .' — '.($media->shortCaption(70)).', '.($media->posted_at?->format('j M Y') ?? 'date unknown')
+                    .'. The portfolio\'s own average is '.Metric::count($suggestion['bar']).'.',
+                'href' => route('portfolio.create', ['client_id' => $suggestion['clientId'], 'media_id' => $media->id]),
+                'cta' => 'Add it',
             ];
         }
 

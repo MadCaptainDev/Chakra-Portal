@@ -2,7 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\Client;
 use App\Models\Invoice;
+use App\Models\SocialAccount;
+use App\Models\SocialInsight;
+use App\Models\SocialMediaItem;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -138,5 +142,52 @@ class DashboardTest extends TestCase
     public function test_guest_is_redirected_to_login(): void
     {
         $this->get(route('dashboard'))->assertRedirect(route('login'));
+    }
+
+    public function test_the_dashboard_surfaces_an_unadded_high_performing_post(): void
+    {
+        $client = Client::create(['name' => 'Chakra Production']);
+        $account = SocialAccount::create([
+            'client_id' => $client->id,
+            'platform' => SocialAccount::PLATFORM_INSTAGRAM,
+            'platform_user_id' => '17841470000000001',
+            'username' => 'client_'.$client->id,
+            'status' => SocialAccount::STATUS_CONNECTED,
+        ]);
+        $account->forceFill(['access_token' => 'IGQV-token', 'connected_at' => now()])->save();
+
+        $media = SocialMediaItem::create([
+            'social_account_id' => $account->id,
+            'platform_media_id' => '1',
+            'media_type' => SocialMediaItem::TYPE_VIDEO,
+            'media_product_type' => SocialMediaItem::PRODUCT_REELS,
+            'caption' => 'A caption worth reading',
+            'permalink' => 'https://www.instagram.com/p/1/',
+            'posted_at' => now()->subDays(3),
+            'cached_at' => now(),
+        ]);
+        SocialInsight::record([
+            'social_account_id' => $account->id,
+            'social_media_item_id' => $media->id,
+            'metric' => 'views',
+            'metric_type' => SocialInsight::TYPE_TOTAL_VALUE,
+            'value' => 50000,
+            'period' => 'lifetime',
+            'period_start' => now()->toDateString(),
+        ]);
+
+        $response = $this->actingAs(User::factory()->create())->get(route('dashboard'));
+
+        $response->assertOk();
+        $response->assertSee('outperforming your portfolio');
+        // Blade escapes the & in the query string to &amp; -- assertSee's
+        // raw (false) mode compares literal HTML, so the expectation has to
+        // match what actually lands on the page rather than route()'s own
+        // unescaped output.
+        $expectedHref = str_replace('&', '&amp;', route('portfolio.create', [
+            'client_id' => $client->id,
+            'media_id' => $media->id,
+        ]));
+        $response->assertSee($expectedHref, false);
     }
 }
