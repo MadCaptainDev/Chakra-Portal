@@ -26,9 +26,15 @@
         'green' => ['ring' => 'ring-emerald-400/40', 'bg' => 'bg-emerald-400/10', 'bar' => 'bg-emerald-400'],
     ];
 
-    $sectionLabel = 'text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-300';
-    $cardClass = 'rounded-xl bg-white/5 ring-1 ring-white/10';
-    $tileLabel = 'text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-100/70';
+    /*
+    | $sectionLabel and $tileLabel used to be two sizes of the same idea
+    | (11px / 10px, both tracking-[0.16em]) -- now both are
+    | <x-section-label dark>, which standardises on 11px/tracking-wider
+    | across the whole app (see REDESIGN_PROMPT.md's dark-surface gap).
+    | $cardClass is now <x-card tone="dark">, matching exactly (same
+    | bg-white/5 ring-1 ring-white/10) so this migration changes nothing
+    | about how any of these actually look.
+    */
 @endphp
 
 <x-app-layout title="Dashboard" dark>
@@ -37,7 +43,7 @@
         {{-- ——— Header ——— --}}
         <div class="animate-rise-in flex flex-wrap items-end justify-between gap-5">
             <div>
-                <p class="{{ $sectionLabel }}">Studio</p>
+                <x-section-label dark>Studio</x-section-label>
                 <h1 class="mt-2 text-3xl sm:text-4xl font-extrabold tracking-tight">{{ $month->format('F Y') }}</h1>
                 <p class="mt-2 text-sm text-brand-100/70">
                     What still needs you, how the team worked, and where the money stands.
@@ -61,7 +67,7 @@
         {{-- ——— Needs attention. Every domain feeds this one list. ——— --}}
         <section>
             <div class="flex items-baseline justify-between gap-4 mb-4">
-                <p class="{{ $sectionLabel }}">Needs attention</p>
+                <x-section-label dark>Needs attention</x-section-label>
                 <p class="text-xs text-brand-100/60">Worst first</p>
             </div>
 
@@ -95,7 +101,7 @@
 
         {{-- ——— The month at a glance ——— --}}
         <section>
-            <p class="{{ $sectionLabel }} mb-4">The month at a glance</p>
+            <x-section-label dark class="mb-4">The month at a glance</x-section-label>
 
             <div class="grid grid-cols-2 xl:grid-cols-1 gap-3.5">
                 @php
@@ -120,7 +126,7 @@
                        ])>
                         <p class="text-[9px] font-semibold uppercase tracking-[0.16em] text-brand-100/50">{{ $tile['domain'] }}</p>
                         <p class="mt-2.5 text-2xl sm:text-3xl font-extrabold leading-none tabular-nums tracking-tight">{{ $tile['value'] }}</p>
-                        <p class="mt-2 {{ $tileLabel }}">{{ $tile['label'] }}</p>
+                        <x-section-label dark class="mt-2">{{ $tile['label'] }}</x-section-label>
                         <p @class(['mt-1.5 text-xs', 'text-amber-100/80' => $tile['accent'], 'text-brand-100/60' => ! $tile['accent']])>{{ $tile['note'] }}</p>
                     </a>
                 @endforeach
@@ -131,7 +137,7 @@
         {{-- ——— Team ——— --}}
         <section>
             <div class="flex items-baseline justify-between gap-4 mb-4">
-                <p class="{{ $sectionLabel }}">Team</p>
+                <x-section-label dark>Team</x-section-label>
                 <a href="{{ route('timesheets.index') }}" class="text-xs font-semibold text-brand-300 hover:text-brand-200 transition-colors">All timesheets</a>
             </div>
 
@@ -143,8 +149,8 @@
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
-                <div class="{{ $cardClass }} p-5 sm:p-6">
-                    <p class="{{ $tileLabel }}">Hours this month</p>
+                <x-card tone="dark" class="p-5 sm:p-6">
+                    <x-section-label dark>Hours this month</x-section-label>
 
                     @php $hoursMax = max(1, (int) $teamHours->max('minutes')); @endphp
 
@@ -168,7 +174,7 @@
                             <p class="py-6 text-sm text-brand-100/60">No employee logins yet.</p>
                         @endforelse
                     </div>
-                </div>
+                </x-card>
 
                 <div @class([
                     'rounded-xl p-5 sm:p-6 ring-1',
@@ -220,29 +226,29 @@
              asking. --}}
         <section>
             <div class="flex items-baseline justify-between gap-4 mb-4">
-                <p class="{{ $sectionLabel }}">Delivery</p>
+                <x-section-label dark>Delivery</x-section-label>
                 <a href="{{ route('content-dashboard.index') }}"
                    class="text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-white">Content Dashboard →</a>
             </div>
 
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
                 @foreach ($content['types'] as $type)
-                    <div class="{{ $cardClass }} p-4">
+                    <x-card tone="dark" class="p-4">
                         <p class="text-[11px] font-semibold uppercase tracking-wider text-brand-100/50">{{ $type['label'] }}</p>
                         <p class="mt-1 text-2xl font-bold tabular-nums
                             {{ $type['target'] === null ? 'text-white' : ($type['actual'] >= $type['target'] ? 'text-green-400' : 'text-amber-300') }}">
                             {{ $type['actual'] }}@if ($type['target'] !== null)<span class="text-base text-brand-100/40"> / {{ $type['target'] }}</span>@endif
                         </p>
-                    </div>
+                    </x-card>
                 @endforeach
-                <div class="{{ $cardClass }} p-4">
+                <x-card tone="dark" class="p-4">
                     <p class="text-[11px] font-semibold uppercase tracking-wider text-brand-100/50">Upcoming shoots</p>
                     <p class="mt-1 text-2xl font-bold tabular-nums text-white">{{ $content['upcomingShoots']->count() }}</p>
-                </div>
+                </x-card>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-3.5 mt-3.5 items-start">
-                <div class="{{ $cardClass }} p-5 sm:p-6">
+                <x-card tone="dark" class="p-5 sm:p-6">
                     <p class="text-sm font-semibold text-white mb-3">Behind target this month</p>
 
                     @forelse ($content['behind'] as $row)
@@ -271,9 +277,9 @@
                             <a href="{{ route('content-accounts.edit') }}" class="underline hover:text-white">Map them</a>.
                         </p>
                     @endif
-                </div>
+                </x-card>
 
-                <div class="{{ $cardClass }} p-5 sm:p-6">
+                <x-card tone="dark" class="p-5 sm:p-6">
                     <div class="flex items-baseline justify-between gap-3 mb-3">
                         <p class="text-sm font-semibold text-white">Next shoots</p>
                         <a href="{{ route('shoots.index') }}"
@@ -301,14 +307,14 @@
                             <a href="{{ route('shoots.index') }}" class="underline hover:text-white">Sync now</a>.
                         </p>
                     @endif
-                </div>
+                </x-card>
             </div>
         </section>
 
         {{-- ——— Money ——— --}}
         <section>
             <div class="flex items-baseline justify-between gap-4 mb-4">
-                <p class="{{ $sectionLabel }}">Money</p>
+                <x-section-label dark>Money</x-section-label>
                 {{-- Echoed rather than written as literal markup so the
                      apostrophe is escaped, which DashboardTest pins. --}}
                 <p class="text-xs text-brand-100/60">{{ "This Month's Outflow — ".$month->format('F Y') }}</p>
@@ -347,10 +353,10 @@
                  they are read against each other. --}}
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-3.5 mt-3.5 items-start">
 
-            <div class="{{ $cardClass }} p-5 sm:p-6">
+            <x-card tone="dark" class="p-5 sm:p-6">
                 <div class="flex items-baseline justify-between gap-4">
                     <div>
-                        <p class="{{ $tileLabel }}">Unpaid invoices</p>
+                        <x-section-label dark>Unpaid invoices</x-section-label>
                         <p class="mt-1 text-xs text-brand-100/60">{{ $money($outstanding) }} open</p>
                     </div>
                     <a href="{{ route('invoices.index', ['status' => 'unpaid']) }}"
@@ -379,15 +385,15 @@
                         <p class="py-8 text-center text-sm text-brand-100/60">Everything is collected.</p>
                     @endforelse
                 </div>
-            </div>
+            </x-card>
 
             {{-- Where cash is stuck --}}
             @if (count($bottlenecks) > 0)
                 @php $stuckMax = max(1, collect($bottlenecks)->max('value')); @endphp
 
-                <div class="{{ $cardClass }} p-5 sm:p-6">
+                <x-card tone="dark" class="p-5 sm:p-6">
                     <div class="flex items-baseline justify-between gap-4">
-                        <p class="{{ $tileLabel }}">Where cash is stuck</p>
+                        <x-section-label dark>Where cash is stuck</x-section-label>
                         <p class="text-xs text-brand-100/60">Tap a row to go and clear it</p>
                     </div>
 
@@ -404,17 +410,17 @@
                             </a>
                         @endforeach
                     </div>
-                </div>
+                </x-card>
             @endif
 
             </div>
 
             {{-- Collected vs paid out. Full width -- six months of bars squeezed
                  into half a screen is unreadable. --}}
-            <div class="{{ $cardClass }} p-5 sm:p-6 mt-3.5">
+            <x-card tone="dark" class="p-5 sm:p-6 mt-3.5">
                 <div class="flex flex-wrap items-baseline justify-between gap-4">
                     <div>
-                        <p class="{{ $tileLabel }}">Collected vs paid out</p>
+                        <x-section-label dark>Collected vs paid out</x-section-label>
                         <p class="mt-1 text-xs text-brand-100/60">Last 6 months</p>
                     </div>
                     <div class="flex gap-4 text-[11px] text-brand-100/60">
@@ -440,7 +446,7 @@
                         </div>
                     @endforeach
                 </div>
-            </div>
+            </x-card>
 
             {{-- Expense and income mix --}}
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-3.5 mt-3.5">
@@ -462,8 +468,8 @@
                         $mixMax = max(1, (float) ($rows->max('value') ?? 0));
                     @endphp
 
-                    <div class="{{ $cardClass }} p-5 sm:p-6">
-                        <p class="{{ $tileLabel }}">{{ $mix['title'] }}</p>
+                    <x-card tone="dark" class="p-5 sm:p-6">
+                        <x-section-label dark>{{ $mix['title'] }}</x-section-label>
                         <p class="mt-1 text-xs text-brand-100/60">{{ $mix['subtitle'] }}</p>
 
                         <div class="mt-5 space-y-3.5">
@@ -485,7 +491,7 @@
                                 <p class="py-6 text-sm text-brand-100/60">{{ $mix['empty'] }}</p>
                             @endforelse
                         </div>
-                    </div>
+                    </x-card>
                 @endforeach
             </div>
         </section>
