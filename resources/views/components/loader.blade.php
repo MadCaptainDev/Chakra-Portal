@@ -18,7 +18,13 @@
 <div {{ $attributes->merge(['class' => $overlay
     ? 'fixed inset-0 z-50 flex items-center justify-center bg-white/90 backdrop-blur-sm'
     : 'inline-flex']) }}
-    role="status" aria-live="polite">
+    role="status" aria-live="polite"
+    x-transition:enter="transition ease-out duration-300"
+    x-transition:enter-start="opacity-0 scale-95"
+    x-transition:enter-end="opacity-100 scale-100"
+    x-transition:leave="transition ease-in duration-150"
+    x-transition:leave-start="opacity-100 scale-100"
+    x-transition:leave-end="opacity-0 scale-95">
 
     <x-card padding="md" class="flex flex-col items-center gap-5">
         <div class="w-[200px] overflow-hidden rounded-md bg-brand-900 py-[7px]">

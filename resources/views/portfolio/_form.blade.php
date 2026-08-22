@@ -90,7 +90,7 @@
                 current every time this client's Instagram is synced.
             </p>
 
-            <p x-show="instagramLoading" x-cloak class="mt-2 text-xs text-gray-500">Loading recent posts&hellip;</p>
+            <x-loader label="Loading posts" class="mt-2" x-show="instagramLoading" x-cloak />
 
             <div class="mt-2 flex gap-3 overflow-x-auto pb-1">
                 <template x-for="post in instagramItems" :key="post.id">

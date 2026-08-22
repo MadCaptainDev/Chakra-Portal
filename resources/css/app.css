@@ -38,6 +38,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Installed as a standalone PWA (site.webmanifest), a swipe-down at the top
+   of a page is easy to mistake for a scroll and trigger the browser/OS's
+   own pull-to-refresh instead -- a full unstyled reload with no warning,
+   right when the user meant to scroll a card list or dismiss a sheet.
+   `contain` stops that overscroll from ever reaching the browser chrome
+   while still keeping the normal rubber-band feel inside the page itself. */
+html, body {
+    overscroll-behavior-y: contain;
+}
+
 /* Without this, elements marked x-cloak render for a frame before Alpine
    boots and hides them -- collapsible forms flash open on every page load. */
 [x-cloak] {
@@ -92,6 +102,35 @@
 .animate-film-slide { animation: filmSlide 1.6s linear infinite; }
 .animate-bar-grow { animation: barGrow 2.6s cubic-bezier(.2, .7, .2, 1) infinite; }
 .animate-rec-blink { animation: recBlink 1.1s steps(1, end) infinite; }
+
+/* Top-of-page navigation bar, injected by app.js on every real link click
+   and form submit. A full page load (this is server-rendered Blade, not a
+   SPA) has no other way to say "this is happening" between the tap and the
+   next page painting -- particularly over a slow mobile connection, where
+   that gap is exactly when a swipe reload feels like the only way out. */
+.nav-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    width: 0%;
+    z-index: 9999;
+    background: linear-gradient(90deg, #67BCD4, #4FA9C4 60%, #3D8CA6);
+    box-shadow: 0 0 8px rgba(103, 188, 212, .6);
+    opacity: 0;
+    transition: width .25s ease, opacity .25s ease;
+    pointer-events: none;
+}
+
+.nav-progress.is-active {
+    opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nav-progress {
+        transition: opacity .25s ease;
+    }
+}
 
 /* Staggering by an inline --i rather than nth-child, so a list of any length
    works and the delay stops climbing after the first screenful -- a row 40
