@@ -212,17 +212,8 @@
                                     </p>
                                 </div>
 
-                                <form method="POST" action="{{ route('expenses.pay', $expense) }}" class="flex items-center gap-2 shrink-0">
-                                    @csrf
-                                    <input type="hidden" name="month" value="{{ $month->format('Y-m-d') }}">
-                                    <input type="number" step="0.01" min="0" name="amount_paid"
-                                           value="{{ number_format($row['due'], 2, '.', '') }}"
-                                           class="w-28 rounded-md border-gray-300 shadow-sm text-sm text-right focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
-                                    <button type="submit"
-                                            class="min-h-[44px] px-3 rounded-md text-xs font-semibold uppercase tracking-wider bg-brand-400 text-brand-900 hover:bg-brand-500">
-                                        Pay
-                                    </button>
-                                </form>
+                                <x-pay-row :action="route('expenses.pay', $expense)" :month="$month->format('Y-m-d')"
+                                           :due="$row['due']" />
                             </div>
                         @endforeach
                     </x-card>

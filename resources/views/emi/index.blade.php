@@ -181,33 +181,30 @@
                                         </div>
                                     @endif
 
-                                    <form method="POST" action="{{ route('emi.pay', $emi) }}"
-                                          class="space-y-2"
-                                          @if ($isPaid) x-show="payEditId === {{ $emi->id }}" x-cloak @endif>
-                                        @csrf
-                                        <input type="hidden" name="month" value="{{ $asOf->format('Y-m-d') }}">
-                                        <div class="flex items-end gap-2">
-                                            <div class="min-w-0 flex-1">
-                                                <label class="block text-xs font-semibold text-gray-700 mb-1">
-                                                    This month’s payment
-                                                    <span class="font-normal text-gray-500">(not the locked EMI rate)</span>
-                                                </label>
-                                                <input type="number" step="0.01" min="0" name="amount_paid"
-                                                       value="{{ $isPaid ? number_format($paidThisMonth, 2, '.', '') : number_format($dueThisMonth, 2, '.', '') }}"
-                                                       placeholder="{{ number_format($dueThisMonth, 2, '.', '') }}"
-                                                       class="w-full rounded-md border-gray-300 shadow-sm text-sm text-right focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
-                                            </div>
-                                            <button type="submit"
-                                                    class="min-h-[44px] px-3 rounded-md text-xs font-semibold uppercase tracking-wider shrink-0 {{ $isPaid ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-brand-400 text-brand-900 hover:bg-brand-500' }}">
-                                                {{ $isPaid ? 'Save' : 'Record pay' }}
-                                            </button>
-                                        </div>
-                                        @if ($isPaid)
+                                    {{--
+                                        @if/@endif inline in a component tag's attribute list (as used
+                                        on the plain <form> elements elsewhere in this file) is not
+                                        supported by Blade's component-tag compiler the way it is on a
+                                        plain HTML tag -- the whole tag is duplicated per branch instead,
+                                        so x-cloak (a bare presence attribute, not a bindable one) is only
+                                        ever present when there is something to toggle.
+                                    --}}
+                                    @if ($isPaid)
+                                        <x-pay-row :action="route('emi.pay', $emi)" :month="$asOf->format('Y-m-d')"
+                                                   :due="$dueThisMonth" :paid="$paidThisMonth"
+                                                   stacked label="This month’s payment" hint="not the locked EMI rate"
+                                                   pay-label="Record pay" update-label="Save"
+                                                   x-show="payEditId === {{ $emi->id }}" x-cloak>
                                             <button type="button" @click="payEditId = null" class="text-xs font-semibold text-gray-500 hover:text-gray-700">Cancel</button>
-                                        @else
+                                        </x-pay-row>
+                                    @else
+                                        <x-pay-row :action="route('emi.pay', $emi)" :month="$asOf->format('Y-m-d')"
+                                                   :due="$dueThisMonth" :paid="$paidThisMonth"
+                                                   stacked label="This month’s payment" hint="not the locked EMI rate"
+                                                   pay-label="Record pay" update-label="Save">
                                             <p class="text-[11px] text-gray-500">Record what you paid this month. Due {{ number_format($dueThisMonth, 0) }} (locked EMI rate unchanged).</p>
-                                        @endif
-                                    </form>
+                                        </x-pay-row>
+                                    @endif
                                 </div>
                             @elseif (! $isDue)
                                 <p class="pt-2 border-t border-gray-100 text-xs text-gray-500">Not due in {{ $asOf->format('F Y') }}.</p>
