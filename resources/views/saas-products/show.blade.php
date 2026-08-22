@@ -1,5 +1,8 @@
 @php
     $plain = session('saas_token_plain');
+    $amcFrequencyLabel = $product->recurringInvoice
+        ? \App\Models\RecurringInvoice::FREQUENCIES[$product->recurringInvoice->frequency]
+        : null;
     $formatBytes = function (int $bytes): string {
         if ($bytes < 1024) return $bytes.' B';
         $units = ['KB', 'MB', 'GB', 'TB'];
@@ -87,19 +90,29 @@
 
                 @if ($product->recurringInvoice)
                     <p class="text-sm text-gray-600">
-                        Billed yearly via <a href="{{ route('recurring.edit', $product->recurringInvoice) }}" class="font-semibold text-brand-600 hover:text-brand-800">its recurring invoice schedule</a>.
-                        Paying that invoice in full extends AMC by a year automatically.
+                        Billed {{ strtolower($amcFrequencyLabel) }}
+                        via <a href="{{ route('recurring.edit', $product->recurringInvoice) }}" class="font-semibold text-brand-600 hover:text-brand-800">its recurring invoice schedule</a>.
+                        Paying that invoice in full extends AMC by one {{ strtolower($amcFrequencyLabel) }} period automatically.
                     </p>
                 @else
                     <p class="text-sm text-gray-600 mb-3">
-                        Not set up yet. This creates a yearly recurring invoice schedule tied to this product —
-                        each time it's paid in full, AMC is extended by a year.
+                        Not set up yet. This creates a recurring invoice schedule tied to this product —
+                        each time it's paid in full, AMC is extended by one billing period.
                     </p>
                     <form method="POST" action="{{ route('saas-products.setup-amc', $product) }}"
-                          class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr_auto] gap-3 items-end">
+                          class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr_1fr_auto] gap-3 items-end">
                         @csrf
                         <div>
-                            <x-input-label for="amount" value="Yearly amount" />
+                            <x-input-label for="frequency" value="Bill" />
+                            <x-select id="frequency" name="frequency" class="mt-1 w-full">
+                                <option value="monthly" @selected(old('frequency') === 'monthly')>Monthly</option>
+                                <option value="quarterly" @selected(old('frequency') === 'quarterly')>Quarterly</option>
+                                <option value="yearly" @selected(old('frequency', 'yearly') === 'yearly')>Yearly</option>
+                            </x-select>
+                            <x-input-error :messages="$errors->get('frequency')" class="mt-2" />
+                        </div>
+                        <div>
+                            <x-input-label for="amount" value="Amount per period" />
                             <x-text-input id="amount" name="amount" type="number" step="0.01" min="0"
                                           class="mt-1 w-full" value="{{ old('amount') }}" />
                             <x-input-error :messages="$errors->get('amount')" class="mt-2" />
@@ -145,6 +158,49 @@
                 </div>
             @endif
         </x-card>
+
+        @can('saas-products.manage')
+            @php
+                $tokenPlaceholder = $plain ?? '<YOUR_TOKEN>';
+                $curlHeader = "-H \"Authorization: Bearer {$tokenPlaceholder}\"";
+            @endphp
+            <x-card padding="md">
+                <div class="flex items-center justify-between gap-3">
+                    <x-section-heading title="Developer" subtitle="What this product's own backup/license-check script calls, and the token it authenticates with." />
+                    <form method="POST" action="{{ route('saas-products.reissue-token', $product) }}"
+                          onsubmit="return confirm('Issue a new token for {{ $product->name }}? The current one stops working immediately — anything still using it will start failing until it is updated.');">
+                        @csrf
+                        <x-btn type="submit" size="sm" variant="secondary">Reissue token</x-btn>
+                    </form>
+                </div>
+
+                <div class="mt-3 space-y-4 text-xs">
+                    <div>
+                        <p class="font-semibold text-gray-700 mb-1">Upload a backup</p>
+                        <code class="block overflow-x-auto rounded-md bg-gray-50 px-3 py-2 text-gray-800 ring-1 ring-gray-200">curl -X POST {{ route('api.saas.backups.store') }} \<br>
+&nbsp;&nbsp;{{ $curlHeader }} \<br>
+&nbsp;&nbsp;-F "file=@/path/to/backup.sql.gz"</code>
+                    </div>
+                    <div>
+                        <p class="font-semibold text-gray-700 mb-1">List backups (for a restore script to pick a version)</p>
+                        <code class="block overflow-x-auto rounded-md bg-gray-50 px-3 py-2 text-gray-800 ring-1 ring-gray-200">curl {{ route('api.saas.backups.index') }} {{ $curlHeader }}</code>
+                    </div>
+                    <div>
+                        <p class="font-semibold text-gray-700 mb-1">Check the license (call on startup, then on a timer)</p>
+                        <code class="block overflow-x-auto rounded-md bg-gray-50 px-3 py-2 text-gray-800 ring-1 ring-gray-200">curl {{ route('api.saas.license') }} {{ $curlHeader }}</code>
+                    </div>
+                    <div>
+                        <p class="font-semibold text-gray-700 mb-1">Fetch this product's own configuration</p>
+                        <code class="block overflow-x-auto rounded-md bg-gray-50 px-3 py-2 text-gray-800 ring-1 ring-gray-200">curl {{ route('api.saas.config') }} {{ $curlHeader }}</code>
+                        <p class="mt-1 text-gray-500">Returns <code>name</code>, <code>backup_retention_count</code> and <code>amc_frequency</code> -- read fresh every call, so changing the retention count here takes effect without redeploying the client software.</p>
+                    </div>
+                </div>
+
+                <p class="mt-4 text-xs text-gray-500">
+                    Full reference, including response shapes: <code>docs/SAAS_INTEGRATION.md</code> in the Chakra Portal repo.
+                </p>
+            </x-card>
+        @endcan
 
         @can('saas-products.delete')
             <x-card padding="md">

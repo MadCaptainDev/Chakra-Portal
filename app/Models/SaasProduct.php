@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 /**
@@ -137,10 +138,16 @@ class SaasProduct extends Model
     /**
      * Called when an invoice billing this product's AMC is paid in full
      * (see Invoice::recalculateStatus()). Extends from whichever is later
-     * of today and the current paid-until date, not just "+1 year from
+     * of today and the current paid-until date, not just "+1 period from
      * today" -- a renewal paid early adds to the remaining term instead of
-     * shortening it, and a lapsed one starts the new year from today
+     * shortening it, and a lapsed one starts the new period from today
      * rather than backdating it.
+     *
+     * The period itself follows the linked recurring schedule's own
+     * frequency (see setupAmc()) -- AMC does not have to mean yearly here,
+     * a client paying monthly extends by a month at a time. Falls back to
+     * yearly if this product somehow has no schedule linked, so a bad call
+     * order never silently extends by zero.
      */
     public function extendAmc(): void
     {
@@ -148,6 +155,16 @@ class SaasProduct extends Model
             ? $this->amc_paid_until
             : today();
 
-        $this->forceFill(['amc_paid_until' => $base->copy()->addYear()])->save();
+        $this->forceFill(['amc_paid_until' => $this->addOnePeriod($base->copy())])->save();
+    }
+
+    private function addOnePeriod(Carbon $date): Carbon
+    {
+        return match ($this->recurringInvoice?->frequency) {
+            RecurringInvoice::FREQUENCY_WEEKLY => $date->addWeek(),
+            RecurringInvoice::FREQUENCY_MONTHLY => $date->addMonthNoOverflow(),
+            RecurringInvoice::FREQUENCY_QUARTERLY => $date->addMonthsNoOverflow(3),
+            default => $date->addYear(),
+        };
     }
 }

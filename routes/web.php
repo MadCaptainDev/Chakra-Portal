@@ -747,6 +747,7 @@ Route::middleware(['auth', 'module:saas-products,view'])->group(function () {
         Route::post('saas-products/{saasProduct}/suspend', [SaasProductController::class, 'suspend'])->name('saas-products.suspend');
         Route::post('saas-products/{saasProduct}/reinstate', [SaasProductController::class, 'reinstate'])->name('saas-products.reinstate');
         Route::post('saas-products/{saasProduct}/setup-amc', [SaasProductController::class, 'setupAmc'])->name('saas-products.setup-amc');
+        Route::post('saas-products/{saasProduct}/reissue-token', [SaasProductController::class, 'reissueToken'])->name('saas-products.reissue-token');
     });
 });
 

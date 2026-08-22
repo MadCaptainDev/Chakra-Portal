@@ -206,4 +206,45 @@ class SaasBackupApiTest extends TestCase
             ->getJson(route('api.saas.license'))
             ->assertJson(['status' => 'active']);
     }
+
+    // -- Config -----------------------------------------------------------
+
+    public function test_a_product_can_fetch_its_own_configuration(): void
+    {
+        $product = $this->product(['backup_retention_count' => 5]);
+        $token = $this->tokenFor($product);
+
+        $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->getJson(route('api.saas.config'))
+            ->assertOk()
+            ->assertJson([
+                'name' => $product->name,
+                'backup_retention_count' => 5,
+                'amc_frequency' => null,
+            ]);
+    }
+
+    public function test_config_reports_the_amc_frequency_once_billing_is_set_up(): void
+    {
+        $product = $this->product();
+        $schedule = \App\Models\RecurringInvoice::create([
+            'client_id' => $product->client_id,
+            'saas_product_id' => $product->id,
+            'frequency' => 'monthly',
+            'next_run_on' => now()->addMonth(),
+            'is_active' => true,
+            'created_by' => \App\Models\User::factory()->create()->id,
+        ]);
+        $product->update(['recurring_invoice_id' => $schedule->id]);
+        $token = $this->tokenFor($product->refresh());
+
+        $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->getJson(route('api.saas.config'))
+            ->assertJson(['amc_frequency' => 'monthly']);
+    }
+
+    public function test_config_requires_a_valid_token_like_every_other_saas_endpoint(): void
+    {
+        $this->getJson(route('api.saas.config'))->assertStatus(401);
+    }
 }

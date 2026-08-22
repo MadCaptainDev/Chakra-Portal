@@ -128,6 +128,7 @@ class SaasProductAdminTest extends TestCase
 
         $this->actingAs($this->admin())->post(route('saas-products.setup-amc', $product), [
             'amount' => 12000,
+            'frequency' => 'yearly',
             'next_run_on' => now()->addMonth()->format('Y-m-d'),
             'due_days' => 14,
         ]);
@@ -139,6 +140,19 @@ class SaasProductAdminTest extends TestCase
         $this->assertSame(12000.0, (float) $product->recurringInvoice->items->first()->unit_price);
     }
 
+    public function test_amc_can_be_billed_monthly_instead_of_yearly(): void
+    {
+        $product = $this->product();
+
+        $this->actingAs($this->admin())->post(route('saas-products.setup-amc', $product), [
+            'amount' => 1500,
+            'frequency' => 'monthly',
+            'next_run_on' => now()->addWeek()->format('Y-m-d'),
+        ]);
+
+        $this->assertSame('monthly', $product->refresh()->recurringInvoice->frequency);
+    }
+
     public function test_amc_billing_cannot_be_set_up_twice(): void
     {
         $product = $this->product();
@@ -146,11 +160,13 @@ class SaasProductAdminTest extends TestCase
 
         $this->actingAs($admin)->post(route('saas-products.setup-amc', $product), [
             'amount' => 12000,
+            'frequency' => 'yearly',
             'next_run_on' => now()->addMonth()->format('Y-m-d'),
         ]);
 
         $response = $this->actingAs($admin)->post(route('saas-products.setup-amc', $product->refresh()), [
             'amount' => 5000,
+            'frequency' => 'yearly',
             'next_run_on' => now()->addMonth()->format('Y-m-d'),
         ]);
 
@@ -178,6 +194,29 @@ class SaasProductAdminTest extends TestCase
 
         $this->assertNotNull($product->refresh()->amc_paid_until);
         $this->assertTrue($product->amc_paid_until->isSameDay(today()->addYear()));
+    }
+
+    public function test_a_monthly_amc_schedule_extends_amc_paid_until_by_a_month_not_a_year(): void
+    {
+        $product = $this->product();
+
+        $this->actingAs($this->admin())->post(route('saas-products.setup-amc', $product), [
+            'amount' => 1500,
+            'frequency' => 'monthly',
+            'next_run_on' => now()->addWeek()->format('Y-m-d'),
+        ]);
+        $product->refresh();
+
+        $invoice = Invoice::factory()->create([
+            'subtotal' => 1500, 'total' => 1500, 'saas_product_id' => $product->id,
+        ]);
+
+        $this->actingAs($this->admin())->post(route('payments.store', $invoice), [
+            'amount' => 1500,
+            'paid_on' => now()->format('Y-m-d'),
+        ]);
+
+        $this->assertTrue($product->refresh()->amc_paid_until->isSameDay(today()->addMonthNoOverflow()));
     }
 
     public function test_extending_amc_before_it_lapses_adds_to_the_remaining_term_rather_than_resetting_it(): void
@@ -233,6 +272,7 @@ class SaasProductAdminTest extends TestCase
 
         $this->actingAs($this->admin())->post(route('saas-products.setup-amc', $product), [
             'amount' => 12000,
+            'frequency' => 'yearly',
             'next_run_on' => now()->format('Y-m-d'),
         ]);
 
@@ -252,5 +292,69 @@ class SaasProductAdminTest extends TestCase
         $generated = Invoice::where('saas_product_id', $product->id)->first();
         $this->assertNotNull($generated);
         $this->assertSame($product->recurring_invoice_id, $generated->recurring_invoice_id);
+    }
+
+    public function test_reissuing_a_token_retires_the_old_one_and_flashes_the_new_one_once(): void
+    {
+        $product = $this->product();
+        $oldPlain = $product->issueToken();
+        $oldHash = $product->token_hash;
+
+        $response = $this->actingAs($this->admin())->post(route('saas-products.reissue-token', $product));
+
+        $response->assertRedirect()->assertSessionHas('saas_token_plain');
+        $newPlain = $response->getSession()->get('saas_token_plain');
+
+        $this->assertNotSame($oldPlain, $newPlain);
+        $this->assertNotSame($oldHash, $product->refresh()->token_hash);
+        $this->assertNull(SaasProduct::resolveToken($oldPlain));
+        $this->assertSame($product->id, SaasProduct::resolveToken($newPlain)->id);
+    }
+
+    public function test_creating_an_invoice_can_tag_it_as_app_studio_work(): void
+    {
+        $product = $this->product();
+        $admin = $this->admin();
+
+        $response = $this->actingAs($admin)->post(route('invoices.store'), [
+            'client_id' => $product->client_id,
+            'saas_product_id' => $product->id,
+            'invoice_date' => now()->format('Y-m-d'),
+            'items' => [['description' => 'App Studio support', 'quantity' => 1, 'unit_price' => 3000]],
+        ]);
+
+        $response->assertRedirect();
+        $invoice = Invoice::firstOrFail();
+        $this->assertSame($product->id, $invoice->saas_product_id);
+    }
+
+    public function test_an_ordinary_invoice_is_not_tagged_unless_a_saas_product_is_chosen(): void
+    {
+        $client = Client::create(['name' => 'Some Production Client']);
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->post(route('invoices.store'), [
+            'client_id' => $client->id,
+            'invoice_date' => now()->format('Y-m-d'),
+            'items' => [['description' => 'Reel edit', 'quantity' => 1, 'unit_price' => 5000]],
+        ]);
+
+        $this->assertNull(Invoice::firstOrFail()->saas_product_id);
+    }
+
+    public function test_the_index_shows_app_studio_income_totals(): void
+    {
+        $product = $this->product();
+        Invoice::factory()->create([
+            'saas_product_id' => $product->id, 'total' => 12000, 'subtotal' => 12000,
+            'status' => Invoice::STATUS_PAID, 'invoice_date' => now(),
+        ]);
+        Invoice::factory()->create([
+            'total' => 5000, 'subtotal' => 5000, 'status' => Invoice::STATUS_PAID, 'invoice_date' => now(),
+        ]);
+
+        $this->actingAs($this->admin())->get(route('saas-products.index'))
+            ->assertOk()
+            ->assertSee('12,000.00');
     }
 }

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\SaasBackupController;
+use App\Http\Controllers\Api\SaasConfigController;
 use App\Http\Controllers\Api\SaasLicenseController;
 use Illuminate\Support\Facades\Route;
 
@@ -17,4 +18,5 @@ Route::prefix('api/saas')->name('api.saas.')->group(function () {
     Route::get('/backups', [SaasBackupController::class, 'index'])->name('backups.index');
     Route::get('/backups/{backup}/download', [SaasBackupController::class, 'download'])->name('backups.download');
     Route::get('/license', [SaasLicenseController::class, 'show'])->name('license');
+    Route::get('/config', [SaasConfigController::class, 'show'])->name('config');
 });

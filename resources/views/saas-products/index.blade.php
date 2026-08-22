@@ -5,6 +5,15 @@
     </x-slot>
 
     <div class="space-y-4">
+        {{-- Chakra App Studio's own income, apart from Production's --
+             every invoice tagged with a saas_product_id, whichever product
+             it belongs to. See invoices/_form.blade.php for where that tag
+             gets set. --}}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <x-stat-card label="App Studio income this month" :value="number_format($monthAmcIncome, 2)" accent="green" icon="trending-up" />
+            <x-stat-card label="App Studio income, all time" :value="number_format($totalAmcIncome, 2)" accent="brand" icon="wallet" />
+        </div>
+
         @can('saas-products.create')
             <x-card padding="md">
                 <x-section-heading title="Onboard a new product" subtitle="One row per piece of software Chakra Studio built and maintains." />

@@ -5,6 +5,11 @@ For anyone writing the client side of this: the backup/restore and AMC-licensing
 is the server here; that other codebase is the client. Nothing in this document requires changing
 anything in Chakra Portal itself.
 
+The same reference (with real URLs and, right after a token is issued or reissued, the real token
+filled in) also lives inside Chakra Portal itself, under each product's own page: **SaaS Products →
+[the product] → Developer**. This file is the portable copy — the one that makes sense to paste into
+a ticket or hand to someone with no access to Chakra Portal at all.
+
 ## Getting a token
 
 An admin creates the product under **SaaS Products** in Chakra Portal (`/saas-products`) and is shown
@@ -85,6 +90,27 @@ curl https://chakragroups.in/api/saas/backups/42/download \
 
 A backup id that belongs to a *different* product (wrong token) comes back as a plain `404`, not
 `403` — the token has no way to learn that id even exists, deliberately.
+
+## Fetching configuration
+
+```bash
+curl https://chakragroups.in/api/saas/config \
+  -H "Authorization: Bearer saas_aB3x..."
+```
+
+```json
+{
+  "name": "DJ Thangamaaligai ERP",
+  "backup_retention_count": 20,
+  "amc_frequency": "monthly"
+}
+```
+
+Read fresh on every call — an admin changing the retention count in Chakra Portal takes effect the
+next time this is called, no redeploy of the client software needed. `amc_frequency` is one of
+`monthly`, `quarterly`, `yearly`, or `null` if AMC billing hasn't been set up for this product yet.
+Chakra Portal itself supports monthly AMC, not just yearly — this is where the client software finds
+out which one applies to it, if it needs to say so anywhere in its own UI.
 
 ## Checking the license
 

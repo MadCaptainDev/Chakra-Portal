@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\Invoice;
 use App\Models\RecurringInvoice;
 use App\Models\SaasBackup;
 use App\Models\SaasProduct;
@@ -25,6 +26,12 @@ class SaasProductController extends Controller
 {
     public function index(): View
     {
+        // Chakra App Studio's own income, apart from Production's -- every
+        // invoice that carries a saas_product_id, paid or not yet. Lives
+        // here rather than a dashboard widget because this is the one
+        // screen that already only shows App Studio's world.
+        $paidAmcInvoices = Invoice::query()->paid()->whereNotNull('saas_product_id');
+
         return view('saas-products.index', [
             'products' => SaasProduct::query()
                 ->withCount('backups')
@@ -32,6 +39,10 @@ class SaasProductController extends Controller
                 ->orderBy('name')
                 ->get(),
             'clients' => Client::orderBy('name')->get(['id', 'name']),
+            'totalAmcIncome' => (float) (clone $paidAmcInvoices)->sum('total'),
+            'monthAmcIncome' => (float) (clone $paidAmcInvoices)
+                ->whereDate('invoice_date', '>=', now()->startOfMonth())
+                ->sum('total'),
         ]);
     }
 
@@ -97,12 +108,19 @@ class SaasProductController extends Controller
     }
 
     /**
-     * Sets a product up for yearly AMC billing -- a single-item recurring
-     * invoice schedule tied back to this product, so every invoice it
-     * generates carries saas_product_id and, once paid, extends
-     * amc_paid_until automatically (see Invoice::recalculateStatus()).
+     * Sets a product up for recurring AMC billing -- a single-item
+     * recurring invoice schedule tied back to this product, so every
+     * invoice it generates carries saas_product_id and, once paid, extends
+     * amc_paid_until by one billing period automatically (see
+     * Invoice::recalculateStatus() and SaasProduct::extendAmc()).
      * One-time: refuses if a schedule is already linked, since a second one
      * would double-bill and double-extend.
+     *
+     * Monthly, not just yearly, on purpose -- "AMC" here means "the
+     * standing arrangement that keeps this software running", and this
+     * codebase already prices some clients by the month. The frequency
+     * chosen here is what extendAmc() reads back later, so it is the only
+     * thing that has to be picked correctly at setup time.
      */
     public function setupAmc(Request $request, SaasProduct $saasProduct): RedirectResponse
     {
@@ -110,18 +128,20 @@ class SaasProductController extends Controller
 
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'min:0'],
+            'frequency' => ['required', 'in:monthly,quarterly,yearly'],
             'next_run_on' => ['required', 'date', 'after_or_equal:today'],
             'due_days' => ['nullable', 'integer', 'min:0'],
         ]);
 
         DB::transaction(function () use ($validated, $saasProduct, $request) {
             $nextRunOn = Carbon::parse($validated['next_run_on']);
+            $frequencyLabel = RecurringInvoice::FREQUENCIES[$validated['frequency']];
 
             $schedule = RecurringInvoice::create([
                 'client_id' => $saasProduct->client_id,
                 'saas_product_id' => $saasProduct->id,
-                'label' => "AMC — {$saasProduct->name}",
-                'frequency' => RecurringInvoice::FREQUENCY_YEARLY,
+                'label' => "AMC ({$frequencyLabel}) — {$saasProduct->name}",
+                'frequency' => $validated['frequency'],
                 'day_of_month' => $nextRunOn->day,
                 'due_days' => $validated['due_days'] ?? null,
                 'next_run_on' => $nextRunOn,
@@ -130,7 +150,7 @@ class SaasProductController extends Controller
             ]);
 
             $schedule->items()->create([
-                'description' => 'Annual Maintenance Contract — '.$saasProduct->name,
+                'description' => "{$frequencyLabel} Maintenance Contract — {$saasProduct->name}",
                 'quantity' => 1,
                 'unit_price' => $validated['amount'],
                 'sort_order' => 0,
@@ -140,6 +160,21 @@ class SaasProductController extends Controller
         });
 
         return back()->with('status', 'AMC billing set up. The first invoice is generated automatically once it falls due.');
+    }
+
+    /**
+     * Rotates this product's token. There is no way to see the old one
+     * again to compare -- issuing silently retires it (see
+     * SaasProduct::issueToken()) -- so this is also the recovery path if a
+     * token is lost, not just a security rotation.
+     */
+    public function reissueToken(SaasProduct $saasProduct): RedirectResponse
+    {
+        $plain = $saasProduct->issueToken();
+
+        return back()
+            ->with('status', "New token issued for \"{$saasProduct->name}\". The old one stopped working immediately — copy this one now.")
+            ->with('saas_token_plain', $plain);
     }
 
     /**

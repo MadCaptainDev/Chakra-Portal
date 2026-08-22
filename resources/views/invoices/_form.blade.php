@@ -132,6 +132,24 @@
         </x-modal>
     </div>
 
+    @if ($saasProducts->isNotEmpty())
+        <div class="mb-6">
+            <x-input-label for="saas_product_id" value="App Studio product (optional)" />
+            <x-select id="saas_product_id" name="saas_product_id" class="mt-1 w-full sm:w-auto">
+                <option value="">Not App Studio — ordinary production work</option>
+                @foreach ($saasProducts as $product)
+                    <option value="{{ $product->id }}" @selected(old('saas_product_id', $invoice->saas_product_id ?? null) == $product->id)>
+                        {{ $product->name }} ({{ $product->client->name }})
+                    </option>
+                @endforeach
+            </x-select>
+            <p class="mt-1 text-xs text-gray-500">
+                Tags this as Chakra App Studio income rather than Production. Paying it in full extends that product's AMC by one billing period.
+            </p>
+            <x-input-error :messages="$errors->get('saas_product_id')" class="mt-2" />
+        </div>
+    @endif
+
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div>
             <x-input-label for="invoice_date" value="Invoice Date" />

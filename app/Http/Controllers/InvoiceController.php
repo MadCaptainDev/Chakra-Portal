@@ -6,6 +6,7 @@ use App\Http\Requests\InvoiceRequest;
 use App\Models\Client;
 use App\Models\CompanySetting;
 use App\Models\Invoice;
+use App\Models\SaasProduct;
 use App\Services\InvoiceDocumentRenderer;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
@@ -77,8 +78,9 @@ class InvoiceController extends Controller
     public function create(): View
     {
         $clients = Client::orderBy('name')->get();
+        $saasProducts = SaasProduct::with('client')->orderBy('name')->get();
 
-        return view('invoices.create', compact('clients'));
+        return view('invoices.create', compact('clients', 'saasProducts'));
     }
 
     public function store(InvoiceRequest $request): RedirectResponse
@@ -89,6 +91,7 @@ class InvoiceController extends Controller
             $invoice = Invoice::create([
                 'invoice_number' => Invoice::nextInvoiceNumber($settings->invoice_prefix),
                 'client_id' => $request->validated('client_id'),
+                'saas_product_id' => $request->validated('saas_product_id'),
                 'invoice_date' => $request->validated('invoice_date'),
                 'due_date' => $request->validated('due_date'),
                 'intro_text' => $request->validated('intro_text'),
@@ -122,8 +125,9 @@ class InvoiceController extends Controller
     {
         $invoice->load('items');
         $clients = Client::orderBy('name')->get();
+        $saasProducts = SaasProduct::with('client')->orderBy('name')->get();
 
-        return view('invoices.edit', compact('invoice', 'clients'));
+        return view('invoices.edit', compact('invoice', 'clients', 'saasProducts'));
     }
 
     public function update(InvoiceRequest $request, Invoice $invoice): RedirectResponse
@@ -131,6 +135,7 @@ class InvoiceController extends Controller
         DB::transaction(function () use ($request, $invoice) {
             $invoice->update([
                 'client_id' => $request->validated('client_id'),
+                'saas_product_id' => $request->validated('saas_product_id'),
                 'invoice_date' => $request->validated('invoice_date'),
                 'due_date' => $request->validated('due_date'),
                 'intro_text' => $request->validated('intro_text'),
@@ -196,6 +201,7 @@ class InvoiceController extends Controller
             $copy = Invoice::create([
                 'invoice_number' => Invoice::nextInvoiceNumber($settings->invoice_prefix),
                 'client_id' => $invoice->client_id,
+                'saas_product_id' => $invoice->saas_product_id,
                 'invoice_date' => now()->format('Y-m-d'),
                 'due_date' => null,
                 'intro_text' => $invoice->intro_text,
