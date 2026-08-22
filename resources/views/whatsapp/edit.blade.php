@@ -10,14 +10,14 @@
     $receiving = $settings->isReceiving();
 @endphp
 
-<x-app-layout title="WhatsApp">
+<x-settings-layout title="WhatsApp">
     <x-slot name="header">
         <x-page-header
             title="WhatsApp Integration"
             subtitle="Connect the studio's Meta app so incoming messages and delivery statuses arrive here." />
     </x-slot>
 
-    <div class="max-w-3xl mx-auto space-y-6">
+    <div class="space-y-6">
 
         {{-- Where the connection stands. Two questions, two answers, before any
              form -- so the common visit ("is it still working?") is over in a
@@ -254,4 +254,4 @@
         </x-card>
 
     </div>
-</x-app-layout>
+</x-settings-layout>

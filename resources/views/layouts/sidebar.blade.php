@@ -110,35 +110,17 @@
         @include('layouts._nav-modules')
 
         <x-nav-section label="Setup">
-            <x-sidebar-link icon="cog" :href="route('settings.edit')" :active="request()->routeIs('settings.*')">
+            {{-- Was nine separate links (Settings, WhatsApp, Instagram, Notion,
+                 Notifications, Competitor Analysis, Content Accounts, Brief
+                 Questions, PDF Template) -- now one destination. Each is still
+                 its own page and its own route; x-settings-layout is what
+                 turns them into tabs of one screen instead of nine unrelated
+                 sidebar rows. Active state matches any of them, not just
+                 settings.* -- this row should read as "current" on all nine. --}}
+            <x-sidebar-link icon="cog" :href="route('settings.edit')"
+                            :active="request()->routeIs(['settings.*', 'whatsapp.*', 'instagram-settings.*', 'notion.*', 'push.*', 'competitor-settings.*', 'content-accounts.*', 'brief-questions.*', 'invoice-template.*'])">
                 Settings
             </x-sidebar-link>
-            <x-sidebar-link icon="chat" :href="route('whatsapp.edit')" :active="request()->routeIs('whatsapp.*')">
-                WhatsApp
-            </x-sidebar-link>
-            <x-sidebar-link icon="sparkles" :href="route('instagram-settings.edit')" :active="request()->routeIs('instagram-settings.*')">
-                Instagram
-            </x-sidebar-link>
-            <x-sidebar-link icon="document" :href="route('notion.edit')" :active="request()->routeIs('notion.*')">
-                Notion
-            </x-sidebar-link>
-            <x-sidebar-link icon="bell" :href="route('push.edit')" :active="request()->routeIs('push.*')">
-                Notifications
-            </x-sidebar-link>
-            <x-sidebar-link icon="eye" :href="route('competitor-settings.edit')" :active="request()->routeIs('competitor-settings.*')">
-                Competitor Analysis
-            </x-sidebar-link>
-            <x-sidebar-link icon="users" :href="route('content-accounts.edit')" :active="request()->routeIs('content-accounts.*')">
-                Content Accounts
-            </x-sidebar-link>
-            <x-sidebar-link icon="inbox" :href="route('brief-questions.index')" :active="request()->routeIs('brief-questions.*')">
-                Brief Questions
-            </x-sidebar-link>
-            @if (Route::has('invoice-template.edit'))
-                <x-sidebar-link icon="template" :href="route('invoice-template.edit')" :active="request()->routeIs('invoice-template.*')">
-                    PDF Template
-                </x-sidebar-link>
-            @endif
         </x-nav-section>
     @endif
     </nav>

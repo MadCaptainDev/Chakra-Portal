@@ -20,6 +20,22 @@ class Invoice extends Model
     public const STATUS_PAID = 'paid';
 
     /**
+     * The two things a Chakra App Studio invoice can be -- not every one is
+     * AMC. A one-off build/dev-work invoice is App Studio income too, but
+     * paying it must never extend a product's AMC term the way paying an
+     * actual AMC invoice does (see recalculateStatus()). Meaningless, and
+     * left null, on any invoice with no saas_product_id at all.
+     */
+    public const STUDIO_TYPE_AMC = 'amc';
+
+    public const STUDIO_TYPE_DEVELOPMENT = 'development';
+
+    public const STUDIO_TYPES = [
+        self::STUDIO_TYPE_AMC => 'AMC',
+        self::STUDIO_TYPE_DEVELOPMENT => 'Development',
+    ];
+
+    /**
      * Tolerance when comparing a float payment sum against the decimal:2
      * total: split payments land a hair off (9999.999999999998) and must
      * still settle the invoice. Same convention as Expense/ExpenseLedger.
@@ -41,6 +57,7 @@ class Invoice extends Model
         'created_by',
         'recurring_invoice_id',
         'saas_product_id',
+        'saas_invoice_type',
     ];
 
     protected $casts = [
@@ -68,9 +85,9 @@ class Invoice extends Model
     }
 
     /**
-     * The SaasProduct this invoice bills AMC for, or null for ordinary
-     * production work -- the one thing that actually separates a Chakra
-     * App Studio invoice from a Chakra Production one.
+     * The SaasProduct this invoice bills App Studio work for -- AMC or a
+     * one-off development invoice, see saas_invoice_type -- or null for
+     * ordinary Chakra Production work.
      */
     public function saasProduct(): BelongsTo
     {
@@ -221,13 +238,14 @@ class Invoice extends Model
      * Recompute paid/unpaid status from recorded payments. Never touches
      * a pending-approval invoice - approval is a separate, explicit step.
      *
-     * An invoice that just became fully paid, and bills a SaasProduct's
-     * AMC, extends that product's paid-until date here -- this is the one
-     * place every path that can settle an invoice (a new payment, an
-     * edited one) already funnels through, via PaymentObserver. Only fires
-     * on the unpaid -> paid transition, not e.g. re-saving an
-     * already-paid invoice, so it can never be applied twice for one
-     * invoice.
+     * An invoice that just became fully paid, and specifically bills a
+     * SaasProduct's AMC (not a one-off App Studio development invoice --
+     * see STUDIO_TYPE_AMC), extends that product's paid-until date here --
+     * this is the one place every path that can settle an invoice (a new
+     * payment, an edited one) already funnels through, via
+     * PaymentObserver. Only fires on the unpaid -> paid transition, not
+     * e.g. re-saving an already-paid invoice, so it can never be applied
+     * twice for one invoice.
      */
     public function recalculateStatus(): void
     {
@@ -243,7 +261,8 @@ class Invoice extends Model
 
         $this->save();
 
-        if (! $wasPaid && $this->status === self::STATUS_PAID && $this->saas_product_id) {
+        if (! $wasPaid && $this->status === self::STATUS_PAID
+            && $this->saas_product_id && $this->saas_invoice_type === self::STUDIO_TYPE_AMC) {
             $this->saasProduct?->extendAmc();
         }
     }

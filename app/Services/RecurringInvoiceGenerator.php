@@ -74,6 +74,10 @@ class RecurringInvoiceGenerator
                 'created_by' => $schedule->created_by,
                 'recurring_invoice_id' => $schedule->id,
                 'saas_product_id' => $schedule->saas_product_id,
+                // Every recurring schedule with a saas_product_id was
+                // created by SaasProductController::setupAmc() -- there is
+                // no other way to link one -- so it is AMC by construction.
+                'saas_invoice_type' => $schedule->saas_product_id ? Invoice::STUDIO_TYPE_AMC : null,
             ]);
 
             foreach ($schedule->items as $item) {

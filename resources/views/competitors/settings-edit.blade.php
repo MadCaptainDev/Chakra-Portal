@@ -7,14 +7,14 @@
     $configured = $settings->isFullyConfigured();
 @endphp
 
-<x-app-layout title="Competitor Analysis">
+<x-settings-layout title="Competitor Analysis">
     <x-slot name="header">
         <x-page-header
             title="Competitor Analysis"
             subtitle="Scrapes a competitor's Instagram reels, ranks them against that account's own average, and has AI break down and adapt the best ones." />
     </x-slot>
 
-    <div class="max-w-3xl mx-auto space-y-6">
+    <div class="space-y-6">
 
         <x-card padding="md">
             <div class="flex flex-wrap items-center gap-x-8 gap-y-4">
@@ -121,4 +121,4 @@
             </p>
         @endunless
     </div>
-</x-app-layout>
+</x-settings-layout>

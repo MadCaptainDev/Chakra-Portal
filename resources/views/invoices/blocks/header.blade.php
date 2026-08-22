@@ -1,8 +1,9 @@
 <table class="header">
     <tr>
         <td class="logo">
-            @if ($settings->logo_data_uri)
-                <img src="{{ $settings->logo_data_uri }}" alt="{{ $settings->company_name }}">
+            @php $logo = $settings->logoDataUriFor($invoice); @endphp
+            @if ($logo)
+                <img src="{{ $logo }}" alt="{{ $settings->company_name }}">
             @else
                 <strong>{{ $settings->company_name }}</strong>
             @endif

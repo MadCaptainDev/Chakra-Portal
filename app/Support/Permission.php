@@ -60,7 +60,10 @@ class Permission
          * Shoots and Equipment are separate modules because they answer
          * different questions. A camera operator needs to plan a shoot and tick
          * the kit onto it; deciding what the studio owns and retiring a dead
-         * camera is quartermaster work, and not everyone's.
+         * camera is quartermaster work, and not everyone's. Equipment keeps
+         * its own permission and routes -- only its sidebar row moved, to sit
+         * nested under Shoots (see layouts/_nav-modules.blade.php) rather
+         * than as a fourth top-level Production link.
          */
         'shoots' => [
             'label' => 'Shoots',
@@ -118,9 +121,16 @@ class Permission
          * checkbox for something nobody can do is how a permission screen
          * stops being read.
          */
+        /*
+         * Studio ops used to be their own group, separate from Production.
+         * Merged: two similarly-named groups ("Production" and "Studio")
+         * sitting one above the other read as a distinction without a
+         * difference to anyone who is not the person who built the
+         * permission matrix.
+         */
         'enquiries' => [
             'label' => 'Enquiries',
-            'group' => 'Studio',
+            'group' => 'Production',
             'icon' => 'mail',
             /*
              * The unread count next to the link. Declared as a callable pair
@@ -135,7 +145,7 @@ class Permission
         ],
         'announcements' => [
             'label' => 'Announcements',
-            'group' => 'Studio',
+            'group' => 'Production',
             'icon' => 'megaphone',
             'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
@@ -146,7 +156,7 @@ class Permission
          */
         'timesheets' => [
             'label' => 'Timesheets',
-            'group' => 'Studio',
+            'group' => 'Production',
             'icon' => 'clock',
             'abilities' => ['view', 'manage'],
         ],
@@ -158,7 +168,7 @@ class Permission
          */
         'taxonomy' => [
             'label' => 'Master Data',
-            'group' => 'Studio',
+            'group' => 'Production',
             'icon' => 'grip',
             'abilities' => ['view', 'manage'],
         ],
@@ -171,15 +181,15 @@ class Permission
          */
         'competitors' => [
             'label' => 'Competitors',
-            'group' => 'Studio',
+            'group' => 'Production',
             'icon' => 'eye',
             'abilities' => ['view', 'create', 'delete', 'manage'],
         ],
 
         /*
-         * The money. Split three ways rather than one "finance" module, because
-         * these are three different jobs and the whole point of granting is
-         * being able to give somebody one of them.
+         * The money. Split three ways rather than one module, because these
+         * are three different jobs and the whole point of granting is being
+         * able to give somebody one of them.
          *
          * Salaries is its own module for one reason: it is the only screen here
          * that tells you what a colleague earns. Folding it in with bills and
@@ -188,19 +198,19 @@ class Permission
          */
         'invoices' => [
             'label' => 'Invoices',
-            'group' => 'Money',
+            'group' => 'Finance',
             'icon' => 'card',
             'abilities' => ['view', 'create', 'edit', 'delete', 'approve', 'manage'],
         ],
         'expenses' => [
             'label' => 'Expenses',
-            'group' => 'Money',
+            'group' => 'Finance',
             'icon' => 'wallet',
             'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
         'salaries' => [
             'label' => 'Salaries',
-            'group' => 'Money',
+            'group' => 'Finance',
             'icon' => 'trending-down',
             'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],

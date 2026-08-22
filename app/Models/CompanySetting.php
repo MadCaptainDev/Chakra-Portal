@@ -9,6 +9,7 @@ class CompanySetting extends Model
     protected $fillable = [
         'company_name',
         'logo_path',
+        'app_studio_logo_path',
         'address',
         'signature_name',
         'signature_title',
@@ -36,11 +37,42 @@ class CompanySetting extends Model
      */
     public function getLogoDataUriAttribute(): ?string
     {
-        if (! $this->logo_path) {
+        return $this->dataUriFor($this->logo_path);
+    }
+
+    /**
+     * The separate mark for Chakra App Studio invoices, or null if one has
+     * never been uploaded -- see logoDataUriFor() for the fallback an
+     * invoice actually renders with.
+     */
+    public function getAppStudioLogoDataUriAttribute(): ?string
+    {
+        return $this->dataUriFor($this->app_studio_logo_path);
+    }
+
+    /**
+     * Which logo one specific invoice should render with: App Studio's own
+     * mark for an invoice tagged with a saas_product_id, the ordinary
+     * company logo for everything else -- and the ordinary logo again if
+     * App Studio's has never been uploaded, so an invoice is never left
+     * with no logo at all just because that upload has not happened yet.
+     */
+    public function logoDataUriFor(Invoice $invoice): ?string
+    {
+        if ($invoice->saas_product_id && $this->app_studio_logo_data_uri) {
+            return $this->app_studio_logo_data_uri;
+        }
+
+        return $this->logo_data_uri;
+    }
+
+    private function dataUriFor(?string $relativePath): ?string
+    {
+        if (! $relativePath) {
             return null;
         }
 
-        $path = public_path($this->logo_path);
+        $path = public_path($relativePath);
 
         if (! is_file($path)) {
             return null;

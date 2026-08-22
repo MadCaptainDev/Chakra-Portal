@@ -21,6 +21,11 @@
 @foreach ($groups as $group => $modules)
     <x-nav-section :label="$group">
         @foreach ($modules as $module => $config)
+            {{-- Equipment keeps its own module/permission/routes untouched --
+                 it just does not get a fourth top-level Production row of its
+                 own. Rendered nested under Shoots below instead. --}}
+            @continue($module === 'equipment')
+
             @php
                 // Badges are counts, and a zero is not worth a pill.
                 $badge = isset($config['badge']) ? (int) call_user_func($config['badge']) : 0;
@@ -43,6 +48,26 @@
             @if ($module === 'invoices' && Route::has('recurring.index') && auth()->user()?->can('invoices.manage'))
                 <x-sidebar-link icon="refresh" :href="route('recurring.index')" :active="request()->routeIs('recurring.*')">
                     Recurring
+                </x-sidebar-link>
+            @endif
+
+            {{-- Equipment, nested under Shoots: planning a shoot and ticking
+                 the kit onto it are one flow for the person doing it, even
+                 though quartermaster work (retiring/adding equipment) keeps
+                 its own separate permission. --}}
+            @if ($module === 'shoots' && Route::has('equipment.index') && auth()->user()?->can('equipment.view'))
+                <x-sidebar-link icon="briefcase" :href="route('equipment.index')" :active="request()->routeIs('equipment.*')">
+                    Equipment
+                </x-sidebar-link>
+            @endif
+
+            {{-- The Swagger/API reference lives on its own page (never nested
+                 inside a specific client or product), reached from here --
+                 "sidebar sub-heading in App Studio, named Developer" is the
+                 whole spec for where this goes. --}}
+            @if ($module === 'saas-products' && Route::has('developer.index') && auth()->user()?->can('saas-products.manage'))
+                <x-sidebar-link icon="desktop" :href="route('developer.index')" :active="request()->routeIs('developer.*')">
+                    Developer
                 </x-sidebar-link>
             @endif
         @endforeach

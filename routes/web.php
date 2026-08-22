@@ -22,6 +22,7 @@ use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientCredentialController;
 use App\Http\Controllers\ClientLoginController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DeveloperController;
 use App\Http\Controllers\EditorOutputController;
 use App\Http\Controllers\EmiController;
 use App\Http\Controllers\EnquiryController;
@@ -748,6 +749,15 @@ Route::middleware(['auth', 'module:saas-products,view'])->group(function () {
         Route::post('saas-products/{saasProduct}/reinstate', [SaasProductController::class, 'reinstate'])->name('saas-products.reinstate');
         Route::post('saas-products/{saasProduct}/setup-amc', [SaasProductController::class, 'setupAmc'])->name('saas-products.setup-amc');
         Route::post('saas-products/{saasProduct}/reissue-token', [SaasProductController::class, 'reissueToken'])->name('saas-products.reissue-token');
+
+        /*
+         * The API reference, live -- its own top-level page, never nested
+         * inside a specific product's own screen. One Swagger document
+         * covers every SaaS product, so there is nothing product-specific
+         * to nest it under.
+         */
+        Route::get('developer', [DeveloperController::class, 'index'])->name('developer.index');
+        Route::get('developer/openapi.json', [DeveloperController::class, 'openapi'])->name('developer.openapi');
     });
 });
 

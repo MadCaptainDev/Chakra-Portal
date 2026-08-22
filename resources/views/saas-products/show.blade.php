@@ -166,7 +166,7 @@
             @endphp
             <x-card padding="md">
                 <div class="flex items-center justify-between gap-3">
-                    <x-section-heading title="Developer" subtitle="What this product's own backup/license-check script calls, and the token it authenticates with." />
+                    <x-section-heading title="API access" subtitle="What this product's own backup/license-check script calls, and the token it authenticates with." />
                     <form method="POST" action="{{ route('saas-products.reissue-token', $product) }}"
                           onsubmit="return confirm('Issue a new token for {{ $product->name }}? The current one stops working immediately — anything still using it will start failing until it is updated.');">
                         @csrf
@@ -196,9 +196,11 @@
                     </div>
                 </div>
 
-                <p class="mt-4 text-xs text-gray-500">
-                    Full reference, including response shapes: <code>docs/SAAS_INTEGRATION.md</code> in the Chakra Portal repo.
-                </p>
+                @if (Route::has('developer.index'))
+                    <p class="mt-4 text-xs text-gray-500">
+                        Full interactive reference, every endpoint: <a href="{{ route('developer.index') }}" class="font-semibold text-brand-600 hover:text-brand-800">Developer</a>.
+                    </p>
+                @endif
             </x-card>
         @endcan
 

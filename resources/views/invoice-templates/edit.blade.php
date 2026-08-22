@@ -1,4 +1,4 @@
-<x-app-layout title="PDF template">
+<x-settings-layout title="PDF template">
     <x-slot name="header">
         <x-page-header title="Invoice PDF Template">
             <x-slot name="actions">
@@ -483,4 +483,4 @@
             };
         }
     </script>
-</x-app-layout>
+</x-settings-layout>

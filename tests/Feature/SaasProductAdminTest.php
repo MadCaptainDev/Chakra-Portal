@@ -184,7 +184,7 @@ class SaasProductAdminTest extends TestCase
     {
         $product = $this->product();
         $invoice = Invoice::factory()->create([
-            'subtotal' => 12000, 'total' => 12000, 'saas_product_id' => $product->id,
+            'subtotal' => 12000, 'total' => 12000, 'saas_product_id' => $product->id, 'saas_invoice_type' => Invoice::STUDIO_TYPE_AMC,
         ]);
 
         $this->actingAs($this->admin())->post(route('payments.store', $invoice), [
@@ -208,7 +208,7 @@ class SaasProductAdminTest extends TestCase
         $product->refresh();
 
         $invoice = Invoice::factory()->create([
-            'subtotal' => 1500, 'total' => 1500, 'saas_product_id' => $product->id,
+            'subtotal' => 1500, 'total' => 1500, 'saas_product_id' => $product->id, 'saas_invoice_type' => Invoice::STUDIO_TYPE_AMC,
         ]);
 
         $this->actingAs($this->admin())->post(route('payments.store', $invoice), [
@@ -223,7 +223,7 @@ class SaasProductAdminTest extends TestCase
     {
         $product = $this->product(['amc_paid_until' => now()->addMonths(6)->toDateString()]);
         $invoice = Invoice::factory()->create([
-            'subtotal' => 12000, 'total' => 12000, 'saas_product_id' => $product->id,
+            'subtotal' => 12000, 'total' => 12000, 'saas_product_id' => $product->id, 'saas_invoice_type' => Invoice::STUDIO_TYPE_AMC,
         ]);
 
         $this->actingAs($this->admin())->post(route('payments.store', $invoice), [
@@ -247,23 +247,98 @@ class SaasProductAdminTest extends TestCase
         $this->assertSame(0, SaasProduct::count());
     }
 
-    public function test_the_invoices_screen_filters_amc_apart_from_production_work(): void
+    public function test_the_invoices_screen_filters_app_studio_apart_from_production_work(): void
     {
         $product = $this->product();
-        $amcInvoice = Invoice::factory()->create(['saas_product_id' => $product->id, 'invoice_date' => now()]);
+        $studioInvoice = Invoice::factory()->create([
+            'saas_product_id' => $product->id, 'saas_invoice_type' => Invoice::STUDIO_TYPE_AMC, 'invoice_date' => now(),
+        ]);
         $productionInvoice = Invoice::factory()->create(['invoice_date' => now()]);
 
-        $response = $this->actingAs($this->admin())->get(route('invoices.index', ['type' => 'amc']));
+        $response = $this->actingAs($this->admin())->get(route('invoices.index', ['type' => 'studio']));
 
         $response->assertOk()
-            ->assertSee($amcInvoice->invoice_number)
+            ->assertSee($studioInvoice->invoice_number)
             ->assertDontSee($productionInvoice->invoice_number);
 
         $response = $this->actingAs($this->admin())->get(route('invoices.index', ['type' => 'production']));
 
         $response->assertOk()
             ->assertSee($productionInvoice->invoice_number)
-            ->assertDontSee($amcInvoice->invoice_number);
+            ->assertDontSee($studioInvoice->invoice_number);
+    }
+
+    public function test_the_invoices_screen_can_narrow_to_just_amc_or_just_development(): void
+    {
+        $product = $this->product();
+        $amcInvoice = Invoice::factory()->create([
+            'saas_product_id' => $product->id, 'saas_invoice_type' => Invoice::STUDIO_TYPE_AMC, 'invoice_date' => now(),
+        ]);
+        $devInvoice = Invoice::factory()->create([
+            'saas_product_id' => $product->id, 'saas_invoice_type' => Invoice::STUDIO_TYPE_DEVELOPMENT, 'invoice_date' => now(),
+        ]);
+
+        $response = $this->actingAs($this->admin())->get(route('invoices.index', ['type' => 'amc']));
+        $response->assertOk()->assertSee($amcInvoice->invoice_number)->assertDontSee($devInvoice->invoice_number);
+
+        $response = $this->actingAs($this->admin())->get(route('invoices.index', ['type' => 'development']));
+        $response->assertOk()->assertSee($devInvoice->invoice_number)->assertDontSee($amcInvoice->invoice_number);
+    }
+
+    /**
+     * The correction that matters most: a development invoice being paid
+     * must never extend AMC -- only an actual AMC invoice does that. Lives
+     * here rather than PaymentTest for the same reason the AMC-side tests
+     * do: this is specifically about the SaasProduct side effect.
+     */
+    public function test_paying_a_development_invoice_never_extends_amc(): void
+    {
+        $product = $this->product(['amc_paid_until' => now()->addMonth()->toDateString()]);
+        $invoice = Invoice::factory()->create([
+            'subtotal' => 5000, 'total' => 5000,
+            'saas_product_id' => $product->id, 'saas_invoice_type' => Invoice::STUDIO_TYPE_DEVELOPMENT,
+        ]);
+        $originalAmcDate = $product->amc_paid_until;
+
+        $this->actingAs($this->admin())->post(route('payments.store', $invoice), [
+            'amount' => 5000,
+            'paid_on' => now()->format('Y-m-d'),
+        ]);
+
+        $this->assertTrue($product->refresh()->amc_paid_until->isSameDay($originalAmcDate));
+    }
+
+    public function test_creating_an_app_studio_invoice_requires_choosing_amc_or_development(): void
+    {
+        $product = $this->product();
+
+        $response = $this->actingAs($this->admin())->post(route('invoices.store'), [
+            'client_id' => $product->client_id,
+            'saas_product_id' => $product->id,
+            // saas_invoice_type deliberately omitted.
+            'invoice_date' => now()->format('Y-m-d'),
+            'items' => [['description' => 'App Studio work', 'quantity' => 1, 'unit_price' => 3000]],
+        ]);
+
+        $response->assertSessionHasErrors('saas_invoice_type');
+        $this->assertSame(0, Invoice::count());
+    }
+
+    public function test_creating_a_development_invoice_tags_it_without_touching_amc(): void
+    {
+        $product = $this->product();
+
+        $this->actingAs($this->admin())->post(route('invoices.store'), [
+            'client_id' => $product->client_id,
+            'saas_product_id' => $product->id,
+            'saas_invoice_type' => Invoice::STUDIO_TYPE_DEVELOPMENT,
+            'invoice_date' => now()->format('Y-m-d'),
+            'items' => [['description' => 'New feature build', 'quantity' => 1, 'unit_price' => 20000]],
+        ]);
+
+        $invoice = Invoice::firstOrFail();
+        $this->assertSame($product->id, $invoice->saas_product_id);
+        $this->assertSame(Invoice::STUDIO_TYPE_DEVELOPMENT, $invoice->saas_invoice_type);
     }
 
     public function test_an_amc_recurring_schedule_carries_its_product_onto_every_invoice_it_generates(): void
@@ -319,6 +394,7 @@ class SaasProductAdminTest extends TestCase
         $response = $this->actingAs($admin)->post(route('invoices.store'), [
             'client_id' => $product->client_id,
             'saas_product_id' => $product->id,
+            'saas_invoice_type' => Invoice::STUDIO_TYPE_AMC,
             'invoice_date' => now()->format('Y-m-d'),
             'items' => [['description' => 'App Studio support', 'quantity' => 1, 'unit_price' => 3000]],
         ]);

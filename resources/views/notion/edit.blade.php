@@ -8,14 +8,14 @@
     $configured = $settings->isConfigured();
 @endphp
 
-<x-app-layout title="Notion">
+<x-settings-layout title="Notion">
     <x-slot name="header">
         <x-page-header
             title="Notion Integration"
             subtitle="One integration token for the whole studio. Content and shoots are pulled from Notion; nothing is ever written back." />
     </x-slot>
 
-    <div class="max-w-3xl mx-auto space-y-6">
+    <div class="space-y-6">
 
         <x-card padding="md">
             <div class="flex flex-wrap items-center gap-x-8 gap-y-4">
@@ -117,4 +117,4 @@
             @endif
         </x-card>
     </div>
-</x-app-layout>
+</x-settings-layout>

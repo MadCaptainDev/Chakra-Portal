@@ -16,7 +16,7 @@
     $first = $steps[0]['id'];
 @endphp
 
-<x-app-layout title="Brief Questions">
+<x-settings-layout title="Brief Questions">
     <x-slot name="header">
         <x-page-header
             title="Brand Brief Questions"
@@ -25,7 +25,7 @@
                 : 'What every client is asked. Add your own to any group — they apply to every brief from the moment you save.'" />
     </x-slot>
 
-    <div class="max-w-4xl mx-auto space-y-5">
+    <div class="space-y-5">
 
         {{-- The scope switcher. A plain GET form: the mode belongs in the URL
              so it survives a save, a refresh and a bookmark. --}}
@@ -190,4 +190,4 @@
             </div>
         @endif
     </div>
-</x-app-layout>
+</x-settings-layout>

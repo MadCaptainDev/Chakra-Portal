@@ -13,14 +13,14 @@
     $configured = $settings->isConfigured();
 @endphp
 
-<x-app-layout title="Push Notifications">
+<x-settings-layout title="Push Notifications">
     <x-slot name="header">
         <x-page-header
             title="Push Notifications"
             subtitle="One Firebase project for the whole studio. Staff turn devices on individually from their own profile." />
     </x-slot>
 
-    <div class="max-w-3xl mx-auto space-y-6">
+    <div class="space-y-6">
 
         <x-card padding="md">
             <div class="flex flex-wrap items-center gap-x-8 gap-y-4">
@@ -128,4 +128,4 @@
             </form>
         </x-card>
     </div>
-</x-app-layout>
+</x-settings-layout>

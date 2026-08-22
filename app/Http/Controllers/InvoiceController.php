@@ -45,10 +45,14 @@ class InvoiceController extends Controller
             ->when($status && ! in_array($status, ['overdue', 'partial'], true),
                 fn ($query) => $query->where('status', $status))
             // The one filter Chakra App Studio actually asked for: pull its
-            // AMC billing apart from Chakra Production's invoices on the
-            // same screen everyone already uses, rather than a second one.
-            ->when($type === 'amc', fn ($query) => $query->whereNotNull('saas_product_id'))
+            // invoices apart from Chakra Production's on the same screen
+            // everyone already uses, rather than a second one. "studio" is
+            // all App Studio work; amc/development narrow to just one kind
+            // of it, since not every App Studio invoice is AMC.
+            ->when($type === 'studio', fn ($query) => $query->whereNotNull('saas_product_id'))
             ->when($type === 'production', fn ($query) => $query->whereNull('saas_product_id'))
+            ->when($type === 'amc', fn ($query) => $query->where('saas_invoice_type', Invoice::STUDIO_TYPE_AMC))
+            ->when($type === 'development', fn ($query) => $query->where('saas_invoice_type', Invoice::STUDIO_TYPE_DEVELOPMENT))
             ->latest('invoice_date')
             ->paginate(20)
             ->withQueryString();
@@ -92,6 +96,7 @@ class InvoiceController extends Controller
                 'invoice_number' => Invoice::nextInvoiceNumber($settings->invoice_prefix),
                 'client_id' => $request->validated('client_id'),
                 'saas_product_id' => $request->validated('saas_product_id'),
+                'saas_invoice_type' => $request->validated('saas_product_id') ? $request->validated('saas_invoice_type') : null,
                 'invoice_date' => $request->validated('invoice_date'),
                 'due_date' => $request->validated('due_date'),
                 'intro_text' => $request->validated('intro_text'),
@@ -136,6 +141,7 @@ class InvoiceController extends Controller
             $invoice->update([
                 'client_id' => $request->validated('client_id'),
                 'saas_product_id' => $request->validated('saas_product_id'),
+                'saas_invoice_type' => $request->validated('saas_product_id') ? $request->validated('saas_invoice_type') : null,
                 'invoice_date' => $request->validated('invoice_date'),
                 'due_date' => $request->validated('due_date'),
                 'intro_text' => $request->validated('intro_text'),
@@ -202,6 +208,7 @@ class InvoiceController extends Controller
                 'invoice_number' => Invoice::nextInvoiceNumber($settings->invoice_prefix),
                 'client_id' => $invoice->client_id,
                 'saas_product_id' => $invoice->saas_product_id,
+                'saas_invoice_type' => $invoice->saas_invoice_type,
                 'invoice_date' => now()->format('Y-m-d'),
                 'due_date' => null,
                 'intro_text' => $invoice->intro_text,

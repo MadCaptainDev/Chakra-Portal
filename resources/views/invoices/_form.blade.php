@@ -133,20 +133,63 @@
     </div>
 
     @if ($saasProducts->isNotEmpty())
-        <div class="mb-6">
-            <x-input-label for="saas_product_id" value="App Studio product (optional)" />
-            <x-select id="saas_product_id" name="saas_product_id" class="mt-1 w-full sm:w-auto">
-                <option value="">Not App Studio — ordinary production work</option>
-                @foreach ($saasProducts as $product)
-                    <option value="{{ $product->id }}" @selected(old('saas_product_id', $invoice->saas_product_id ?? null) == $product->id)>
-                        {{ $product->name }} ({{ $product->client->name }})
-                    </option>
-                @endforeach
-            </x-select>
-            <p class="mt-1 text-xs text-gray-500">
-                Tags this as Chakra App Studio income rather than Production. Paying it in full extends that product's AMC by one billing period.
+        @php
+            $studioDefault = old('saas_product_id', $invoice->saas_product_id ?? null) ? 'true' : 'false';
+        @endphp
+        <div class="mb-6" x-data="{ studio: {{ $studioDefault }} }">
+            <x-input-label value="Which side of Chakra is this for?" />
+
+            {{-- Left = Production (the default for almost every invoice),
+                 right = App Studio -- a toggle rather than a dropdown, since
+                 this is the one either/or choice the whole invoice hinges on. --}}
+            <div class="mt-1 inline-flex items-center rounded-lg bg-gray-100 p-1">
+                <button type="button" @click="studio = false"
+                        :class="! studio ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                        class="px-4 min-h-[40px] rounded-md text-sm font-semibold transition-colors">
+                    Production
+                </button>
+                <button type="button" @click="studio = true"
+                        :class="studio ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                        class="px-4 min-h-[40px] rounded-md text-sm font-semibold transition-colors">
+                    App Studio
+                </button>
+            </div>
+
+            <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4" x-show="studio" x-cloak>
+                <div>
+                    <x-input-label for="saas_product_id" value="App Studio product" />
+                    <x-select id="saas_product_id" name="saas_product_id" class="mt-1 w-full" x-bind:disabled="! studio">
+                        <option value="">Select a product...</option>
+                        @foreach ($saasProducts as $product)
+                            <option value="{{ $product->id }}" @selected(old('saas_product_id', $invoice->saas_product_id ?? null) == $product->id)>
+                                {{ $product->name }} ({{ $product->client->name }})
+                            </option>
+                        @endforeach
+                    </x-select>
+                    <x-input-error :messages="$errors->get('saas_product_id')" class="mt-2" />
+                </div>
+
+                <div>
+                    <x-input-label value="Invoice type" />
+                    @php $studioType = old('saas_invoice_type', $invoice->saas_invoice_type ?? null); @endphp
+                    <div class="mt-1 flex items-center gap-4 min-h-[44px]">
+                        @foreach (\App\Models\Invoice::STUDIO_TYPES as $value => $label)
+                            <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                                <input type="radio" name="saas_invoice_type" value="{{ $value }}" x-bind:disabled="! studio"
+                                       @checked($studioType === $value)
+                                       class="border-gray-300 text-brand-500 focus:ring-brand-400">
+                                {{ $label }}
+                            </label>
+                        @endforeach
+                    </div>
+                    <x-input-error :messages="$errors->get('saas_invoice_type')" class="mt-2" />
+                </div>
+            </div>
+
+            <p class="mt-2 text-xs text-gray-500" x-show="studio" x-cloak>
+                AMC: paying this in full extends the product's AMC by one billing period. Development: a one-off
+                build/dev-work invoice -- App Studio income, but never touches AMC.
             </p>
-            <x-input-error :messages="$errors->get('saas_product_id')" class="mt-2" />
         </div>
     @endif
 

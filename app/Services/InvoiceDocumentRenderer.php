@@ -361,8 +361,8 @@ CSS;
 
         $map = [
             'company_name' => e($settings->company_name),
-            'logo' => $settings->logo_data_uri
-                ? '<img src="'.e($settings->logo_data_uri).'" alt="'.e($settings->company_name).'">'
+            'logo' => $settings->logoDataUriFor($invoice)
+                ? '<img src="'.e($settings->logoDataUriFor($invoice)).'" alt="'.e($settings->company_name).'">'
                 : '<strong>'.e($settings->company_name).'</strong>',
             'watermark' => '<img class="watermark" src="'.e(Assets::image('images/chakra-watermark.png')).'" alt="">',
             'invoice_number' => e($invoice->invoice_number ?? 'DRAFT'),

@@ -18,13 +18,13 @@
     $accountsByClient = $accounts->groupBy(fn ($a) => $a->client?->name ?? 'Unknown client');
 @endphp
 
-<x-app-layout title="Content Accounts">
+<x-settings-layout title="Content Accounts">
     <x-slot name="header">
         <x-page-header title="Content Accounts"
                        subtitle="Group Notion ventures into accounts, set a monthly target per content type, and map Notion's shoot clients." />
     </x-slot>
 
-    <div class="max-w-6xl mx-auto space-y-5">
+    <div class="space-y-5">
 
         <form method="POST" action="{{ route('content-accounts.update') }}">
             @csrf
@@ -257,4 +257,4 @@
             </form>
         </x-card>
     </div>
-</x-app-layout>
+</x-settings-layout>

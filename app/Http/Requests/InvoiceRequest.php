@@ -19,9 +19,11 @@ class InvoiceRequest extends FormRequest
         return [
             'client_id' => ['required', 'exists:clients,id'],
             // Marks this as Chakra App Studio income rather than Production
-            // -- the one thing an invoice itself needs to say about that
-            // split, per App\Support\Permission's saas-products module.
+            // -- the toggle on the form. Not every App Studio invoice is
+            // AMC, so saas_invoice_type says which kind it is; required
+            // exactly when a product is chosen, meaningless otherwise.
             'saas_product_id' => ['nullable', 'exists:saas_products,id'],
+            'saas_invoice_type' => ['nullable', 'required_with:saas_product_id', 'in:amc,development'],
             'invoice_date' => ['required', 'date'],
             'due_date' => ['nullable', 'date', 'after_or_equal:invoice_date'],
             'intro_text' => ['nullable', 'string'],

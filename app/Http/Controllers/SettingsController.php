@@ -28,6 +28,7 @@ class SettingsController extends Controller
             'footer_text' => ['required', 'string', 'max:255'],
             'notification_email' => ['nullable', 'email', 'max:255'],
             'logo' => ['nullable', 'image', 'max:2048'],
+            'app_studio_logo' => ['nullable', 'image', 'max:2048'],
         ]);
 
         $settings = CompanySetting::current();
@@ -41,7 +42,16 @@ class SettingsController extends Controller
             $this->deletePreviousLogo($previous);
         }
 
-        unset($validated['logo']);
+        if ($request->hasFile('app_studio_logo')) {
+            $previous = $settings->app_studio_logo_path;
+
+            $path = $request->file('app_studio_logo')->store('logos', 'public');
+            $validated['app_studio_logo_path'] = 'storage/'.$path;
+
+            $this->deletePreviousLogo($previous);
+        }
+
+        unset($validated['logo'], $validated['app_studio_logo']);
 
         $settings->update($validated);
 

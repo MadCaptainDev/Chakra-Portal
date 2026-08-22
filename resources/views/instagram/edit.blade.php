@@ -8,14 +8,14 @@
     $configured = $settings->isConfigured();
 @endphp
 
-<x-app-layout title="Instagram">
+<x-settings-layout title="Instagram">
     <x-slot name="header">
         <x-page-header
             title="Instagram Integration"
             subtitle="One app for the whole studio. Individual accounts are connected on each client's page." />
     </x-slot>
 
-    <div class="max-w-3xl mx-auto space-y-6">
+    <div class="space-y-6">
 
         <x-card padding="md">
             <div class="flex flex-wrap items-center gap-x-8 gap-y-4">
@@ -234,4 +234,4 @@
             @endif
         </x-card>
     </div>
-</x-app-layout>
+</x-settings-layout>

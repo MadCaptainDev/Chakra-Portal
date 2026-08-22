@@ -66,9 +66,11 @@
         </div>
 
         {{-- Chakra Production vs Chakra App Studio -- the one split the
-             invoices themselves actually need, per SaasProduct.saas_product_id. --}}
+             invoices themselves actually need, per Invoice.saas_product_id.
+             The last two narrow to one kind of App Studio invoice -- not
+             every one of those is AMC, see Invoice::STUDIO_TYPES. --}}
         <div class="flex flex-wrap gap-2">
-            @foreach (['' => 'All work', 'production' => 'Production', 'amc' => 'App Studio (AMC)'] as $value => $label)
+            @foreach (['' => 'All work', 'production' => 'Production', 'studio' => 'App Studio', 'amc' => 'AMC only', 'development' => 'Development only'] as $value => $label)
                 <a href="{{ route('invoices.index', array_filter(['month' => $monthParam, 'search' => $search, 'status' => $status, 'type' => $value])) }}"
                    class="px-3 py-1.5 rounded-full text-xs font-semibold {{ $type === $value ? 'bg-brand-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
                     {{ $label }}
@@ -158,7 +160,9 @@
                                     <span>
                                         {{ $invoice->client->name }}
                                         @if ($invoice->saasProduct)
-                                            <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-indigo-100 text-indigo-700">AMC</span>
+                                            <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-indigo-100 text-indigo-700">
+                                                {{ $invoice->saas_invoice_type === \App\Models\Invoice::STUDIO_TYPE_AMC ? 'AMC' : 'DEV' }}
+                                            </span>
                                         @endif
                                     </span>
                                     <span>{{ $invoice->invoice_date->format('d/m/Y') }}</span>
@@ -231,7 +235,9 @@
                                 <td class="px-6 py-4 text-sm text-gray-500">
                                     {{ $invoice->client->name }}
                                     @if ($invoice->saasProduct)
-                                        <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-indigo-100 text-indigo-700">AMC</span>
+                                        <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-indigo-100 text-indigo-700">
+                                            {{ $invoice->saas_invoice_type === \App\Models\Invoice::STUDIO_TYPE_AMC ? 'AMC' : 'DEV' }}
+                                        </span>
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 text-sm text-gray-500">{{ $invoice->invoice_date->format('d/m/Y') }}</td>
