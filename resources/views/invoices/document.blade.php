@@ -146,7 +146,7 @@
     table.items tbody td.figures-wrap {
         padding: 0;
         vertical-align: middle;
-        width: 48mm;
+        width: 72mm;
         border-bottom: 1px solid #eee;
     }
     table.item-figures {
@@ -174,6 +174,13 @@
         text-align: right;
         padding-right: 1mm;
         padding-left: 2mm;
+    }
+    table.item-figures th.rate,
+    table.item-figures td.rate {
+        text-align: right;
+        padding-right: 2mm;
+        padding-left: 1mm;
+        font-weight: 400;
     }
     table.item-figures th.amount,
     table.item-figures td.amount {
@@ -289,11 +296,12 @@
         <thead>
             <tr>
                 <th class="desc">Items</th>
-                <th class="figures-wrap" width="48mm">
+                <th class="figures-wrap" width="72mm">
                     <table class="item-figures" width="100%" cellspacing="0" cellpadding="0">
                         <tr>
-                            <th class="qty" width="40%">Qty</th>
-                            <th class="amount" width="60%">Rate</th>
+                            <th class="qty" width="22%">Qty</th>
+                            <th class="rate" width="39%">Rate</th>
+                            <th class="amount" width="39%">Amount</th>
                         </tr>
                     </table>
                 </th>
@@ -306,8 +314,9 @@
                     <td class="figures-wrap">
                         <table class="item-figures" width="100%" cellspacing="0" cellpadding="0">
                             <tr>
-                                <td class="qty" width="40%">{{ number_format($item->quantity, fmod((float) $item->quantity, 1.0) === 0.0 ? 0 : 2) }}</td>
-                                <td class="amount" width="60%">{{ number_format($item->line_total, fmod((float) $item->line_total, 1.0) === 0.0 ? 0 : 2) }}</td>
+                                <td class="qty" width="22%">{{ number_format($item->quantity, fmod((float) $item->quantity, 1.0) === 0.0 ? 0 : 2) }}</td>
+                                <td class="rate" width="39%">{{ number_format($item->unit_price, fmod((float) $item->unit_price, 1.0) === 0.0 ? 0 : 2) }}</td>
+                                <td class="amount" width="39%">{{ number_format($item->line_total, fmod((float) $item->line_total, 1.0) === 0.0 ? 0 : 2) }}</td>
                             </tr>
                         </table>
                     </td>
@@ -319,8 +328,9 @@
                     <td class="figures-wrap">
                         <table class="item-figures" width="100%" cellspacing="0" cellpadding="0">
                             <tr>
-                                <td class="qty" width="40%"></td>
-                                <td class="amount" width="60%">- {{ number_format($invoice->discount_amount, fmod((float) $invoice->discount_amount, 1.0) === 0.0 ? 0 : 2) }}</td>
+                                <td class="qty" width="22%"></td>
+                                <td class="rate" width="39%"></td>
+                                <td class="amount" width="39%">- {{ number_format($invoice->discount_amount, fmod((float) $invoice->discount_amount, 1.0) === 0.0 ? 0 : 2) }}</td>
                             </tr>
                         </table>
                     </td>
