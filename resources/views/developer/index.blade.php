@@ -8,11 +8,15 @@
         <div id="swagger-ui"></div>
     </x-card>
 
-    {{-- Self-hosted (public/vendor/swagger-ui) rather than a CDN, matching
-         how everything else this app depends on ships with it. --}}
-    <link rel="stylesheet" href="{{ asset('vendor/swagger-ui/swagger-ui.css') }}">
-    <script src="{{ asset('vendor/swagger-ui/swagger-ui-bundle.js') }}"></script>
-    <script src="{{ asset('vendor/swagger-ui/swagger-ui-standalone-preset.js') }}"></script>
+    {{-- Self-hosted (public/swagger-ui) rather than a CDN, matching how
+         everything else this app depends on ships with it. Deliberately
+         NOT under public/vendor/ -- the repo-root .htaccess blocks every
+         URL starting with vendor/ outright (it exists to keep Composer's
+         top-level vendor/ off the web), and that rule cannot tell that
+         path apart from this one. --}}
+    <link rel="stylesheet" href="{{ asset('swagger-ui/swagger-ui.css') }}">
+    <script src="{{ asset('swagger-ui/swagger-ui-bundle.js') }}"></script>
+    <script src="{{ asset('swagger-ui/swagger-ui-standalone-preset.js') }}"></script>
     <script>
         window.addEventListener('DOMContentLoaded', () => {
             window.ui = SwaggerUIBundle({
