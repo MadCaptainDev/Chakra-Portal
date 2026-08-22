@@ -37,6 +37,17 @@ return Application::configure(basePath: dirname(__DIR__))
              */
             Route::middleware(['throttle:webhooks'])
                 ->group(base_path('routes/webhooks.php'));
+
+            /*
+             * Backups and license checks from client-built software Chakra
+             * App Studio maintains, on a different server entirely. Same
+             * shape as the MCP endpoint above -- a bearer token is the only
+             * way in, and there is no session for it to ride on.
+             */
+            Route::middleware([
+                'throttle:saas-api',
+                \App\Http\Middleware\AuthenticateSaasProduct::class,
+            ])->group(base_path('routes/saas-api.php'));
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {

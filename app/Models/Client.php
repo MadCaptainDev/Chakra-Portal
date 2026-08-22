@@ -50,6 +50,16 @@ class Client extends Model
     }
 
     /**
+     * Software Chakra App Studio built and maintains for this client -- the
+     * one thing (besides invoices) that separates an App Studio client from
+     * a Chakra Production one. Most clients have none.
+     */
+    public function saasProducts(): HasMany
+    {
+        return $this->hasMany(SaasProduct::class);
+    }
+
+    /**
      * Everything published for this client.
      *
      * Not a plain column join. Notion's venture field is free text typed by

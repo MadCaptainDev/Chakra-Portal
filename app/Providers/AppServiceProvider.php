@@ -69,5 +69,15 @@ class AppServiceProvider extends ServiceProvider
          */
         RateLimiter::for('webhooks', fn (Request $request) => Limit::perMinute(600)
             ->by($request->ip()));
+
+        /*
+         * The backup + license API. Counted per token like 'mcp' above, for
+         * the same reason -- but set lower: this is a handful of scheduled
+         * backup uploads and license checks a day per product, not a chatty
+         * AI client, so a much smaller ceiling still leaves comfortable room
+         * while catching a misconfigured script stuck in a retry loop.
+         */
+        RateLimiter::for('saas-api', fn (Request $request) => Limit::perMinute(20)
+            ->by($request->bearerToken() ?: $request->ip()));
     }
 }
