@@ -64,32 +64,75 @@ across every form and button (`min-h-[44px]`); keep it.
 
 ## 4. What already exists — reuse it
 
-`resources/views/components/` holds 18 components:
+`resources/views/components/` — grown well past the original 18 since this brief
+was first written. Structural/base components:
 
-`application-logo` · `auth-session-status` · `avatar` · `badge` · `card` ·
-`danger-button` · `empty-state` · `input-error` · `input-label` · `modal` ·
-`page-header` · `primary-button` · `secondary-button` · `select` · `sidebar-link` ·
-`stat-card` · `text-input` · `textarea`
+`application-logo` · `auth-session-status` · `auth-button` · `auth-field` ·
+`avatar` · `badge` · `btn` · `card` · `danger-button` · `day-nav` · `empty-state` ·
+`icon` · `input-error` · `input-label` · `loader` · `manager-picker` · `modal` ·
+`month-nav` · `nav-section` · `page-header` · `permission-matrix` ·
+`primary-button` · `secondary-button` · `section-heading` · `section-label` ·
+`select` · `sidebar-link` · `stat-card` · `tab-nav` · `text-input` · `textarea` ·
+`charts/*` (8 CSS-bar chart partials — bar-list, busiest-days, cashflow-bars,
+daily-bars, horizontal-bars, metric-trend, status-pills, work-heatmap — no JS
+charting library, and none needed)
 
-Two are in good shape and should set the standard:
+Several are in good shape and should set the standard:
 
 - **`avatar`** — deterministic colour from a name hash, initials, three sizes.
 - **`badge`** — status → colour/label maps covering invoice and content states,
   with normalisation so `"Video Ready"` and `video_ready` both resolve.
+- **`btn`** — the unified button/link this brief originally implied was missing.
+  Renders `<a>` when given `href`, `<button>` otherwise; `variant`
+  (primary/secondary/danger/ghost/dark), `icon`, `size`. Built because anchors
+  styled as buttons were hand-pasted ~30 times before it existed. **Still not
+  universally adopted** — some screens (e.g. `portfolio/index.blade.php`) still
+  hand-paste the old class strings instead of reaching for it. Adopting `btn`
+  everywhere it applies is part of the module-by-module work in §9.
+- **`month-nav` / `day-nav`** — the "three duplicated month navigators" this
+  brief used to call out are gone; `expenses`, `salaries`, `bills` and friends
+  already share `month-nav`. The **pay row** (name, amount input, Pay button,
+  paid/unpaid state) mentioned in the same original complaint is *not* extracted
+  yet — still duplicated across those same screens. Still open, see §5/§9.
 
-**`card` is the problem.** It is a bare `<div>` with one merged class, so every
-caller re-specifies its own padding. Grep for `x-card` and you will find `p-4`,
-`p-4 sm:p-6`, `p-3 sm:p-4` and `divide-y divide-gray-200` all in use. Give it real
-variants and push the padding decision into the component.
+**`card`'s padding problem is fixed; its dark-mode problem isn't.** It already
+has real variants — `padding` (none/sm/md/lg) and `tone` (default/brand/muted,
+plus now `dark`) — pushed into the component rather than re-specified per caller.
+Some older call sites still bypass the prop with raw `p-*` classes (a genuine,
+smaller cleanup item, not the structural problem it used to be). The tone that
+was actually missing until this pass was `dark` — see "the dark-surface gap"
+below, now the more important of the two remaining `card` issues.
+
+### The dark-surface gap
+
+`dashboard.blade.php` is the *only* screen in the app that opts into
+`<x-app-layout dark>`, and until this pass it got there by reimplementing
+everything locally instead of using shared components: its own
+`$cardClass = 'rounded-xl bg-white/5 ring-1 ring-white/10'` instead of
+`<x-card tone="dark">`, its own bespoke header block instead of
+`<x-page-header dark>`, its own section-label classes at `tracking-[0.16em]`
+instead of `<x-section-label dark>` (which standardises on `tracking-wider`,
+same as the light-mode eyebrow). `card`, `stat-card`, `page-header` and the new
+`section-label` all now carry a `dark` prop/tone matching Dashboard's own
+existing look exactly — but **Dashboard itself has not been migrated to use
+them yet**. That migration is the highest-value item at the top of §9's
+module-by-module list: it is the one screen already paying the cost of this gap,
+and the only current consumer any of these dark variants would serve.
 
 Layouts live in `resources/views/layouts/` — `app` (sidebar shell), `guest` (auth
-pages), `sidebar` (nav, shared by the desktop rail and the mobile drawer).
+pages), `sidebar` (nav, shared by the desktop rail and the mobile drawer, itself
+driven by the `App\Support\Permission::MODULES` registry — extend that registry
+rather than hand-editing nav markup when a module's presence in the sidebar needs
+to change).
 
 ---
 
 ## 5. Screen inventory and known weaknesses
 
-57 Blade views. Grouped by area, with what specifically needs fixing.
+Originally 57 Blade views; the app has grown well past that since. Grouped by
+area, with what specifically needs fixing. The first block (Landing through
+Admin) is the original inventory, mostly unchanged. Everything under "Built
+since this brief" (§5b) is new and has never been audited against it.
 
 ### Landing and auth
 `landing.blade.php` · `auth/login` · `auth/forgot-password` · `auth/reset-password` ·
@@ -142,6 +185,68 @@ The plainest screens in the app; `users/index` is an unstyled table.
 
 ---
 
+## 5b. Built since this brief — not yet audited
+
+None of the below existed when this brief was written. Bring each under the same
+system in §9's module-by-module pass; nothing here has been deliberately
+redesigned yet except where noted.
+
+### Portfolio (the website's public work)
+`portfolio/index` (+`_form`, `_case-study-fields`) · `portfolio-detail` ·
+`portfolio-categories/*` · public `portfolio.blade.php`/landing grid partial
+
+**Already had several redesign-adjacent passes** — thumbnails render at the
+piece's real aspect ratio (9:16 for a Reel, not force-cropped to 16:9), new
+pieces default to 9:16/Instagram Reels, the admin screen has a "Worth adding"
+strip surfacing high-performing un-added Instagram posts, Instagram-linked
+pieces auto-fill description/platform/format from the synced post, and the
+admin form's Instagram-picker loading state already uses `<x-loader>`. Audit
+against the rest of the system rather than treating as untouched — likely
+needs less work than the other modules in this section.
+
+### Shoots and production
+`shoots/index` · `show` · `create/edit` · `call-sheet` · crew/kit sub-views ·
+`equipment/index` · `scripts/index` + editor + sections
+
+Kit check-out/check-in and the crew list are the least visually settled parts;
+`call-sheet` is a distinct printed-adjacent screen (not dompdf, but should be
+scannable at a glance on a phone at the actual shoot).
+
+### Work tracking
+`todos/index` (team) · `my/todos` · `my/timesheet` · `my/calendar` ·
+`timesheets/index` + `show`
+
+Todos already use `<x-stat-card>` and a `.stagger` entrance — one of the more
+current-feeling screens; timesheets/admin review is plainer.
+
+### Studio
+`announcements/index` · `enquiries/index` + `show` · `taxonomy/index`
+(master data, many list types behind one screen)
+
+`taxonomy/index` is a generic CRUD-list-of-lists screen and is a good early
+candidate for whatever the "one list screen" pattern ends up being, since
+several other modules (categories, taxonomy terms) are structurally identical.
+
+### Setup (admin-only integrations)
+`settings/edit` · `whatsapp/edit` · `instagram-settings/edit` · `notion/edit` ·
+`push/edit` · `content-accounts/edit` · `brief-questions/index` ·
+`invoice-template/edit`
+
+Eight screens, one repeated shape (connection status, a form, a "send test"
+action) that has never been factored into a shared pattern — each was built
+independently as its integration landed.
+
+### Client portal and employee "My work"
+`client/dashboard` · `client/invoices` · `client/work` · `client/shoots` ·
+`client/brief` · employee `my/dashboard`
+
+Two audiences this brief's original "who uses it" section didn't cover: clients
+(no module permissions, a narrower nav) and the day-to-day employee view (not
+the admin `dashboard.blade.php` covered in §5's Dashboard section — a separate,
+simpler screen).
+
+---
+
 ## 6. The printed invoice — different rules entirely
 
 `resources/views/invoices/document.blade.php` is rendered by **dompdf, not a
@@ -189,7 +294,9 @@ visually joined to it.
 
 ## 7. Engineering guardrails
 
-**126 tests currently pass. They must still pass.**
+**1,079+ tests currently pass (this number climbs with every feature — check
+`php artisan test`'s own summary line rather than trusting a number written down
+here). They must still pass.**
 
 `tests/Feature/InvoicePdfLayoutTest.php` decodes the generated PDF binary and
 asserts page count, that the footer sits flush at y=0, that the page is white edge
@@ -223,20 +330,35 @@ hides, or it renders for a frame before Alpine boots.
 
 ## 8. Definition of done
 
-- One visual system across all 57 views — consistent spacing scale, one card
+- One visual system across every view in §5 and §5b — consistent spacing scale, one card
   treatment, one stat tile, one month navigator, one pay row.
 - Verified at **420px first**, then desktop.
 - `x-card`, `x-stat-card` and the new shared components carry the styling decisions;
   callers stop re-specifying padding.
 - The printed invoice shows Qty and unit Rate, still renders as a single A4 page,
   and still passes the PDF layout tests.
-- 126 tests green. No new dependencies. No changed business logic.
+- Full suite green (see §7 for why not to hardcode the count). No new
+  dependencies. No changed business logic.
 
 ## 9. Suggested order
 
-1. Settle the design tokens and fix `x-card` / `x-stat-card` first — everything else
-   inherits from them.
-2. Extract the duplicated month navigator and pay row.
-3. Work module by module: dashboard → invoices → clients → recurring → expenses.
-4. Do the printed invoice last, on its own, and run the PDF tests after every change.
-5. Landing and auth pages last.
+1. ~~Settle the design tokens and fix `x-card` / `x-stat-card` first~~ — done.
+   `card` has `padding`/`tone` (including `dark`) variants, `stat-card` has
+   dark-aware accents, `page-header` has a `dark` prop, and a new
+   `section-label` component standardises the uppercase-tracked micro-label
+   idiom. All additive so far — see step 2, the first thing that actually
+   spends them.
+2. **Migrate `dashboard.blade.php` to the shared dark variants** — the one
+   screen currently paying for the dark-surface gap described in §4, and the
+   only current consumer any of step 1's dark variants would serve. Do this
+   before anything else below; it is what makes step 1 real rather than
+   unused capability.
+3. Extract the pay row (§5, still open — the month navigator half of this step
+   is already done via `month-nav`/`day-nav`).
+4. Work module by module: invoices → clients → recurring → expenses/salaries
+   (adopting `btn` consistently as you go, not just `card`) → §5b's modules
+   (Shoots, work tracking, Studio, Setup's eight screens, client portal and
+   employee "My work") — audit Portfolio rather than rebuilding it, per its
+   note in §5b.
+5. Do the printed invoice last, on its own, and run the PDF tests after every change.
+6. Landing and auth pages last.
