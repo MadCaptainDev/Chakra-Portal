@@ -5,6 +5,7 @@ use App\Http\Controllers\BillController;
 use App\Http\Controllers\BrowserSessionController;
 use App\Http\Controllers\McpTokenController;
 use App\Http\Controllers\PushTokenController;
+use App\Http\Controllers\SaasProductController;
 use App\Http\Controllers\CallSheetController;
 use App\Http\Controllers\CompetitorAccountController;
 use App\Http\Controllers\CompetitorSettingController;
@@ -719,6 +720,34 @@ Route::middleware(['auth', 'module:salaries,view'])->group(function () {
 
     Route::delete('salaries/{salary}', [SalaryController::class, 'destroy'])
         ->middleware('module:salaries,delete')->name('salaries.destroy');
+});
+
+/*
+ * Chakra App Studio: client-built software Chakra maintains -- backups and
+ * the AMC licensing that keeps it running. See routes/saas-api.php for the
+ * bearer-token endpoints the software itself calls; everything here is the
+ * session-authenticated admin side.
+ */
+Route::middleware(['auth', 'module:saas-products,view'])->group(function () {
+    Route::get('saas-products', [SaasProductController::class, 'index'])->name('saas-products.index');
+    Route::get('saas-products/{saasProduct}', [SaasProductController::class, 'show'])->name('saas-products.show');
+    Route::get('saas-products/{saasProduct}/backups/{backup}/download', [SaasProductController::class, 'downloadBackup'])
+        ->name('saas-products.backups.download');
+
+    Route::post('saas-products', [SaasProductController::class, 'store'])
+        ->middleware('module:saas-products,create')->name('saas-products.store');
+
+    Route::delete('saas-products/{saasProduct}', [SaasProductController::class, 'destroy'])
+        ->middleware('module:saas-products,delete')->name('saas-products.destroy');
+
+    // Suspending, reinstating and setting up billing are `manage`: this is
+    // the lever a client's continued access literally depends on, not
+    // ordinary record-keeping.
+    Route::middleware('module:saas-products,manage')->group(function () {
+        Route::post('saas-products/{saasProduct}/suspend', [SaasProductController::class, 'suspend'])->name('saas-products.suspend');
+        Route::post('saas-products/{saasProduct}/reinstate', [SaasProductController::class, 'reinstate'])->name('saas-products.reinstate');
+        Route::post('saas-products/{saasProduct}/setup-amc', [SaasProductController::class, 'setupAmc'])->name('saas-products.setup-amc');
+    });
 });
 
 /*

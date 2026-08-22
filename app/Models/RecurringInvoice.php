@@ -27,6 +27,7 @@ class RecurringInvoice extends Model
 
     protected $fillable = [
         'client_id',
+        'saas_product_id',
         'label',
         'intro_text',
         'discount_label',
@@ -50,6 +51,16 @@ class RecurringInvoice extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
+    }
+
+    /**
+     * Set only for the one schedule that bills a SaasProduct's AMC --
+     * see RecurringInvoiceGenerator, which carries this onto every
+     * invoice it generates from this schedule.
+     */
+    public function saasProduct(): BelongsTo
+    {
+        return $this->belongsTo(SaasProduct::class);
     }
 
     public function createdBy(): BelongsTo

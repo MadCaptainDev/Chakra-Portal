@@ -133,4 +133,21 @@ class SaasProduct extends Model
             'suspended_by_id' => null,
         ])->save();
     }
+
+    /**
+     * Called when an invoice billing this product's AMC is paid in full
+     * (see Invoice::recalculateStatus()). Extends from whichever is later
+     * of today and the current paid-until date, not just "+1 year from
+     * today" -- a renewal paid early adds to the remaining term instead of
+     * shortening it, and a lapsed one starts the new year from today
+     * rather than backdating it.
+     */
+    public function extendAmc(): void
+    {
+        $base = $this->amc_paid_until !== null && $this->amc_paid_until->isFuture()
+            ? $this->amc_paid_until
+            : today();
+
+        $this->forceFill(['amc_paid_until' => $base->copy()->addYear()])->save();
+    }
 }

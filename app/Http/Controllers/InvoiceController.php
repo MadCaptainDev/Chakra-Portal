@@ -25,10 +25,11 @@ class InvoiceController extends Controller
     {
         $search = $request->string('search')->toString();
         $status = $request->string('status')->toString();
+        $type = $request->string('type')->toString();
         $month = $this->resolveMonth($request->query('month'));
 
         $invoices = Invoice::query()
-            ->with(['client', 'payments'])
+            ->with(['client', 'payments', 'saasProduct'])
             ->whereDate('invoice_date', '>=', $month->copy()->startOfMonth()->toDateString())
             ->whereDate('invoice_date', '<=', $month->copy()->endOfMonth()->toDateString())
             ->when($search, function ($query, $search) {
@@ -42,6 +43,11 @@ class InvoiceController extends Controller
             // "overdue" and "partial" are derived, not stored statuses.
             ->when($status && ! in_array($status, ['overdue', 'partial'], true),
                 fn ($query) => $query->where('status', $status))
+            // The one filter Chakra App Studio actually asked for: pull its
+            // AMC billing apart from Chakra Production's invoices on the
+            // same screen everyone already uses, rather than a second one.
+            ->when($type === 'amc', fn ($query) => $query->whereNotNull('saas_product_id'))
+            ->when($type === 'production', fn ($query) => $query->whereNull('saas_product_id'))
             ->latest('invoice_date')
             ->paginate(20)
             ->withQueryString();
@@ -52,7 +58,7 @@ class InvoiceController extends Controller
             ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PAID])
             ->sum('total');
 
-        return view('invoices.index', compact('invoices', 'search', 'status', 'month', 'monthTotal'));
+        return view('invoices.index', compact('invoices', 'search', 'status', 'type', 'month', 'monthTotal'));
     }
 
     private function resolveMonth(?string $value): Carbon

@@ -204,6 +204,21 @@ class Permission
             'icon' => 'trending-down',
             'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
+
+        /*
+         * Chakra App Studio's own line of work -- app/website builds for a
+         * client, distinct from the Production side the rest of this file
+         * is about. A SaasProduct is the software itself (backups, AMC
+         * licensing); its own group keeps it from reading as a Production
+         * module. No `credentials`/`approve` -- there is nothing here that
+         * ability distinguishes.
+         */
+        'saas-products' => [
+            'label' => 'SaaS Products',
+            'group' => 'App Studio',
+            'icon' => 'globe',
+            'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
+        ],
     ];
 
     /**

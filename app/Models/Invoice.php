@@ -40,6 +40,7 @@ class Invoice extends Model
         'approved_at',
         'created_by',
         'recurring_invoice_id',
+        'saas_product_id',
     ];
 
     protected $casts = [
@@ -64,6 +65,16 @@ class Invoice extends Model
     public function recurringInvoice(): BelongsTo
     {
         return $this->belongsTo(RecurringInvoice::class);
+    }
+
+    /**
+     * The SaasProduct this invoice bills AMC for, or null for ordinary
+     * production work -- the one thing that actually separates a Chakra
+     * App Studio invoice from a Chakra Production one.
+     */
+    public function saasProduct(): BelongsTo
+    {
+        return $this->belongsTo(SaasProduct::class);
     }
 
     public function items(): HasMany
@@ -209,6 +220,14 @@ class Invoice extends Model
     /**
      * Recompute paid/unpaid status from recorded payments. Never touches
      * a pending-approval invoice - approval is a separate, explicit step.
+     *
+     * An invoice that just became fully paid, and bills a SaasProduct's
+     * AMC, extends that product's paid-until date here -- this is the one
+     * place every path that can settle an invoice (a new payment, an
+     * edited one) already funnels through, via PaymentObserver. Only fires
+     * on the unpaid -> paid transition, not e.g. re-saving an
+     * already-paid invoice, so it can never be applied twice for one
+     * invoice.
      */
     public function recalculateStatus(): void
     {
@@ -216,10 +235,16 @@ class Invoice extends Model
             return;
         }
 
+        $wasPaid = $this->status === self::STATUS_PAID;
+
         $this->status = $this->paidTotal() + self::AMOUNT_EPSILON >= (float) $this->total
             ? self::STATUS_PAID
             : self::STATUS_UNPAID;
 
         $this->save();
+
+        if (! $wasPaid && $this->status === self::STATUS_PAID && $this->saas_product_id) {
+            $this->saasProduct?->extendAmc();
+        }
     }
 }

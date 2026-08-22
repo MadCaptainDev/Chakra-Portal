@@ -73,6 +73,7 @@ class RecurringInvoiceGenerator
                 'status' => Invoice::STATUS_PENDING_APPROVAL,
                 'created_by' => $schedule->created_by,
                 'recurring_invoice_id' => $schedule->id,
+                'saas_product_id' => $schedule->saas_product_id,
             ]);
 
             foreach ($schedule->items as $item) {
