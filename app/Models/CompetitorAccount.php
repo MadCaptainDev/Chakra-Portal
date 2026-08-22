@@ -21,6 +21,16 @@ class CompetitorAccount extends Model
         'client_id',
         'notes',
         'is_active',
+        // Normally written by CompetitorScraper after a scrape, not typed
+        // into a form -- but unlike SocialAccount::$access_token these carry
+        // no credential, so there is no reason to force every write through
+        // forceFill(). Kept mass-assignable for the same reason a test (or a
+        // future admin "edit stats by hand" fallback) can just create()/
+        // update() one directly.
+        'profile_pic_url',
+        'followers_count',
+        'avg_views_30d',
+        'last_scraped_at',
     ];
 
     protected $casts = [
