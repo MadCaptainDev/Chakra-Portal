@@ -125,6 +125,9 @@
             <x-sidebar-link icon="bell" :href="route('push.edit')" :active="request()->routeIs('push.*')">
                 Notifications
             </x-sidebar-link>
+            <x-sidebar-link icon="eye" :href="route('competitor-settings.edit')" :active="request()->routeIs('competitor-settings.*')">
+                Competitor Analysis
+            </x-sidebar-link>
             <x-sidebar-link icon="users" :href="route('content-accounts.edit')" :active="request()->routeIs('content-accounts.*')">
                 Content Accounts
             </x-sidebar-link>

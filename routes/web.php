@@ -6,6 +6,8 @@ use App\Http\Controllers\BrowserSessionController;
 use App\Http\Controllers\McpTokenController;
 use App\Http\Controllers\PushTokenController;
 use App\Http\Controllers\CallSheetController;
+use App\Http\Controllers\CompetitorAccountController;
+use App\Http\Controllers\CompetitorSettingController;
 use App\Http\Controllers\ContentAccountController;
 use App\Http\Controllers\ContentDashboardController;
 use App\Http\Controllers\Client\BriefController as ClientBriefController;
@@ -563,6 +565,25 @@ Route::middleware(['auth', 'module:taxonomy,view'])->group(function () {
     });
 });
 
+/*
+ * Tracking a competitor's public Instagram account and generating concepts
+ * from the reels that outperform it. Connecting the paid Apify/Gemini/
+ * Anthropic keys this depends on is a separate, admin-only Setup screen --
+ * see the competitor-settings.* group in the admin block below.
+ */
+Route::middleware(['auth', 'module:competitors,view'])->group(function () {
+    Route::get('competitors', [CompetitorAccountController::class, 'index'])->name('competitors.index');
+    Route::post('competitors', [CompetitorAccountController::class, 'store'])
+        ->middleware('module:competitors,create')->name('competitors.store');
+    Route::get('competitors/{competitor}', [CompetitorAccountController::class, 'show'])->name('competitors.show');
+    Route::post('competitors/{competitor}/scrape', [CompetitorAccountController::class, 'scrape'])
+        ->middleware('module:competitors,create')->name('competitors.scrape');
+    Route::delete('competitors/{competitor}', [CompetitorAccountController::class, 'destroy'])
+        ->middleware('module:competitors,delete')->name('competitors.destroy');
+    Route::post('competitor-reel-analyses/{analysis}/concepts', [CompetitorAccountController::class, 'generateConcepts'])
+        ->middleware('module:competitors,create')->name('competitor-reel-analyses.generate-concepts');
+});
+
 // Staff-side inbox for the landing page's enquiry form. No `create`: the only
 // thing that writes an enquiry is the public form.
 Route::middleware(['auth', 'module:enquiries,view'])->group(function () {
@@ -753,6 +774,15 @@ Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
     Route::get('push', [PushSettingController::class, 'edit'])->name('push.edit');
     Route::put('push', [PushSettingController::class, 'update'])->name('push.update');
     Route::post('push/test', [PushSettingController::class, 'test'])->name('push.test');
+
+    /*
+     * The competitor-analysis pipeline's three paid API keys (Apify, Gemini,
+     * Anthropic). Admin-only, same reasoning again -- every key here has a
+     * real per-use cost.
+     */
+    Route::get('competitor-settings', [CompetitorSettingController::class, 'edit'])->name('competitor-settings.edit');
+    Route::put('competitor-settings', [CompetitorSettingController::class, 'update'])->name('competitor-settings.update');
+    Route::post('competitor-settings/test', [CompetitorSettingController::class, 'test'])->name('competitor-settings.test');
 
     /*
      * Which Notion venture belongs to which account, and each account's

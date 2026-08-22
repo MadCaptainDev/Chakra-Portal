@@ -162,6 +162,19 @@ class Permission
             'icon' => 'grip',
             'abilities' => ['view', 'manage'],
         ],
+        /*
+         * Scraping and analyzing a competitor's public Instagram, not one of
+         * ours -- separate module from Portfolio/Clients for exactly that
+         * reason. `manage` gates the Setup-adjacent bits inside the screen
+         * itself (the settings link); connecting the paid API keys is its
+         * own admin-only screen, not part of this module at all.
+         */
+        'competitors' => [
+            'label' => 'Competitors',
+            'group' => 'Studio',
+            'icon' => 'eye',
+            'abilities' => ['view', 'create', 'delete', 'manage'],
+        ],
 
         /*
          * The money. Split three ways rather than one "finance" module, because
