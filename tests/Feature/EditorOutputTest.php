@@ -201,6 +201,10 @@ class EditorOutputTest extends TestCase
         $this->assertSame(['2026-05', '2026-04'], $months->pluck('key')->all());
         $this->assertSame(60, $months->firstWhere('key', '2026-04')['minutes']);
         $this->assertSame(1, $months->firstWhere('key', '2026-05')['byPlanner'][ContentItem::SOURCE_REEL]);
+        $mayEditor = $months->firstWhere('key', '2026-05')['editors']->firstWhere('label', 'Gokul');
+        $this->assertSame(1, $mayEditor['byPlanner'][ContentItem::SOURCE_REEL]);
+        $this->assertSame(120, $mayEditor['minutes']);
+        $this->assertNotNull($mayEditor['user']);
     }
 
     public function test_the_current_month_is_flagged_when_the_window_includes_today(): void
@@ -351,6 +355,7 @@ class EditorOutputTest extends TestCase
             ->assertSee('Reels')
             ->assertSee('Posts')
             ->assertSee('Stories')
+            ->assertSee('This month')
             ->assertDontSee('per item');
     }
 

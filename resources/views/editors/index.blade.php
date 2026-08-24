@@ -10,13 +10,6 @@
      * hour still pollutes the compare -- so the warning sits above the figures
      * rather than under them.
      */
-    $tierTone = [
-        ET::TIER_HIGH => 'bg-red-100 text-red-700',
-        ET::TIER_MEDIUM => 'bg-amber-100 text-amber-800',
-        ET::TIER_LOW => 'bg-emerald-100 text-emerald-700',
-        ET::TIER_NONE => 'bg-gray-100 text-gray-500',
-    ];
-
     $tierBar = [
         ET::TIER_HIGH => 'bg-red-400',
         ET::TIER_MEDIUM => 'bg-amber-400',
@@ -31,7 +24,6 @@
     ];
 
     $highCount = ($flagsBySeverity[TA::SEVERITY_HIGH] ?? collect())->count();
-    $peakPublished = max(1, (int) $throughput['months']->max(fn ($m) => array_sum($m['byPlanner'])));
     $plannerKeys = ET::PLANNERS;
 @endphp
 
@@ -99,169 +91,114 @@
             </a>
         @endif
 
-        {{-- ——— Per editor ——— --}}
-        <section>
-            <h2 class="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400 mb-3.5">Per editor</h2>
-
-            @if ($throughput['rows']->isEmpty())
-                <x-empty-state message="Nothing published and no editing logged in this period." />
-            @else
-                <div class="space-y-3">
-                    @foreach ($throughput['rows'] as $row)
-                        @php
-                            $hit = $row['user'] ? ($impact[$row['user']->id] ?? null) : null;
-                            $tainted = $hit && $hit['share'] >= 0.15;
-                            $published = array_sum($row['byPlanner']);
-                        @endphp
-
-                        <x-card class="p-4 sm:p-5 {{ $tainted ? 'border border-red-200' : 'border border-brand-100/40' }}">
-                            <div class="flex flex-wrap items-start justify-between gap-4">
-                                <div class="flex items-center gap-3 min-w-0">
-                                    @if ($row['user'])
-                                        <x-avatar :name="$row['user']->name" :src="$row['user']->avatarUrl()" class="shrink-0" />
+        {{-- ——— Month by month: each month lists editors with planner counts vs hours ——— --}}
+        @if ($throughput['months']->every(fn ($m) => $m['editors']->isEmpty() && $m['minutes'] === 0 && array_sum($m['byPlanner']) === 0))
+            <x-empty-state message="Nothing published and no editing logged in this period." />
+        @else
+            <div class="space-y-8">
+                @foreach ($throughput['months'] as $month)
+                    @php
+                        $monthPublished = array_sum($month['byPlanner']);
+                    @endphp
+                    <section @if ($month['isCurrent']) id="this-month" @endif class="scroll-mt-6">
+                        <div class="flex flex-wrap items-end justify-between gap-3 mb-3.5">
+                            <div class="min-w-0">
+                                <h2 class="flex flex-wrap items-center gap-2 text-base font-bold text-gray-900">
+                                    @if ($month['isCurrent'])
+                                        <span class="w-1.5 h-5 rounded-full bg-brand-500 shrink-0" aria-hidden="true"></span>
                                     @endif
-                                    <div class="min-w-0">
-                                        <p class="font-semibold text-gray-900 truncate">{{ $row['label'] }}</p>
-                                        <p class="text-xs text-gray-500">
-                                            @if (! $row['user'])
-                                                In Notion only — no portal login matches this name
-                                            @elseif ($published === 0)
-                                                Logged editing time, published nothing tracked
-                                            @else
-                                                {{ $row['days'] }} {{ Str::plural('day', $row['days']) }} editing
-                                                @if ($row['hoursPerDay']) &middot; {{ $row['hoursPerDay'] }}h a day @endif
-                                            @endif
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div class="shrink-0 text-right">
-                                    @if ($tainted)
-                                        <p class="text-2xl font-extrabold leading-none text-red-600 tabular-nums">—</p>
-                                        <p class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-red-600">
-                                            {{ round($hit['share'] * 100) }}% of hours suspect
-                                        </p>
-                                    @else
-                                        <p class="text-2xl font-extrabold leading-none text-gray-900 tabular-nums">
-                                            {{ TimesheetEntry::formatMinutes($row['minutes']) }}
-                                        </p>
-                                        <p class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Editing time</p>
+                                    {{ $month['label'] }}
+                                    @if ($month['isCurrent'])
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-brand-100 text-brand-800">This month</span>
                                     @endif
-                                </div>
+                                </h2>
+                                <p class="mt-1 text-xs text-gray-500">
+                                    @foreach ($plannerKeys as $source)
+                                        <span class="tabular-nums font-semibold text-gray-700">{{ $month['byPlanner'][$source] }}</span>
+                                        {{ ET::PLANNER_LABELS[$source] }}@if (! $loop->last) · @endif
+                                    @endforeach
+                                    · {{ TimesheetEntry::formatMinutes($month['minutes']) }} editing
+                                </p>
                             </div>
+                        </div>
 
-                            <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                @foreach ($plannerKeys as $source)
-                                    <div>
-                                        <p class="text-lg font-bold text-gray-900 tabular-nums">{{ $row['byPlanner'][$source] }}</p>
-                                        <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{{ ET::PLANNER_LABELS[$source] }}</p>
-                                    </div>
-                                @endforeach
-                                <div>
-                                    <p class="text-lg font-bold text-gray-900 tabular-nums">{{ TimesheetEntry::formatMinutes($row['minutes']) }}</p>
-                                    <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Hours</p>
-                                </div>
-                            </div>
-
-                            {{-- Tier mix. Secondary: effort mix ≠ type mix. --}}
-                            @if ($published > 0)
-                                <div class="mt-4">
-                                    <div class="flex h-2 rounded-full overflow-hidden bg-gray-100">
-                                        @foreach ([ET::TIER_HIGH, ET::TIER_MEDIUM, ET::TIER_LOW, ET::TIER_NONE] as $tier)
-                                            @if ($row['tiers'][$tier] > 0)
-                                                <div class="{{ $tierBar[$tier] }}"
-                                                     style="width: {{ $row['tiers'][$tier] / $published * 100 }}%"
-                                                     title="{{ ET::TIER_LABELS[$tier] }}: {{ $row['tiers'][$tier] }}"></div>
-                                            @endif
-                                        @endforeach
-                                    </div>
-                                    <div class="mt-2 flex flex-wrap gap-1.5">
-                                        @foreach ([ET::TIER_HIGH, ET::TIER_MEDIUM, ET::TIER_LOW, ET::TIER_NONE] as $tier)
-                                            @if ($row['tiers'][$tier] > 0)
-                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold {{ $tierTone[$tier] }}">
-                                                    {{ ET::TIER_LABELS[$tier] }} {{ $row['tiers'][$tier] }}
-                                                </span>
-                                            @endif
-                                        @endforeach
-                                    </div>
+                        <x-card class="overflow-hidden {{ $month['isCurrent'] ? 'border border-brand-200 ring-1 ring-brand-100' : 'border border-brand-100/40' }}">
+                            @if ($month['editors']->isEmpty())
+                                <p class="p-5 text-sm text-gray-500">No editors with output or editing hours this month.</p>
+                            @else
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-sm">
+                                        <thead>
+                                            <tr class="text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400 border-b border-gray-100">
+                                                <th class="px-4 sm:px-5 py-3">Editor</th>
+                                                @foreach ($plannerKeys as $source)
+                                                    <th class="px-3 py-3 text-right">{{ ET::PLANNER_LABELS[$source] }}</th>
+                                                @endforeach
+                                                <th class="px-4 sm:px-5 py-3 text-right">Editing time</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-gray-100">
+                                            @foreach ($month['editors'] as $row)
+                                                @php
+                                                    $hit = $row['user'] ? ($impact[$row['user']->id] ?? null) : null;
+                                                    $tainted = $hit && $hit['share'] >= 0.15;
+                                                    $published = array_sum($row['byPlanner']);
+                                                @endphp
+                                                <tr class="{{ $tainted ? 'bg-red-50/40' : '' }}">
+                                                    <td class="px-4 sm:px-5 py-3">
+                                                        <div class="flex items-center gap-3 min-w-0">
+                                                            @if ($row['user'])
+                                                                <x-avatar :name="$row['user']->name" :src="$row['user']->avatarUrl()" class="shrink-0 !w-8 !h-8 text-xs" />
+                                                            @endif
+                                                            <div class="min-w-0">
+                                                                <p class="font-semibold text-gray-900 truncate">{{ $row['label'] }}</p>
+                                                                @if (! $row['user'])
+                                                                    <p class="text-[11px] text-gray-400">Notion only</p>
+                                                                @elseif ($published === 0)
+                                                                    <p class="text-[11px] text-gray-400">Hours only — nothing on planners</p>
+                                                                @elseif ($tainted)
+                                                                    <p class="text-[11px] font-semibold text-red-600">{{ round($hit['share'] * 100) }}% hours suspect</p>
+                                                                @endif
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    @foreach ($plannerKeys as $source)
+                                                        <td class="px-3 py-3 text-right tabular-nums text-gray-900">{{ $row['byPlanner'][$source] }}</td>
+                                                    @endforeach
+                                                    <td class="px-4 sm:px-5 py-3 text-right tabular-nums font-semibold {{ $tainted ? 'text-red-600' : 'text-gray-900' }}">
+                                                        {{ $tainted ? '—' : TimesheetEntry::formatMinutes($row['minutes']) }}
+                                                    </td>
+                                                </tr>
+                                                @if ($published > 0)
+                                                    <tr class="{{ $tainted ? 'bg-red-50/40' : '' }}">
+                                                        <td colspan="{{ 2 + count($plannerKeys) }}" class="px-4 sm:px-5 pb-3 pt-0">
+                                                            <div class="flex h-1.5 max-w-xs rounded-full overflow-hidden bg-gray-100">
+                                                                @foreach ([ET::TIER_HIGH, ET::TIER_MEDIUM, ET::TIER_LOW, ET::TIER_NONE] as $tier)
+                                                                    @if ($row['tiers'][$tier] > 0)
+                                                                        <div class="{{ $tierBar[$tier] }}"
+                                                                             style="width: {{ $row['tiers'][$tier] / $published * 100 }}%"
+                                                                             title="{{ ET::TIER_LABELS[$tier] }}: {{ $row['tiers'][$tier] }}"></div>
+                                                                    @endif
+                                                                @endforeach
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                @endif
+                                            @endforeach
+                                        </tbody>
+                                    </table>
                                 </div>
                             @endif
                         </x-card>
-                    @endforeach
-                </div>
-            @endif
-        </section>
+                    </section>
+                @endforeach
+            </div>
 
-        {{-- ——— Month by month (current month first) ——— --}}
-        <section>
-            <h2 class="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400 mb-3.5">Month by month</h2>
-
-            <x-card class="p-4 sm:p-6 border border-brand-100/40 overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                                <th class="pb-3 pr-4">Month</th>
-                                @foreach ($plannerKeys as $source)
-                                    <th class="pb-3 pr-4 text-right">{{ ET::PLANNER_LABELS[$source] }}</th>
-                                @endforeach
-                                <th class="pb-3 pr-4">Tier mix</th>
-                                <th class="pb-3 text-right">Editing time</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            @foreach ($throughput['months'] as $month)
-                                @php
-                                    $monthPublished = array_sum($month['byPlanner']);
-                                @endphp
-                                <tr class="{{ $month['isCurrent'] ? 'bg-brand-50/80' : '' }}">
-                                    <td class="py-3 pr-4 font-semibold text-gray-900 whitespace-nowrap">
-                                        <span class="inline-flex items-center gap-2">
-                                            @if ($month['isCurrent'])
-                                                <span class="w-1 self-stretch rounded-full bg-brand-500" aria-hidden="true"></span>
-                                            @endif
-                                            {{ $month['label'] }}
-                                            @if ($month['isCurrent'])
-                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-brand-100 text-brand-800">This month</span>
-                                            @endif
-                                        </span>
-                                    </td>
-                                    @foreach ($plannerKeys as $source)
-                                        <td class="py-3 pr-4 text-right tabular-nums {{ $month['isCurrent'] ? 'font-semibold text-gray-900' : 'text-gray-700' }}">
-                                            {{ $month['byPlanner'][$source] }}
-                                        </td>
-                                    @endforeach
-                                    <td class="py-3 pr-4 w-1/4 min-w-[120px]">
-                                        @if ($monthPublished > 0)
-                                            <div class="flex h-1.5 rounded-full overflow-hidden bg-gray-100"
-                                                 style="width: {{ max(12, round($monthPublished / $peakPublished * 100)) }}%">
-                                                @foreach ([ET::TIER_HIGH, ET::TIER_MEDIUM, ET::TIER_LOW, ET::TIER_NONE] as $tier)
-                                                    @if ($month['tiers'][$tier] > 0)
-                                                        <div class="{{ $tierBar[$tier] }}"
-                                                             style="width: {{ $month['tiers'][$tier] / $monthPublished * 100 }}%"
-                                                             title="{{ ET::TIER_LABELS[$tier] }}: {{ $month['tiers'][$tier] }}"></div>
-                                                    @endif
-                                                @endforeach
-                                            </div>
-                                        @else
-                                            <span class="text-xs text-gray-400">—</span>
-                                        @endif
-                                    </td>
-                                    <td class="py-3 text-right tabular-nums font-semibold text-gray-900">
-                                        {{ TimesheetEntry::formatMinutes($month['minutes']) }}
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-
-                <p class="mt-4 text-xs text-gray-500">
-                    Editing time is one total — the timesheet does not say Reel vs Post vs Story.
-                    Read hours beside the planner columns, not as a single rate.
-                </p>
-            </x-card>
-        </section>
+            <p class="text-xs text-gray-500">
+                Editing time is one total per month — the timesheet does not say Reel vs Post vs Story.
+                Read hours beside the planner columns for that month, not as a single rate across the whole period.
+            </p>
+        @endif
 
         {{-- ——— The separate area: what the timesheet cannot vouch for ——— --}}
         <section id="suspect" class="scroll-mt-6">

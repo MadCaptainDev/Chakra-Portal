@@ -242,19 +242,25 @@ class EditorThroughput
                         && self::key($i->editor) === $pkey
                 );
 
-                $minutes = $person['user']
-                    ? (int) $monthHours->where('user_id', $person['user']->id)->sum('minutes')
-                    : 0;
+                $theirHours = $person['user']
+                    ? $monthHours->where('user_id', $person['user']->id)
+                    : collect();
 
+                $minutes = (int) $theirHours->sum('minutes');
                 $byPlanner = self::plannerCounts($theirs);
 
                 return [
+                    'key' => $pkey,
                     'label' => $person['label'],
+                    'user' => $person['user'],
                     'byPlanner' => $byPlanner,
                     'minutes' => $minutes,
                     'tiers' => self::tierCounts($theirs),
                 ];
-            })->filter(fn (array $row) => array_sum($row['byPlanner']) > 0 || $row['minutes'] > 0)->values();
+            })
+                ->filter(fn (array $row) => array_sum($row['byPlanner']) > 0 || $row['minutes'] > 0)
+                ->sortByDesc(fn (array $row) => array_sum($row['byPlanner']))
+                ->values();
 
             $months->push([
                 'key' => $key,
