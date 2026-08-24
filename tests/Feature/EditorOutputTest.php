@@ -77,9 +77,8 @@ class EditorOutputTest extends TestCase
             ->firstWhere('label', 'Sanjai Kumar');
 
         // Notion carries "Sanjai", the portal carries "Sanjai Kumar".
-        $this->assertSame(2, $row['items']);
+        $this->assertSame(2, $row['byPlanner'][ContentItem::SOURCE_REEL]);
         $this->assertSame(240, $row['minutes']);
-        $this->assertSame(120, $row['minutesPerItem']);
     }
 
     public function test_a_co_edited_item_is_credited_to_nobody(): void
@@ -93,7 +92,7 @@ class EditorOutputTest extends TestCase
 
         // Crediting both would invent output; crediting the first would rob
         // the second. It is counted and set aside.
-        $this->assertSame(1, $result['rows']->firstWhere('label', 'Sanjai')['items']);
+        $this->assertSame(1, $result['rows']->firstWhere('label', 'Sanjai')['byPlanner'][ContentItem::SOURCE_REEL]);
         $this->assertSame(1, $result['shared']);
     }
 
@@ -106,11 +105,11 @@ class EditorOutputTest extends TestCase
 
         $this->assertNotNull($row);
         $this->assertNull($row['user']);
-        // No hours to divide by, so no rate is invented.
-        $this->assertNull($row['minutesPerItem']);
+        $this->assertSame(1, $row['byPlanner'][ContentItem::SOURCE_REEL]);
+        $this->assertSame(0, $row['minutes']);
     }
 
-    public function test_someone_with_hours_and_no_tracked_output_shows_no_rate(): void
+    public function test_someone_with_hours_and_no_tracked_output_shows_zero_planner_counts(): void
     {
         $user = User::factory()->create(['name' => 'Nitis']);
         $this->entry($user, ['minutes' => 600]);
@@ -119,10 +118,42 @@ class EditorOutputTest extends TestCase
             ->firstWhere('label', 'Nitis');
 
         // The interesting case: either their planner is not synced or the work
-        // is not reaching the board. Either way a rate would be a lie.
-        $this->assertSame(0, $row['items']);
+        // is not reaching the board. Hours still show; counts stay zero.
+        $this->assertSame(0, $row['byPlanner'][ContentItem::SOURCE_REEL]);
+        $this->assertSame(0, $row['byPlanner'][ContentItem::SOURCE_POST]);
+        $this->assertSame(0, $row['byPlanner'][ContentItem::SOURCE_STORY]);
         $this->assertSame(600, $row['minutes']);
-        $this->assertNull($row['minutesPerItem']);
+    }
+
+    public function test_youtube_rows_are_excluded_because_they_are_the_same_videos_as_reels(): void
+    {
+        $user = User::factory()->create(['name' => 'Sanjai']);
+        $this->entry($user);
+        $this->item('Sanjai', ['source' => ContentItem::SOURCE_YOUTUBE, 'title' => 'YT cut']);
+        $this->item('Sanjai', ['source' => ContentItem::SOURCE_REEL]);
+
+        $result = EditorThroughput::between(Carbon::parse('2026-05-01'), Carbon::parse('2026-05-31'));
+        $row = $result['rows']->firstWhere('label', 'Sanjai');
+
+        $this->assertSame(1, $row['byPlanner'][ContentItem::SOURCE_REEL]);
+        $this->assertSame(0, $row['byPlanner'][ContentItem::SOURCE_POST]);
+        $this->assertSame(['reel' => 1, 'post' => 0, 'story' => 0], $result['byPlannerTotals']);
+        $this->assertNotContains(ContentItem::SOURCE_YOUTUBE, $result['sources']);
+    }
+
+    public function test_counts_are_split_by_planner(): void
+    {
+        $user = User::factory()->create(['name' => 'Sanjai']);
+        $this->entry($user);
+        $this->item('Sanjai', ['source' => ContentItem::SOURCE_REEL]);
+        $this->item('Sanjai', ['source' => ContentItem::SOURCE_REEL]);
+        $this->item('Sanjai', ['source' => ContentItem::SOURCE_POST]);
+        $this->item('Sanjai', ['source' => ContentItem::SOURCE_STORY]);
+
+        $row = EditorThroughput::between(Carbon::parse('2026-05-01'), Carbon::parse('2026-05-31'))['rows']
+            ->firstWhere('label', 'Sanjai');
+
+        $this->assertSame(['reel' => 2, 'post' => 1, 'story' => 1], $row['byPlanner']);
     }
 
     public function test_cancelled_editing_time_is_not_counted_against_output(): void
@@ -152,11 +183,10 @@ class EditorOutputTest extends TestCase
         $this->assertSame(1, $row['tiers'][EditorThroughput::TIER_HIGH]);
         $this->assertSame(1, $row['tiers'][EditorThroughput::TIER_MEDIUM]);
         $this->assertSame(1, $row['tiers'][EditorThroughput::TIER_NONE]);
-        // Two of three were medium or high.
-        $this->assertSame(67, $row['hardShare']);
+        $this->assertArrayNotHasKey('hardShare', $row);
     }
 
-    public function test_months_are_grouped_without_a_mysql_only_date_function(): void
+    public function test_months_are_grouped_newest_first_without_a_mysql_only_date_function(): void
     {
         $user = User::factory()->create(['name' => 'Gokul']);
         $this->entry($user, ['worked_on' => '2026-04-10', 'minutes' => 60]);
@@ -165,11 +195,28 @@ class EditorOutputTest extends TestCase
         $this->item('Gokul', ['published_date' => '2026-05-12']);
 
         // Grouping in PHP is what makes this pass on SQLite as well as MySQL.
+        // Newest first so the current month leads when the window ends today.
         $months = EditorThroughput::between(Carbon::parse('2026-04-01'), Carbon::parse('2026-05-31'))['months'];
 
-        $this->assertSame(['2026-04', '2026-05'], $months->pluck('key')->all());
+        $this->assertSame(['2026-05', '2026-04'], $months->pluck('key')->all());
         $this->assertSame(60, $months->firstWhere('key', '2026-04')['minutes']);
-        $this->assertSame(1, $months->firstWhere('key', '2026-05')['items']);
+        $this->assertSame(1, $months->firstWhere('key', '2026-05')['byPlanner'][ContentItem::SOURCE_REEL]);
+    }
+
+    public function test_the_current_month_is_flagged_when_the_window_includes_today(): void
+    {
+        Carbon::setTestNow('2026-08-15 12:00:00');
+
+        $months = EditorThroughput::between(
+            Carbon::parse('2026-06-01'),
+            Carbon::parse('2026-08-31')->endOfMonth(),
+        )['months'];
+
+        $this->assertTrue($months->first()['isCurrent']);
+        $this->assertSame('2026-08', $months->first()['key']);
+        $this->assertFalse($months->firstWhere('key', '2026-07')['isCurrent']);
+
+        Carbon::setTestNow();
     }
 
     // ——— What cannot be true ———
@@ -300,7 +347,11 @@ class EditorOutputTest extends TestCase
         $this->actingAs($admin)->get(route('editors.index'))
             ->assertOk()
             ->assertSee('Editor Output')
-            ->assertSee('Sanjai');
+            ->assertSee('Sanjai')
+            ->assertSee('Reels')
+            ->assertSee('Posts')
+            ->assertSee('Stories')
+            ->assertDontSee('per item');
     }
 
     public function test_an_employee_is_refused(): void

@@ -21,6 +21,11 @@ use Illuminate\Support\Collection;
  * first word, case-insensitively, since Notion carries "Sanjai" where the
  * portal carries "Sanjai Kumar". It is a loose join and the screen says so.
  *
+ * Output is counted by planner (Reel, Post, Story) -- never as one blended
+ * "item" total, and never YouTube: that planner tracks the same videos as
+ * Reel. Editing hours stay one total beside those counts; the timesheet does
+ * not know which planner a minute belonged to.
+ *
  * Everything is grouped in PHP rather than by the database. The grouping is by
  * month, and every SQL dialect spells that differently -- DATE_FORMAT is MySQL
  * only, and this app's tests run on SQLite. A thousand rows cost nothing to
@@ -43,6 +48,25 @@ class EditorThroughput
         self::TIER_MEDIUM => 'Medium effort',
         self::TIER_LOW => 'Low effort',
         self::TIER_NONE => 'Untiered',
+    ];
+
+    /**
+     * Planners this screen compares. YouTube is omitted on purpose -- same
+     * videos as Reel.
+     *
+     * @var list<string>
+     */
+    public const PLANNERS = [
+        ContentItem::SOURCE_REEL,
+        ContentItem::SOURCE_POST,
+        ContentItem::SOURCE_STORY,
+    ];
+
+    /** @var array<string, string> */
+    public const PLANNER_LABELS = [
+        ContentItem::SOURCE_REEL => 'Reels',
+        ContentItem::SOURCE_POST => 'Posts',
+        ContentItem::SOURCE_STORY => 'Stories',
     ];
 
     /**
@@ -75,6 +99,7 @@ class EditorThroughput
     public static function between(Carbon $from, Carbon $to): array
     {
         $items = ContentItem::query()
+            ->whereIn('source', self::PLANNERS)
             ->whereNotNull('published_date')
             ->whereDate('published_date', '>=', $from->toDateString())
             ->whereDate('published_date', '<=', $to->toDateString())
@@ -88,15 +113,17 @@ class EditorThroughput
             ->get(['user_id', 'worked_on', 'minutes']);
 
         $people = self::editors($items, $hours);
+        $currentMonthKey = today()->format('Y-m');
 
         return [
             'from' => $from,
             'to' => $to,
+            'currentMonthKey' => $currentMonthKey,
             'rows' => self::rows($people, $items, $hours),
-            'months' => self::months($people, $items, $hours, $from, $to),
+            'months' => self::months($people, $items, $hours, $from, $to, $currentMonthKey),
             'shared' => $items->filter(fn (ContentItem $i) => self::isShared($i->editor))->count(),
             'unattributedItems' => $items->filter(fn (ContentItem $i) => blank($i->editor))->count(),
-            'totalItems' => $items->count(),
+            'byPlannerTotals' => self::plannerCounts($items),
             'lastSynced' => ContentItem::max('synced_at'),
             'sources' => $items->pluck('source')->unique()->filter()->sort()->values()->all(),
         ];
@@ -142,8 +169,7 @@ class EditorThroughput
     }
 
     /**
-     * One row per editor: what they published, split by tier, over the hours
-     * they logged.
+     * One row per editor: planner counts beside the hours they logged.
      *
      * @param  Collection<string, array{user: ?User, label: string}>  $people
      * @param  Collection<int, ContentItem>  $items
@@ -166,45 +192,40 @@ class EditorThroughput
 
                 $minutes = (int) $theirHours->sum('minutes');
                 $days = $theirHours->pluck('worked_on')->map->toDateString()->unique()->count();
-                $tiers = self::tierCounts($theirs);
+                $byPlanner = self::plannerCounts($theirs);
 
                 return [
                     'key' => $key,
                     'label' => $person['label'],
                     'user' => $person['user'],
-                    'items' => $theirs->count(),
-                    'tiers' => $tiers,
+                    'byPlanner' => $byPlanner,
+                    'tiers' => self::tierCounts($theirs),
                     'minutes' => $minutes,
                     'days' => $days,
-                    // Null rather than zero when either half is missing: "no
-                    // data" and "instant" must not render the same.
-                    'minutesPerItem' => $theirs->count() > 0 && $minutes > 0
-                        ? (int) round($minutes / $theirs->count())
-                        : null,
-                    'itemsPerDay' => $days > 0 ? round($theirs->count() / $days, 1) : null,
                     'hoursPerDay' => $days > 0 ? round($minutes / 60 / $days, 1) : null,
-                    // The share of output that was hard, which is what makes
-                    // two editors' rates comparable or not.
-                    'hardShare' => $theirs->count() > 0
-                        ? (int) round(($tiers[self::TIER_HIGH] + $tiers[self::TIER_MEDIUM]) / $theirs->count() * 100)
-                        : null,
                 ];
             })
-            ->sortByDesc('items')
+            ->sortByDesc(fn (array $row) => array_sum($row['byPlanner']))
             ->values();
     }
 
     /**
-     * Month by month, per editor. The trend is the part that tells you
-     * something a single average cannot.
+     * Month by month, newest first, so the current month leads when the window
+     * ends at this month.
      *
      * @param  Collection<string, array{user: ?User, label: string}>  $people
      * @param  Collection<int, ContentItem>  $items
      * @param  Collection<int, TimesheetEntry>  $hours
      * @return Collection<int, array<string, mixed>>
      */
-    private static function months(Collection $people, Collection $items, Collection $hours, Carbon $from, Carbon $to): Collection
-    {
+    private static function months(
+        Collection $people,
+        Collection $items,
+        Collection $hours,
+        Carbon $from,
+        Carbon $to,
+        string $currentMonthKey,
+    ): Collection {
         $months = collect();
         $cursor = $from->copy()->startOfMonth();
 
@@ -225,22 +246,22 @@ class EditorThroughput
                     ? (int) $monthHours->where('user_id', $person['user']->id)->sum('minutes')
                     : 0;
 
+                $byPlanner = self::plannerCounts($theirs);
+
                 return [
                     'label' => $person['label'],
-                    'items' => $theirs->count(),
+                    'byPlanner' => $byPlanner,
                     'minutes' => $minutes,
                     'tiers' => self::tierCounts($theirs),
-                    'minutesPerItem' => $theirs->count() > 0 && $minutes > 0
-                        ? (int) round($minutes / $theirs->count())
-                        : null,
                 ];
-            })->filter(fn (array $row) => $row['items'] > 0 || $row['minutes'] > 0)->values();
+            })->filter(fn (array $row) => array_sum($row['byPlanner']) > 0 || $row['minutes'] > 0)->values();
 
             $months->push([
                 'key' => $key,
                 'label' => $cursor->format('M Y'),
                 'short' => $cursor->format('M'),
-                'items' => $monthItems->count(),
+                'isCurrent' => $key === $currentMonthKey,
+                'byPlanner' => self::plannerCounts($monthItems),
                 'minutes' => (int) $monthHours->sum('minutes'),
                 'tiers' => self::tierCounts($monthItems),
                 'editors' => $perEditor,
@@ -249,7 +270,26 @@ class EditorThroughput
             $cursor->addMonthNoOverflow();
         }
 
-        return $months;
+        return $months->sortByDesc('key')->values();
+    }
+
+    /**
+     * @param  Collection<int, ContentItem>  $items
+     * @return array<string, int>
+     */
+    public static function plannerCounts(Collection $items): array
+    {
+        $counts = array_fill_keys(self::PLANNERS, 0);
+
+        foreach ($items as $item) {
+            if (! in_array($item->source, self::PLANNERS, true)) {
+                continue;
+            }
+
+            $counts[$item->source]++;
+        }
+
+        return $counts;
     }
 
     /**

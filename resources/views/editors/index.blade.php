@@ -5,9 +5,9 @@
 
     /*
      * Two questions on one screen, kept apart on purpose: what the editors
-     * produced, and what in the timesheet cannot be believed. The second is
-     * upstream of the first -- every rate here is output divided by hours, and
-     * a wrong hour is a wrong rate -- so the warning sits above the figures
+     * produced by planner, and what in the timesheet cannot be believed. The
+     * second is upstream of the first -- hours sit beside counts, and a wrong
+     * hour still pollutes the compare -- so the warning sits above the figures
      * rather than under them.
      */
     $tierTone = [
@@ -31,13 +31,14 @@
     ];
 
     $highCount = ($flagsBySeverity[TA::SEVERITY_HIGH] ?? collect())->count();
-    $peakItems = max(1, (int) $throughput['months']->max('items'));
+    $peakPublished = max(1, (int) $throughput['months']->max(fn ($m) => array_sum($m['byPlanner'])));
+    $plannerKeys = ET::PLANNERS;
 @endphp
 
 <x-app-layout title="Editor output">
     <x-slot name="header">
         <x-page-header title="Editor Output" eyebrow="Studio"
-                       subtitle="What was published, what it cost in hours, and what the timesheet cannot vouch for.">
+                       subtitle="Planner counts (Reels, Posts, Stories) beside editing hours from the timesheet. YouTube is omitted — same videos as Reels.">
             <x-slot name="actions">
                 <form method="GET" class="inline">
                     <x-select name="months" onchange="this.form.submit()">
@@ -56,8 +57,12 @@
         <x-card class="p-4 sm:p-5 border border-brand-100/60">
             <div class="flex flex-wrap gap-x-8 gap-y-2 text-xs text-gray-600">
                 <span><span class="font-semibold text-gray-900">{{ $from->format('M Y') }} – {{ $to->format('M Y') }}</span></span>
-                <span>{{ number_format($throughput['totalItems']) }} items published</span>
-                <span>Planners: {{ implode(', ', $throughput['sources']) ?: 'none synced' }}</span>
+                @foreach ($plannerKeys as $source)
+                    <span>
+                        <span class="font-semibold text-gray-900 tabular-nums">{{ number_format($throughput['byPlannerTotals'][$source]) }}</span>
+                        {{ ET::PLANNER_LABELS[$source] }}
+                    </span>
+                @endforeach
                 <span>
                     Notion last synced
                     <span class="font-semibold text-gray-900">{{ $throughput['lastSynced'] ? \Illuminate\Support\Carbon::parse($throughput['lastSynced'])->diffForHumans() : 'never' }}</span>
@@ -67,10 +72,10 @@
             @if ($throughput['unattributedItems'] > 0 || $throughput['shared'] > 0)
                 <p class="mt-2.5 text-xs text-gray-500">
                     @if ($throughput['unattributedItems'] > 0)
-                        {{ $throughput['unattributedItems'] }} published items name no editor and are counted in the studio total only.
+                        {{ $throughput['unattributedItems'] }} published items name no editor and are counted in the studio totals only.
                     @endif
                     @if ($throughput['shared'] > 0)
-                        {{ $throughput['shared'] }} were co-edited and are left out of everyone's rate rather than credited twice.
+                        {{ $throughput['shared'] }} were co-edited and are left out of everyone's counts rather than credited twice.
                     @endif
                 </p>
             @endif
@@ -88,7 +93,7 @@
                         {{ $highCount }} timesheet {{ Str::plural('entry', $highCount) }} in this period cannot be true
                     </p>
                     <p class="mt-1 text-sm text-red-800/80">
-                        Any rate below that divides by those hours is wrong. Details at the bottom &rarr;
+                        Hours below that sit beside the counts — treat those people's compare carefully. Details at the bottom &rarr;
                     </p>
                 </div>
             </a>
@@ -106,6 +111,7 @@
                         @php
                             $hit = $row['user'] ? ($impact[$row['user']->id] ?? null) : null;
                             $tainted = $hit && $hit['share'] >= 0.15;
+                            $published = array_sum($row['byPlanner']);
                         @endphp
 
                         <x-card class="p-4 sm:p-5 {{ $tainted ? 'border border-red-200' : 'border border-brand-100/40' }}">
@@ -119,7 +125,7 @@
                                         <p class="text-xs text-gray-500">
                                             @if (! $row['user'])
                                                 In Notion only — no portal login matches this name
-                                            @elseif ($row['items'] === 0)
+                                            @elseif ($published === 0)
                                                 Logged editing time, published nothing tracked
                                             @else
                                                 {{ $row['days'] }} {{ Str::plural('day', $row['days']) }} editing
@@ -129,54 +135,42 @@
                                     </div>
                                 </div>
 
-                                {{-- The headline number, and the honest blank
-                                     when it cannot be computed. --}}
                                 <div class="shrink-0 text-right">
                                     @if ($tainted)
                                         <p class="text-2xl font-extrabold leading-none text-red-600 tabular-nums">—</p>
                                         <p class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-red-600">
                                             {{ round($hit['share'] * 100) }}% of hours suspect
                                         </p>
-                                    @elseif ($row['minutesPerItem'])
-                                        <p class="text-2xl font-extrabold leading-none text-gray-900 tabular-nums">
-                                            {{ TimesheetEntry::formatMinutes($row['minutesPerItem']) }}
-                                        </p>
-                                        <p class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">per item</p>
                                     @else
-                                        <p class="text-2xl font-extrabold leading-none text-gray-300 tabular-nums">—</p>
-                                        <p class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">no rate</p>
+                                        <p class="text-2xl font-extrabold leading-none text-gray-900 tabular-nums">
+                                            {{ TimesheetEntry::formatMinutes($row['minutes']) }}
+                                        </p>
+                                        <p class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Editing time</p>
                                     @endif
                                 </div>
                             </div>
 
                             <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                <div>
-                                    <p class="text-lg font-bold text-gray-900 tabular-nums">{{ $row['items'] }}</p>
-                                    <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Published</p>
-                                </div>
+                                @foreach ($plannerKeys as $source)
+                                    <div>
+                                        <p class="text-lg font-bold text-gray-900 tabular-nums">{{ $row['byPlanner'][$source] }}</p>
+                                        <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{{ ET::PLANNER_LABELS[$source] }}</p>
+                                    </div>
+                                @endforeach
                                 <div>
                                     <p class="text-lg font-bold text-gray-900 tabular-nums">{{ TimesheetEntry::formatMinutes($row['minutes']) }}</p>
-                                    <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Editing time</p>
-                                </div>
-                                <div>
-                                    <p class="text-lg font-bold text-gray-900 tabular-nums">{{ $row['itemsPerDay'] ?? '—' }}</p>
-                                    <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Items a day</p>
-                                </div>
-                                <div>
-                                    <p class="text-lg font-bold text-gray-900 tabular-nums">{{ $row['hardShare'] !== null ? $row['hardShare'].'%' : '—' }}</p>
-                                    <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Medium or high</p>
+                                    <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Hours</p>
                                 </div>
                             </div>
 
-                            {{-- Tier mix. Two editors' rates only compare if
-                                 their mix does, so it sits on the same card. --}}
-                            @if ($row['items'] > 0)
+                            {{-- Tier mix. Secondary: effort mix ≠ type mix. --}}
+                            @if ($published > 0)
                                 <div class="mt-4">
                                     <div class="flex h-2 rounded-full overflow-hidden bg-gray-100">
                                         @foreach ([ET::TIER_HIGH, ET::TIER_MEDIUM, ET::TIER_LOW, ET::TIER_NONE] as $tier)
                                             @if ($row['tiers'][$tier] > 0)
                                                 <div class="{{ $tierBar[$tier] }}"
-                                                     style="width: {{ $row['tiers'][$tier] / $row['items'] * 100 }}%"
+                                                     style="width: {{ $row['tiers'][$tier] / $published * 100 }}%"
                                                      title="{{ ET::TIER_LABELS[$tier] }}: {{ $row['tiers'][$tier] }}"></div>
                                             @endif
                                         @endforeach
@@ -198,40 +192,53 @@
             @endif
         </section>
 
-        {{-- ——— Month by month ——— --}}
+        {{-- ——— Month by month (current month first) ——— --}}
         <section>
             <h2 class="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400 mb-3.5">Month by month</h2>
 
-            <x-card class="p-4 sm:p-6 border border-brand-100/40">
+            <x-card class="p-4 sm:p-6 border border-brand-100/40 overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400">
                                 <th class="pb-3 pr-4">Month</th>
-                                <th class="pb-3 pr-4 text-right">Published</th>
+                                @foreach ($plannerKeys as $source)
+                                    <th class="pb-3 pr-4 text-right">{{ ET::PLANNER_LABELS[$source] }}</th>
+                                @endforeach
                                 <th class="pb-3 pr-4">Tier mix</th>
-                                <th class="pb-3 pr-4 text-right">Editing time</th>
-                                <th class="pb-3 text-right">Per item</th>
+                                <th class="pb-3 text-right">Editing time</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
                             @foreach ($throughput['months'] as $month)
                                 @php
-                                    $perItem = $month['items'] > 0 && $month['minutes'] > 0
-                                        ? (int) round($month['minutes'] / $month['items'])
-                                        : null;
+                                    $monthPublished = array_sum($month['byPlanner']);
                                 @endphp
-                                <tr>
-                                    <td class="py-3 pr-4 font-semibold text-gray-900 whitespace-nowrap">{{ $month['label'] }}</td>
-                                    <td class="py-3 pr-4 text-right tabular-nums">{{ $month['items'] }}</td>
-                                    <td class="py-3 pr-4 w-1/3 min-w-[140px]">
-                                        @if ($month['items'] > 0)
+                                <tr class="{{ $month['isCurrent'] ? 'bg-brand-50/80' : '' }}">
+                                    <td class="py-3 pr-4 font-semibold text-gray-900 whitespace-nowrap">
+                                        <span class="inline-flex items-center gap-2">
+                                            @if ($month['isCurrent'])
+                                                <span class="w-1 self-stretch rounded-full bg-brand-500" aria-hidden="true"></span>
+                                            @endif
+                                            {{ $month['label'] }}
+                                            @if ($month['isCurrent'])
+                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-brand-100 text-brand-800">This month</span>
+                                            @endif
+                                        </span>
+                                    </td>
+                                    @foreach ($plannerKeys as $source)
+                                        <td class="py-3 pr-4 text-right tabular-nums {{ $month['isCurrent'] ? 'font-semibold text-gray-900' : 'text-gray-700' }}">
+                                            {{ $month['byPlanner'][$source] }}
+                                        </td>
+                                    @endforeach
+                                    <td class="py-3 pr-4 w-1/4 min-w-[120px]">
+                                        @if ($monthPublished > 0)
                                             <div class="flex h-1.5 rounded-full overflow-hidden bg-gray-100"
-                                                 style="width: {{ max(12, round($month['items'] / $peakItems * 100)) }}%">
+                                                 style="width: {{ max(12, round($monthPublished / $peakPublished * 100)) }}%">
                                                 @foreach ([ET::TIER_HIGH, ET::TIER_MEDIUM, ET::TIER_LOW, ET::TIER_NONE] as $tier)
                                                     @if ($month['tiers'][$tier] > 0)
                                                         <div class="{{ $tierBar[$tier] }}"
-                                                             style="width: {{ $month['tiers'][$tier] / $month['items'] * 100 }}%"
+                                                             style="width: {{ $month['tiers'][$tier] / $monthPublished * 100 }}%"
                                                              title="{{ ET::TIER_LABELS[$tier] }}: {{ $month['tiers'][$tier] }}"></div>
                                                     @endif
                                                 @endforeach
@@ -240,9 +247,8 @@
                                             <span class="text-xs text-gray-400">—</span>
                                         @endif
                                     </td>
-                                    <td class="py-3 pr-4 text-right tabular-nums text-gray-600">{{ TimesheetEntry::formatMinutes($month['minutes']) }}</td>
                                     <td class="py-3 text-right tabular-nums font-semibold text-gray-900">
-                                        {{ $perItem ? TimesheetEntry::formatMinutes($perItem) : '—' }}
+                                        {{ TimesheetEntry::formatMinutes($month['minutes']) }}
                                     </td>
                                 </tr>
                             @endforeach
@@ -251,8 +257,8 @@
                 </div>
 
                 <p class="mt-4 text-xs text-gray-500">
-                    "Per item" is every editor's hours over every tracked item, so it moves with the tier mix
-                    as well as with pace. Read it beside the mix bar, not on its own.
+                    Editing time is one total — the timesheet does not say Reel vs Post vs Story.
+                    Read hours beside the planner columns, not as a single rate.
                 </p>
             </x-card>
         </section>
@@ -271,9 +277,6 @@
                     <p class="text-sm text-gray-600">Nothing in this period looks wrong.</p>
                 </x-card>
             @else
-                {{-- Grouped by person, because that is who has to be talked to,
-                     and because a flat list of every flag is a wall nobody
-                     reads. Worst offender first. --}}
                 <div class="space-y-3">
                     @foreach ($flags->groupBy('person')->sortByDesc(fn ($g) => $g->where('severity', TA::SEVERITY_HIGH)->count()) as $person => $theirs)
                         @php
