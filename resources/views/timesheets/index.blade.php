@@ -1,7 +1,7 @@
 <x-app-layout title="Timesheets">
     <x-slot name="header">
         <x-page-header title="Timesheets" eyebrow="Team"
-                       subtitle="Hours logged by everyone with a login, month by month." />
+                       subtitle="Chase, decide, then read the month — hours by everyone who logs work." />
     </x-slot>
 
     <div class="space-y-4">
@@ -80,6 +80,8 @@
                 <a href="{{ route('users.create') }}" class="text-brand-500 font-semibold text-sm hover:text-brand-600">Create one &rarr;</a>
             </x-empty-state>
         @else
+            @include('timesheets._decide-queue')
+
             @if ($totalMinutes > 0)
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
                     <x-charts.horizontal-bars

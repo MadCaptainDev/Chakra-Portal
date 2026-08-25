@@ -44,6 +44,14 @@ class Client extends Model
         return $this->hasMany(SocialAccount::class);
     }
 
+    /**
+     * Competitor Instagram accounts tracked for this client's market.
+     */
+    public function competitorAccounts(): HasMany
+    {
+        return $this->hasMany(CompetitorAccount::class)->orderBy('username');
+    }
+
     public function invoices(): HasMany
     {
         return $this->hasMany(Invoice::class);

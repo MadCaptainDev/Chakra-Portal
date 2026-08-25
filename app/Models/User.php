@@ -109,6 +109,40 @@ class User extends Authenticatable
         return $this->role === self::ROLE_EMPLOYEE;
     }
 
+    /**
+     * Does this person fill in a personal timesheet and to-dos?
+     *
+     * Employees always do. An admin who has been linked to a Salaries row does
+     * too: they keep full admin access for the books, but day-to-day logging
+     * uses /my/* the same as everyone else. A pure admin (no salary link)
+     * does not appear on team timesheet / to-do boards.
+     */
+    public function logsWork(): bool
+    {
+        if ($this->isEmployee()) {
+            return true;
+        }
+
+        if ($this->relationLoaded('employeeRecord')) {
+            return $this->employeeRecord !== null;
+        }
+
+        return $this->employeeRecord()->exists();
+    }
+
+    /**
+     * Everyone who should appear on timesheet and personal to-do team lists.
+     *
+     * @see logsWork()
+     */
+    public function scopeWhoLogWork(Builder $query): void
+    {
+        $query->where(function (Builder $inner) {
+            $inner->where('role', self::ROLE_EMPLOYEE)
+                ->orWhereHas('employeeRecord');
+        });
+    }
+
     public function isClient(): bool
     {
         return $this->role === self::ROLE_CLIENT;

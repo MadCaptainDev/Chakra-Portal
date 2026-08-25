@@ -1,0 +1,20 @@
+# Extra exclusions on top of .gitignore.
+# Graphify already skips gitignored vendor/, node_modules/, storage/, and public/uploads.
+
+# Compiled / generated
+bootstrap/cache/
+storage/framework/
+graphify-out/
+.cursor/
+.claude/
+
+# Hosting and local artefacts
+error_log
+*.xlsx
+.phpunit.result.cache
+
+# Public media (already gitignored as uploads; keep out if --no-gitignore is used)
+public/uploads/
+public/storage/
+public/build/
+public/hot/

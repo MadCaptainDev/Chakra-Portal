@@ -165,7 +165,8 @@ class TimesheetReviewTest extends TestCase
 
         // The busy employee's name still appears further down in the ranked
         // list, so the assertion is about who the panel itself names.
-        $panel = Str::before(Str::after($response->getContent(), 'logged nothing this week'), 'Who worked most');
+        // Decide queue sits between Chase and Charts — stop the panel there.
+        $panel = Str::before(Str::after($response->getContent(), 'logged nothing this week'), 'Days to decide');
 
         $response->assertOk()->assertSee('logged nothing this week');
         $this->assertStringContainsString($quiet->name, $panel);

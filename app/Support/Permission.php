@@ -173,6 +173,17 @@ class Permission
             'abilities' => ['view', 'manage'],
         ],
         /*
+         * Repeating studio duties (routines). Badge is overdue open
+         * occurrences — same shape as Enquiry::unreadCount.
+         */
+        'routines' => [
+            'label' => 'Routines',
+            'group' => 'Production',
+            'icon' => 'refresh',
+            'badge' => [\App\Models\RoutineOccurrence::class, 'overdueCount'],
+            'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
+        ],
+        /*
          * Scraping and analyzing a competitor's public Instagram, not one of
          * ours -- separate module from Portfolio/Clients for exactly that
          * reason. `manage` gates the Setup-adjacent bits inside the screen

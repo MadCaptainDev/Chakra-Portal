@@ -10,7 +10,7 @@
 
     # Application internals are never web-reachable, whatever the rewrites below do.
     RewriteRule ^(\.env|\.git|\.editorconfig|\.gitattributes|artisan|composer\.(json|lock)|package(-lock)?\.json|phpunit\.xml|postcss\.config\.js|tailwind\.config\.js|vite\.config\.js|setup-lan-access\.ps1) - [F,L]
-    RewriteRule ^(app|bootstrap|config|database|docs|node_modules|resources|routes|scripts|storage|tests|vendor)/ - [F,L]
+    RewriteRule ^(app|bootstrap|config|database|docs|graphify-out|node_modules|resources|routes|scripts|storage|tests|vendor)/ - [F,L]
 
     # Everything else goes through Laravel's front controller in public/, which
     # has its own .htaccess. The condition stops the rewrite looping.

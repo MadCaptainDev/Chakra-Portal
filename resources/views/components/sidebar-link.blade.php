@@ -12,6 +12,8 @@
 @endphp
 
 <a href="{{ $href }}" @if ($active) aria-current="page" @endif
+   data-nav-link
+   x-show="typeof linkMatches === 'undefined' || linkMatches($el)"
    {{ $attributes->merge(['class' => $classes]) }}>
     {{-- Teal spine on the active row: the one high-contrast cue that still
          reads at a glance when the sidebar is scrolled. --}}

@@ -1,11 +1,71 @@
 {{-- Sidebar navigation content, shared by the desktop fixed sidebar and the mobile slide-over drawer. --}}
 @php
+    use App\Support\Permission;
+    use Illuminate\Support\Str;
+
     $user = auth()->user();
     $isAdmin = $user?->isAdmin();
     $isClient = $user?->isClient();
+
+    // Admin Permission groups start collapsed unless the current route lives in them.
+    // Keys match Str::slug of Permission group labels (see x-nav-section).
+    $adminOpenGroups = collect(Permission::grouped())
+        ->mapWithKeys(function ($modules, string $group) {
+            $active = collect($modules)->keys()->contains(function (string $module) {
+                if (request()->routeIs($module.'.*')) {
+                    return true;
+                }
+                if ($module === 'shoots' && request()->routeIs('equipment.*')) {
+                    return true;
+                }
+                if ($module === 'invoices' && request()->routeIs('recurring.*')) {
+                    return true;
+                }
+                if ($module === 'saas-products' && request()->routeIs('developer.*')) {
+                    return true;
+                }
+
+                return false;
+            });
+
+            return [Str::slug($group) => $active];
+        })
+        ->all();
 @endphp
 
-<div class="flex flex-col h-full">
+<div class="flex flex-col h-full"
+     x-data="{
+        navQ: '',
+        openGroups: @js($adminOpenGroups),
+        linkMatches(el) {
+            const q = this.navQ.trim().toLowerCase();
+            if (!q) return true;
+            return (el.innerText || '').toLowerCase().includes(q);
+        },
+        sectionHasMatch(id) {
+            const q = this.navQ.trim().toLowerCase();
+            if (!q) return true;
+            const root = document.getElementById(id);
+            if (!root) return true;
+            return Array.from(root.querySelectorAll('[data-nav-link]')).some((a) =>
+                (a.innerText || '').toLowerCase().includes(q)
+            );
+        },
+        isGroupOpen(key) {
+            if (this.navQ.trim().length > 0) return true;
+            return !!this.openGroups[key];
+        },
+        toggleGroup(key) {
+            this.openGroups[key] = !this.openGroups[key];
+        },
+        hasNavMatches() {
+            const q = this.navQ.trim().toLowerCase();
+            if (!q) return true;
+            return Array.from(this.$root.querySelectorAll('[data-nav-link]')).some((a) =>
+                (a.innerText || '').toLowerCase().includes(q)
+            );
+        }
+     }">
     <div class="flex items-center h-16 px-4 shrink-0 border-b border-white/5">
         <a href="{{ route($user?->homeRoute() ?? 'home') }}" class="flex items-center">
             <x-application-logo class="h-9 w-auto" />
@@ -45,6 +105,9 @@
             <x-sidebar-link icon="check-circle" :href="route('my.todos')" :active="request()->routeIs('my.todos*')">
                 My To-dos
             </x-sidebar-link>
+            <x-sidebar-link icon="refresh" :href="route('my.routines')" :active="request()->routeIs('my.routines*')">
+                My Routines
+            </x-sidebar-link>
             <x-sidebar-link icon="clock" :href="route('my.timesheet')" :active="request()->routeIs('my.timesheet*')">
                 My Timesheet
             </x-sidebar-link>
@@ -74,6 +137,51 @@
             </x-sidebar-link>
         </x-nav-section>
     @else
+        <div class="pb-3">
+            <label for="admin-nav-filter" class="sr-only">Filter menu</label>
+            <div class="flex items-center gap-2 min-h-[40px] px-3 rounded-lg bg-white/5 border border-white/10 focus-within:border-brand-400 focus-within:ring-1 focus-within:ring-brand-400/60">
+                <svg class="pointer-events-none shrink-0 w-4 h-4 text-brand-200/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
+                </svg>
+                <input id="admin-nav-filter" type="search" x-model="navQ"
+                       placeholder="Filter menu…"
+                       autocomplete="off"
+                       class="flex-1 min-w-0 min-h-[38px] border-0 bg-transparent p-0 text-sm text-white placeholder:text-brand-100/40 focus:ring-0 focus:outline-none" />
+            </div>
+            <p class="mt-2 px-1 text-[11px] text-brand-100/45" x-show="navQ.trim().length > 0 && !hasNavMatches()" x-cloak>
+                No matches
+            </p>
+        </div>
+
+        {{-- Working admins (linked to a Salaries row) log hours and to-dos the
+             same way employees do. Keep admin access for everything else; these
+             links are the personal /my/* path the employee branch already has.
+             Placed first so the day-to-day work path is not buried under Overview. --}}
+        @if ($user?->logsWork())
+            <x-nav-section label="My work">
+                <x-sidebar-link icon="home" :href="route('my.dashboard')" :active="request()->routeIs('my.dashboard')">
+                    My Dashboard
+                </x-sidebar-link>
+                <x-sidebar-link icon="check-circle" :href="route('my.todos')" :active="request()->routeIs('my.todos*')">
+                    My To-dos
+                </x-sidebar-link>
+                <x-sidebar-link icon="refresh" :href="route('my.routines')" :active="request()->routeIs('my.routines*')">
+                    My Routines
+                </x-sidebar-link>
+                <x-sidebar-link icon="clock" :href="route('my.timesheet')" :active="request()->routeIs('my.timesheet*')">
+                    My Timesheet
+                </x-sidebar-link>
+                <x-sidebar-link icon="calendar" :href="route('my.calendar')" :active="request()->routeIs('my.calendar')">
+                    Calendar
+                </x-sidebar-link>
+                @if ($user?->managesAnyone())
+                    <x-sidebar-link icon="users" :href="route('my.team')" :active="request()->routeIs('my.team')">
+                        Team Timesheet
+                    </x-sidebar-link>
+                @endif
+            </x-nav-section>
+        @endif
+
         <x-nav-section label="Overview">
             <x-sidebar-link icon="home" :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                 Dashboard
@@ -89,7 +197,7 @@
 
         <x-nav-section label="Team">
             <x-sidebar-link icon="check-circle" :href="route('todos.index')" :active="request()->routeIs('todos.index')">
-                To-dos
+                {{ $user?->logsWork() ? 'Team To-dos' : 'To-dos' }}
             </x-sidebar-link>
             @if (Route::has('users.index'))
                 <x-sidebar-link icon="user" :href="route('users.index')" :active="request()->routeIs('users.*')">

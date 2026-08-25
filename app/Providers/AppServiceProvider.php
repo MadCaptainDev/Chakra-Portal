@@ -2,9 +2,11 @@
 
 namespace App\Providers;
 
+use App\Models\Routine;
 use App\Models\User;
 use App\Support\Permission;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
@@ -24,6 +26,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Short morph aliases for routine subjects (stored on occurrences).
+        Relation::enforceMorphMap(Routine::SUBJECT_MORPH_MAP);
+
         /*
          * Admins pass everything. Returning null rather than false on the
          * miss is the important part -- false would short-circuit the gate

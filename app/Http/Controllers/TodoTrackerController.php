@@ -34,7 +34,7 @@ class TodoTrackerController extends Controller
         $day = PeriodInput::day($request->query('date'));
 
         $team = $user->isAdmin()
-            ? User::where('role', User::ROLE_EMPLOYEE)->orderBy('name')->get()
+            ? User::whoLogWork()->orderBy('name')->get()
             : $user->reports()->orderBy('name')->get();
 
         /*

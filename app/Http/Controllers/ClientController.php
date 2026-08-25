@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ClientRequest;
 use App\Models\Client;
+use App\Models\CompetitorSetting;
 use App\Models\TaxonomyTerm;
 use App\Support\PublicUpload;
 use App\Support\TimesheetStats;
@@ -101,8 +102,22 @@ class ClientController extends Controller
             ? $client->credentials()->with(['views.user' => fn ($q) => $q->select('id', 'name')])->get()
             : collect();
 
+        /*
+         * Competitor analysis is its own module. Loaded only when the viewer
+         * can see it — same pattern as credentials: an @can in the view must
+         * not be what decides whether the rows were queried.
+         */
+        $competitors = $request->user()->can('competitors.view')
+            ? $client->competitorAccounts()->withCount('reels')->get()
+            : collect();
+
+        $competitorSettings = $request->user()->can('competitors.view')
+            ? CompetitorSetting::current()
+            : null;
+
         return view('clients.show', compact(
-            'client', 'invoices', 'timesheet', 'ventureLabel', 'login', 'credentials'
+            'client', 'invoices', 'timesheet', 'ventureLabel', 'login', 'credentials',
+            'competitors', 'competitorSettings',
         ));
     }
 

@@ -14,6 +14,10 @@ Artisan::command('inspire', function () {
 // middleware provides a catch-up on the first request of the day.
 Schedule::command('invoices:generate-recurring')->dailyAt('08:00');
 
+// Materialise open routine occurrences for the day. EnsureRoutinesGenerated
+// middleware is the catch-up when this host was off at 06:00.
+Schedule::command('routines:generate')->dailyAt('06:00');
+
 // Keeps every connected client's Instagram cache current WITHOUT depending
 // on a staff member opening that client's page. Page-view-triggered syncing
 // (InstagramSyncRunner::ensureFresh()) is the fast path for "I'm looking at

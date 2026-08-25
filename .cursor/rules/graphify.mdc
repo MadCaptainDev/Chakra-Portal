@@ -1,0 +1,25 @@
+---
+description: graphify knowledge graph — query this before grepping the codebase
+alwaysApply: true
+---
+
+This Laravel app has a local Graphify knowledge graph at `graphify-out/` (AST only, no API key).
+
+**Before exploring the codebase with Grep/Glob/Read, use the graph:**
+
+1. Prefer Graphify MCP tools if the `graphify` server is connected (`query_graph`, `get_node`, `get_neighbors`, `shortest_path`).
+2. Otherwise run:
+   - `graphify query "<question>"`
+   - `graphify path "<A>" "<B>"`
+   - `graphify explain "<concept>"`
+3. For a one-page map, read `graphify-out/GRAPH_REPORT.md`.
+
+Skip the graph only when you already have a file path and are editing or debugging that file.
+
+After changing PHP/JS code, refresh with (single-thread flags needed on this shared host):
+
+```bash
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 graphify extract . --code-only --max-workers 1
+```
+
+No API key, MCP token, or HTTP server is required.

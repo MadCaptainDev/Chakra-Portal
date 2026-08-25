@@ -1,10 +1,9 @@
 <x-app-layout title="Clients">
     <x-slot name="header">
-        <x-page-header title="Clients">
+        <x-page-header title="Clients" eyebrow="Clients"
+                       subtitle="Studios, brands, and the briefs attached to them.">
             <x-slot name="actions">
-                <a href="{{ route('clients.create') }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-brand-400 border border-transparent rounded-md font-semibold text-xs text-brand-900 uppercase tracking-widest hover:bg-brand-500">
-                    + Add Client
-                </a>
+                <x-btn :href="route('clients.create')" icon="plus">Add client</x-btn>
             </x-slot>
         </x-page-header>
     </x-slot>
@@ -12,91 +11,74 @@
     <div class="space-y-4">
         @if ($clients->isEmpty())
             <x-empty-state message="No clients yet.">
-                <a href="{{ route('clients.create') }}" class="text-brand-500 font-semibold text-sm hover:text-brand-600">Add your first client &rarr;</a>
+                <x-btn :href="route('clients.create')" icon="plus" size="sm">Add your first client</x-btn>
             </x-empty-state>
         @else
-            {{-- Mobile: card list --}}
-            <div class="md:hidden space-y-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 @foreach ($clients as $client)
-                    <div class="bg-white shadow-sm rounded-lg p-4">
-                        <div class="flex items-start justify-between gap-2">
-                            <div class="min-w-0">
-                                <a href="{{ route('clients.show', $client) }}" class="font-semibold text-gray-900 truncate hover:text-brand-500 block">{{ $client->name }}</a>
-                                @if ($client->address)
-                                    <p class="text-sm text-gray-500 truncate">{{ $client->address }}</p>
-                                @endif
-                                @if ($client->email)
-                                    <p class="text-sm text-gray-500 truncate">{{ $client->email }}</p>
-                                @endif
-                                @if ($client->phone)
-                                    <p class="text-sm text-gray-500">{{ $client->phone }}</p>
-                                @endif
+                    <article class="group bg-white rounded-xl ring-1 ring-gray-200/80 hover:ring-brand-300 hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col">
+                        <a href="{{ route('clients.show', $client) }}" class="flex-1 p-5 min-h-[44px] block focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-inset">
+                            <div class="flex items-start gap-4">
+                                <div class="w-14 h-14 shrink-0 rounded-xl bg-brand-50 ring-1 ring-gray-100 flex items-center justify-center overflow-hidden">
+                                    @if ($client->logoUrl())
+                                        <img src="{{ $client->logoUrl() }}" alt="" loading="lazy"
+                                             class="w-full h-full object-contain p-1.5">
+                                    @else
+                                        <span class="text-lg font-bold text-brand-600 tabular-nums">
+                                            {{ mb_strtoupper(mb_substr($client->name, 0, 1)) }}
+                                        </span>
+                                    @endif
+                                </div>
+
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <h2 class="font-semibold text-gray-900 group-hover:text-brand-700 truncate leading-snug">
+                                            {{ $client->name }}
+                                        </h2>
+                                        @if ($client->brief?->isSubmitted())
+                                            <x-badge color="bg-green-100 text-green-800">Done</x-badge>
+                                        @elseif ($client->brief)
+                                            <x-badge color="bg-amber-100 text-amber-800">{{ $client->brief->requiredAnswered() }}/{{ $client->brief->requiredTotal() }}</x-badge>
+                                        @endif
+                                    </div>
+
+                                    @if ($client->address)
+                                        <p class="mt-1.5 text-sm text-gray-500 line-clamp-2">{{ $client->address }}</p>
+                                    @endif
+
+                                    <div class="mt-3 space-y-1">
+                                        @if ($client->email)
+                                            <p class="text-sm text-gray-600 truncate">{{ $client->email }}</p>
+                                        @endif
+                                        @if ($client->phone)
+                                            <p class="text-sm text-gray-600">{{ $client->phone }}</p>
+                                        @endif
+                                        @unless ($client->email || $client->phone || $client->address)
+                                            <p class="text-sm text-gray-400">No contact details</p>
+                                        @endunless
+                                    </div>
+                                </div>
                             </div>
-                            <div class="flex flex-col items-end gap-2 shrink-0">
-                                <a href="{{ route('clients.edit', $client) }}" class="text-brand-500 font-semibold text-sm min-h-[44px] flex items-center">Edit</a>
-                                <form method="POST" action="{{ route('clients.destroy', $client) }}" onsubmit="return confirm('Delete this client?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="text-red-600 font-semibold text-sm min-h-[44px] flex items-center">Delete</button>
-                                </form>
-                            </div>
+                        </a>
+
+                        <div class="px-5 py-3 border-t border-gray-100 bg-gray-50/60 flex items-center justify-end gap-1">
+                            <a href="{{ route('clients.edit', $client) }}"
+                               class="inline-flex items-center min-h-[44px] px-3 text-sm font-semibold text-brand-600 hover:text-brand-800">
+                                Edit
+                            </a>
+                            <form method="POST" action="{{ route('clients.destroy', $client) }}"
+                                  onsubmit="return confirm('Delete this client?');">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit"
+                                        class="inline-flex items-center min-h-[44px] px-3 text-sm font-semibold text-red-600 hover:text-red-800">
+                                    Delete
+                                </button>
+                            </form>
                         </div>
-                    </div>
+                    </article>
                 @endforeach
             </div>
-
-            {{-- Desktop: table --}}
-            <x-card class="hidden md:block overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Address</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
-                            {{-- Who still owes us a brief, at a glance. The one
-                                 cross-client question anyone asks of it. --}}
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Brief</th>
-                            <th class="px-6 py-3"></th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200">
-                        @foreach ($clients as $client)
-                            <tr>
-                                <td class="px-6 py-4 text-sm font-medium text-gray-900">
-                                    <span class="flex items-center gap-3">
-                                        @if ($client->logoUrl())
-                                            <img src="{{ $client->logoUrl() }}" alt="" loading="lazy"
-                                                 class="w-8 h-8 shrink-0 rounded object-contain bg-gray-50 border border-gray-200">
-                                        @endif
-                                        <a href="{{ route('clients.show', $client) }}" class="hover:text-brand-500">{{ $client->name }}</a>
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $client->address }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $client->email }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $client->phone }}</td>
-                                <td class="px-6 py-4 text-sm">
-                                    @if ($client->brief?->isSubmitted())
-                                        <x-badge color="bg-green-100 text-green-800">Done</x-badge>
-                                    @elseif ($client->brief)
-                                        <x-badge color="bg-amber-100 text-amber-800">{{ $client->brief->requiredAnswered() }}/{{ $client->brief->requiredTotal() }}</x-badge>
-                                    @else
-                                        <span class="text-gray-400">—</span>
-                                    @endif
-                                </td>
-                                <td class="px-6 py-4 text-right text-sm space-x-3">
-                                    <a href="{{ route('clients.edit', $client) }}" class="text-brand-500 hover:text-brand-600 font-semibold">Edit</a>
-                                    <form method="POST" action="{{ route('clients.destroy', $client) }}" class="inline" onsubmit="return confirm('Delete this client?');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="text-red-600 hover:text-red-900 font-semibold">Delete</button>
-                                    </form>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </x-card>
         @endif
 
         <div>

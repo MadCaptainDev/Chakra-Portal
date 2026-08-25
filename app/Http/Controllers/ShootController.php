@@ -39,8 +39,21 @@ class ShootController extends Controller
             // Upcoming by default: a planner looks forwards.
             ->when(! $filters['past'], fn ($query) => $query->where('starts_at', '>=', now()->startOfDay()))
             ->orderBy('starts_at', $filters['past'] ? 'desc' : 'asc')
-            ->paginate(20)
-            ->withQueryString();
+            ->get();
+
+        // One column per portal status. A status filter narrows which
+        // columns appear so the board does not show three empty lanes.
+        $columnStatuses = $filters['status'] !== '' && isset(Shoot::STATUSES[$filters['status']])
+            ? [$filters['status'] => Shoot::STATUSES[$filters['status']]]
+            : Shoot::STATUSES;
+
+        $byStatus = $shoots->groupBy('status');
+        $columns = collect($columnStatuses)->mapWithKeys(fn (string $label, string $key) => [
+            $key => [
+                'label' => $label,
+                'shoots' => $byStatus->get($key, collect()),
+            ],
+        ]);
 
         /*
          * Kit still out after a shoot has finished. The single most useful
@@ -57,6 +70,7 @@ class ShootController extends Controller
 
         return view('shoots.index', [
             'shoots' => $shoots,
+            'columns' => $columns,
             'filters' => $filters,
             'statuses' => Shoot::STATUSES,
             'clients' => Client::orderBy('name')->get(['id', 'name']),

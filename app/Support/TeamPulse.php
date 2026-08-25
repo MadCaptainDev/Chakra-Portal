@@ -21,7 +21,7 @@ class TeamPulse
     /** @return Collection<int, User> */
     public static function employees(): Collection
     {
-        return User::where('role', User::ROLE_EMPLOYEE)->orderBy('name')->get();
+        return User::whoLogWork()->orderBy('name')->get();
     }
 
     /**
@@ -111,6 +111,83 @@ class TeamPulse
                 ];
             })
             ->sortByDesc(fn (array $row) => $row['daysSince'] ?? PHP_INT_MAX)
+            ->values();
+    }
+
+    /**
+     * Worked days in this month that still need Accept / Reject, scoped to
+     * people the viewer may decide on. Oldest day first so the queue is a
+     * backlog, not a popularity contest.
+     *
+     * @param  Collection<int, User>  $employees
+     * @return Collection<int, array{
+     *     employee: User,
+     *     worked_on: string,
+     *     minutes: int,
+     *     entry_count: int,
+     *     flagged: bool,
+     *     entries: list<array{task: string, minutes: int, venture_label: string}>
+     * }>
+     */
+    public static function pendingDays(Collection $employees, Carbon $month, User $viewer): Collection
+    {
+        if ($employees->isEmpty()) {
+            return collect();
+        }
+
+        $visible = $employees
+            ->filter(fn (User $employee) => $viewer->managesTimesheetOf($employee))
+            ->values();
+
+        if ($visible->isEmpty()) {
+            return collect();
+        }
+
+        $entries = TimesheetEntry::whereIn('user_id', $visible->pluck('id'))
+            ->forMonth($month)
+            ->where('status', '!=', TimesheetEntry::STATUS_CANCELLED)
+            ->orderBy('worked_on')
+            ->orderByRaw('started_at IS NULL')
+            ->orderBy('started_at')
+            ->get()
+            ->groupBy(fn (TimesheetEntry $entry) => $entry->user_id.'|'.$entry->worked_on->toDateString());
+
+        $decisions = TimesheetDay::decisionsFor($visible->pluck('id'), $month);
+        $byId = $visible->keyBy('id');
+
+        return $entries
+            ->reject(fn ($dayEntries, string $key) => $decisions->has($key))
+            ->map(function ($dayEntries, string $key) use ($byId) {
+                [$userId, $date] = explode('|', $key, 2);
+                $employee = $byId->get((int) $userId);
+
+                if (! $employee) {
+                    return null;
+                }
+
+                $minutes = (int) $dayEntries->sum('minutes');
+                $flagged = $dayEntries->contains(
+                    fn (TimesheetEntry $entry) => $entry->minutes >= TimesheetAnomalies::LONG_ENTRY_MINUTES
+                ) || $minutes >= TimesheetAnomalies::IMPOSSIBLE_DAY_MINUTES;
+
+                return [
+                    'employee' => $employee,
+                    'worked_on' => $date,
+                    'minutes' => $minutes,
+                    'entry_count' => $dayEntries->count(),
+                    'flagged' => $flagged,
+                    'entries' => $dayEntries->map(fn (TimesheetEntry $entry) => [
+                        'task' => (string) $entry->task,
+                        'minutes' => (int) $entry->minutes,
+                        'venture_label' => $entry->venture ? $entry->ventureLabel() : '',
+                    ])->values()->all(),
+                ];
+            })
+            ->filter()
+            ->sortBy([
+                fn (array $row) => $row['worked_on'],
+                fn (array $row) => strtolower($row['employee']->name),
+            ])
             ->values();
     }
 }

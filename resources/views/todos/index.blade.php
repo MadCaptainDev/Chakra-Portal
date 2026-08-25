@@ -25,7 +25,7 @@
     </x-slot>
 
     <div class="space-y-4" x-data="{ filters: {{ $filtering ? 'true' : 'false' }} }">
-        <div class="sticky top-0 z-20 -mx-4 px-4 py-2 sm:mx-0 sm:px-0 backdrop-blur bg-gray-50/80">
+        <div class="sticky top-0 z-20 -mx-4 px-4 py-2 sm:mx-0 sm:px-0 backdrop-blur bg-brand-50/80">
             <x-card padding="sm">
                 <x-day-nav route="todos.index" :day="$day"
                            :params="array_filter(['user' => $onlyUser, 'status' => $status, 'venture' => $venture])" />

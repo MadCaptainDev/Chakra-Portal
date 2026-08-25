@@ -23,7 +23,7 @@ class TimesheetAdminController extends Controller
     {
         $month = $this->resolveMonth($request->query('month'));
 
-        $employees = User::where('role', User::ROLE_EMPLOYEE)->orderBy('name')->get();
+        $employees = User::whoLogWork()->orderBy('name')->get();
 
         $allEntries = TimesheetEntry::forMonth($month)
             ->whereIn('user_id', $employees->pluck('id'))
@@ -74,13 +74,14 @@ class TimesheetAdminController extends Controller
             'ranking' => $ranking,
             'teamStats' => $teamStats,
             'behind' => TeamPulse::behind($employees),
+            'pendingDays' => TeamPulse::pendingDays($employees, $month, $request->user()),
             'rejectedCount' => $decisions->where('review_state', TimesheetDay::REJECTED)->count(),
         ]);
     }
 
     public function show(Request $request, User $employee): View
     {
-        abort_unless($employee->isEmployee(), 404);
+        abort_unless($employee->logsWork(), 404);
 
         $month = $this->resolveMonth($request->query('month'));
 
@@ -109,7 +110,7 @@ class TimesheetAdminController extends Controller
      */
     public function award(Request $request, User $employee): RedirectResponse
     {
-        abort_unless($employee->isEmployee(), 404);
+        abort_unless($employee->logsWork(), 404);
 
         $validated = $request->validate([
             'month' => ['required', 'date'],

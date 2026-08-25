@@ -56,6 +56,20 @@ class CompetitorAccountControllerTest extends TestCase
         $this->assertSame($client->id, $account->client_id);
     }
 
+    public function test_tracking_from_a_client_page_returns_there(): void
+    {
+        $client = Client::create(['name' => 'SVA Silks']);
+        $returnTo = route('clients.show', $client).'#competitors';
+
+        $this->actingAs($this->staff())->post(route('competitors.store'), [
+            'username' => 'from_client_page',
+            'client_id' => $client->id,
+            'return_to' => $returnTo,
+        ])->assertRedirect($returnTo);
+
+        $this->assertSame($client->id, CompetitorAccount::firstOrFail()->client_id);
+    }
+
     public function test_tracking_the_same_handle_twice_does_not_duplicate_it(): void
     {
         $staff = $this->staff();
@@ -102,6 +116,43 @@ class CompetitorAccountControllerTest extends TestCase
         $response->assertOk();
         $ids = $response->viewData('reels')->pluck('id');
         $this->assertSame([$high->id, $low->id], $ids->all());
+    }
+
+    public function test_the_show_screen_puts_the_thumbnail_above_insights_and_offers_a_case_study(): void
+    {
+        $account = CompetitorAccount::create(['username' => 'a_competitor', 'platform' => 'instagram']);
+        $reel = CompetitorReel::create([
+            'competitor_account_id' => $account->id,
+            'platform_post_id' => 'p1',
+            'play_count' => 12500,
+            'like_count' => 400,
+            'comment_count' => 20,
+            'thumbnail_url' => 'https://cdn.example/reel-thumb.jpg',
+            'scraped_at' => now(),
+        ]);
+        CompetitorReelAnalysis::create([
+            'competitor_reel_id' => $reel->id,
+            'breakdown' => 'Hook in the first second, then a product reveal.',
+            'gemini_model' => 'gemini-2.5-flash',
+            'analyzed_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->staff())->get(route('competitors.show', $account));
+
+        $response->assertOk();
+        $response->assertSee('https://cdn.example/reel-thumb.jpg', false);
+        $response->assertSee('Case study');
+        $response->assertSee('Hook in the first second, then a product reveal.');
+        $response->assertSee('views');
+        $html = $response->getContent();
+        $thumbPos = strpos($html, 'cdn.example/reel-thumb.jpg');
+        $insightsPos = strpos($html, 'views');
+        $caseStudyPos = strpos($html, 'Case study');
+        $this->assertNotFalse($thumbPos);
+        $this->assertNotFalse($insightsPos);
+        $this->assertNotFalse($caseStudyPos);
+        $this->assertLessThan($insightsPos, $thumbPos);
+        $this->assertLessThan($caseStudyPos, $insightsPos);
     }
 
     public function test_removing_a_tracked_competitor_deletes_its_reels_too(): void

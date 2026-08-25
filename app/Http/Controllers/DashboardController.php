@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Enquiry;
 use App\Models\NotionShoot;
+use App\Models\RoutineOccurrence;
 use App\Models\Shoot;
 use App\Models\Expense;
 use App\Models\ExpensePayment;
@@ -133,12 +134,22 @@ class DashboardController extends Controller
          */
         $unreadEnquiries = Enquiry::unread()->count();
 
+        $missedRoutinesCount = RoutineOccurrence::overdueCount();
+        $missedRoutines = RoutineOccurrence::query()
+            ->overdue()
+            ->with(['routine', 'checkpoint', 'subject'])
+            ->orderBy('due_on')
+            ->orderBy('id')
+            ->limit(5)
+            ->get();
+
         // One candidate, not a section -- see PortfolioSuggestions::best()
         // for why a single link is the most this can ever offer.
         $portfolioSuggestion = PortfolioSuggestions::best();
 
         $actionItems = $this->actionItems([
             'unreadEnquiries' => $unreadEnquiries,
+            'missedRoutinesCount' => $missedRoutinesCount,
             'portfolioSuggestion' => $portfolioSuggestion,
             'pendingReviews' => $pendingReviews,
             'behindCount' => $teamBehind->count(),
@@ -192,6 +203,10 @@ class DashboardController extends Controller
             'teamMinutes' => (int) $teamHours->sum('minutes'),
             'pendingReviews' => $pendingReviews,
             'workGraph' => ContributionGraph::forTeam(),
+
+            // —— Routines ——
+            'missedRoutinesCount' => $missedRoutinesCount,
+            'missedRoutines' => $missedRoutines,
 
             // —— Delivery ——
             'content' => $this->contentPulse($month),
@@ -411,6 +426,17 @@ class DashboardController extends Controller
                 'detail' => 'Nobody has opened these yet. Leads go cold fast.',
                 'href' => route('enquiries.index'),
                 'cta' => 'Open',
+            ];
+        }
+
+        if (($ctx['missedRoutinesCount'] ?? 0) > 0) {
+            $items[] = [
+                'tone' => 'amber',
+                'domain' => 'Routines',
+                'title' => $ctx['missedRoutinesCount'].' missed '.Str::plural('duty', $ctx['missedRoutinesCount']),
+                'detail' => 'Open occurrences past their due date — tick them or skip with a reason.',
+                'href' => route('routines.calendar'),
+                'cta' => 'Open calendar',
             ];
         }
 

@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -21,6 +22,10 @@ use Illuminate\Support\Collection;
  * screen that ranks people on a number it cannot vouch for is worse than no
  * screen. So the flags are computed alongside the figures and shown next to
  * them, rather than living in a report nobody opens.
+ *
+ * A day a manager or admin has already approved is left out: sometimes the
+ * odd-looking figure is genuine (a real shoot day, a calendar span that was
+ * meant), and once somebody has signed it off there is nothing left to "fix".
  */
 class TimesheetAnomalies
 {
@@ -65,6 +70,10 @@ class TimesheetAnomalies
             ->orderByDesc('worked_on')
             ->get();
 
+        // Approved days drop out of Second Look and the throughput flags.
+        // Rejection (or no decision) keeps the nudge — those still need a look.
+        $entries = self::excludingApprovedDays($entries, $from, $to, $only);
+
         return collect()
             ->merge(self::impossibleDays($entries))
             ->merge(self::fullDayEntries($entries))
@@ -75,6 +84,42 @@ class TimesheetAnomalies
                 array_search($flag['severity'], [self::SEVERITY_HIGH, self::SEVERITY_MEDIUM, self::SEVERITY_LOW], true),
                 -$flag['minutes'],
             ])
+            ->values();
+    }
+
+    /**
+     * Drop entries whose day a manager or admin has already signed off.
+     *
+     * @param  Collection<int, TimesheetEntry>  $entries
+     * @return Collection<int, TimesheetEntry>
+     */
+    private static function excludingApprovedDays(
+        Collection $entries,
+        Carbon $from,
+        Carbon $to,
+        ?User $only = null
+    ): Collection {
+        if ($entries->isEmpty()) {
+            return $entries;
+        }
+
+        $approvedKeys = TimesheetDay::query()
+            ->when($only, fn ($query) => $query->where('user_id', $only->id))
+            ->where('review_state', TimesheetDay::APPROVED)
+            ->where('worked_on', '>=', $from->toDateString())
+            ->where('worked_on', '<', $to->copy()->addDay()->toDateString())
+            ->get(['user_id', 'worked_on'])
+            ->map(fn (TimesheetDay $day) => $day->user_id.'|'.$day->worked_on->toDateString())
+            ->flip();
+
+        if ($approvedKeys->isEmpty()) {
+            return $entries;
+        }
+
+        return $entries
+            ->reject(fn (TimesheetEntry $entry) => $approvedKeys->has(
+                $entry->user_id.'|'.$entry->worked_on->toDateString()
+            ))
             ->values();
     }
 

@@ -58,7 +58,11 @@ class CompetitorAccountController extends Controller
             ['client_id' => $validated['client_id'] ?? null, 'notes' => $validated['notes'] ?? null],
         );
 
-        return redirect()->route('competitors.index')->with('status', "Tracking @{$validated['username']}.");
+        $returnTo = $request->input('return_to');
+
+        return redirect()
+            ->to(is_string($returnTo) && $returnTo !== '' ? $returnTo : route('competitors.index'))
+            ->with('status', "Tracking @{$validated['username']}.");
     }
 
     public function destroy(CompetitorAccount $competitor): RedirectResponse
@@ -98,7 +102,7 @@ class CompetitorAccountController extends Controller
     {
         return view('competitors.show', [
             'competitor' => $competitor->load('client'),
-            'reels' => $competitor->reels()->with('analysis.concepts')->highestViewsFirst()->get(),
+            'reels' => $competitor->reels()->with(['account', 'analysis.concepts.client'])->highestViewsFirst()->get(),
             'clients' => Client::orderBy('name')->get(['id', 'name']),
             'settings' => CompetitorSetting::current(),
         ]);

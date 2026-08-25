@@ -14,6 +14,9 @@
         'open' => 'bg-amber-100 text-amber-800',
         'handled' => 'bg-green-100 text-green-800',
         'completed' => 'bg-green-100 text-green-800',
+        // Portal shoot booking statuses (Shoot::STATUSES).
+        'planned' => 'bg-amber-100 text-amber-800',
+        'confirmed' => 'bg-brand-100 text-brand-800',
         'pending' => 'bg-amber-100 text-amber-800',
         'idea' => 'bg-gray-100 text-gray-600',
         'to_be_shooted' => 'bg-purple-100 text-purple-800',
@@ -57,6 +60,8 @@
         'open' => 'Awaiting reply',
         'handled' => 'Handled',
         'completed' => 'Completed',
+        'planned' => 'Planned',
+        'confirmed' => 'Confirmed',
         'pending' => 'Pending',
         'idea' => 'Idea',
         'to_be_shooted' => 'To Be Shot',

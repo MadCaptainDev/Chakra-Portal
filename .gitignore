@@ -38,3 +38,6 @@ Thumbs.db
 
 # Apache stray log on Hostinger
 /error_log
+
+# Graphify knowledge graph (generated locally; re-run `graphify extract . --code-only`)
+/graphify-out/

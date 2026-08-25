@@ -46,14 +46,45 @@ class ContentDashboardController extends Controller
     public function show(Request $request, ContentAccount $contentAccount): View
     {
         $month = $this->resolveMonth($request);
+        $statuses = $this->resolveStatuses($request);
 
         return view('content-dashboard.show', [
             'account' => $contentAccount->load(['client', 'ventures']),
             'month' => $month,
             'months' => ContentDashboard::availableMonths(),
-            'items' => ContentDashboard::itemsFor($contentAccount, $month),
+            'items' => ContentDashboard::itemsFor($contentAccount, $month, $statuses),
+            'pipeline' => ContentDashboard::pipelineForAccount($contentAccount, $month),
             'targeted' => ContentDashboard::TARGETED,
+            'activeStatuses' => $statuses,
+            'statusGroups' => ContentDashboard::STATUS_GROUPS,
         ]);
+    }
+
+    /**
+     * Resolve status filter from query string.
+     *
+     * @return array<string>|null
+     */
+    private function resolveStatuses(Request $request): ?array
+    {
+        $raw = $request->query('status');
+
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        if ($raw === 'all') {
+            return null;
+        }
+
+        $groups = array_filter(explode(',', (string) $raw));
+        $statuses = [];
+
+        foreach ($groups as $group) {
+            $statuses = array_merge($statuses, ContentDashboard::STATUS_GROUPS[$group] ?? [$group]);
+        }
+
+        return $statuses ?: null;
     }
 
     /**

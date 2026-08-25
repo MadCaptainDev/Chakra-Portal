@@ -35,6 +35,15 @@ class ContentDashboard
     /** Counted and shown, but never targeted -- nobody plans stories monthly. */
     public const UNTARGETED = [ContentItem::SOURCE_STORY => 'Stories'];
 
+    /** Pipeline status groups for tracking progress. */
+    public const STATUS_GROUPS = [
+        'published' => ['Published'],
+        'scheduled' => ['Scheduled'],
+        'in_progress' => ['Video Ready', 'Under Review', 'Edit in Progress', 'To Be Edited', 'To Be Shooted'],
+        'idea' => ['Idea'],
+        'canceled' => ['Canceled'],
+    ];
+
     /**
      * @return array{0: Carbon, 1: Carbon}
      */
@@ -50,45 +59,50 @@ class ContentDashboard
      */
     public static function forMonth(Carbon $month): array
     {
-        $current = self::countsByAccount($month);
+        $publishedCounts = self::countsByAccount($month);
+        $plannedCounts = self::countsByAccountAllStatuses($month);
         $previous = self::countsByAccount($month->copy()->subMonthNoOverflow());
         $performance = self::performanceByAccount($month);
+        $pipeline = self::pipelineForMonth($month);
 
         $accounts = ContentAccount::with(['client', 'ventures'])->targeted()->get()
             ->sortBy(fn (ContentAccount $a) => [$a->client?->name ?? '', $a->name])
             ->values();
 
-        $rows = $accounts->map(function (ContentAccount $account) use ($current, $previous, $performance) {
-            $counts = $current[$account->id] ?? [];
+        $rows = $accounts->map(function (ContentAccount $account) use ($publishedCounts, $plannedCounts, $previous, $performance) {
+            $published = $publishedCounts[$account->id] ?? [];
+            $planned = $plannedCounts[$account->id] ?? [];
 
-            $types = collect(self::TARGETED)->map(function (string $label, string $source) use ($account, $counts) {
-                $actual = $counts[$source] ?? 0;
+            $types = collect(self::TARGETED)->map(function (string $label, string $source) use ($account, $published, $planned) {
+                $actualPublished = $published[$source] ?? 0;
+                $actualPlanned = $planned[$source] ?? 0;
                 $target = $account->targetFor($source);
 
                 return [
                     'label' => $label,
-                    'actual' => $actual,
+                    'actual' => $actualPublished,
+                    'planned' => $actualPlanned,
                     'target' => $target,
-                    'variance' => $target === null ? null : $actual - $target,
-                    'pct' => $target ? (int) round($actual / $target * 100) : null,
+                    'variance' => $target === null ? null : $actualPublished - $target,
+                    'pct' => $target ? (int) round($actualPublished / $target * 100) : null,
+                    'planned_pct' => $actualPlanned > 0 ? (int) round($actualPublished / $actualPlanned * 100) : null,
                 ];
             })->all();
 
-            // Total is the targeted types only, so it is comparable with
-            // totalTarget. Stories are real output but nothing promised
-            // them, and folding them in would let a good story month hide
-            // a missed reel target.
-            $total = collect($types)->sum('actual');
+            $totalPublished = collect($types)->sum('actual');
+            $totalPlanned = collect($types)->sum('planned');
             $target = $account->totalTarget();
 
             return [
                 'account' => $account,
                 'types' => $types,
-                'stories' => $counts[ContentItem::SOURCE_STORY] ?? 0,
-                'total' => $total,
+                'stories' => $published[ContentItem::SOURCE_STORY] ?? 0,
+                'total' => $totalPublished,
+                'planned' => $totalPlanned,
                 'target' => $target,
-                'variance' => $target === null ? null : $total - $target,
-                'pct' => $target ? (int) round($total / $target * 100) : null,
+                'variance' => $target === null ? null : $totalPublished - $target,
+                'pct' => $target ? (int) round($totalPublished / $target * 100) : null,
+                'pipeline_pct' => $totalPlanned > 0 ? (int) round($totalPublished / $totalPlanned * 100) : null,
                 'previous' => collect(array_keys(self::TARGETED))
                     ->sum(fn (string $s) => $previous[$account->id][$s] ?? 0),
                 'performance' => $performance[$account->id] ?? null,
@@ -100,6 +114,7 @@ class ContentDashboard
                 'client' => $rows->first()['account']->client,
                 'rows' => $rows->values(),
                 'total' => $rows->sum('total'),
+                'planned' => $rows->sum('planned'),
                 'previous' => $rows->sum('previous'),
                 'target' => $rows->whereNotNull('target')->sum('target') ?: null,
             ])
@@ -109,18 +124,47 @@ class ContentDashboard
             'month' => $month->copy()->startOfMonth(),
             'clients' => $byClient,
             'grandTotal' => $rows->sum('total'),
+            'grandPlanned' => $rows->sum('planned'),
             'grandPrevious' => $rows->sum('previous'),
             'grandTarget' => $rows->whereNotNull('target')->sum('target') ?: null,
+            'pipeline' => $pipeline,
             'typeTotals' => collect(self::TARGETED)
                 ->map(fn (string $label, string $source) => [
                     'label' => $label,
                     'actual' => $rows->sum(fn (array $r) => $r['types'][$source]['actual']),
+                    'planned' => $rows->sum(fn (array $r) => $r['types'][$source]['planned']),
                     'target' => $rows->sum(fn (array $r) => $r['types'][$source]['target'] ?? 0) ?: null,
                 ])->all(),
             'unmapped' => ContentAccount::unmappedVentures(),
             'unmappedThisMonth' => self::unmappedCountForMonth($month),
             'untargetedAccounts' => ContentAccount::query()->whereNotIn('id', $accounts->pluck('id'))->count(),
         ];
+    }
+
+    /**
+     * Pipeline breakdown for the month — how many items in each status group.
+     *
+     * @return array<string, int>
+     */
+    public static function pipelineForMonth(Carbon $month): array
+    {
+        [$since, $until] = self::monthRange($month);
+
+        $rows = ContentItem::query()
+            ->selectRaw('status, count(*) as c')
+            ->whereNotNull('published_date')
+            ->whereBetween('published_date', [$since, $until])
+            ->groupBy('status')
+            ->pluck('c', 'status');
+
+        $pipeline = [];
+        foreach (self::STATUS_GROUPS as $group => $statuses) {
+            $pipeline[$group] = $rows->only($statuses)->sum();
+        }
+
+        $pipeline['total'] = $pipeline['published'] + $pipeline['scheduled'] + $pipeline['in_progress'] + $pipeline['idea'];
+
+        return $pipeline;
     }
 
     /**
@@ -144,6 +188,41 @@ class ContentDashboard
             ->whereNotNull('published_date')
             ->whereBetween('published_date', [$since, $until])
             ->whereNotNull('venture')
+            ->groupBy('venture', 'source')
+            ->get();
+
+        $counts = [];
+
+        foreach ($rows as $row) {
+            $accountId = $ventureToAccount[$row->venture] ?? null;
+
+            if ($accountId === null) {
+                continue;
+            }
+
+            $counts[$accountId][$row->source] = ($counts[$accountId][$row->source] ?? 0) + (int) $row->c;
+        }
+
+        return $counts;
+    }
+
+    /**
+     * All non-canceled items for one month (the planned total), keyed account id => [source => count].
+     *
+     * @return array<int, array<string, int>>
+     */
+    private static function countsByAccountAllStatuses(Carbon $month): array
+    {
+        [$since, $until] = self::monthRange($month);
+
+        $ventureToAccount = ContentAccountVenture::pluck('content_account_id', 'venture');
+
+        $rows = ContentItem::query()
+            ->selectRaw('venture, source, count(*) as c')
+            ->whereNotNull('published_date')
+            ->whereBetween('published_date', [$since, $until])
+            ->whereNotNull('venture')
+            ->where(fn ($q) => $q->whereNull('status')->orWhere('status', '!=', 'Canceled'))
             ->groupBy('venture', 'source')
             ->get();
 
@@ -266,23 +345,52 @@ class ContentDashboard
     }
 
     /**
-     * One account's published items for a month, with the real Instagram
-     * post each turned into where one was matched -- the drill-down behind
-     * a dashboard row.
+     * One account's items for a month, with the real Instagram post each
+     * turned into where one was matched -- the drill-down behind a dashboard row.
      *
+     * @param  array<string>|null  $statuses  Filter to specific statuses, or null for all non-canceled
      * @return Collection<int, ContentItem>
      */
-    public static function itemsFor(ContentAccount $account, Carbon $month): Collection
+    public static function itemsFor(ContentAccount $account, Carbon $month, ?array $statuses = null): Collection
     {
         [$since, $until] = self::monthRange($month);
 
         return ContentItem::query()
             ->with('socialMediaItem.insights')
             ->whereIn('venture', $account->ventureNames() ?: ['__none__'])
-            ->where('status', 'Published')
             ->whereNotNull('published_date')
             ->whereBetween('published_date', [$since, $until])
+            ->when($statuses !== null, fn ($q) => $q->whereIn('status', $statuses))
+            ->when($statuses === null, fn ($q) => $q->where(fn ($q2) => $q2->whereNull('status')->orWhere('status', '!=', 'Canceled')))
             ->orderBy('published_date')
+            ->orderBy('status')
             ->get();
+    }
+
+    /**
+     * Pipeline breakdown for a single account.
+     *
+     * @return array<string, int>
+     */
+    public static function pipelineForAccount(ContentAccount $account, Carbon $month): array
+    {
+        [$since, $until] = self::monthRange($month);
+
+        $rows = ContentItem::query()
+            ->selectRaw('status, count(*) as c')
+            ->whereIn('venture', $account->ventureNames() ?: ['__none__'])
+            ->whereNotNull('published_date')
+            ->whereBetween('published_date', [$since, $until])
+            ->groupBy('status')
+            ->pluck('c', 'status');
+
+        $pipeline = [];
+        foreach (self::STATUS_GROUPS as $group => $statuses) {
+            $pipeline[$group] = $rows->only($statuses)->sum();
+        }
+
+        $pipeline['total'] = $pipeline['published'] + $pipeline['scheduled'] + $pipeline['in_progress'] + $pipeline['idea'];
+
+        return $pipeline;
     }
 }

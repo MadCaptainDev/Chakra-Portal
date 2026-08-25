@@ -7,12 +7,12 @@
     /*
      * The studio's work, one square per day, over a window you can change.
      *
-     * All four windows are rendered and Alpine shows one. They come from a
-     * single query and the biggest is 371 squares, so switching instantly beats
-     * a page reload that would rebuild the whole dashboard to redraw one card.
+     * All windows are rendered and Alpine shows one. They come from a single
+     * query, so switching instantly beats a page reload that would rebuild the
+     * whole dashboard to redraw one card.
      *
-     * The year is 53 columns and will never fit a 420px phone, so the grid
-     * scrolls inside its own container and the page does not.
+     * Default is This month — the year view was too coarse for day-to-day
+     * tracking. Hover or click a square for who logged what that day.
      */
     $levels = [
         0 => 'bg-white/[0.06]',
@@ -28,13 +28,29 @@
 @endphp
 
 <div class="rounded-xl bg-white/5 ring-1 ring-white/10 p-5 sm:p-6"
-     x-data="{ range: @js(ContributionGraph::isKnownRange($range) ? $range : ContributionGraph::DEFAULT_RANGE) }">
+     x-data="{
+        range: @js(ContributionGraph::isKnownRange($range) ? $range : ContributionGraph::DEFAULT_RANGE),
+        tip: null,
+        pinned: false,
+        show(day) { if (!this.pinned) this.tip = day; },
+        hide() { if (!this.pinned) this.tip = null; },
+        toggle(day) {
+            if (this.pinned && this.tip && this.tip.key === day.key) {
+                this.pinned = false;
+                this.tip = null;
+                return;
+            }
+            this.pinned = true;
+            this.tip = day;
+        },
+        clearPin() { this.pinned = false; this.tip = null; }
+     }">
 
     <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <p class="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-100/70">Work logged</p>
 
         <label class="sr-only" for="work-heatmap-range">Change the period shown</label>
-        <select id="work-heatmap-range" x-model="range"
+        <select id="work-heatmap-range" x-model="range" @change="clearPin()"
                 class="min-h-[36px] py-1.5 pl-3 pr-8 rounded-md bg-white/10 border-white/15 text-white text-xs
                        focus:border-brand-400 focus:ring-brand-400">
             @foreach (ContributionGraph::RANGES as $value => $label)
@@ -100,8 +116,28 @@
                                         @if ($day === null)
                                             <div class="{{ $graph['cell'] }}"></div>
                                         @else
-                                            <div class="{{ $graph['cell'] }} rounded-[2px] {{ $levels[$day['level']] }}"
-                                                 title="{{ $day['date']->format('D d M Y') }} — {{ $day['minutes'] > 0 ? TimesheetEntry::formatMinutes($day['minutes']) : 'nothing logged' }}"></div>
+                                            @php
+                                                $payload = [
+                                                    'key' => $day['date']->toDateString(),
+                                                    'dateLabel' => $day['dateLabel'],
+                                                    'hoursLabel' => $day['hoursLabel'],
+                                                    'minutes' => $day['minutes'],
+                                                    'people' => $day['people'],
+                                                ];
+                                            @endphp
+                                            <button type="button"
+                                                    class="{{ $graph['cell'] }} rounded-[2px] {{ $levels[$day['level']] }}
+                                                           transition ring-offset-1 ring-offset-brand-900
+                                                           hover:ring-2 hover:ring-brand-300/80 focus:outline-none
+                                                           focus-visible:ring-2 focus-visible:ring-brand-300
+                                                           {{ $day['minutes'] > 0 ? 'cursor-pointer' : 'cursor-default' }}"
+                                                    :class="tip && tip.key === @js($payload['key']) ? 'ring-2 ring-brand-300' : ''"
+                                                    @mouseenter="show(@js($payload))"
+                                                    @mouseleave="hide()"
+                                                    @click="toggle(@js($payload))"
+                                                    :aria-pressed="pinned && tip && tip.key === @js($payload['key'])"
+                                                    aria-label="{{ $day['dateLabel'] }} — {{ $day['hoursLabel'] }}">
+                                            </button>
                                         @endif
                                     @endforeach
                                 </div>
@@ -112,6 +148,35 @@
             </div>
         </div>
     @endforeach
+
+    {{-- Day detail: hover preview, click to pin. --}}
+    <div x-show="tip" x-cloak x-transition.opacity.duration.150ms
+         class="mt-4 rounded-lg bg-white/10 ring-1 ring-white/15 p-3 sm:p-4">
+        <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+                <p class="text-sm font-semibold text-white" x-text="tip?.dateLabel"></p>
+                <p class="mt-0.5 text-xs text-brand-100/70 tabular-nums" x-text="tip?.hoursLabel"></p>
+            </div>
+            <button type="button" x-show="pinned" @click="clearPin()"
+                    class="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-brand-200/70 hover:text-white min-h-[32px]">
+                Close
+            </button>
+        </div>
+
+        <template x-if="tip && tip.people && tip.people.length">
+            <ul class="mt-3 space-y-1.5 border-t border-white/10 pt-3">
+                <template x-for="person in tip.people" :key="person.name + person.minutes">
+                    <li class="flex items-center justify-between gap-3 text-xs">
+                        <span class="text-brand-50/90 truncate" x-text="person.name"></span>
+                        <span class="tabular-nums text-brand-100/70 shrink-0" x-text="person.hoursLabel"></span>
+                    </li>
+                </template>
+            </ul>
+        </template>
+
+        <p class="mt-2 text-[11px] text-brand-100/40" x-show="tip && tip.minutes === 0">No timesheet entries this day.</p>
+        <p class="mt-2 text-[10px] text-brand-100/35" x-show="!pinned">Click a day to keep this open</p>
+    </div>
 
     <div class="mt-3 flex items-center justify-end gap-1.5">
         <span class="text-[10px] text-brand-100/45">Quiet</span>

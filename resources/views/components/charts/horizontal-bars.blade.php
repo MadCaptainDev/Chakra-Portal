@@ -9,25 +9,27 @@
 
 @php
     $maxMinutes = max(1, (int) $maxMinutes);
-    $rows = collect($items)->take($limit);
-    $hidden = max(0, collect($items)->count() - $rows->count());
+    $all = collect($items)->values();
+    $hidden = max(0, $all->count() - (int) $limit);
     // Admin charts can deep-link into the client page; employees cannot.
     $allowLinks = $linkable ?? (auth()->user()?->isAdmin() ?? false);
 @endphp
 
-<div {{ $attributes->merge(['class' => 'bg-white shadow-sm rounded-lg border border-brand-100/60 p-4 sm:p-5']) }}>
+<div {{ $attributes->merge(['class' => 'bg-white shadow-sm rounded-lg border border-brand-100/60 p-4 sm:p-5']) }}
+     @if ($hidden > 0) x-data="{ expanded: false }" @endif>
     <h3 class="text-sm font-semibold text-brand-900 mb-3">{{ $title }}</h3>
 
-    @if ($rows->isEmpty() || $rows->sum('minutes') <= 0)
+    @if ($all->isEmpty() || $all->sum('minutes') <= 0)
         <p class="text-sm text-gray-500 py-6 text-center">{{ $empty }}</p>
     @else
         <ul class="space-y-2.5">
-            @foreach ($rows as $item)
+            @foreach ($all as $index => $item)
                 @php
                     $pct = $item['minutes'] > 0 ? max(2, (int) round(($item['minutes'] / $maxMinutes) * 100)) : 0;
                     $href = $allowLinks ? ($item['href'] ?? null) : null;
+                    $collapsed = $hidden > 0 && $index >= $limit;
                 @endphp
-                <li>
+                <li @if ($collapsed) x-show="expanded" x-cloak x-transition.opacity.duration.150ms @endif>
                     @if ($href)
                         <a href="{{ $href }}" class="block group rounded-md -mx-1 px-1 py-0.5 hover:bg-brand-50/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">
                             <div class="flex items-center justify-between gap-2 mb-1">
@@ -51,7 +53,13 @@
             @endforeach
         </ul>
         @if ($hidden > 0)
-            <p class="mt-3 text-[11px] text-gray-400">+{{ $hidden }} more</p>
+            <button type="button"
+                    class="mt-1 inline-flex items-center min-h-[44px] min-w-[44px] text-[11px] text-gray-400 hover:text-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 rounded-md px-1 -mx-1"
+                    @click="expanded = ! expanded"
+                    :aria-expanded="expanded.toString()">
+                <span x-show="! expanded">+{{ $hidden }} more</span>
+                <span x-show="expanded" x-cloak>Show less</span>
+            </button>
         @endif
     @endif
 </div>

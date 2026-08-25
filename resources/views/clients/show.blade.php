@@ -20,7 +20,7 @@
          reading it once on load is what makes that landing on the right tab
          instead of always Overview. --}}
     <div class="space-y-6" x-data="{ tab: 'overview' }"
-         x-init="if (['overview','brief','social','credentials','login'].includes(window.location.hash.slice(1))) tab = window.location.hash.slice(1)">
+         x-init="if (['overview','brief','social','competitors','credentials','login'].includes(window.location.hash.slice(1))) tab = window.location.hash.slice(1)">
         <div class="overflow-x-auto -mx-1 px-1 pb-1">
             <x-tab-nav model="tab" :tabs="array_filter([
                 'overview' => ['label' => 'Overview'],
@@ -29,6 +29,9 @@
                     : null],
                 'social' => ['label' => 'Social Media', 'count' => $client->socialAccounts
                     ->where('status', App\Models\SocialAccount::STATUS_CONNECTED)->count() ?: null],
+                'competitors' => auth()->user()->can('competitors.view')
+                    ? ['label' => 'Competitors', 'count' => $competitors->count() ?: null]
+                    : null,
                 'credentials' => auth()->user()->can('clients.credentials')
                     ? ['label' => 'Logins We Hold', 'count' => $client->credentials()->count() ?: null]
                     : null,
@@ -298,6 +301,12 @@
         <div x-show="tab === 'social'" x-cloak class="space-y-6">
         @include('clients._social')
         </div>
+
+        @can('competitors.view')
+        <div x-show="tab === 'competitors'" x-cloak class="space-y-6">
+            @include('clients._competitors')
+        </div>
+        @endcan
 
         <div x-show="tab === 'credentials'" x-cloak class="space-y-6">
         {{-- The logins the studio holds FOR them, as opposed to the login they

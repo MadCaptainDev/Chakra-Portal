@@ -98,4 +98,15 @@ class SidebarRestructureTest extends TestCase
         // Granted view but not manage: sees the module, not the API reference.
         $this->actingAs($employee->refresh())->get(route('my.dashboard'))->assertDontSee(route('developer.index'));
     }
+
+    public function test_admin_sidebar_lists_permission_groups_settings_and_nav_filter(): void
+    {
+        $response = $this->actingAs($this->admin())->get(route('dashboard'));
+
+        $response->assertOk()
+            ->assertSee('Filter menu', false)
+            ->assertSee('Production', false)
+            ->assertSee('Finance', false)
+            ->assertSee(route('settings.edit'));
+    }
 }

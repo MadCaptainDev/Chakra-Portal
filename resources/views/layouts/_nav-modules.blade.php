@@ -9,6 +9,8 @@
 @php
     use App\Support\Permission;
 
+    $isAdmin = auth()->user()?->isAdmin() ?? false;
+
     $groups = collect(Permission::grouped())
         ->map(fn ($modules) => collect($modules)
             ->filter(fn ($config, $module) => auth()->user()?->can($module.'.view'))
@@ -19,7 +21,29 @@
 @endphp
 
 @foreach ($groups as $group => $modules)
-    <x-nav-section :label="$group">
+    @php
+        // Open the accordion when any module (or nested) route in this group is current.
+        $groupActive = $modules->keys()->contains(function (string $module) {
+            if (request()->routeIs($module.'.*')) {
+                return true;
+            }
+            if ($module === 'shoots' && request()->routeIs('equipment.*')) {
+                return true;
+            }
+            if ($module === 'invoices' && request()->routeIs('recurring.*')) {
+                return true;
+            }
+            if ($module === 'routines' && request()->routeIs('routines.calendar')) {
+                return true;
+            }
+            if ($module === 'saas-products' && request()->routeIs('developer.*')) {
+                return true;
+            }
+
+            return false;
+        });
+    @endphp
+    <x-nav-section :label="$group" :collapsible="$isAdmin" :force-open="$groupActive">
         @foreach ($modules as $module => $config)
             {{-- Equipment keeps its own module/permission/routes untouched --
                  it just does not get a fourth top-level Production row of its
@@ -48,6 +72,12 @@
             @if ($module === 'invoices' && Route::has('recurring.index') && auth()->user()?->can('invoices.manage'))
                 <x-sidebar-link icon="refresh" :href="route('recurring.index')" :active="request()->routeIs('recurring.*')">
                     Recurring
+                </x-sidebar-link>
+            @endif
+
+            @if ($module === 'routines' && Route::has('routines.calendar'))
+                <x-sidebar-link icon="calendar" :href="route('routines.calendar')" :active="request()->routeIs('routines.calendar')">
+                    Calendar
                 </x-sidebar-link>
             @endif
 

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "graphify": {
+      "command": "/home/u512425400/.local/bin/graphify-mcp",
+      "args": [
+        "--graph",
+        "/home/u512425400/domains/chakragroups.in/public_html/graphify-out/graph.json"
+      ]
+    }
+  }
+}

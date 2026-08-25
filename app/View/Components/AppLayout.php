@@ -12,7 +12,7 @@ class AppLayout extends Component
      *                              top bar. Optional, so every existing
      *                              <x-app-layout> call site keeps working.
      * @param  bool  $dark  Put the content column on the brand-900 ground
-     *                      instead of the default light grey. Opt-in per page:
+     *                      instead of the default brand-50 plane. Opt-in per page:
      *                      the rest of the admin is built out of light cards
      *                      and would be unreadable on the dark ground, so this
      *                      stays false everywhere it is not asked for.

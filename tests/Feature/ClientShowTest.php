@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Client;
+use App\Models\CompetitorAccount;
 use App\Models\Invoice;
 use App\Models\TimesheetEntry;
 use App\Models\User;
@@ -102,5 +103,46 @@ class ClientShowTest extends TestCase
         $client = Client::factory()->create();
 
         $this->get(route('clients.show', $client))->assertRedirect(route('login'));
+    }
+
+    public function test_competitors_tab_lists_accounts_tied_to_the_client(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $client = Client::factory()->create(['name' => 'SVA Silks']);
+        CompetitorAccount::create([
+            'username' => 'sva_rival',
+            'platform' => CompetitorAccount::PLATFORM_INSTAGRAM,
+            'client_id' => $client->id,
+        ]);
+        CompetitorAccount::create([
+            'username' => 'someone_elses',
+            'platform' => CompetitorAccount::PLATFORM_INSTAGRAM,
+            'client_id' => Client::factory()->create()->id,
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('clients.show', $client));
+
+        $response->assertOk();
+        $response->assertSee('Competitors');
+        $response->assertSee('@sva_rival');
+        $response->assertDontSee('@someone_elses');
+    }
+
+    public function test_competitors_tab_is_hidden_without_the_module(): void
+    {
+        $user = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
+        $user->syncPermissions(['clients' => ['view']]);
+        $client = Client::factory()->create();
+        CompetitorAccount::create([
+            'username' => 'hidden_rival',
+            'platform' => CompetitorAccount::PLATFORM_INSTAGRAM,
+            'client_id' => $client->id,
+        ]);
+
+        $response = $this->actingAs($user->refresh())->get(route('clients.show', $client));
+
+        $response->assertOk();
+        $response->assertDontSee('@hidden_rival');
+        $response->assertDontSee('Track a competitor');
     }
 }

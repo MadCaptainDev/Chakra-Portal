@@ -16,5 +16,8 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         CompanySetting::current();
+
+        // Studio duty templates (empty subjects / permitted — admin toggles real IDs).
+        $this->call(RoutineDutyPlansSeeder::class);
     }
 }

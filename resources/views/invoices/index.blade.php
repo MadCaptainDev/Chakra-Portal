@@ -7,11 +7,10 @@
 
 <x-app-layout title="Invoices">
     <x-slot name="header">
-        <x-page-header title="Invoices">
+        <x-page-header title="Invoices" eyebrow="Finance"
+                       subtitle="What was billed this month, and what still needs collecting.">
             <x-slot name="actions">
-                <a href="{{ route('invoices.create') }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-brand-400 border border-transparent rounded-md font-semibold text-xs text-brand-900 uppercase tracking-widest hover:bg-brand-500">
-                    + New Invoice
-                </a>
+                <x-btn :href="route('invoices.create')" icon="plus">New invoice</x-btn>
             </x-slot>
         </x-page-header>
     </x-slot>
@@ -36,60 +35,62 @@
             csrf: @js(csrf_token()),
         })"
     >
-        <div class="flex items-center justify-between gap-2">
-            <a href="{{ route('invoices.index', array_filter(['month' => $prev, 'status' => $status, 'type' => $type, 'search' => $search])) }}"
-               class="inline-flex items-center min-h-[44px] px-3 rounded-md bg-white border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">&larr; Prev</a>
+        <x-filter-bar>
+            <div class="flex items-center justify-between gap-2">
+                <a href="{{ route('invoices.index', array_filter(['month' => $prev, 'status' => $status, 'type' => $type, 'search' => $search])) }}"
+                   class="inline-flex items-center min-h-[44px] px-3 rounded-lg bg-white ring-1 ring-gray-900/10 text-sm font-semibold text-gray-700 hover:bg-gray-50">&larr; Prev</a>
 
-            <div class="text-center">
-                <p class="font-semibold text-gray-900">{{ $month->format('F Y') }}</p>
-                <p class="text-xs text-gray-500">
-                    {{ $invoices->total() }} {{ Str::plural('invoice', $invoices->total()) }}
-                    &middot; {{ number_format($monthTotal, 2) }} invoiced
-                </p>
-                @if (! $month->isSameMonth(now()))
-                    <a href="{{ route('invoices.index', array_filter(['status' => $status, 'type' => $type, 'search' => $search])) }}"
-                       class="text-xs text-brand-500 hover:text-brand-600">Back to this month</a>
-                @endif
+                <div class="text-center">
+                    <p class="font-semibold text-gray-900">{{ $month->format('F Y') }}</p>
+                    <p class="text-xs text-gray-500">
+                        {{ $invoices->total() }} {{ Str::plural('invoice', $invoices->total()) }}
+                        &middot; {{ number_format($monthTotal, 2) }} invoiced
+                    </p>
+                    @if (! $month->isSameMonth(now()))
+                        <a href="{{ route('invoices.index', array_filter(['status' => $status, 'type' => $type, 'search' => $search])) }}"
+                           class="text-xs text-brand-500 hover:text-brand-600">Back to this month</a>
+                    @endif
+                </div>
+
+                <a href="{{ route('invoices.index', array_filter(['month' => $next, 'status' => $status, 'type' => $type, 'search' => $search])) }}"
+                   class="inline-flex items-center min-h-[44px] px-3 rounded-lg bg-white ring-1 ring-gray-900/10 text-sm font-semibold text-gray-700 hover:bg-gray-50">Next &rarr;</a>
             </div>
 
-            <a href="{{ route('invoices.index', array_filter(['month' => $next, 'status' => $status, 'type' => $type, 'search' => $search])) }}"
-               class="inline-flex items-center min-h-[44px] px-3 rounded-md bg-white border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">Next &rarr;</a>
-        </div>
+            <div class="flex flex-wrap gap-2">
+                @foreach ($statusFilters as $value => $label)
+                    <a href="{{ route('invoices.index', array_filter(['month' => $monthParam, 'search' => $search, 'status' => $value, 'type' => $type])) }}"
+                       class="px-3 py-1.5 rounded-lg text-xs font-semibold {{ $status === $value ? 'bg-brand-400 text-brand-900' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
+                        {{ $label }}
+                    </a>
+                @endforeach
+            </div>
 
-        <div class="flex flex-wrap gap-2">
-            @foreach ($statusFilters as $value => $label)
-                <a href="{{ route('invoices.index', array_filter(['month' => $monthParam, 'search' => $search, 'status' => $value, 'type' => $type])) }}"
-                   class="px-3 py-1.5 rounded-full text-xs font-semibold {{ $status === $value ? 'bg-brand-400 text-brand-900' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
-                    {{ $label }}
-                </a>
-            @endforeach
-        </div>
+            {{-- Chakra Production vs Chakra App Studio -- the one split the
+                 invoices themselves actually need, per Invoice.saas_product_id.
+                 The last two narrow to one kind of App Studio invoice -- not
+                 every one of those is AMC, see Invoice::STUDIO_TYPES. --}}
+            <div class="flex flex-wrap gap-2">
+                @foreach (['' => 'All work', 'production' => 'Production', 'studio' => 'App Studio', 'amc' => 'AMC only', 'development' => 'Development only'] as $value => $label)
+                    <a href="{{ route('invoices.index', array_filter(['month' => $monthParam, 'search' => $search, 'status' => $status, 'type' => $value])) }}"
+                       class="px-3 py-1.5 rounded-lg text-xs font-semibold {{ $type === $value ? 'bg-brand-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
+                        {{ $label }}
+                    </a>
+                @endforeach
+            </div>
 
-        {{-- Chakra Production vs Chakra App Studio -- the one split the
-             invoices themselves actually need, per Invoice.saas_product_id.
-             The last two narrow to one kind of App Studio invoice -- not
-             every one of those is AMC, see Invoice::STUDIO_TYPES. --}}
-        <div class="flex flex-wrap gap-2">
-            @foreach (['' => 'All work', 'production' => 'Production', 'studio' => 'App Studio', 'amc' => 'AMC only', 'development' => 'Development only'] as $value => $label)
-                <a href="{{ route('invoices.index', array_filter(['month' => $monthParam, 'search' => $search, 'status' => $status, 'type' => $value])) }}"
-                   class="px-3 py-1.5 rounded-full text-xs font-semibold {{ $type === $value ? 'bg-brand-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
-                    {{ $label }}
-                </a>
-            @endforeach
-        </div>
-
-        <form method="GET" action="{{ route('invoices.index') }}">
-            <input type="hidden" name="month" value="{{ $monthParam }}">
-            <input type="hidden" name="status" value="{{ $status }}">
-            <input type="hidden" name="type" value="{{ $type }}">
-            <input type="text" name="search" value="{{ $search }}" placeholder="Search by invoice number or client name..."
-                class="w-full sm:max-w-md rounded-md border-gray-300 shadow-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
-        </form>
+            <form method="GET" action="{{ route('invoices.index') }}">
+                <input type="hidden" name="month" value="{{ $monthParam }}">
+                <input type="hidden" name="status" value="{{ $status }}">
+                <input type="hidden" name="type" value="{{ $type }}">
+                <input type="search" name="search" value="{{ $search }}" placeholder="Search by invoice number or client name..."
+                    class="w-full sm:max-w-md rounded-lg border-gray-300 shadow-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
+            </form>
+        </x-filter-bar>
 
         @forelse ($invoices as $invoice)
         @empty
             <x-empty-state message="No invoices in {{ $month->format('F Y') }}{{ $status || $type || $search ? ' for this filter' : '' }}.">
-                <a href="{{ route('invoices.create') }}" class="text-brand-500 font-semibold text-sm hover:text-brand-600">Create an invoice &rarr;</a>
+                <x-btn :href="route('invoices.create')" icon="plus" size="sm">Create an invoice</x-btn>
             </x-empty-state>
         @endforelse
 

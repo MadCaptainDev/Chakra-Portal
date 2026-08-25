@@ -30,7 +30,7 @@ class TeamController extends Controller
         $month = $this->resolveMonth($request->query('month'));
 
         $team = $user->isAdmin()
-            ? User::where('role', User::ROLE_EMPLOYEE)->orderBy('name')->get()
+            ? User::whoLogWork()->orderBy('name')->get()
             : $user->reports()->orderBy('name')->get();
 
         $entries = TimesheetEntry::whereIn('user_id', $team->pluck('id'))

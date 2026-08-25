@@ -13,7 +13,7 @@
 
         <x-auth-field name="password" :label="__('Password')" type="password"
                       autocomplete="current-password" class="mt-5"
-                      placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" />
+                      placeholder="••••••••" />
 
         <div class="flex items-center justify-between gap-4 mt-4">
             <label for="remember_me" class="inline-flex items-center gap-2.5 min-h-[44px] text-sm text-brand-100/80 cursor-pointer">

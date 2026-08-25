@@ -19,7 +19,7 @@
             Skip to content
         </a>
 
-        <div class="min-h-screen {{ $dark ? 'bg-brand-900 text-white' : 'bg-gray-50' }}"
+        <div class="min-h-screen {{ $dark ? 'bg-brand-900 text-white' : 'bg-brand-50' }}"
              x-data="{ sidebarOpen: false }" @keydown.escape.window="sidebarOpen = false">
 
             <!-- Desktop sidebar -->
@@ -80,7 +80,7 @@
             <!-- Main column -->
             <div class="lg:pl-64 flex flex-col min-h-screen">
                 @isset($header)
-                    <header class="bg-white border-b border-gray-200">
+                    <header class="bg-white/95 backdrop-blur border-b border-brand-100/80 lg:sticky lg:top-0 lg:z-20">
                         <div class="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
                             {{ $header }}
                         </div>

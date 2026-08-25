@@ -93,7 +93,18 @@
 
                 <div x-data="{ rejecting: false }">
                     <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-                        <h3 class="font-semibold text-brand-900">{{ $date->format('D, d M') }}</h3>
+                        <div class="flex flex-wrap items-center gap-2 min-w-0">
+                            <h3 class="font-semibold text-brand-900">{{ $date->format('D, d M') }}</h3>
+                            @if (! $decision)
+                                <span class="inline-flex items-center min-h-[22px] px-2 rounded-md bg-amber-100 text-amber-900 text-[10px] font-semibold uppercase tracking-wider">
+                                    To decide
+                                </span>
+                            @elseif ($decision->isRejected())
+                                <span class="inline-flex items-center min-h-[22px] px-2 rounded-md bg-red-100 text-red-800 text-[10px] font-semibold uppercase tracking-wider">
+                                    Sent back
+                                </span>
+                            @endif
+                        </div>
 
                         <div class="flex items-center gap-2">
                             <span class="text-sm text-gray-500">

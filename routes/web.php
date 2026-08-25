@@ -66,6 +66,9 @@ use App\Http\Controllers\TodoTrackerController;
 use App\Http\Controllers\PublicBriefController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WhatsappSettingController;
+use App\Http\Controllers\RoutineController;
+use App\Http\Controllers\RoutineCalendarController;
+use App\Http\Controllers\My\RoutineController as MyRoutineController;
 use Illuminate\Support\Facades\Route;
 
 // Public landing page. Signed-in users go to whichever home their role has.
@@ -180,10 +183,11 @@ Route::middleware('auth')->get('oauth/instagram/callback', [InstagramConnectionC
     ->name('instagram.callback');
 
 /*
- * Employee area. Employees have logins only so they can fill in their own
- * timesheet -- every query inside is scoped to the signed-in user.
+ * Employee / working-admin area. Scoped to the signed-in user. The logs-work
+ * middleware admits employees and salary-linked admins; pure admins and
+ * clients are refused.
  */
-Route::middleware('auth')->prefix('my')->name('my.')->group(function () {
+Route::middleware(['auth', 'logs-work'])->prefix('my')->name('my.')->group(function () {
     Route::get('dashboard', [MyDashboardController::class, 'index'])->name('dashboard');
     Route::get('calendar', [MyCalendarController::class, 'index'])->name('calendar');
 
@@ -206,6 +210,14 @@ Route::middleware('auth')->prefix('my')->name('my.')->group(function () {
     Route::delete('todos/{todo}', [MyTodoController::class, 'destroy'])->name('todos.destroy');
     Route::post('todos/{todo}/status', [MyTodoController::class, 'status'])->name('todos.status');
     Route::post('todos/{todo}/defer', [MyTodoController::class, 'defer'])->name('todos.defer');
+
+    /*
+     * Repeating duties assigned to this person (or shared team duties they
+     * are permitted on). Complete is ownership-checked in the controller —
+     * wrong user gets 404, matching timesheet.
+     */
+    Route::get('routines', [MyRoutineController::class, 'index'])->name('routines');
+    Route::post('routines/{occurrence}/complete', [MyRoutineController::class, 'complete'])->name('routines.complete');
 });
 
 
@@ -564,6 +576,34 @@ Route::middleware(['auth', 'module:taxonomy,view'])->group(function () {
         Route::post('master-data', [TaxonomyTermController::class, 'store'])->name('taxonomy.store');
         Route::put('master-data/{taxonomyTerm}', [TaxonomyTermController::class, 'update'])->name('taxonomy.update');
         Route::delete('master-data/{taxonomyTerm}', [TaxonomyTermController::class, 'destroy'])->name('taxonomy.destroy');
+    });
+});
+
+/*
+ * Repeating studio duties. Definitions and calendar. Subjects toggle existing
+ * Client Instagram (social_accounts) and Venture (content_accounts) IDs —
+ * there is no separate Instagram handles master list.
+ * routines.catchup materialises occurrences on first hit of the day.
+ */
+Route::middleware(['auth', 'module:routines,view', 'routines.catchup'])->group(function () {
+    Route::get('routines', [RoutineController::class, 'index'])->name('routines.index');
+    Route::get('routines/calendar', [RoutineCalendarController::class, 'index'])->name('routines.calendar');
+
+    Route::middleware('module:routines,create')->group(function () {
+        Route::post('routines', [RoutineController::class, 'store'])->name('routines.store');
+    });
+
+    Route::middleware('module:routines,edit')->group(function () {
+        Route::put('routines/{routine}', [RoutineController::class, 'update'])->name('routines.update');
+    });
+
+    Route::middleware('module:routines,delete')->group(function () {
+        Route::delete('routines/{routine}', [RoutineController::class, 'destroy'])->name('routines.destroy');
+    });
+
+    Route::middleware('module:routines,manage')->group(function () {
+        Route::post('routines/occurrences/{occurrence}/skip', [RoutineCalendarController::class, 'skip'])
+            ->name('routines.occurrences.skip');
     });
 });
 

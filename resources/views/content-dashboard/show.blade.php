@@ -1,10 +1,10 @@
 @php
     /*
-     * One account's month, piece by piece.
+     * One account's month, piece by piece — pipeline tracking view.
      *
-     * The dashboard answers "did we hit the number". This answers "which
-     * pieces, and did they work" -- so each row carries the real Instagram
-     * post it was matched to, where one could be.
+     * Shows ALL items with published_date in the month, not just Published.
+     * Each row carries status, and filter chips let you drill into specific
+     * pipeline stages.
      *
      * A dash in the performance columns means no matched Instagram post,
      * which is ordinary: only three clients have Instagram connected, and
@@ -12,13 +12,14 @@
      */
     $labels = $targeted + \App\Support\ContentDashboard::UNTARGETED;
     $byType = $items->groupBy('source');
+    $byStatus = $items->groupBy('status');
 @endphp
 
 <x-app-layout title="{{ $account->name }}">
     <x-slot name="header">
         <x-page-header :title="$account->name"
                        eyebrow="{{ $account->client?->name }}"
-                       subtitle="{{ $month->format('F Y') }} — published pieces and how they performed.">
+                       subtitle="{{ $month->format('F Y') }} — pipeline tracking and performance.">
             <x-slot name="actions">
                 <a href="{{ route('content-dashboard.index', ['month' => $month->format('Y-m')]) }}"
                    class="text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
@@ -28,7 +29,22 @@
         </x-page-header>
     </x-slot>
 
-    <div class="space-y-5">
+    <div class="space-y-5" x-data="{
+        filters: {
+            published: true,
+            in_progress: true,
+            scheduled: true,
+            canceled: false
+        },
+        statusGroups: @js($statusGroups),
+        shouldShow(status) {
+            if (!status) return true;
+            for (const [group, statuses] of Object.entries(this.statusGroups)) {
+                if (statuses.includes(status) && this.filters[group]) return true;
+            }
+            return false;
+        }
+    }">
 
         <div class="flex flex-wrap items-center justify-between gap-3">
             <form method="GET" class="flex items-center gap-2">
@@ -47,29 +63,96 @@
             </p>
         </div>
 
-        {{-- Per-type standing for this account. --}}
-        <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        {{-- Pipeline overview for this account --}}
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <x-stat-card label="Published"
+                         :value="(string) $pipeline['published']"
+                         icon="check-circle"
+                         accent="green" />
+            <x-stat-card label="In Progress"
+                         :value="(string) $pipeline['in_progress']"
+                         icon="refresh"
+                         accent="amber" />
+            <x-stat-card label="Scheduled"
+                         :value="(string) $pipeline['scheduled']"
+                         icon="clock"
+                         accent="blue" />
+            <x-stat-card label="Total Planned"
+                         :value="(string) $pipeline['total']"
+                         icon="collection"
+                         accent="brand" />
+        </div>
+
+        {{-- Per-type breakdown --}}
+        <div class="grid grid-cols-2 lg:grid-cols-{{ count($targeted) }} gap-3">
             @foreach ($targeted as $source => $label)
                 @php
-                    $actual = $byType->get($source, collect())->count();
+                    $published = $byType->get($source, collect())->where('status', 'Published')->count();
+                    $planned = $byType->get($source, collect())->count();
                     $target = $account->targetFor($source);
                 @endphp
-                <x-stat-card :label="$label"
-                             :value="$target !== null ? $actual.' / '.$target : (string) $actual"
-                             icon="check-circle"
-                             :accent="$target === null ? 'gray' : ($actual >= $target ? 'green' : 'red')" />
+                <div class="bg-white rounded-lg ring-1 ring-gray-200 p-4">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">{{ $label }}</p>
+                    <p class="mt-1 text-2xl font-bold tabular-nums">
+                        <span @class([
+                            'text-green-600' => $target !== null && $published >= $target,
+                            'text-amber-600' => $target !== null && $published < $target && $planned >= $target,
+                            'text-red-600' => $target !== null && $planned < $target,
+                            'text-gray-900' => $target === null,
+                        ])>{{ $published }}</span>
+                        @if ($planned > $published)
+                            <span class="text-lg text-amber-500 font-normal">/ {{ $planned }}</span>
+                        @endif
+                        @if ($target !== null)
+                            <span class="text-lg text-gray-400 font-normal">of {{ $target }}</span>
+                        @endif
+                    </p>
+                    @if ($planned > $published)
+                        <p class="text-xs text-amber-600 mt-1">{{ $planned - $published }} pending</p>
+                    @endif
+                </div>
             @endforeach
         </div>
 
         <x-card padding="none">
-            <div class="p-4 sm:p-5 pb-0">
-                <x-section-heading title="Published this month"
-                                   subtitle="{{ $items->count() }} piece(s). Reach, views and likes come from the matched Instagram post." />
+            <div class="p-4 sm:p-5 pb-3">
+                <x-section-heading title="Content this month"
+                                   subtitle="{{ $items->count() }} piece(s). Filter by status below." />
+            </div>
+
+            {{-- Filter chips --}}
+            <div class="px-4 sm:px-5 pb-4 flex flex-wrap gap-2">
+                <x-filter-chip
+                    x-on:click="filters.published = !filters.published"
+                    x-bind:class="filters.published ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    :count="$pipeline['published']">
+                    Published
+                </x-filter-chip>
+                <x-filter-chip
+                    x-on:click="filters.in_progress = !filters.in_progress"
+                    x-bind:class="filters.in_progress ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    :count="$pipeline['in_progress']">
+                    In Progress
+                </x-filter-chip>
+                <x-filter-chip
+                    x-on:click="filters.scheduled = !filters.scheduled"
+                    x-bind:class="filters.scheduled ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    :count="$pipeline['scheduled']">
+                    Scheduled
+                </x-filter-chip>
+                @if ($pipeline['canceled'] > 0)
+                    <x-filter-chip
+                        x-on:click="filters.canceled = !filters.canceled"
+                        x-bind:class="filters.canceled ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                        :count="$pipeline['canceled']">
+                        Canceled
+                    </x-filter-chip>
+                @endif
             </div>
 
             @if ($items->isEmpty())
                 <div class="p-4 sm:p-5">
-                    <x-empty-state message="Nothing published for this account in {{ $month->format('F Y') }}." />
+                    <x-empty-state message="No content planned for this account in {{ $month->format('F Y') }}." />
                 </div>
             @else
                 <div class="overflow-x-auto">
@@ -77,8 +160,9 @@
                         <thead>
                             <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">
                                 <th class="px-4 sm:px-5 py-2.5">Piece</th>
+                                <th class="px-3 py-2.5">Status</th>
                                 <th class="px-3 py-2.5">Type</th>
-                                <th class="px-3 py-2.5">Published</th>
+                                <th class="px-3 py-2.5">Date</th>
                                 <th class="px-3 py-2.5">Editor</th>
                                 <th class="px-3 py-2.5 text-right">Reach</th>
                                 <th class="px-3 py-2.5 text-right">Views</th>
@@ -88,7 +172,7 @@
                         <tbody class="divide-y divide-gray-100">
                             @foreach ($items as $item)
                                 @php $media = $item->socialMediaItem; @endphp
-                                <tr>
+                                <tr x-show="shouldShow(@js($item->status))" x-cloak>
                                     <td class="px-4 sm:px-5 py-2.5">
                                         @if ($item->notion_url)
                                             <a href="{{ $item->notion_url }}" target="_blank" rel="noopener"
@@ -104,9 +188,17 @@
                                         @endif
                                     </td>
                                     <td class="px-3 py-2.5 whitespace-nowrap">
-                                        <x-badge>{{ $labels[$item->source] ?? ucfirst($item->source) }}</x-badge>
+                                        <x-badge :status="$item->status" />
                                     </td>
-                                    <td class="px-3 py-2.5 whitespace-nowrap text-gray-600">{{ $item->published_date?->format('j M') }}</td>
+                                    <td class="px-3 py-2.5 whitespace-nowrap">
+                                        <span class="text-gray-600">{{ $labels[$item->source] ?? ucfirst($item->source) }}</span>
+                                    </td>
+                                    <td class="px-3 py-2.5 whitespace-nowrap text-gray-600">
+                                        {{ $item->published_date?->format('j M') }}
+                                        @if ($item->published_date?->isFuture())
+                                            <span class="text-[10px] text-amber-500 block">upcoming</span>
+                                        @endif
+                                    </td>
                                     <td class="px-3 py-2.5 whitespace-nowrap text-gray-500">{{ $item->editor ?: '—' }}</td>
                                     @foreach (['reach', 'views', 'likes'] as $metric)
                                         <td class="px-3 py-2.5 text-right tabular-nums">

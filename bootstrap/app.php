@@ -53,9 +53,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'recurring.catchup' => \App\Http\Middleware\EnsureRecurringInvoicesGenerated::class,
+            'routines.catchup' => \App\Http\Middleware\EnsureRoutinesGenerated::class,
             'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
             'client' => \App\Http\Middleware\EnsureUserIsClient::class,
             'module' => \App\Http\Middleware\EnsureModulePermission::class,
+            'logs-work' => \App\Http\Middleware\EnsureUserLogsWork::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
