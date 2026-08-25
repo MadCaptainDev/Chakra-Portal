@@ -42,6 +42,38 @@ class RoutineScheduler
     }
 
     /**
+     * The next $limit due dates strictly after $after.
+     *
+     * For display only. Generation deliberately stops at today, so nothing
+     * beyond it exists as a row -- materialising future occurrences would make
+     * them "open" and pollute every overdue query. "Coming up" is therefore
+     * computed, not stored.
+     *
+     * @return Collection<int, Carbon>
+     */
+    public function nextDatesAfter(Routine $routine, Carbon $after, int $limit = 3): Collection
+    {
+        if ($limit < 1) {
+            return collect();
+        }
+
+        $from = $after->copy()->startOfDay()->addDay();
+
+        // A monthly routine can be up to a month out, and every_n_days up to N.
+        // Widen the window enough that $limit dates are actually reachable
+        // rather than returning short for sparse schedules.
+        $span = match ($routine->schedule_type) {
+            Routine::SCHEDULE_MONTHLY => 31 * ($limit + 1),
+            Routine::SCHEDULE_EVERY_N_DAYS => max(1, (int) ($routine->schedule_interval ?: 1)) * ($limit + 1),
+            default => 7 * $limit,
+        };
+
+        return $this->datesBetween($routine, $from, $from->copy()->addDays($span))
+            ->take($limit)
+            ->values();
+    }
+
+    /**
      * @return Collection<int, Carbon>
      */
     private function eachDay(Carbon $from, Carbon $through): Collection

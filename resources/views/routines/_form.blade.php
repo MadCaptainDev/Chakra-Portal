@@ -1,8 +1,13 @@
 @php
+    use App\Http\Controllers\RoutineController;
     use App\Models\Routine;
     use App\Models\RoutineField;
 
     $routine?->loadMissing(['checkpoints', 'subjects', 'fields', 'users']);
+    $scope = old(
+        'subject_scope',
+        $routine?->isAccountScoped() ? RoutineController::SCOPE_ACCOUNTS : RoutineController::SCOPE_NONE
+    );
     $selectedUsers = old('user_ids', $routine?->users->pluck('id')->all() ?? []);
     $selectedSocial = old(
         'social_account_ids',
@@ -18,7 +23,7 @@
     }
 @endphp
 
-<div class="space-y-4">
+<div class="space-y-4" x-data="{ scope: '{{ $scope }}' }">
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div class="sm:col-span-2">
             <x-input-label for="title" value="Title" />
@@ -88,6 +93,24 @@
     </div>
 
     <div>
+        <p class="text-sm font-semibold text-gray-900 mb-1">What is this routine about?</p>
+        <p class="text-xs text-gray-500 mb-2">Most duties are about nothing — cleaning the office is just cleaning the office.</p>
+        <div class="space-y-1">
+            @foreach (RoutineController::SCOPES as $value => $label)
+                <label class="flex items-center gap-2 text-sm text-gray-700 min-h-[36px]">
+                    <input type="radio" name="subject_scope" value="{{ $value }}" x-model="scope"
+                           class="border-gray-300 text-brand-500 focus:ring-brand-400">
+                    {{ $label }}
+                </label>
+            @endforeach
+        </div>
+        <x-input-error :messages="$errors->get('subject_scope')" class="mt-1" />
+    </div>
+
+    <div x-show="scope === '{{ RoutineController::SCOPE_ACCOUNTS }}'" x-cloak class="space-y-4">
+        <x-input-error :messages="$errors->get('social_account_ids')" />
+
+    <div>
         <p class="text-sm font-semibold text-gray-900 mb-1">Client Instagram</p>
         <p class="text-xs text-gray-500 mb-2">Toggle connected client accounts already on Clients → Social Media.</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-40 overflow-y-auto">
@@ -130,6 +153,7 @@
                 <p class="text-sm text-gray-500">No venture accounts yet.</p>
             @endforelse
         </div>
+    </div>
     </div>
 
     <div>

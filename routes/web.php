@@ -2,25 +2,22 @@
 
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\BillController;
+use App\Http\Controllers\BriefQuestionController;
 use App\Http\Controllers\BrowserSessionController;
-use App\Http\Controllers\McpTokenController;
-use App\Http\Controllers\PushTokenController;
-use App\Http\Controllers\SaasProductController;
 use App\Http\Controllers\CallSheetController;
-use App\Http\Controllers\CompetitorAccountController;
-use App\Http\Controllers\CompetitorSettingController;
-use App\Http\Controllers\ContentAccountController;
-use App\Http\Controllers\ContentDashboardController;
 use App\Http\Controllers\Client\BriefController as ClientBriefController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\Client\ShootController as ClientShootController;
 use App\Http\Controllers\Client\WorkController as ClientWorkController;
-use App\Http\Controllers\BriefQuestionController;
 use App\Http\Controllers\ClientBriefLinkController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientCredentialController;
 use App\Http\Controllers\ClientLoginController;
+use App\Http\Controllers\CompetitorAccountController;
+use App\Http\Controllers\CompetitorSettingController;
+use App\Http\Controllers\ContentAccountController;
+use App\Http\Controllers\ContentDashboardController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeveloperController;
 use App\Http\Controllers\EditorOutputController;
@@ -30,26 +27,34 @@ use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InstagramConnectionController;
 use App\Http\Controllers\InstagramInsightsController;
-use App\Http\Controllers\MonthlyReportController;
 use App\Http\Controllers\InstagramSettingController;
-use App\Http\Controllers\NotionSettingController;
-use App\Http\Controllers\PushSettingController;
-use App\Http\Controllers\NotionShootController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoiceTemplateController;
 use App\Http\Controllers\LandingController;
+use App\Http\Controllers\McpTokenController;
+use App\Http\Controllers\MonthlyReportController;
 use App\Http\Controllers\My\CalendarController as MyCalendarController;
 use App\Http\Controllers\My\DashboardController as MyDashboardController;
+use App\Http\Controllers\My\RoutineController as MyRoutineController;
 use App\Http\Controllers\My\TeamController as MyTeamController;
 use App\Http\Controllers\My\TimesheetController as MyTimesheetController;
 use App\Http\Controllers\My\TodoController as MyTodoController;
+use App\Http\Controllers\NotionSettingController;
+use App\Http\Controllers\NotionShootController;
 use App\Http\Controllers\OtherExpenseController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PortfolioCategoryController;
 use App\Http\Controllers\PortfolioItemController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicBriefController;
 use App\Http\Controllers\PublicPortfolioController;
+use App\Http\Controllers\PushSettingController;
+use App\Http\Controllers\PushTokenController;
 use App\Http\Controllers\RecurringInvoiceController;
+use App\Http\Controllers\RoutineCalendarController;
+use App\Http\Controllers\RoutineCheckingController;
+use App\Http\Controllers\RoutineController;
+use App\Http\Controllers\SaasProductController;
 use App\Http\Controllers\SalaryController;
 use App\Http\Controllers\ScriptController;
 use App\Http\Controllers\ScriptSectionController;
@@ -63,12 +68,9 @@ use App\Http\Controllers\TimesheetAdminController;
 use App\Http\Controllers\TimesheetDayController;
 use App\Http\Controllers\TodoReviewController;
 use App\Http\Controllers\TodoTrackerController;
-use App\Http\Controllers\PublicBriefController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WhatsappSettingController;
-use App\Http\Controllers\RoutineController;
-use App\Http\Controllers\RoutineCalendarController;
-use App\Http\Controllers\My\RoutineController as MyRoutineController;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 
 // Public landing page. Signed-in users go to whichever home their role has.
@@ -128,7 +130,7 @@ Route::middleware('throttle:30,1')->group(function () {
      * that was never saved anywhere, client-side or server-side, because of
      * exactly this.
      */
-    Route::withoutMiddleware(\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class)->group(function () {
+    Route::withoutMiddleware(ValidateCsrfToken::class)->group(function () {
         Route::post('brief/{token}', [PublicBriefController::class, 'update'])->name('brief.public.update');
         Route::post('brief/{token}/submit', [PublicBriefController::class, 'submit'])->name('brief.public.submit');
     });
@@ -216,10 +218,12 @@ Route::middleware(['auth', 'logs-work'])->prefix('my')->name('my.')->group(funct
      * are permitted on). Complete is ownership-checked in the controller —
      * wrong user gets 404, matching timesheet.
      */
-    Route::get('routines', [MyRoutineController::class, 'index'])->name('routines');
-    Route::post('routines/{occurrence}/complete', [MyRoutineController::class, 'complete'])->name('routines.complete');
+    Route::middleware('routines.catchup')->group(function () {
+        Route::get('routines', [MyRoutineController::class, 'index'])->name('routines');
+        Route::post('routines/complete', [MyRoutineController::class, 'completeMany'])->name('routines.complete-many');
+        Route::post('routines/{occurrence}/complete', [MyRoutineController::class, 'complete'])->name('routines.complete');
+    });
 });
-
 
 /*
  * The team's timesheets, and deciding on a day.
@@ -586,6 +590,9 @@ Route::middleware(['auth', 'module:taxonomy,view'])->group(function () {
  * routines.catchup materialises occurrences on first hit of the day.
  */
 Route::middleware(['auth', 'module:routines,view', 'routines.catchup'])->group(function () {
+    // "Who still owes what" is the daily question, so it is the front door;
+    // the calendar answers the occasional one and sits behind it.
+    Route::get('routines/check', [RoutineCheckingController::class, 'index'])->name('routines.checking');
     Route::get('routines', [RoutineController::class, 'index'])->name('routines.index');
     Route::get('routines/calendar', [RoutineCalendarController::class, 'index'])->name('routines.calendar');
 
@@ -604,6 +611,10 @@ Route::middleware(['auth', 'module:routines,view', 'routines.catchup'])->group(f
     Route::middleware('module:routines,manage')->group(function () {
         Route::post('routines/occurrences/{occurrence}/skip', [RoutineCalendarController::class, 'skip'])
             ->name('routines.occurrences.skip');
+        Route::post('routines/check/{occurrence}/complete', [RoutineCheckingController::class, 'complete'])
+            ->name('routines.checking.complete');
+        Route::post('routines/check/{occurrence}/skip', [RoutineCheckingController::class, 'skip'])
+            ->name('routines.checking.skip');
     });
 });
 

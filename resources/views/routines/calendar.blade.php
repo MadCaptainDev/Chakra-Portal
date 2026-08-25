@@ -6,6 +6,7 @@
     <x-slot name="header">
         <x-page-header title="Routine calendar" subtitle="Every duty this month. Skip with a reason from here.">
             <x-slot name="actions">
+                <x-btn :href="route('routines.checking')" variant="secondary">Check today</x-btn>
                 <x-btn :href="route('routines.index')" variant="secondary">Definitions</x-btn>
             </x-slot>
         </x-page-header>

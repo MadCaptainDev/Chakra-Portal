@@ -2,31 +2,27 @@
 
 namespace App\Services;
 
-use App\Models\ContentAccount;
 use App\Models\Routine;
 use App\Models\RoutineOccurrence;
 use App\Models\RoutineSubject;
-use App\Models\SocialAccount;
 use Carbon\Carbon;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 /**
  * Materialise open RoutineOccurrence rows for every active routine.
  *
- * Idempotent via fingerprint unique key — running twice creates nothing
- * extra. New subjects/users only generate from today forward (the window
- * still covers catch_up_days, but firstOrCreate skips existing fingerprints,
- * and a brand-new subject simply has no past fingerprints to collide with —
- * we deliberately do not backfill past dates for subjects added mid-stream
- * by limiting subject fan-out to subjects that existed… actually the plan
- * says "new account doesn't retro-generate". That means when generating
- * for past dates in the catch-up window, only subjects that were linked
- * before that date should appear — we approximate by never creating past
- * occurrences for a subject on dates before "today" when the subject was
- * just attached: simpler rule used here — past catch-up still fans out to
- * current subjects (standard backfill), BUT tests expect new account not
- * retro. So: only generate subject occurrences for due dates >= the later
- * of (window start, subject pivot created_at date). That way a brand-new
- * account attached today does not get yesterday's rows when catch-up runs.
+ * Idempotent via the fingerprint unique key — running twice creates nothing
+ * extra, so it is safe on every scheduler tick and every catch-up.
+ *
+ * Backfill covers catch_up_days, but a subject only generates from the day it
+ * was attached: due dates earlier than the pivot's created_at are skipped. An
+ * account connected today therefore starts today rather than inheriting a
+ * month of duties nobody could have done.
+ *
+ * One row per due date, always. A person four days behind has four rows, and
+ * that is deliberate — the DM routine captures a reply count per day, so
+ * collapsing them would destroy the record. Presenting them as one late duty
+ * is RoutineDutyList's job, not this class's.
  */
 class RoutineOccurrenceGenerator
 {
@@ -123,7 +119,8 @@ class RoutineOccurrenceGenerator
         }
 
         return $routine->subjects->map(function (RoutineSubject $row) {
-            if (! $this->subjectStillInScope($row)) {
+            // Deleted or revoked since the routine was configured.
+            if (! $row->isLive()) {
                 return null;
             }
 
@@ -133,24 +130,6 @@ class RoutineOccurrenceGenerator
                 'attached_on' => $row->created_at?->copy()->startOfDay(),
             ];
         })->filter()->values()->all();
-    }
-
-    /**
-     * Skip subjects deleted or revoked since the routine was configured.
-     */
-    private function subjectStillInScope(RoutineSubject $row): bool
-    {
-        return match ($row->subject_type) {
-            Routine::SUBJECT_SOCIAL => SocialAccount::query()
-                ->forPlatform(SocialAccount::PLATFORM_INSTAGRAM)
-                ->whereKey($row->subject_id)
-                ->where('status', '!=', SocialAccount::STATUS_REVOKED)
-                ->exists(),
-            Routine::SUBJECT_CONTENT => ContentAccount::query()
-                ->whereKey($row->subject_id)
-                ->exists(),
-            default => false,
-        };
     }
 
     /**
@@ -201,7 +180,7 @@ class RoutineOccurrenceGenerator
             );
 
             return $occurrence->wasRecentlyCreated;
-        } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+        } catch (UniqueConstraintViolationException) {
             return false;
         }
     }

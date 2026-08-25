@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -19,8 +18,11 @@ class Routine extends Model
     use HasFactory;
 
     public const SCHEDULE_DAILY = 'daily';
+
     public const SCHEDULE_EVERY_N_DAYS = 'every_n_days';
+
     public const SCHEDULE_WEEKDAYS = 'weekdays';
+
     public const SCHEDULE_MONTHLY = 'monthly';
 
     public const SCHEDULES = [
@@ -31,6 +33,7 @@ class Routine extends Model
     ];
 
     public const MODE_SHARED = 'shared';
+
     public const MODE_INDIVIDUAL = 'individual';
 
     public const MODES = [
@@ -117,6 +120,44 @@ class Routine extends Model
     public function scopeActive(Builder $query): void
     {
         $query->where('is_active', true);
+    }
+
+    /**
+     * Fans out over Client Instagram / Venture accounts rather than being a
+     * plain duty. Most routines are not -- cleaning the office is about
+     * nothing.
+     */
+    public function isAccountScoped(): bool
+    {
+        return $this->subject_type === self::SUBJECT_ACCOUNTS;
+    }
+
+    /**
+     * Why an active routine is producing nothing, in a sentence, or null when
+     * it is fine.
+     *
+     * An account-scoped routine with no live accounts generates silently
+     * nothing -- the generator returns an empty subject list and there is no
+     * error anywhere. That is how the seeded DM/Comments duty can sit inactive
+     * for weeks looking perfectly healthy. Surfacing it is the whole point.
+     */
+    public function generationWarning(): ?string
+    {
+        if (! $this->is_active || ! $this->isAccountScoped()) {
+            return null;
+        }
+
+        $subjects = $this->relationLoaded('subjects') ? $this->subjects : $this->subjects()->get();
+
+        if ($subjects->isEmpty()) {
+            return 'Not generating: this routine is set to run per account, but no accounts are selected.';
+        }
+
+        if ($subjects->filter->isLive()->isEmpty()) {
+            return 'Not generating: every account on this routine has been deleted or revoked.';
+        }
+
+        return null;
     }
 
     public function isShared(): bool

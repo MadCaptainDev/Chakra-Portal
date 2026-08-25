@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\RoutineController;
 use App\Models\Client;
 use App\Models\ContentAccount;
 use App\Models\Routine;
@@ -13,6 +14,7 @@ use App\Services\RoutineOccurrenceGenerator;
 use App\Support\Permission;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class RoutineHttpTest extends TestCase
@@ -89,6 +91,7 @@ class RoutineHttpTest extends TestCase
                 'title' => 'Daily IG check',
                 'schedule_type' => Routine::SCHEDULE_DAILY,
                 'completion_mode' => Routine::MODE_SHARED,
+                'subject_scope' => RoutineController::SCOPE_NONE,
                 'starts_on' => today()->toDateString(),
                 'catch_up_days' => 7,
                 'is_active' => 1,
@@ -112,6 +115,7 @@ class RoutineHttpTest extends TestCase
                 'title' => 'Scoped IG duty',
                 'schedule_type' => Routine::SCHEDULE_DAILY,
                 'completion_mode' => Routine::MODE_SHARED,
+                'subject_scope' => RoutineController::SCOPE_ACCOUNTS,
                 'starts_on' => today()->toDateString(),
                 'catch_up_days' => 3,
                 'is_active' => 1,
@@ -148,7 +152,7 @@ class RoutineHttpTest extends TestCase
 
     public function test_instagram_accounts_master_route_is_gone(): void
     {
-        $this->assertFalse(\Illuminate\Support\Facades\Route::has('instagram-accounts.index'));
+        $this->assertFalse(Route::has('instagram-accounts.index'));
     }
 
     public function test_admin_can_skip_with_reason(): void
@@ -175,7 +179,10 @@ class RoutineHttpTest extends TestCase
         $this->assertSame('Client paused for the week', $occurrence->fresh()->note);
     }
 
-    public function test_my_routines_page_lists_sections(): void
+    /**
+     * Six missed days are one late duty on the page, not six identical cards.
+     */
+    public function test_my_routines_collapses_a_backlog_into_one_duty(): void
     {
         Carbon::setTestNow('2026-08-25 12:00:00');
 
@@ -188,12 +195,21 @@ class RoutineHttpTest extends TestCase
         $routine->users()->attach($employee);
         app(RoutineOccurrenceGenerator::class)->run();
 
-        $this->actingAs($employee)
+        // 20th through the 25th inclusive.
+        $this->assertSame(6, RoutineOccurrence::count());
+
+        $response = $this->actingAs($employee)
             ->get(route('my.routines'))
             ->assertOk()
-            ->assertSee('Overdue')
-            ->assertSee('Today')
-            ->assertSee('Reply to DMs');
+            ->assertSee('Reply to DMs')
+            ->assertSee('5 days late')
+            ->assertSee('6 outstanding');
+
+        // One tickable row, not six.
+        $this->assertSame(
+            1,
+            substr_count($response->getContent(), 'name="duties[]"'),
+        );
     }
 
     public function test_dashboard_shows_missed_duties_when_overdue(): void

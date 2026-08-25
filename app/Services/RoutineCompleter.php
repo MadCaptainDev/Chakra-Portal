@@ -61,6 +61,33 @@ class RoutineCompleter
         });
     }
 
+    /**
+     * Close several occurrences for one actor, carrying on past any that
+     * somebody else already took.
+     *
+     * Used for two things: ticking a duty that is days behind (its whole
+     * backlog closes at once) and saving a page of ticks in one request. A
+     * concurrent completion is not an error here -- the work is done either
+     * way, so the count is reported rather than thrown.
+     *
+     * @param  iterable<RoutineOccurrence>  $occurrences
+     * @param  array<string, mixed>  $values
+     * @return array{done: int, already: int}
+     */
+    public function completeMany(iterable $occurrences, User $actor, array $values = [], ?string $note = null): array
+    {
+        $done = 0;
+        $already = 0;
+
+        foreach ($occurrences as $occurrence) {
+            $result = $this->complete($occurrence, $actor, $values, $note);
+
+            $result['ok'] ? $done++ : $already++;
+        }
+
+        return ['done' => $done, 'already' => $already];
+    }
+
     public function skip(RoutineOccurrence $occurrence, User $actor, string $reason): RoutineOccurrence
     {
         if (trim($reason) === '') {
@@ -126,6 +153,7 @@ class RoutineCompleter
 
             if ($raw === null || $raw === '') {
                 $out[$field->key] = $field->resolvedDefault();
+
                 continue;
             }
 

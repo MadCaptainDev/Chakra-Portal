@@ -7,6 +7,7 @@
     <x-slot name="header">
         <x-page-header title="Routines" subtitle="Repeating studio duties — definitions, not completions.">
             <x-slot name="actions">
+                <x-btn :href="route('routines.checking')" variant="secondary">Check today</x-btn>
                 <x-btn :href="route('routines.calendar')" variant="secondary" icon="calendar">Calendar</x-btn>
             </x-slot>
         </x-page-header>
@@ -64,9 +65,16 @@
                                     {{ $routine->scheduleLabel() }}
                                     &middot; {{ Routine::MODES[$routine->completion_mode] ?? $routine->completion_mode }}
                                     &middot; {{ $routine->checkpoints_count }} {{ Str::plural('checkpoint', $routine->checkpoints_count) }}
-                                    &middot; {{ $routine->subjects_count }} {{ Str::plural('subject', $routine->subjects_count) }}
+                                    @if ($routine->isAccountScoped())
+                                        &middot; {{ $routine->subjects_count }} {{ Str::plural('account', $routine->subjects_count) }}
+                                    @endif
                                     &middot; {{ $routine->users_count }} {{ Str::plural('person', $routine->users_count) }}
                                 </p>
+                                @if ($warning = $routine->generationWarning())
+                                    <p class="mt-1.5 text-xs text-amber-800 bg-amber-50 ring-1 ring-amber-200 rounded px-2 py-1">
+                                        {{ $warning }}
+                                    </p>
+                                @endif
                             </div>
 
                             <div class="flex items-center gap-2 shrink-0">

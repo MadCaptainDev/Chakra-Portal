@@ -12,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
@@ -19,6 +20,17 @@ use Illuminate\View\View;
  */
 class RoutineController extends Controller
 {
+    /** A plain duty -- cleaning the office is about nothing. The default. */
+    public const SCOPE_NONE = 'none';
+
+    /** Fans out over the selected Client Instagram / Venture accounts. */
+    public const SCOPE_ACCOUNTS = 'accounts';
+
+    public const SCOPES = [
+        self::SCOPE_NONE => 'Just a duty — nothing to pick',
+        self::SCOPE_ACCOUNTS => 'One for each account I choose',
+    ];
+
     public function __construct(private readonly RoutineOccurrenceGenerator $generator) {}
 
     public function index(): View
@@ -26,7 +38,7 @@ class RoutineController extends Controller
         return view('routines.index', [
             'routines' => Routine::query()
                 ->withCount(['checkpoints', 'subjects', 'users', 'occurrences'])
-                ->with(['users'])
+                ->with(['users', 'subjects'])
                 ->orderByDesc('is_active')
                 ->orderBy('title')
                 ->get(),
@@ -110,6 +122,7 @@ class RoutineController extends Controller
             'schedule_interval' => ['nullable', 'integer', 'min:1', 'max:365'],
             'day_of_month' => ['nullable', 'integer', 'min:1', 'max:31'],
             'completion_mode' => ['required', Rule::in(array_keys(Routine::MODES))],
+            'subject_scope' => ['required', Rule::in([self::SCOPE_NONE, self::SCOPE_ACCOUNTS])],
             'catch_up_days' => ['nullable', 'integer', 'min:0', 'max:366'],
             'starts_on' => ['required', 'date'],
             'is_active' => ['sometimes', 'boolean'],
@@ -141,9 +154,25 @@ class RoutineController extends Controller
             $data['day_of_month'] = (int) date('j', strtotime($data['starts_on']));
         }
 
-        $socialIds = array_values(array_unique(array_map('intval', $data['social_account_ids'] ?? [])));
-        $contentIds = array_values(array_unique(array_map('intval', $data['content_account_ids'] ?? [])));
-        $hasSubjects = $socialIds !== [] || $contentIds !== [];
+        $accountScoped = $data['subject_scope'] === self::SCOPE_ACCOUNTS;
+
+        // A plain duty keeps no accounts, even if stale checkboxes were posted
+        // -- the scope answer is what decides, not what happens to be ticked.
+        $socialIds = $accountScoped
+            ? array_values(array_unique(array_map('intval', $data['social_account_ids'] ?? [])))
+            : [];
+        $contentIds = $accountScoped
+            ? array_values(array_unique(array_map('intval', $data['content_account_ids'] ?? [])))
+            : [];
+
+        // The silent-death case, refused at the door. An account-scoped routine
+        // with nothing to fan out over generates nothing and says nothing --
+        // that is how the seeded DM duty sat dead. Make it un-saveable.
+        if ($accountScoped && $socialIds === [] && $contentIds === []) {
+            throw ValidationException::withMessages([
+                'social_account_ids' => 'Pick at least one account, or set this routine to "Just a duty".',
+            ]);
+        }
 
         return [
             'routine' => [
@@ -153,7 +182,7 @@ class RoutineController extends Controller
                 'schedule_interval' => $data['schedule_interval'] ?? null,
                 'day_of_month' => $data['day_of_month'] ?? null,
                 'completion_mode' => $data['completion_mode'],
-                'subject_type' => $hasSubjects ? Routine::SUBJECT_ACCOUNTS : null,
+                'subject_type' => $accountScoped ? Routine::SUBJECT_ACCOUNTS : null,
                 'catch_up_days' => (int) ($data['catch_up_days'] ?? 31),
                 'starts_on' => $data['starts_on'],
                 'is_active' => $request->boolean('is_active', true),

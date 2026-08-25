@@ -4,10 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\RoutineOccurrence;
 use App\Services\RoutineCompleter;
-use App\Services\RoutineOccurrenceGenerator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 use Throwable;
 
@@ -16,15 +16,13 @@ use Throwable;
  */
 class RoutineCalendarController extends Controller
 {
-    public function __construct(
-        private readonly RoutineOccurrenceGenerator $generator,
-        private readonly RoutineCompleter $completer,
-    ) {}
+    public function __construct(private readonly RoutineCompleter $completer) {}
 
     public function index(Request $request): View
     {
-        $this->generator->run();
-
+        // Generation is the routines.catchup middleware's job -- it claims the
+        // day atomically and runs once. Calling it here ran a firstOrCreate per
+        // routine x date x checkpoint x subject x user on every page view.
         $month = $this->resolveMonth($request->query('month'));
 
         $occurrences = RoutineOccurrence::query()
@@ -59,7 +57,7 @@ class RoutineCalendarController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<string, \Illuminate\Support\Collection<int, RoutineOccurrence>>  $occurrences
+     * @param  Collection<string, Collection<int, RoutineOccurrence>>  $occurrences
      * @return array<int, array<int, array<string, mixed>>>
      */
     private function weeks(Carbon $month, $occurrences): array

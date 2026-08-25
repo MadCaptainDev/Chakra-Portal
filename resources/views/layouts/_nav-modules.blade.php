@@ -53,9 +53,15 @@
             @php
                 // Badges are counts, and a zero is not worth a pill.
                 $badge = isset($config['badge']) ? (int) call_user_func($config['badge']) : 0;
+
+                // Routines leads with "who still owes what", not the list of
+                // definitions -- checking is the daily job, editing is rare.
+                $href = $module === 'routines' && Route::has('routines.checking')
+                    ? route('routines.checking')
+                    : route($module.'.index');
             @endphp
             <x-sidebar-link :icon="$config['icon'] ?? 'document'"
-                            :href="route($module.'.index')"
+                            :href="$href"
                             :active="request()->routeIs($module.'.*')">
                 {{ $config['label'] }}
                 @if ($badge > 0)

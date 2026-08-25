@@ -26,4 +26,27 @@ class RoutineSubject extends Model
     {
         return $this->morphTo();
     }
+
+    /**
+     * Whether this subject can still produce duties.
+     *
+     * An account deleted or revoked since the routine was configured stops
+     * generating. The generator and Routine::generationWarning() both ask
+     * here, so "what the generator will skip" and "what the admin is warned
+     * about" cannot drift apart.
+     */
+    public function isLive(): bool
+    {
+        return match ($this->subject_type) {
+            Routine::SUBJECT_SOCIAL => SocialAccount::query()
+                ->forPlatform(SocialAccount::PLATFORM_INSTAGRAM)
+                ->whereKey($this->subject_id)
+                ->where('status', '!=', SocialAccount::STATUS_REVOKED)
+                ->exists(),
+            Routine::SUBJECT_CONTENT => ContentAccount::query()
+                ->whereKey($this->subject_id)
+                ->exists(),
+            default => false,
+        };
+    }
 }
