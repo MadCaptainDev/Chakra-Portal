@@ -225,7 +225,23 @@
 
         {{-- Creative notes --}}
         <div>
-            <h5 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Creative strategy</h5>
+            <div class="flex items-center justify-between gap-3">
+                <h5 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Creative strategy</h5>
+                @if ($item->exists && $item->social_media_item_id)
+                    {{-- Mapped to Instagram, so there is something to generate
+                         from -- writing this from scratch has no source
+                         material to work with. ALWAYS overwrites, unlike the
+                         automatic fill on first save (see
+                         PortfolioItemController::maybeGenerateCreative()). --}}
+                    <form method="POST" action="{{ route('portfolio.regenerate-creative', $item) }}"
+                          onsubmit="return confirm('Regenerate the description and creative strategy from the linked Instagram post? This overwrites what is here now.');">
+                        @csrf
+                        <button type="submit" class="text-xs font-semibold text-brand-600 hover:text-brand-800 min-h-[36px]">
+                            ✨ Regenerate with AI
+                        </button>
+                    </form>
+                @endif
+            </div>
             <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 @foreach (\App\Models\PortfolioItem::CREATIVE_FIELDS as $field => $label)
                     <div>

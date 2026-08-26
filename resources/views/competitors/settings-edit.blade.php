@@ -48,6 +48,21 @@
             @endif
         </x-card>
 
+        {{-- Every paid LLM call this app makes -- competitor concepts AND
+             the Portfolio screen's AI-generated creative strategy -- goes
+             through this one Anthropic key, so this is the one place
+             showing what it has actually cost makes sense. --}}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <x-stat-card label="AI spend this month" :value="'$'.number_format($usageThisMonth['cost_usd'], 2)" accent="brand" icon="wallet">
+                {{ $usageThisMonth['calls'] }} {{ Str::plural('call', $usageThisMonth['calls']) }}
+                &middot; {{ number_format($usageThisMonth['input_tokens'] + $usageThisMonth['output_tokens']) }} tokens
+            </x-stat-card>
+            <x-stat-card label="AI spend, all time" :value="'$'.number_format($usageAllTime['cost_usd'], 2)" accent="gray" icon="trending-up">
+                {{ $usageAllTime['calls'] }} {{ Str::plural('call', $usageAllTime['calls']) }}
+                &middot; {{ number_format($usageAllTime['input_tokens'] + $usageAllTime['output_tokens']) }} tokens
+            </x-stat-card>
+        </div>
+
         <x-card padding="md">
             <form method="POST" action="{{ route('competitor-settings.update') }}">
                 @csrf

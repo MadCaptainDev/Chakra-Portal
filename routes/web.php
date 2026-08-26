@@ -541,6 +541,8 @@ Route::middleware(['auth', 'module:portfolio,view'])->group(function () {
         ->middleware('module:portfolio,edit')->name('portfolio.edit');
     Route::put('portfolio-items/{portfolio}', [PortfolioItemController::class, 'update'])
         ->middleware('module:portfolio,edit')->name('portfolio.update');
+    Route::post('portfolio-items/{portfolio}/regenerate-creative', [PortfolioItemController::class, 'regenerateCreative'])
+        ->middleware('module:portfolio,edit')->name('portfolio.regenerate-creative');
     Route::delete('portfolio-items/{portfolio}', [PortfolioItemController::class, 'destroy'])
         ->middleware('module:portfolio,delete')->name('portfolio.destroy');
 
@@ -815,8 +817,15 @@ Route::middleware(['auth', 'module:saas-products,view'])->group(function () {
 /*
  * Everything below is admin-only. The guard sits on the group so a new admin
  * route is protected by default rather than by remembering to add it.
+ *
+ * instagram.catchup rides along here for the same reason recurring.catchup
+ * does: the dashboard is the one screen every admin hits first each day,
+ * and it is also where PortfolioSuggestions::best() (a synced-but-unadded
+ * video "worth adding") is shown -- that suggestion is only as fresh as the
+ * last sync, so the catch-up needs to run before the dashboard reads it,
+ * not after.
  */
-Route::middleware(['auth', 'admin', 'recurring.catchup'])->group(function () {
+Route::middleware(['auth', 'admin', 'recurring.catchup', 'instagram.catchup'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // JSON endpoints behind the invoice form's client modal. Both POST: a

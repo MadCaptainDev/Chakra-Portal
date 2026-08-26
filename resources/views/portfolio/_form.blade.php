@@ -28,7 +28,7 @@
 
 <form method="POST" enctype="multipart/form-data"
       action="{{ $item->exists ? route('portfolio.update', $item) : route('portfolio.store') }}"
-      x-data="portfolioForm({{ $maxVideoMb }}, {{ old('client_id', $item->client_id) ?: 'null' }}, @js($initialMedia))"
+      x-data="portfolioForm({{ $maxVideoMb }}, {{ old('client_id', $item->client_id) ?: 'null' }}, @js($initialMedia), {{ $item->exists ? $item->id : 'null' }})"
       @submit="uploading = true">
     @csrf
     @if ($item->exists)
@@ -94,8 +94,9 @@
 
             <div class="mt-2 flex gap-3 overflow-x-auto pb-1">
                 <template x-for="post in instagramItems" :key="post.id">
-                    <button type="button" @click="useMedia(post)"
-                            class="shrink-0 w-36 text-left rounded-lg border border-gray-200 hover:border-brand-300 hover:bg-brand-50/50 overflow-hidden transition-colors">
+                    <button type="button" @click="useMedia(post)" :disabled="post.already_added"
+                            :class="post.already_added ? 'opacity-50 cursor-not-allowed border-gray-200' : 'border-gray-200 hover:border-brand-300 hover:bg-brand-50/50'"
+                            class="relative shrink-0 w-36 text-left rounded-lg border overflow-hidden transition-colors">
                         <div class="aspect-video bg-gray-100">
                             <img :src="post.thumbnail_url" alt="" onerror="this.remove()"
                                  class="w-full h-full object-cover">
@@ -104,6 +105,10 @@
                             <p class="text-[11px] font-semibold text-gray-900 truncate" x-text="post.caption"></p>
                             <p class="mt-0.5 text-[10px] text-gray-500" x-text="post.type + ' · ' + post.posted_at"></p>
                         </div>
+                        <span x-show="post.already_added" x-cloak
+                              class="absolute top-1 right-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-gray-900/80 text-white">
+                            Already added
+                        </span>
                     </button>
                 </template>
             </div>
@@ -315,7 +320,7 @@
 
 @push('scripts')
     <script>
-        function portfolioForm(maxMb, initialClientId, initialMedia) {
+        function portfolioForm(maxMb, initialClientId, initialMedia, currentItemId) {
             return {
                 uploading: false,
                 videoError: '',
@@ -338,7 +343,8 @@
                 async loadInstagramMedia(clientId) {
                     this.instagramLoading = true;
                     try {
-                        const res = await fetch(`{{ route('portfolio.instagram-media') }}?client_id=${clientId}`);
+                        const excludeParam = currentItemId ? `&exclude_item_id=${currentItemId}` : '';
+                        const res = await fetch(`{{ route('portfolio.instagram-media') }}?client_id=${clientId}${excludeParam}`);
                         const data = await res.json();
                         this.instagramItems = data.items ?? [];
                     } finally {
@@ -348,8 +354,13 @@
 
                 // Fills in what staff would otherwise type by hand. A
                 // staff-typed title or publish date is never silently
-                // overwritten -- only blank fields get filled.
+                // overwritten -- only blank fields get filled. Refuses an
+                // already_added post client-side too -- validated()'s
+                // unique rule is the real guard, this just saves the round
+                // trip of finding that out after submitting.
                 useMedia(media) {
+                    if (media.already_added) return;
+
                     this.selectedMedia = media;
 
                     const titleField = document.getElementById('title');

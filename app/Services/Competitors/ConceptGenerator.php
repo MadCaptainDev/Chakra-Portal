@@ -2,6 +2,7 @@
 
 namespace App\Services\Competitors;
 
+use App\Models\AiUsageLog;
 use App\Models\CompetitorSetting;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -78,6 +79,14 @@ class ConceptGenerator
         if ($response->failed()) {
             $this->throwFrom($response);
         }
+
+        $usage = $response->json('usage') ?? [];
+        AiUsageLog::record(
+            'competitor_concept',
+            self::MODEL,
+            (int) ($usage['input_tokens'] ?? 0),
+            (int) ($usage['output_tokens'] ?? 0),
+        );
 
         return $response->json('content.0.text') ?? '';
     }

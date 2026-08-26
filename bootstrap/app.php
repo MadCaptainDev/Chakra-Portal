@@ -54,6 +54,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'recurring.catchup' => \App\Http\Middleware\EnsureRecurringInvoicesGenerated::class,
             'routines.catchup' => \App\Http\Middleware\EnsureRoutinesGenerated::class,
+            'instagram.catchup' => \App\Http\Middleware\EnsureInstagramSyncedDaily::class,
             'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
             'client' => \App\Http\Middleware\EnsureUserIsClient::class,
             'module' => \App\Http\Middleware\EnsureModulePermission::class,

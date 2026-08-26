@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\CompetitorSetting;
 use App\Models\PortfolioCategory;
 use App\Models\PortfolioItem;
 use App\Models\SocialAccount;
 use App\Models\SocialMediaItem;
 use App\Models\TaxonomyTerm;
+use App\Services\Portfolio\PortfolioCreativeGenerator;
 use App\Support\PortfolioSuggestions;
 use App\Support\PublicUpload;
 use Illuminate\Http\JsonResponse;
@@ -15,6 +17,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Throwable;
 
 /**
  * Admin side of the public portfolio: the films themselves.
@@ -97,6 +100,20 @@ class PortfolioItemController extends Controller
             return response()->json(['items' => []]);
         }
 
+        // Which of this account's recent media is already a portfolio piece
+        // -- excluding $excludeItem itself (the piece being edited keeps
+        // showing as its own current mapping, not as "already taken").
+        // Client-side is only the first check anyway; validated()'s unique
+        // rule against portfolio_items.social_media_item_id is what a
+        // spoofed request actually has to get past.
+        $excludeItem = PortfolioItem::find($request->integer('exclude_item_id')) ?: null;
+
+        $alreadyAdded = PortfolioItem::query()
+            ->whereNotNull('social_media_item_id')
+            ->when($excludeItem, fn ($query) => $query->whereKeyNot($excludeItem->id))
+            ->pluck('social_media_item_id')
+            ->flip();
+
         $items = $account->socialMediaItems()
             ->with('insights')
             ->newestFirst()
@@ -118,6 +135,7 @@ class PortfolioItemController extends Controller
                 'type' => $item->typeLabel(),
                 'reach' => $item->metricValue('reach'),
                 'views' => $item->metricValue('views'),
+                'already_added' => $alreadyAdded->has($item->id),
             ]);
 
         return response()->json(['items' => $items]);
@@ -188,6 +206,15 @@ class PortfolioItemController extends Controller
     {
         $data = $this->validated($request);
 
+        // Captured before mapToInstagram() runs below, which -- when
+        // nobody wrote a description -- fills it from the Instagram
+        // caption as a real, un-AI-generated fallback. By the time that
+        // has happened, "does this item have a description" can no longer
+        // tell "staff typed one" apart from "the caption became one", so
+        // the distinction that decides whether to auto-generate has to be
+        // taken from the raw request instead.
+        $explicitDescription = filled($data['description'] ?? null);
+
         $media = $this->resolveMappedMedia($data['social_media_item_id'] ?? null, $data['client_id'] ?? null);
         // Set via mapToInstagram() below, not mass assignment -- and an
         // unresolved (missing or spoofed) id must not fall through either.
@@ -218,7 +245,51 @@ class PortfolioItemController extends Controller
 
         $item->tags()->sync($this->tagIds($request));
 
-        return redirect()->route('portfolio.index')->with('status', 'Portfolio piece added.');
+        $creativeStatus = $media ? $this->maybeGenerateCreative($item, $media, $explicitDescription) : null;
+
+        return redirect()->route('portfolio.index')
+            ->with('status', 'Portfolio piece added.'.($creativeStatus ? ' '.$creativeStatus : ''));
+    }
+
+    /**
+     * Fills description + the six creative-strategy fields from Anthropic,
+     * automatically, the moment a piece is first mapped to an Instagram
+     * post -- never on a later edit/save, and never over fields staff
+     * already typed. All three guards matter: without the first, every
+     * routine edit would re-spend tokens; without the other two, a real API
+     * call could silently overwrite what a person wrote by hand (the
+     * creative fields have no other source, so any of them being filled
+     * only ever means a person filled it; description doubles as the
+     * Instagram caption's own fallback, via mapToInstagram(), so that one
+     * needs $explicitDescription instead of its own filled() check).
+     *
+     * Never throws into the caller -- a save must succeed whether or not
+     * Anthropic is configured, reachable, or in a good mood; this is a
+     * nice-to-have layered on top of an otherwise-complete save, not a
+     * required step.
+     */
+    private function maybeGenerateCreative(PortfolioItem $item, SocialMediaItem $media, bool $explicitDescription): ?string
+    {
+        $creativeAlreadyWritten = collect(PortfolioItem::CREATIVE_FIELDS)->keys()->contains(fn ($field) => filled($item->{$field}));
+
+        if ($creativeAlreadyWritten || $explicitDescription || ! CompetitorSetting::current()->hasAnthropic()) {
+            return null;
+        }
+
+        try {
+            $fields = PortfolioCreativeGenerator::make()->generateFor(
+                $media,
+                $item->client?->name ?? $item->client_name ?? 'this client',
+                $item,
+            );
+            $item->update($fields);
+
+            return 'Creative strategy generated automatically.';
+        } catch (Throwable $e) {
+            report($e);
+
+            return 'Could not auto-generate the creative strategy — add it by hand, or use "Regenerate" once Anthropic is reachable.';
+        }
     }
 
     public function edit(PortfolioItem $portfolio): View
@@ -230,7 +301,7 @@ class PortfolioItemController extends Controller
 
     public function update(Request $request, PortfolioItem $portfolio): RedirectResponse
     {
-        $data = $this->validated($request);
+        $data = $this->validated($request, ignoring: $portfolio);
 
         $wasMapped = $portfolio->social_media_item_id;
         $media = $this->resolveMappedMedia($data['social_media_item_id'] ?? null, $data['client_id'] ?? null);
@@ -307,6 +378,41 @@ class PortfolioItemController extends Controller
             ->first();
     }
 
+    /**
+     * The manual counterpart to maybeGenerateCreative() -- for a piece that
+     * predates this feature, one whose auto-generation failed, or whose
+     * fields staff just wants redone. Unlike the automatic path, this
+     * ALWAYS overwrites: pressing the button is the explicit "yes,
+     * overwrite what's there" a person just gave.
+     */
+    public function regenerateCreative(PortfolioItem $portfolio): RedirectResponse
+    {
+        $media = $portfolio->socialMediaItem;
+
+        if (! $media) {
+            return back()->with('status', 'This piece is not mapped to an Instagram post, so there is nothing to generate from.');
+        }
+
+        if (! CompetitorSetting::current()->hasAnthropic()) {
+            return back()->with('status', 'Add an Anthropic API key under Settings → Competitor Analysis first.');
+        }
+
+        try {
+            $fields = PortfolioCreativeGenerator::make()->generateFor(
+                $media,
+                $portfolio->client?->name ?? $portfolio->client_name ?? 'this client',
+                $portfolio,
+            );
+            $portfolio->update($fields);
+        } catch (Throwable $e) {
+            report($e);
+
+            return back()->with('status', 'Could not generate: '.$e->getMessage());
+        }
+
+        return back()->with('status', 'Creative strategy regenerated.');
+    }
+
     public function destroy(PortfolioItem $portfolio): RedirectResponse
     {
         PublicUpload::delete($portfolio->video_path);
@@ -341,12 +447,20 @@ class PortfolioItemController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function validated(Request $request): array
+    private function validated(Request $request, ?PortfolioItem $ignoring = null): array
     {
         $rules = [
             'portfolio_category_id' => ['nullable', 'exists:portfolio_categories,id'],
             'client_id' => ['nullable', 'exists:clients,id'],
-            'social_media_item_id' => ['nullable', 'integer', 'exists:social_media_items,id'],
+            // Unique rather than merely existing: a video already mapped to
+            // another piece must be refused here, not just hidden from the
+            // picker -- the picker is what a *browser* enforces, this is
+            // what a spoofed or replayed request cannot get past. ignore()
+            // on update() lets a piece keep pointing at its own mapping.
+            'social_media_item_id' => [
+                'nullable', 'integer', 'exists:social_media_items,id',
+                Rule::unique('portfolio_items', 'social_media_item_id')->ignore($ignoring?->id),
+            ],
             'title' => ['required', 'string', 'max:255'],
             'client_name' => ['nullable', 'string', 'max:255'],
             'tags' => ['nullable', 'array', 'max:30'],
@@ -396,7 +510,9 @@ class PortfolioItemController extends Controller
             $rules[$field] = ['nullable', Rule::exists('taxonomy_terms', 'id')->where('type', $type)];
         }
 
-        $data = $request->validate($rules);
+        $data = $request->validate($rules, [
+            'social_media_item_id.unique' => 'That video is already in the portfolio as another piece.',
+        ]);
 
         unset($data['video'], $data['thumbnail'], $data['tags']);
 

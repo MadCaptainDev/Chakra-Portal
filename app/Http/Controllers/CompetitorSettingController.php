@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AiUsageLog;
 use App\Models\CompetitorAccount;
 use App\Models\CompetitorSetting;
 use App\Services\Competitors\ConceptGenerator;
@@ -28,6 +29,11 @@ class CompetitorSettingController extends Controller
         return view('competitors.settings-edit', [
             'settings' => $settings,
             'trackedCount' => CompetitorAccount::count(),
+            // Every paid LLM call this app makes goes through the one
+            // Anthropic key on this screen -- this is the one place asking
+            // "what is that key actually costing us" makes sense to answer.
+            'usageThisMonth' => AiUsageLog::summary(AiUsageLog::query()->thisMonth()),
+            'usageAllTime' => AiUsageLog::summary(AiUsageLog::query()),
         ]);
     }
 
