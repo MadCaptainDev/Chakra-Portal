@@ -223,4 +223,67 @@ class InstagramReportData
             ->values()
             ->all();
     }
+
+    /**
+     * Per-post growth charts for one media item -- every metric that has
+     * genuine day-by-day history, ready for x-charts.metric-trend.
+     *
+     * A metric only ever synced once has a single point, not a trend --
+     * drawing a "chart" from one reading would imply movement that was never
+     * observed, so metricHistory() results with fewer than two points are
+     * left out rather than shown as a flat line.
+     *
+     * Reels get one more entry, average watch time in seconds. That is the
+     * closest this can honestly get to the second-by-second retention curve
+     * Instagram's own apps (including Edits) show -- the public Graph API
+     * does not expose that curve to any connected app, ours included, so
+     * this is a coarser signal (how the post's own average has moved as it
+     * aged) rather than a substitute for it.
+     *
+     * Capped to the most recent 60 synced days per metric -- Content
+     * Performance calls this for every row up to its own 200-item limit, all
+     * of it rendered up front behind a collapsed toggle rather than lazily,
+     * so an account with a year of daily syncs behind it should not turn
+     * every page load into hundreds of multi-hundred-point charts. 60 is
+     * two months of daily syncing, generous for "how has this post trended
+     * lately" without that cost; oldest-first order is preserved within the
+     * slice.
+     *
+     * @return list<array{metric: string, label: string, days: list<array{date: string, value: int}>}>
+     */
+    public static function mediaGrowth(SocialMediaItem $item): array
+    {
+        $metrics = [
+            'reach' => 'Reach',
+            'views' => 'Views',
+            'total_interactions' => 'Engagement',
+            'likes' => 'Likes',
+            'comments' => 'Comments',
+            'shares' => 'Shares',
+            'saved' => 'Saves',
+        ];
+
+        $charts = collect($metrics)
+            ->map(fn (string $label, string $metric) => [
+                'metric' => $metric,
+                'label' => $label,
+                'days' => array_slice($item->metricHistory($metric), -60),
+            ])
+            ->filter(fn (array $chart) => count($chart['days']) > 1)
+            ->values();
+
+        if ($item->isReel()) {
+            // Same millisecond-to-second conversion as reelAvgWatchSeconds(),
+            // applied to every historical point rather than just the latest.
+            $watchDays = collect(array_slice($item->metricHistory('ig_reels_avg_watch_time'), -60))
+                ->map(fn (array $day) => ['date' => $day['date'], 'value' => (int) round($day['value'] / 1000)])
+                ->all();
+
+            if (count($watchDays) > 1) {
+                $charts->push(['metric' => 'ig_reels_avg_watch_time', 'label' => 'Avg. watch time (seconds)', 'days' => $watchDays]);
+            }
+        }
+
+        return $charts->all();
+    }
 }

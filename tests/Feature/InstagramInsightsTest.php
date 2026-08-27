@@ -258,6 +258,126 @@ class InstagramInsightsTest extends TestCase
         $this->assertSame(1, $result['items']);
     }
 
+    /**
+     * A media item's insights are not one row per metric -- every daily sync
+     * writes a fresh row keyed to that sync's own date (Meta only ever
+     * answers with the post's current lifetime total, never a history), so a
+     * post synced on several different days has several rows for "reach".
+     * metricValue() must read the newest one; before this fix it read
+     * whichever row an unordered query happened to return first, which in
+     * practice meant the OLDEST synced value forever, on both the eager
+     * -loaded and the lazy path.
+     */
+    public function test_metric_value_reads_the_latest_sync_not_the_first(): void
+    {
+        $account = $this->connectedAccount();
+        $item = SocialMediaItem::create([
+            'social_account_id' => $account->id, 'platform_media_id' => 'growing-post',
+            'media_type' => 'IMAGE', 'posted_at' => now()->subDays(10), 'cached_at' => now(),
+        ]);
+
+        SocialInsight::record([
+            'social_account_id' => $account->id, 'social_media_item_id' => $item->id,
+            'metric' => 'reach', 'metric_type' => SocialInsight::TYPE_TOTAL_VALUE,
+            'value' => 100, 'period' => 'lifetime', 'period_start' => now()->subDays(9)->toDateString(),
+        ]);
+        SocialInsight::record([
+            'social_account_id' => $account->id, 'social_media_item_id' => $item->id,
+            'metric' => 'reach', 'metric_type' => SocialInsight::TYPE_TOTAL_VALUE,
+            'value' => 500, 'period' => 'lifetime', 'period_start' => now()->toDateString(),
+        ]);
+
+        $this->assertSame(500, $item->fresh()->metricValue('reach'), 'the lazy, un-eager-loaded path');
+        $this->assertSame(500, $item->fresh(['insights'])->metricValue('reach'), 'the eager-loaded path Content Performance uses');
+    }
+
+    public function test_metric_history_returns_every_synced_day_oldest_first(): void
+    {
+        $account = $this->connectedAccount();
+        $item = SocialMediaItem::create([
+            'social_account_id' => $account->id, 'platform_media_id' => 'history-post',
+            'media_type' => 'IMAGE', 'posted_at' => now()->subDays(3), 'cached_at' => now(),
+        ]);
+
+        SocialInsight::record([
+            'social_account_id' => $account->id, 'social_media_item_id' => $item->id,
+            'metric' => 'reach', 'metric_type' => SocialInsight::TYPE_TOTAL_VALUE,
+            'value' => 500, 'period' => 'lifetime', 'period_start' => now()->toDateString(),
+        ]);
+        SocialInsight::record([
+            'social_account_id' => $account->id, 'social_media_item_id' => $item->id,
+            'metric' => 'reach', 'metric_type' => SocialInsight::TYPE_TOTAL_VALUE,
+            'value' => 100, 'period' => 'lifetime', 'period_start' => now()->subDays(2)->toDateString(),
+        ]);
+
+        $history = $item->metricHistory('reach');
+
+        $this->assertSame(
+            [now()->subDays(2)->toDateString(), now()->toDateString()],
+            array_column($history, 'date'),
+        );
+        $this->assertSame([100, 500], array_column($history, 'value'));
+    }
+
+    // -- InstagramReportData::mediaGrowth() ----------------------------------
+
+    public function test_media_growth_excludes_metrics_with_only_one_synced_day(): void
+    {
+        $account = $this->connectedAccount();
+        $item = SocialMediaItem::create([
+            'social_account_id' => $account->id, 'platform_media_id' => 'one-day',
+            'media_type' => 'IMAGE', 'posted_at' => now()->subDay(), 'cached_at' => now(),
+        ]);
+
+        // reach: two days, a genuine trend. views: one day, not a trend.
+        foreach ([[now()->subDay(), 100], [now(), 150]] as [$day, $value]) {
+            SocialInsight::record([
+                'social_account_id' => $account->id, 'social_media_item_id' => $item->id,
+                'metric' => 'reach', 'metric_type' => SocialInsight::TYPE_TOTAL_VALUE,
+                'value' => $value, 'period' => 'lifetime', 'period_start' => $day->toDateString(),
+            ]);
+        }
+        SocialInsight::record([
+            'social_account_id' => $account->id, 'social_media_item_id' => $item->id,
+            'metric' => 'views', 'metric_type' => SocialInsight::TYPE_TOTAL_VALUE,
+            'value' => 300, 'period' => 'lifetime', 'period_start' => now()->toDateString(),
+        ]);
+
+        $charts = \App\Services\Instagram\InstagramReportData::mediaGrowth($item->fresh(['insights']));
+
+        $metrics = collect($charts)->pluck('metric')->all();
+        $this->assertContains('reach', $metrics);
+        $this->assertNotContains('views', $metrics, 'a single synced day is not a trend');
+
+        $reachChart = collect($charts)->firstWhere('metric', 'reach');
+        $this->assertSame([100, 150], array_column($reachChart['days'], 'value'));
+    }
+
+    public function test_media_growth_charts_reel_average_watch_time_in_seconds(): void
+    {
+        $account = $this->connectedAccount();
+        $reel = SocialMediaItem::create([
+            'social_account_id' => $account->id, 'platform_media_id' => 'reel-growth',
+            'media_type' => 'VIDEO', 'media_product_type' => 'REELS',
+            'posted_at' => now()->subDay(), 'cached_at' => now(),
+        ]);
+
+        // 5,000ms and 8,200ms -> 5s and 8s once converted for the chart.
+        foreach ([[now()->subDay(), 5000], [now(), 8200]] as [$day, $ms]) {
+            SocialInsight::record([
+                'social_account_id' => $account->id, 'social_media_item_id' => $reel->id,
+                'metric' => 'ig_reels_avg_watch_time', 'metric_type' => SocialInsight::TYPE_TOTAL_VALUE,
+                'value' => $ms, 'period' => 'lifetime', 'period_start' => $day->toDateString(),
+            ]);
+        }
+
+        $charts = \App\Services\Instagram\InstagramReportData::mediaGrowth($reel->fresh(['insights']));
+
+        $watchChart = collect($charts)->firstWhere('metric', 'ig_reels_avg_watch_time');
+        $this->assertNotNull($watchChart);
+        $this->assertSame([5, 8], array_column($watchChart['days'], 'value'));
+    }
+
     public function test_reel_only_metrics_are_not_requested_for_a_feed_post(): void
     {
         $account = $this->connectedAccount();
@@ -765,6 +885,67 @@ class InstagramInsightsTest extends TestCase
         $response->assertSee('Likes');
         $response->assertDontSee('Avg. watch time');
         $response->assertDontSee('Total watch time');
+    }
+
+    /**
+     * "Add graphs as per post" -- a post synced on only one day has nothing
+     * to chart (one reading is not a trend), so the detail row says so
+     * instead of drawing an empty or single-point chart.
+     */
+    public function test_a_post_synced_only_once_shows_no_growth_graphs_yet(): void
+    {
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+
+        $item = SocialMediaItem::create([
+            'social_account_id' => $account->id, 'platform_media_id' => 'single-sync',
+            'media_type' => 'IMAGE', 'caption' => 'Just synced once',
+            'posted_at' => now()->subDay(), 'cached_at' => now(),
+        ]);
+        SocialInsight::record([
+            'social_account_id' => $account->id, 'social_media_item_id' => $item->id,
+            'metric' => 'reach', 'metric_type' => SocialInsight::TYPE_TOTAL_VALUE,
+            'value' => 100, 'period' => 'lifetime', 'period_start' => now()->toDateString(),
+        ]);
+
+        $response = $this->actingAs($this->staff())
+            ->get(route('instagram.insights', $client))
+            ->assertOk();
+
+        $response->assertSee('Growth graphs appear here once this post has been synced on more than one day.');
+    }
+
+    /**
+     * A post synced across several days has genuine day-by-day history for
+     * reach -- that metric should chart, and the "nothing to graph yet"
+     * message should not appear for it.
+     */
+    public function test_a_post_synced_across_several_days_shows_a_growth_graph(): void
+    {
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+
+        $item = SocialMediaItem::create([
+            'social_account_id' => $account->id, 'platform_media_id' => 'multi-sync',
+            'media_type' => 'IMAGE', 'caption' => 'Synced three times',
+            'posted_at' => now()->subDays(3), 'cached_at' => now(),
+        ]);
+
+        foreach ([[now()->subDays(2), 100], [now()->subDay(), 250], [now(), 400]] as [$day, $value]) {
+            SocialInsight::record([
+                'social_account_id' => $account->id, 'social_media_item_id' => $item->id,
+                'metric' => 'reach', 'metric_type' => SocialInsight::TYPE_TOTAL_VALUE,
+                'value' => $value, 'period' => 'lifetime', 'period_start' => $day->toDateString(),
+            ]);
+        }
+
+        $response = $this->actingAs($this->staff())
+            ->get(route('instagram.insights', $client))
+            ->assertOk();
+
+        $response->assertDontSee('Growth graphs appear here once this post has been synced on more than one day.');
+        // The chart's own aria-label, from x-charts.metric-trend's role="img".
+        $response->assertSee('aria-label="Reach"', false);
     }
 
     // -- Custom range reaching past the 90-day account-insights window ------

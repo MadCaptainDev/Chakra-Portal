@@ -75,12 +75,80 @@ class SocialMediaItem extends Model
         return $this->caption ? Str::limit(trim($this->caption), $length) : '(no caption)';
     }
 
-    /** One insight's value for this item, or null if it was never captured. */
+    /**
+     * One insight's CURRENT value for this item, or null if it was never
+     * captured.
+     *
+     * A media item's insights are not one row per metric -- every daily sync
+     * (see InstagramInsights::storeMediaResponse) writes a fresh row keyed to
+     * that sync's own date, since Meta only ever answers with the post's
+     * current lifetime total, not a history. A post synced on ten different
+     * days therefore has ten rows for "reach", each an honest reading of what
+     * reach was as of that sync -- which is also, deliberately, the raw
+     * material for a per-post growth graph (see metricHistory() below and
+     * InstagramReportData::mediaGrowth()).
+     *
+     * This method answers "what is it right now", so it wants the newest of
+     * those rows. Before this fix it took whichever row the query or the
+     * eager-loaded collection happened to return first -- unordered on both
+     * paths, which in practice meant the OLDEST synced value on a plain
+     * MySQL id-ordered read, not the current one. Every caller of this
+     * method (Content Performance, Monthly Report, portfolio suggestions,
+     * the creative generator) was reading a number frozen at whatever it was
+     * the first time the post was ever synced.
+     */
     public function metricValue(string $metric): ?int
     {
-        return $this->relationLoaded('insights')
-            ? $this->insights->firstWhere('metric', $metric)?->value
-            : $this->insights()->where('metric', $metric)->value('value');
+        if ($this->relationLoaded('insights')) {
+            return $this->insights
+                ->where('metric', $metric)
+                ->sortBy([
+                    fn (SocialInsight $a, SocialInsight $b) => $b->period_start <=> $a->period_start,
+                    fn (SocialInsight $a, SocialInsight $b) => $b->id <=> $a->id,
+                ])
+                ->first()?->value;
+        }
+
+        return $this->insights()
+            ->where('metric', $metric)
+            ->orderByDesc('period_start')
+            ->orderByDesc('id')
+            ->value('value');
+    }
+
+    /**
+     * One metric's full synced history for this item, oldest first -- the
+     * day-by-day growth a graph draws. Same rows metricValue() reads, just
+     * every one of them instead of only the newest.
+     *
+     * Unlike an account-level trend (InstagramReportData::trend(), one row
+     * guaranteed per calendar day because the generator asks Instagram for a
+     * time series), this has a gap for any day the account was not synced --
+     * deliberately not filled in with a repeated flat value, since that would
+     * draw a growth line implying data that was never actually fetched.
+     *
+     * Reads the eager-loaded 'insights' relation when it's already there
+     * rather than always issuing its own query, for exactly the reason
+     * PortfolioSuggestions and Content Performance already eager-load it for
+     * metricValue(): Content Performance calls this per metric, per item,
+     * for up to 200 items to build every post's growth charts -- without
+     * this branch, that is up to 1,600 extra queries on a single page load
+     * instead of the one query ->with('insights') already paid for.
+     *
+     * @return list<array{date: string, value: int}>
+     */
+    public function metricHistory(string $metric): array
+    {
+        $rows = $this->relationLoaded('insights')
+            ? $this->insights->where('metric', $metric)->sortBy('period_start')->values()
+            : $this->insights()->where('metric', $metric)->orderBy('period_start')->get(['value', 'period_start']);
+
+        return $rows
+            ->map(fn (SocialInsight $row) => [
+                'date' => $row->period_start->toDateString(),
+                'value' => (int) $row->value,
+            ])
+            ->all();
     }
 
     /**

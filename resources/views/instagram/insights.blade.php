@@ -406,6 +406,35 @@
                                                     </div>
                                                 @endif
                                             </div>
+
+                                            {{-- Growth graphs -- how each metric has
+                                                 moved across every day this post has
+                                                 actually been synced, built from the
+                                                 same rows the tiles above read the
+                                                 newest of. Only metrics with two or
+                                                 more synced days chart at all -- one
+                                                 reading is not a trend. There is no
+                                                 substitute here for Instagram's own
+                                                 second-by-second retention curve
+                                                 (what the Edits app draws): the
+                                                 public Graph API does not expose that
+                                                 to any connected app, so this shows
+                                                 what it can -- everything else that
+                                                 was synced, as a graph, instead of a
+                                                 single frozen number. --}}
+                                            @php $growth = \App\Services\Instagram\InstagramReportData::mediaGrowth($item); @endphp
+                                            @if ($growth)
+                                                <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                    @foreach ($growth as $chart)
+                                                        <x-charts.metric-trend :days="$chart['days']" :title="$chart['label']"
+                                                            empty="Not enough history yet." />
+                                                    @endforeach
+                                                </div>
+                                            @else
+                                                <p class="mt-3 text-xs text-brand-100/50">
+                                                    Growth graphs appear here once this post has been synced on more than one day.
+                                                </p>
+                                            @endif
                                         </td>
                                     </tr>
                                 </tbody>
