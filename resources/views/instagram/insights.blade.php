@@ -286,9 +286,9 @@
                                             </a>
                                         </th>
                                     @endforeach
-                                    @can('portfolio.create')
+                                    @canany(['portfolio.create', 'portfolio.delete'])
                                         <th class="px-3 py-2.5"><span class="sr-only">Actions</span></th>
-                                    @endcan
+                                    @endcanany
                                     <th class="px-3 py-2.5"><span class="sr-only">More</span></th>
                                 </tr>
                             </thead>
@@ -337,14 +337,38 @@
                                         <td class="px-3 py-2.5 text-right tabular-nums text-white">
                                             {{ $item->metricValue('total_interactions') !== null ? number_format($item->metricValue('total_interactions')) : '—' }}
                                         </td>
-                                        @can('portfolio.create')
+                                        @php $portfolioItemId = $portfolioItemsByMedia->get($item->id); @endphp
+                                        @canany(['portfolio.create', 'portfolio.delete'])
                                             <td class="px-3 py-2.5 whitespace-nowrap">
-                                                <a href="{{ route('portfolio.create', ['client_id' => $client->id, 'media_id' => $item->id]) }}"
-                                                   class="text-xs font-semibold text-brand-300 hover:text-brand-200">
-                                                    Add to portfolio
-                                                </a>
+                                                @if ($portfolioItemId)
+                                                    @can('portfolio.delete')
+                                                        {{-- Deletes the whole portfolio piece, same as the
+                                                             Delete button on Portfolio's own index -- a
+                                                             piece created from this post IS that post, not
+                                                             a separate thing that merely references it, so
+                                                             there is no lighter "just unlink" action to
+                                                             offer instead. --}}
+                                                        <form method="POST" action="{{ route('portfolio.destroy', $portfolioItemId) }}"
+                                                              onsubmit="return confirm('Remove this from the portfolio? The uploaded video is deleted too.');">
+                                                            @csrf
+                                                            @method('DELETE')
+                                                            <button type="submit" class="text-xs font-semibold text-red-300 hover:text-red-200">
+                                                                Remove
+                                                            </button>
+                                                        </form>
+                                                    @else
+                                                        <span class="text-xs font-semibold text-brand-100/50">Added</span>
+                                                    @endcan
+                                                @else
+                                                    @can('portfolio.create')
+                                                        <a href="{{ route('portfolio.create', ['client_id' => $client->id, 'media_id' => $item->id]) }}"
+                                                           class="text-xs font-semibold text-brand-300 hover:text-brand-200">
+                                                            Add to portfolio
+                                                        </a>
+                                                    @endcan
+                                                @endif
                                             </td>
-                                        @endcan
+                                        @endcanany
                                         <td class="px-3 py-2.5 whitespace-nowrap text-right">
                                             <button type="button" @click="open = ! open"
                                                     class="inline-flex items-center gap-1 min-h-[36px] px-1 text-xs font-semibold text-brand-300 hover:text-brand-200">

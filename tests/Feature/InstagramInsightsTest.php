@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Client;
 use App\Models\InstagramSetting;
+use App\Models\PortfolioItem;
 use App\Models\SocialAccount;
 use App\Models\SocialInsight;
 use App\Models\SocialMediaItem;
@@ -73,6 +74,25 @@ class InstagramInsightsTest extends TestCase
 
         foreach ($abilities as $ability) {
             UserPermission::create(['user_id' => $user->id, 'module' => 'clients', 'ability' => $ability]);
+        }
+
+        return $user->refresh();
+    }
+
+    /**
+     * Reaching the Insights screen at all only needs 'clients' view -- the
+     * "Add to portfolio"/"Remove" cell is gated on the separate 'portfolio'
+     * module, so a test of that cell needs both.
+     */
+    private function staffWithPortfolio(array $portfolioAbilities): User
+    {
+        $user = $this->staff();
+
+        // 'view' always included: every portfolio route, including destroy,
+        // sits inside a `module:portfolio,view` group wrapping the whole
+        // module -- create/edit/delete are additional, not substitutes.
+        foreach ([...$portfolioAbilities, 'view'] as $ability) {
+            UserPermission::create(['user_id' => $user->id, 'module' => 'portfolio', 'ability' => $ability]);
         }
 
         return $user->refresh();
@@ -1182,6 +1202,93 @@ class InstagramInsightsTest extends TestCase
             ->get(route('instagram.insights', $client).'?sort=views&direction=asc')
             ->assertOk()
             ->assertSee('▲', false);
+    }
+
+    // -- Add to portfolio / Remove --------------------------------------------
+
+    public function test_a_post_not_yet_added_offers_add_to_portfolio(): void
+    {
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+        $item = $this->mediaItemWithMetrics($account, 'not-added', ['reach' => 1]);
+
+        $response = $this->actingAs($this->staffWithPortfolio(['create']))
+            ->get(route('instagram.insights', $client))
+            ->assertOk();
+
+        $response->assertSee('Add to portfolio');
+        // htmlspecialchars, not the raw route() string -- Blade's {{ }} in
+        // an href escapes the & between query params to &amp;.
+        $response->assertSee(
+            e(route('portfolio.create', ['client_id' => $client->id, 'media_id' => $item->id])),
+            false,
+        );
+        $response->assertDontSee('Remove');
+    }
+
+    public function test_a_post_already_added_offers_remove_instead(): void
+    {
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+        $item = $this->mediaItemWithMetrics($account, 'already-added', ['reach' => 1]);
+
+        $portfolio = PortfolioItem::create([
+            'title' => 'A published piece', 'social_media_item_id' => $item->id,
+            'is_visible' => true,
+        ]);
+
+        $response = $this->actingAs($this->staffWithPortfolio(['create', 'delete']))
+            ->get(route('instagram.insights', $client))
+            ->assertOk();
+
+        $response->assertDontSee('Add to portfolio');
+        $response->assertSee('Remove');
+        $response->assertSee(route('portfolio.destroy', $portfolio), false);
+    }
+
+    /**
+     * Someone who can add pieces but not delete them should not be offered
+     * a button that would 403 the moment they pressed it.
+     */
+    public function test_a_post_already_added_shows_nothing_actionable_without_delete_permission(): void
+    {
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+        $item = $this->mediaItemWithMetrics($account, 'no-delete-permission', ['reach' => 1]);
+
+        PortfolioItem::create([
+            'title' => 'A published piece', 'social_media_item_id' => $item->id,
+            'is_visible' => true,
+        ]);
+
+        $response = $this->actingAs($this->staffWithPortfolio(['create']))
+            ->get(route('instagram.insights', $client))
+            ->assertOk();
+
+        $response->assertDontSee('Add to portfolio');
+        $response->assertDontSee('Remove');
+        $response->assertSee('Added');
+    }
+
+    public function test_removing_from_content_performance_deletes_the_portfolio_piece(): void
+    {
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+        $item = $this->mediaItemWithMetrics($account, 'to-remove', ['reach' => 1]);
+
+        $portfolio = PortfolioItem::create([
+            'title' => 'A published piece', 'social_media_item_id' => $item->id,
+            'is_visible' => true,
+        ]);
+
+        $this->actingAs($this->staffWithPortfolio(['create', 'delete']))
+            ->delete(route('portfolio.destroy', $portfolio))
+            ->assertRedirect(route('portfolio.index'));
+
+        $this->assertDatabaseMissing('portfolio_items', ['id' => $portfolio->id]);
+        // The Instagram post itself is a separate row -- removing the
+        // portfolio piece must not touch the cached media it was built from.
+        $this->assertDatabaseHas('social_media_items', ['id' => $item->id]);
     }
 
     // -- Format-count tile strip ----------------------------------------------

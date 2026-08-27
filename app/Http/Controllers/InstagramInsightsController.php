@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\PortfolioItem;
 use App\Models\SocialAccount;
 use App\Services\Instagram\InstagramReportData;
 use App\Services\Instagram\InstagramSyncRunner;
@@ -91,6 +92,15 @@ class InstagramInsightsController extends Controller
         $content = InstagramReportData::contentPerformance($account, $since, $until, limit: 200, sortBy: $sortBy, direction: $direction);
         $formats = InstagramReportData::formatBreakdown($content);
 
+        // Which of the media on screen already has a portfolio piece built
+        // from it, keyed by social_media_item_id -> the PortfolioItem so the
+        // row can link straight to removing it. One query for the whole
+        // page rather than one per row: content can hold up to 200 items,
+        // and a portfolio piece is looked up by a unique FK either way.
+        $portfolioItemsByMedia = PortfolioItem::query()
+            ->whereIn('social_media_item_id', $content->pluck('id'))
+            ->pluck('id', 'social_media_item_id');
+
         return view('instagram.insights', [
             'client' => $client,
             'account' => $account,
@@ -103,6 +113,7 @@ class InstagramInsightsController extends Controller
             'breakdown' => $breakdown,
             'content' => $content,
             'formats' => $formats,
+            'portfolioItemsByMedia' => $portfolioItemsByMedia,
             'sortBy' => $sortBy,
             'direction' => $direction,
             // True whenever ANY part of the selected range is older than
