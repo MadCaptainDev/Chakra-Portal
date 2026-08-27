@@ -259,6 +259,62 @@ class RoutineCheckingTest extends TestCase
             ->assertSee('Verify training');
     }
 
+    /**
+     * The actual ask: an account-scoped routine shows once, as one task with
+     * its accounts nested underneath -- not once per account.
+     */
+    public function test_account_scoped_routine_shows_as_one_task_on_both_screens(): void
+    {
+        Carbon::setTestNow('2026-08-25 12:00:00');
+
+        $admin = User::factory()->create();
+        $employee = User::factory()->employee()->create();
+
+        $routine = Routine::factory()->create([
+            'title' => 'Checking Venture Messages',
+            'starts_on' => '2026-08-25',
+            'catch_up_days' => 0,
+            'subject_type' => Routine::SUBJECT_ACCOUNTS,
+        ]);
+        $routine->users()->attach($employee);
+
+        foreach (['Venture A', 'Venture B', 'Venture C'] as $name) {
+            $account = ContentAccount::factory()->create(['name' => $name]);
+            $routine->subjects()->create([
+                'subject_type' => Routine::SUBJECT_CONTENT,
+                'subject_id' => $account->id,
+            ]);
+        }
+
+        app(RoutineOccurrenceGenerator::class)->run();
+        $this->assertSame(3, RoutineOccurrence::count());
+
+        $myRoutines = $this->actingAs($employee)->get(route('my.routines'));
+        $myRoutines->assertOk();
+        // Once as the due task's own headline, once more in "Coming up"
+        // (tomorrow's occurrence, a separate section) -- not a third time,
+        // which is what one card per account would produce.
+        $this->assertSame(
+            2,
+            substr_count($myRoutines->getContent(), 'Checking Venture Messages'),
+            'the routine title should appear once as the task headline, not once per account',
+        );
+        foreach (['Venture A', 'Venture B', 'Venture C'] as $name) {
+            $myRoutines->assertSee($name);
+        }
+
+        $checking = $this->actingAs($admin)->get(route('routines.checking'));
+        $checking->assertOk();
+        $this->assertSame(
+            1,
+            substr_count($checking->getContent(), 'Checking Venture Messages'),
+            'the admin board should also show it once, not once per account',
+        );
+        foreach (['Venture A', 'Venture B', 'Venture C'] as $name) {
+            $checking->assertSee($name);
+        }
+    }
+
     public function test_checking_board_shows_a_routine_that_has_stopped_generating(): void
     {
         $admin = User::factory()->create();

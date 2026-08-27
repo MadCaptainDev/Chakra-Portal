@@ -77,6 +77,69 @@ class RoutineDutyList
     }
 
     /**
+     * Nest group()'s per-subject duties under one task per (routine,
+     * checkpoint, assignee) -- what a person actually reads as "one thing to
+     * do", the way a Teams/Planner task holds its checklist items under one
+     * card instead of one card per item. Fifteen venture accounts should not
+     * read as fifteen identical "Checking Venture Messages" cards; they are
+     * one task, "which accounts", with the accounts as its subtasks.
+     *
+     * group() is right to keep subjects apart -- it is the unit completion
+     * acts on, and a duty four days behind on one account is not the same
+     * row as the same duty on another. This nests on top of that grouping
+     * rather than replacing it, the same way group() sits on top of the raw
+     * occurrence rows without changing what they are.
+     *
+     * A task with a single subtask -- a plain, non-account-scoped routine,
+     * still the overwhelming majority -- comes back in the same shape with a
+     * one-item 'subtasks' list, so callers can render every task the same
+     * way and only branch on count() when they want the compact single-item
+     * form instead of a checklist.
+     *
+     * @param  Collection<int, array<string, mixed>>  $duties  Rows from group().
+     * @return Collection<int, array<string, mixed>>
+     */
+    public static function nest(Collection $duties): Collection
+    {
+        return $duties
+            ->groupBy(fn (array $d) => implode('|', [
+                'routine:'.$d['routine']?->id,
+                'cp:'.($d['checkpoint']?->id ?? 0),
+                'user:'.($d['assigned_user']?->id ?? 0),
+            ]))
+            ->map(function (Collection $rows, string $key) {
+                $sorted = $rows->sortBy([
+                    fn (array $a, array $b) => ($b['is_overdue'] <=> $a['is_overdue']),
+                    fn (array $a, array $b) => ($b['days_late'] <=> $a['days_late']),
+                    fn (array $a, array $b) => strcmp((string) $a['subject_label'], (string) $b['subject_label']),
+                ])->values();
+
+                $first = $sorted->first();
+
+                return [
+                    'key' => $key,
+                    'routine' => $first['routine'],
+                    'checkpoint' => $first['checkpoint'],
+                    'assigned_user' => $first['assigned_user'],
+                    'subtasks' => $sorted,
+                    'total' => $sorted->count(),
+                    'late_count' => $sorted->where('is_overdue', true)->count(),
+                    'is_overdue' => $sorted->contains('is_overdue', true),
+                    'days_late' => (int) $sorted->max('days_late'),
+                ];
+            })
+            ->sortBy([
+                fn (array $a, array $b) => ($b['is_overdue'] <=> $a['is_overdue']),
+                fn (array $a, array $b) => ($b['days_late'] <=> $a['days_late']),
+                fn (array $a, array $b) => strcmp(
+                    (string) ($a['routine']?->title ?? ''),
+                    (string) ($b['routine']?->title ?? ''),
+                ),
+            ])
+            ->values();
+    }
+
+    /**
      * Stable grouping key. Mirrors the fingerprint dimensions minus the date --
      * the date is exactly what we are collapsing.
      */

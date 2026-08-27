@@ -32,9 +32,13 @@ class RoutineController extends Controller
         $today = today();
 
         $duties = RoutineDutyList::group($this->visibleOpenOccurrences($request)->get());
+        $due = $duties->filter(fn (array $d) => $d['oldest']->due_on->lte($today))->values();
 
         return view('my.routines', [
-            'due' => $duties->filter(fn (array $d) => $d['oldest']->due_on->lte($today))->values(),
+            // Fifteen venture accounts under one routine read as one task
+            // with a checklist, not fifteen identical cards -- see
+            // RoutineDutyList::nest().
+            'tasks' => RoutineDutyList::nest($due),
             'upcoming' => $this->upcomingFor($request),
             'today' => $today,
         ]);

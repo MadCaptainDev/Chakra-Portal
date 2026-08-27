@@ -5,7 +5,7 @@
     </x-slot>
 
     <div class="max-w-3xl space-y-6">
-        @if ($due->isEmpty())
+        @if ($tasks->isEmpty())
             <x-card padding="sm">
                 <p class="text-sm text-brand-100/60">Nothing due. You are all caught up.</p>
             </x-card>
@@ -14,8 +14,8 @@
                 @csrf
 
                 <div class="space-y-2">
-                    @foreach ($due as $duty)
-                        @include('my._routine-duty', ['duty' => $duty, 'today' => $today])
+                    @foreach ($tasks as $task)
+                        @include('my._routine-task', ['task' => $task])
                     @endforeach
                 </div>
 

@@ -128,6 +128,93 @@ class RoutineDutyListTest extends TestCase
     }
 
     /**
+     * The actual ask: "Checking Venture Messages" over fifteen accounts is
+     * one task with a checklist, not fifteen identical cards.
+     */
+    public function test_nest_collapses_one_routines_accounts_into_one_task(): void
+    {
+        Carbon::setTestNow('2026-08-25 12:00:00');
+
+        $routine = Routine::factory()->create([
+            'title' => 'Checking Venture Messages',
+            'starts_on' => '2026-08-25',
+            'catch_up_days' => 0,
+            'subject_type' => Routine::SUBJECT_ACCOUNTS,
+        ]);
+        $routine->users()->attach(User::factory()->employee()->create());
+
+        foreach (['Venture A', 'Venture B', 'Venture C'] as $name) {
+            $account = ContentAccount::factory()->create(['name' => $name]);
+            $routine->subjects()->create([
+                'subject_type' => Routine::SUBJECT_CONTENT,
+                'subject_id' => $account->id,
+            ]);
+        }
+
+        app(RoutineOccurrenceGenerator::class)->run();
+
+        $duties = RoutineDutyList::group($this->openOccurrences());
+        $this->assertCount(3, $duties, 'still three separate completable rows underneath');
+
+        $tasks = RoutineDutyList::nest($duties);
+
+        $this->assertCount(1, $tasks, 'one task on screen');
+        $task = $tasks->first();
+        $this->assertSame('Checking Venture Messages', $task['routine']->title);
+        $this->assertCount(3, $task['subtasks']);
+        $this->assertSame(3, $task['total']);
+    }
+
+    public function test_nest_keeps_a_plain_duty_as_a_single_subtask_task(): void
+    {
+        Carbon::setTestNow('2026-08-25 12:00:00');
+
+        $routine = Routine::factory()->create([
+            'title' => 'Clean the office',
+            'starts_on' => '2026-08-25',
+            'catch_up_days' => 0,
+        ]);
+        $routine->users()->attach(User::factory()->employee()->create());
+
+        app(RoutineOccurrenceGenerator::class)->run();
+
+        $tasks = RoutineDutyList::nest(RoutineDutyList::group($this->openOccurrences()));
+
+        $this->assertCount(1, $tasks);
+        $this->assertCount(1, $tasks->first()['subtasks']);
+    }
+
+    public function test_nest_keeps_different_checkpoints_as_separate_tasks(): void
+    {
+        Carbon::setTestNow('2026-08-25 12:00:00');
+
+        $routine = Routine::factory()->create([
+            'starts_on' => '2026-08-25',
+            'catch_up_days' => 0,
+            'subject_type' => Routine::SUBJECT_ACCOUNTS,
+        ]);
+        $routine->users()->attach(User::factory()->employee()->create());
+        $routine->checkpoints()->create(['name' => 'Messages', 'sort_order' => 0]);
+        $routine->checkpoints()->create(['name' => 'Comments', 'sort_order' => 1]);
+
+        foreach (['Desk A', 'Desk B'] as $name) {
+            $account = ContentAccount::factory()->create(['name' => $name]);
+            $routine->subjects()->create([
+                'subject_type' => Routine::SUBJECT_CONTENT,
+                'subject_id' => $account->id,
+            ]);
+        }
+
+        app(RoutineOccurrenceGenerator::class)->run();
+
+        $tasks = RoutineDutyList::nest(RoutineDutyList::group($this->openOccurrences()));
+
+        // Messages and Comments are two different tasks, two accounts each.
+        $this->assertCount(2, $tasks);
+        $this->assertTrue($tasks->every(fn (array $t) => $t['subtasks']->count() === 2));
+    }
+
+    /**
      * @return Collection<int, RoutineOccurrence>
      */
     private function openOccurrences()

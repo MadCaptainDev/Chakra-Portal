@@ -131,7 +131,12 @@ class RoutineCheckingController extends Controller
             $groups->push([
                 'person' => null,
                 'name' => 'Anyone on the team',
+                // 'duties' stays the flat, per-account count ("12 to do"
+                // means twelve accounts, not two routines); 'tasks' is what
+                // actually renders -- one card per routine, accounts nested
+                // as a checklist underneath. See RoutineDutyList::nest().
                 'duties' => $shared,
+                'tasks' => RoutineDutyList::nest($shared),
                 'late' => $shared->where('is_overdue', true)->count(),
             ]);
         }
@@ -144,6 +149,7 @@ class RoutineCheckingController extends Controller
                 'person' => $person,
                 'name' => $person->name,
                 'duties' => $rows->values(),
+                'tasks' => RoutineDutyList::nest($rows->values()),
                 'late' => $rows->where('is_overdue', true)->count(),
             ]);
         }

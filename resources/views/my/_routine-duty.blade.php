@@ -1,9 +1,13 @@
 @php
-    use App\Models\RoutineField;
-
     /**
-     * One duty, however many days it is behind. The backlog is a line of text,
-     * not four identical cards.
+     * One duty, however many days it is behind. The backlog is a line of
+     * text, not four identical cards.
+     *
+     * Used for a task with a single subtask -- a plain, non-account-scoped
+     * routine, the overwhelming majority. A task with several subtasks
+     * (fifteen venture accounts under one "Checking Venture Messages"
+     * routine) renders as a checklist instead -- see _routine-task /
+     * _routine-checklist.
      */
     $occurrence = $duty['oldest'];
     $fields = $occurrence->applicableFields();
@@ -48,33 +52,6 @@
     </label>
 
     @if ($fields->isNotEmpty())
-        <div x-show="ticked.includes('{{ $key }}')" x-cloak class="mt-3 pl-8 space-y-2">
-            @foreach ($fields as $field)
-                <div>
-                    <label class="block text-xs font-medium text-brand-100/70 mb-0.5">{{ $field->label }}</label>
-                    @if ($field->type === RoutineField::TYPE_BOOLEAN)
-                        <select name="values[{{ $key }}][{{ $field->key }}]"
-                                class="block w-full rounded-md border-white/15 text-sm">
-                            <option value="0">No</option>
-                            <option value="1" @selected($field->resolvedDefault())>Yes</option>
-                        </select>
-                    @elseif ($field->type === RoutineField::TYPE_NUMBER)
-                        <input type="number" step="any" name="values[{{ $key }}][{{ $field->key }}]"
-                               value="{{ $field->resolvedDefault() }}"
-                               class="block w-full rounded-md border-white/15 text-sm">
-                    @else
-                        <input type="text" name="values[{{ $key }}][{{ $field->key }}]"
-                               value="{{ $field->resolvedDefault() }}"
-                               class="block w-full rounded-md border-white/15 text-sm">
-                    @endif
-                </div>
-            @endforeach
-
-            @if ($duty['outstanding'] > 1)
-                <p class="text-xs text-brand-100/50">
-                    Saving closes all {{ $duty['outstanding'] }} outstanding days with these values.
-                </p>
-            @endif
-        </div>
+        @include('my._routine-fields', ['fields' => $fields, 'key' => $key, 'outstanding' => $duty['outstanding']])
     @endif
 </x-card>
