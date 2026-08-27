@@ -12,8 +12,8 @@
 
     <div class="space-y-4">
         @unless ($settings->hasApify())
-            <div class="rounded-xl bg-amber-50 ring-1 ring-amber-200 p-4">
-                <p class="text-sm text-amber-800">
+            <div class="rounded-xl bg-amber-400/10 ring-1 ring-amber-400/30 p-4">
+                <p class="text-sm text-amber-200">
                     No Apify token set yet, so scraping won't work. Add one under
                     <a href="{{ route('competitor-settings.edit') }}" class="font-semibold underline">Setup → Competitor Analysis</a>.
                 </p>
@@ -47,14 +47,14 @@
         @if ($accounts->isEmpty())
             <x-empty-state message="Not tracking anyone yet." />
         @else
-            <x-card class="divide-y divide-gray-100 overflow-hidden">
+            <x-card class="divide-y divide-white/10 overflow-hidden">
                 @foreach ($accounts as $account)
                     <div class="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
                         <div class="min-w-0 flex-1">
-                            <a href="{{ route('competitors.show', $account) }}" class="font-semibold text-gray-900 hover:text-brand-600">
+                            <a href="{{ route('competitors.show', $account) }}" class="font-semibold text-white hover:text-brand-300">
                                 {{ $account->handle() }}
                             </a>
-                            <p class="text-xs text-gray-500 mt-0.5">
+                            <p class="text-xs text-brand-100/60 mt-0.5">
                                 {{ $account->reels_count }} {{ Str::plural('reel', $account->reels_count) }} scraped
                                 @if ($account->avg_views_30d)
                                     &middot; avg {{ number_format($account->avg_views_30d) }} views/30d
@@ -79,7 +79,7 @@
                                   onsubmit="return confirm('Stop tracking {{ $account->handle() }}? Its scraped reels and any generated concepts go with it.');">
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit" class="min-h-[44px] px-2 text-xs font-semibold text-red-600 hover:text-red-800">Remove</button>
+                                <button type="submit" class="min-h-[44px] px-2 text-xs font-semibold text-red-300 hover:text-red-200">Remove</button>
                             </form>
                         </div>
                     </div>

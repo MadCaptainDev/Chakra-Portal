@@ -19,28 +19,28 @@
         <x-card padding="md">
             <div class="flex flex-wrap items-center gap-x-8 gap-y-4">
                 <div>
-                    <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Apify (scraping)</p>
+                    <p class="text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 mb-1.5">Apify (scraping)</p>
                     <x-badge :status="$settings->hasApify() ? 'active' : 'overdue'">{{ $settings->hasApify() ? 'Set' : 'Not set' }}</x-badge>
                 </div>
                 <div>
-                    <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Gemini (analysis)</p>
+                    <p class="text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 mb-1.5">Gemini (analysis)</p>
                     <x-badge :status="$settings->hasGemini() ? 'active' : 'overdue'">{{ $settings->hasGemini() ? 'Set' : 'Not set' }}</x-badge>
                 </div>
                 <div>
-                    <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Anthropic (concepts)</p>
+                    <p class="text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 mb-1.5">Anthropic (concepts)</p>
                     <x-badge :status="$settings->hasAnthropic() ? 'active' : 'overdue'">{{ $settings->hasAnthropic() ? 'Set' : 'Not set' }}</x-badge>
                 </div>
                 <div>
-                    <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Tracked competitors</p>
-                    <p class="text-sm font-medium text-gray-900">{{ $trackedCount }}</p>
+                    <p class="text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 mb-1.5">Tracked competitors</p>
+                    <p class="text-sm font-medium text-white">{{ $trackedCount }}</p>
                 </div>
             </div>
 
             @if ($settings->hasAnthropic())
-                <form method="POST" action="{{ route('competitor-settings.test') }}" class="mt-4 pt-4 border-t border-gray-100">
+                <form method="POST" action="{{ route('competitor-settings.test') }}" class="mt-4 pt-4 border-t border-white/10">
                     @csrf
                     <x-secondary-button type="submit">Test the Anthropic connection</x-secondary-button>
-                    <p class="mt-1.5 text-xs text-gray-500">
+                    <p class="mt-1.5 text-xs text-brand-100/60">
                         Sends one real, cheap request to Claude and shows its reply — proves the key works
                         without spending on Apify or Gemini.
                     </p>
@@ -78,7 +78,7 @@
                                   autocomplete="off" spellcheck="false"
                                   placeholder="{{ $settings->hasApify() ? 'Saved — leave blank to keep it' : 'apify_api_...' }}" />
                     <x-input-error :messages="$errors->get('apify_token')" class="mt-2" />
-                    <p class="text-xs text-gray-500 mt-1">Stored encrypted and never shown again.</p>
+                    <p class="text-xs text-brand-100/60 mt-1">Stored encrypted and never shown again.</p>
                 </div>
 
                 <x-section-heading
@@ -91,7 +91,7 @@
                                   autocomplete="off" spellcheck="false"
                                   placeholder="{{ $settings->hasGemini() ? 'Saved — leave blank to keep it' : 'AIza...' }}" />
                     <x-input-error :messages="$errors->get('gemini_api_key')" class="mt-2" />
-                    <p class="text-xs text-gray-500 mt-1">Stored encrypted and never shown again.</p>
+                    <p class="text-xs text-brand-100/60 mt-1">Stored encrypted and never shown again.</p>
                 </div>
 
                 <div class="mb-6">
@@ -99,7 +99,7 @@
                     <x-text-input id="gemini_model" name="gemini_model" type="text" class="mt-1 w-full font-mono text-xs"
                                   value="{{ old('gemini_model', $settings->gemini_model) }}" />
                     <x-input-error :messages="$errors->get('gemini_model')" class="mt-2" />
-                    <p class="text-xs text-gray-500 mt-1">
+                    <p class="text-xs text-brand-100/60 mt-1">
                         Not a secret — just which model to call. Google retires models occasionally; change
                         this if analysis starts failing with a 404.
                     </p>
@@ -115,13 +115,13 @@
                                   autocomplete="off" spellcheck="false"
                                   placeholder="{{ $settings->hasAnthropic() ? 'Saved — leave blank to keep it' : 'sk-ant-...' }}" />
                     <x-input-error :messages="$errors->get('anthropic_api_key')" class="mt-2" />
-                    <p class="text-xs text-gray-500 mt-1">Stored encrypted and never shown again.</p>
+                    <p class="text-xs text-brand-100/60 mt-1">Stored encrypted and never shown again.</p>
                 </div>
 
                 <div class="flex items-center gap-3">
                     <x-primary-button>Save</x-primary-button>
                     @if ($settings->updatedBy)
-                        <span class="text-xs text-gray-500">
+                        <span class="text-xs text-brand-100/60">
                             Last changed by {{ $settings->updatedBy->name }}, {{ $settings->updated_at->diffForHumans() }}
                         </span>
                     @endif
@@ -130,7 +130,7 @@
         </x-card>
 
         @unless ($configured)
-            <p class="text-xs text-gray-500 text-center">
+            <p class="text-xs text-brand-100/60 text-center">
                 All three keys are needed for the full pipeline — scraping works with just Apify, but
                 analysis needs Gemini too and generating concepts needs Anthropic.
             </p>

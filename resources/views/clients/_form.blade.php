@@ -12,7 +12,7 @@
     <x-input-label :value="isset($client) && $client->logo_path ? 'Replace logo' : 'Logo'" for="logo" />
 
     <div class="mt-1 flex items-center gap-4">
-        <div class="w-24 h-24 shrink-0 rounded-md border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
+        <div class="w-24 h-24 shrink-0 rounded-md border border-white/10 bg-brand-900/40 overflow-hidden flex items-center justify-center">
             <template x-if="preview">
                 <img :src="preview" alt="" class="w-full h-full object-contain">
             </template>
@@ -22,7 +22,7 @@
                     @if (isset($client) && $client->logoUrl())
                         <img src="{{ $client->logoUrl() }}" alt="{{ $client->name }} logo" class="w-full h-full object-contain">
                     @else
-                        <span class="text-[10px] text-gray-400">No logo</span>
+                        <span class="text-[10px] text-brand-100/50">No logo</span>
                     @endif
                 </div>
             </template>
@@ -31,13 +31,13 @@
         <div class="min-w-0 flex-1">
             <input id="logo" name="logo" type="file" accept="image/*"
                    @change="preview = $event.target.files.length ? URL.createObjectURL($event.target.files[0]) : null"
-                   class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:uppercase file:tracking-widest file:bg-brand-400 file:text-brand-900 hover:file:bg-brand-500">
-            <p class="mt-1 text-xs text-gray-500">PNG on a transparent background works best. Max 2&nbsp;MB.</p>
+                   class="block w-full text-sm text-brand-100/70 file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:uppercase file:tracking-widest file:bg-brand-400 file:text-brand-900 hover:file:bg-brand-500">
+            <p class="mt-1 text-xs text-brand-100/60">PNG on a transparent background works best. Max 2&nbsp;MB.</p>
             <x-input-error :messages="$errors->get('logo')" class="mt-2" />
 
             @if (isset($client) && $client->logo_path)
-                <label class="mt-2 inline-flex items-center gap-2 text-sm text-gray-600">
-                    <input type="checkbox" name="remove_logo" value="1" class="rounded border-gray-300 text-brand-500 focus:ring-brand-400">
+                <label class="mt-2 inline-flex items-center gap-2 text-sm text-brand-100/70">
+                    <input type="checkbox" name="remove_logo" value="1" class="rounded bg-white/10 border-white/25 text-brand-400 focus:ring-brand-400">
                     Remove logo
                 </label>
             @endif
@@ -60,7 +60,7 @@
     {{-- Master Data is admin-only, so the link is too. Somebody with the
          Clients module and nothing else would get a 403 from it. --}}
     @if (auth()->user()?->isAdmin())
-        <p class="mt-1 text-xs text-gray-500">Managed on <a href="{{ route('taxonomy.index', ['type' => 'industry']) }}" class="text-brand-500 hover:text-brand-600">Master Data</a>.</p>
+        <p class="mt-1 text-xs text-brand-100/60">Managed on <a href="{{ route('taxonomy.index', ['type' => 'industry']) }}" class="text-brand-500 hover:text-brand-300">Master Data</a>.</p>
     @endif
     <x-input-error :messages="$errors->get('industry_id')" class="mt-2" />
 </div>
@@ -85,5 +85,5 @@
 
 <div class="flex items-center gap-4">
     <x-primary-button>Save</x-primary-button>
-    <a href="{{ route('clients.index') }}" class="text-sm text-gray-600 hover:text-gray-900">Cancel</a>
+    <a href="{{ route('clients.index') }}" class="text-sm text-brand-100/70 hover:text-white">Cancel</a>
 </div>

@@ -28,15 +28,15 @@
     <div class="space-y-4">
         {{-- The one and only sighting of a freshly issued token. --}}
         @if ($plain)
-            <div class="rounded-xl bg-brand-50 ring-1 ring-brand-300 p-4" x-data="{ copied: false }">
-                <p class="text-xs font-semibold uppercase tracking-wider text-brand-700">New token</p>
-                <p class="mt-1 text-xs text-brand-900/70">
+            <div class="rounded-xl bg-white/5 ring-1 ring-brand-300 p-4" x-data="{ copied: false }">
+                <p class="text-xs font-semibold uppercase tracking-wider text-brand-200">New token</p>
+                <p class="mt-1 text-xs text-brand-100/70">
                     Copy it now and put it wherever this software's own backup/license-check script reads its config
                     from. It cannot be shown again — issuing a new one would silently retire this one.
                 </p>
                 <div class="mt-3">
-                    <code class="block w-full overflow-x-auto rounded-md bg-white px-3 py-2.5 text-xs
-                                 text-gray-900 ring-1 ring-gray-200 select-all">{{ $plain }}</code>
+                    <code class="block w-full overflow-x-auto rounded-md bg-white/5 px-3 py-2.5 text-xs
+                                 text-white ring-1 ring-white/10 select-all">{{ $plain }}</code>
                     <button type="button"
                             @click="navigator.clipboard.writeText($el.previousElementSibling.textContent.trim());
                                     copied = true; setTimeout(() => copied = false, 2000)"
@@ -53,7 +53,7 @@
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="flex items-center gap-3">
                     <x-badge :status="$product->status()" class="text-sm" />
-                    <p class="text-sm text-gray-600">
+                    <p class="text-sm text-brand-100/70">
                         @if ($product->is_suspended)
                             Suspended {{ $product->suspended_at->diffForHumans() }} by {{ $product->suspendedBy->name ?? 'an admin' }}.
                             Its own software will see this on its next license check.
@@ -89,13 +89,13 @@
                 <x-section-heading title="AMC billing" />
 
                 @if ($product->recurringInvoice)
-                    <p class="text-sm text-gray-600">
+                    <p class="text-sm text-brand-100/70">
                         Billed {{ strtolower($amcFrequencyLabel) }}
-                        via <a href="{{ route('recurring.edit', $product->recurringInvoice) }}" class="font-semibold text-brand-600 hover:text-brand-800">its recurring invoice schedule</a>.
+                        via <a href="{{ route('recurring.edit', $product->recurringInvoice) }}" class="font-semibold text-brand-300 hover:text-brand-200">its recurring invoice schedule</a>.
                         Paying that invoice in full extends AMC by one {{ strtolower($amcFrequencyLabel) }} period automatically.
                     </p>
                 @else
-                    <p class="text-sm text-gray-600 mb-3">
+                    <p class="text-sm text-brand-100/70 mb-3">
                         Not set up yet. This creates a recurring invoice schedule tied to this product —
                         each time it's paid in full, AMC is extended by one billing period.
                     </p>
@@ -142,12 +142,12 @@
             @if ($backups->isEmpty())
                 <x-empty-state message="No backups uploaded yet. They land here automatically once the software's own backup script starts pushing to the API." />
             @else
-                <div class="divide-y divide-gray-100">
+                <div class="divide-y divide-white/10">
                     @foreach ($backups as $backup)
                         <div class="py-3 flex items-center justify-between gap-3">
                             <div class="min-w-0">
-                                <p class="text-sm font-medium text-gray-900">{{ $backup->taken_at->format('j M Y, g:i A') }}</p>
-                                <p class="text-xs text-gray-500 mt-0.5">
+                                <p class="text-sm font-medium text-white">{{ $backup->taken_at->format('j M Y, g:i A') }}</p>
+                                <p class="text-xs text-brand-100/60 mt-0.5">
                                     {{ $formatBytes($backup->size_bytes) }}
                                     &middot; {{ substr($backup->checksum, 0, 12) }}&hellip;
                                 </p>
@@ -176,29 +176,29 @@
 
                 <div class="mt-3 space-y-4 text-xs">
                     <div>
-                        <p class="font-semibold text-gray-700 mb-1">Upload a backup</p>
-                        <code class="block overflow-x-auto rounded-md bg-gray-50 px-3 py-2 text-gray-800 ring-1 ring-gray-200">curl -X POST {{ route('api.saas.backups.store') }} \<br>
+                        <p class="font-semibold text-brand-100/80 mb-1">Upload a backup</p>
+                        <code class="block overflow-x-auto rounded-md bg-brand-900/40 px-3 py-2 text-white ring-1 ring-white/10">curl -X POST {{ route('api.saas.backups.store') }} \<br>
 &nbsp;&nbsp;{{ $curlHeader }} \<br>
 &nbsp;&nbsp;-F "file=@/path/to/backup.sql.gz"</code>
                     </div>
                     <div>
-                        <p class="font-semibold text-gray-700 mb-1">List backups (for a restore script to pick a version)</p>
-                        <code class="block overflow-x-auto rounded-md bg-gray-50 px-3 py-2 text-gray-800 ring-1 ring-gray-200">curl {{ route('api.saas.backups.index') }} {{ $curlHeader }}</code>
+                        <p class="font-semibold text-brand-100/80 mb-1">List backups (for a restore script to pick a version)</p>
+                        <code class="block overflow-x-auto rounded-md bg-brand-900/40 px-3 py-2 text-white ring-1 ring-white/10">curl {{ route('api.saas.backups.index') }} {{ $curlHeader }}</code>
                     </div>
                     <div>
-                        <p class="font-semibold text-gray-700 mb-1">Check the license (call on startup, then on a timer)</p>
-                        <code class="block overflow-x-auto rounded-md bg-gray-50 px-3 py-2 text-gray-800 ring-1 ring-gray-200">curl {{ route('api.saas.license') }} {{ $curlHeader }}</code>
+                        <p class="font-semibold text-brand-100/80 mb-1">Check the license (call on startup, then on a timer)</p>
+                        <code class="block overflow-x-auto rounded-md bg-brand-900/40 px-3 py-2 text-white ring-1 ring-white/10">curl {{ route('api.saas.license') }} {{ $curlHeader }}</code>
                     </div>
                     <div>
-                        <p class="font-semibold text-gray-700 mb-1">Fetch this product's own configuration</p>
-                        <code class="block overflow-x-auto rounded-md bg-gray-50 px-3 py-2 text-gray-800 ring-1 ring-gray-200">curl {{ route('api.saas.config') }} {{ $curlHeader }}</code>
-                        <p class="mt-1 text-gray-500">Returns <code>name</code>, <code>backup_retention_count</code> and <code>amc_frequency</code> -- read fresh every call, so changing the retention count here takes effect without redeploying the client software.</p>
+                        <p class="font-semibold text-brand-100/80 mb-1">Fetch this product's own configuration</p>
+                        <code class="block overflow-x-auto rounded-md bg-brand-900/40 px-3 py-2 text-white ring-1 ring-white/10">curl {{ route('api.saas.config') }} {{ $curlHeader }}</code>
+                        <p class="mt-1 text-brand-100/60">Returns <code>name</code>, <code>backup_retention_count</code> and <code>amc_frequency</code> -- read fresh every call, so changing the retention count here takes effect without redeploying the client software.</p>
                     </div>
                 </div>
 
                 @if (Route::has('developer.index'))
-                    <p class="mt-4 text-xs text-gray-500">
-                        Full interactive reference, every endpoint: <a href="{{ route('developer.index') }}" class="font-semibold text-brand-600 hover:text-brand-800">Developer</a>.
+                    <p class="mt-4 text-xs text-brand-100/60">
+                        Full interactive reference, every endpoint: <a href="{{ route('developer.index') }}" class="font-semibold text-brand-300 hover:text-brand-200">Developer</a>.
                     </p>
                 @endif
             </x-card>

@@ -16,12 +16,12 @@
             <x-slot name="actions">
                 @if ($account)
                     <a href="{{ route('instagram.report', $client) }}"
-                       class="text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                       class="text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
                         Monthly report
                     </a>
                 @endif
                 <a href="{{ route('clients.show', $client) }}#social"
-                   class="text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                   class="text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
                     ← Back to client
                 </a>
             </x-slot>
@@ -30,11 +30,11 @@
 
     @if (! $account)
         <x-card padding="md" class="max-w-lg">
-            <p class="text-sm text-gray-600">
+            <p class="text-sm text-brand-100/70">
                 No Instagram account is connected for {{ $client->name }} yet.
             </p>
             <a href="{{ route('clients.show', $client) }}#social"
-               class="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+               class="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
                 Connect Instagram
             </a>
         </x-card>
@@ -62,11 +62,11 @@
                     <div class="flex items-center gap-3">
                         @if ($account->profile_picture_url)
                             <img src="{{ $account->profile_picture_url }}" alt="" onerror="this.remove()"
-                                 class="w-10 h-10 rounded-full object-cover ring-1 ring-gray-900/5">
+                                 class="w-10 h-10 rounded-full object-cover ring-1 ring-white/10">
                         @endif
                         <div>
-                            <p class="text-sm font-semibold text-gray-900">{{ $account->handle() }}</p>
-                            <p class="text-xs text-gray-500">
+                            <p class="text-sm font-semibold text-white">{{ $account->handle() }}</p>
+                            <p class="text-xs text-brand-100/60">
                                 {{-- The exact date and time, not "2 hours ago": a
                                      number on a client-facing screen should say
                                      precisely when it was true, in the studio's
@@ -100,7 +100,7 @@
                              one: a disabled-looking button with no explanation
                              reads as broken rather than as "already synced". --}}
                         @unless ($account->canSyncNow())
-                            <p class="mt-1 text-[11px] text-gray-400">
+                            <p class="mt-1 text-[11px] text-brand-100/50">
                                 Again in {{ now()->diffForHumans($account->nextSyncAllowedAt(), true) }}
                             </p>
                         @endunless
@@ -113,13 +113,13 @@
                      midnight -- see InstagramInsights for why -- so the dates
                      shown are the studio's own IST calendar days, not
                      Instagram's Pacific-anchored ones underneath them. --}}
-                <p class="mt-3 text-xs text-gray-500">
-                    Showing <span class="font-medium text-gray-700">{{ $since->format('j M Y') }}</span>
-                    to <span class="font-medium text-gray-700">{{ $until->format('j M Y') }}</span> (Asia/Kolkata).
+                <p class="mt-3 text-xs text-brand-100/60">
+                    Showing <span class="font-medium text-brand-100/80">{{ $since->format('j M Y') }}</span>
+                    to <span class="font-medium text-brand-100/80">{{ $until->format('j M Y') }}</span> (Asia/Kolkata).
                 </p>
 
                 @if ($account->last_error)
-                    <p class="mt-3 text-sm text-amber-800 bg-amber-50 ring-1 ring-amber-100 rounded-lg px-3 py-2">
+                    <p class="mt-3 text-sm text-amber-200 bg-amber-400/10 ring-1 ring-amber-400/20 rounded-lg px-3 py-2">
                         Last problem: {{ $account->last_error }}
                     </p>
                 @endif
@@ -134,7 +134,7 @@
                        @class([
                            'inline-flex items-center min-h-[36px] px-3 rounded-full text-xs font-semibold transition-colors',
                            'bg-brand-500 text-white' => $rangeKey === $key,
-                           'bg-white text-gray-600 ring-1 ring-gray-900/5 hover:ring-gray-900/10' => $rangeKey !== $key,
+                           'bg-white/5 text-brand-100/70 ring-1 ring-white/10 hover:ring-white/15' => $rangeKey !== $key,
                        ])>
                         {{ $label }}
                     </a>
@@ -147,13 +147,13 @@
                       class="inline-flex items-center gap-1.5">
                     <input type="hidden" name="range" value="custom">
                     <input type="date" name="from" value="{{ $since->toDateString() }}"
-                           class="rounded-md border-gray-300 text-xs py-1.5">
-                    <span class="text-xs text-gray-400">to</span>
+                           class="rounded-md border-white/15 text-xs py-1.5">
+                    <span class="text-xs text-brand-100/50">to</span>
                     <input type="date" name="to" value="{{ $until->toDateString() }}"
-                           class="rounded-md border-gray-300 text-xs py-1.5">
+                           class="rounded-md border-white/15 text-xs py-1.5">
                     <button type="submit"
                             class="inline-flex items-center min-h-[36px] px-3 rounded-full text-xs font-semibold transition-colors
-                                   {{ $rangeKey === 'custom' ? 'bg-brand-500 text-white' : 'bg-white text-gray-600 ring-1 ring-gray-900/5 hover:ring-gray-900/10' }}">
+                                   {{ $rangeKey === 'custom' ? 'bg-brand-500 text-white' : 'bg-white/5 text-brand-100/70 ring-1 ring-white/10 hover:ring-white/15' }}">
                         Go
                     </button>
                 </form>
@@ -168,7 +168,7 @@
                      separate story -- Content Performance below still shows
                      them, since per-post metrics are not bound by the same
                      90-day wall. --}}
-                <p class="text-xs text-amber-800 bg-amber-50 ring-1 ring-amber-100 rounded-lg px-3 py-2">
+                <p class="text-xs text-amber-200 bg-amber-400/10 ring-1 ring-amber-400/20 rounded-lg px-3 py-2">
                     Part of this range is older than Instagram's own 90-day window for account-wide numbers
                     (Reach, Follower growth, Views trend, Engagement breakdown below) — those will look thin
                     or empty for dates before {{ now()->subDays(90)->format('j M Y') }}, and no amount of
@@ -199,7 +199,7 @@
                         $lastDay = end($trend);
                         $isPartial = $lastDay && $lastDay['date'] === now()->toDateString();
                     @endphp
-                    <p class="mt-2 text-[11px] text-gray-400">
+                    <p class="mt-2 text-[11px] text-brand-100/50">
                         Dates are Instagram's own daily figures, read in Asia/Kolkata.
                         @if ($isPartial)
                             Today's bar is still accumulating — check back later for the full day.
@@ -213,7 +213,7 @@
                         subtitle="What the {{ number_format($overview['engagement']) }} total engagements were made of." />
                     <x-charts.bar-list :items="$breakdown" empty="No engagement data cached for this range yet." />
                     @if (collect($breakdown)->sum('value') > 0 && collect($breakdown)->sum('value') != $overview['engagement'])
-                        <p class="mt-3 text-[11px] text-gray-400">
+                        <p class="mt-3 text-[11px] text-brand-100/50">
                             These six add up to {{ number_format(collect($breakdown)->sum('value')) }}. Instagram's total
                             can include a few interaction types the studio does not break out individually.
                         </p>
@@ -232,9 +232,9 @@
                 @if ($formats)
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         @foreach ($formats as $format)
-                            <div class="rounded-lg bg-gray-50 ring-1 ring-gray-900/5 px-4 py-3">
-                                <p class="text-2xl font-bold text-gray-900 tabular-nums">{{ $format['count'] }}</p>
-                                <p class="mt-1 text-[11px] font-semibold uppercase tracking-wider text-gray-500">{{ $format['label'] }}{{ $format['count'] === 1 ? '' : 's' }}</p>
+                            <div class="rounded-lg bg-brand-900/40 ring-1 ring-white/10 px-4 py-3">
+                                <p class="text-2xl font-bold text-white tabular-nums">{{ $format['count'] }}</p>
+                                <p class="mt-1 text-[11px] font-semibold uppercase tracking-wider text-brand-100/60">{{ $format['label'] }}{{ $format['count'] === 1 ? '' : 's' }}</p>
                             </div>
                         @endforeach
                     </div>
@@ -266,9 +266,9 @@
                     <div class="overflow-x-auto">
                         <table class="min-w-full text-sm">
                             <thead>
-                                <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">
+                                <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 border-b border-white/10">
                                     <th class="px-4 sm:px-5 py-2.5">
-                                        <a href="{{ $sortLink('date') }}" class="inline-flex items-center gap-1 hover:text-gray-700">
+                                        <a href="{{ $sortLink('date') }}" class="inline-flex items-center gap-1 hover:text-brand-100/80">
                                             Content
                                             @if ($sortBy === 'date')
                                                 <span aria-hidden="true">{{ $direction === 'desc' ? '▼' : '▲' }}</span>
@@ -278,7 +278,7 @@
                                     <th class="px-3 py-2.5">Type</th>
                                     @foreach (['reach' => 'Reach', 'views' => 'Views', 'engagement' => 'Engagement'] as $key => $label)
                                         <th class="px-3 py-2.5 text-right">
-                                            <a href="{{ $sortLink($key) }}" class="inline-flex items-center gap-1 hover:text-gray-700">
+                                            <a href="{{ $sortLink($key) }}" class="inline-flex items-center gap-1 hover:text-brand-100/80">
                                                 {{ $label }}
                                                 @if ($sortBy === $key)
                                                     <span aria-hidden="true">{{ $direction === 'desc' ? '▼' : '▲' }}</span>
@@ -291,7 +291,7 @@
                                     @endcan
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-100">
+                            <tbody class="divide-y divide-white/10">
                                 @foreach ($content as $item)
                                     <tr>
                                         <td class="px-4 sm:px-5 py-2.5">
@@ -299,39 +299,39 @@
                                                 @if ($item->thumbnail_url || $item->media_url)
                                                     <img src="{{ $item->thumbnail_url ?: $item->media_url }}" alt=""
                                                          onerror="this.remove()"
-                                                         class="w-9 h-9 rounded-md object-cover ring-1 ring-gray-900/5 shrink-0">
+                                                         class="w-9 h-9 rounded-md object-cover ring-1 ring-white/10 shrink-0">
                                                 @endif
                                                 <div class="min-w-0">
                                                     @if ($item->permalink)
                                                         <a href="{{ $item->permalink }}" target="_blank" rel="noopener"
-                                                           class="text-gray-900 font-medium hover:text-brand-600 truncate block max-w-xs">
+                                                           class="text-white font-medium hover:text-brand-300 truncate block max-w-xs">
                                                             {{ $item->shortCaption() }}
                                                         </a>
                                                     @else
-                                                        <span class="text-gray-900 font-medium truncate block max-w-xs">{{ $item->shortCaption() }}</span>
+                                                        <span class="text-white font-medium truncate block max-w-xs">{{ $item->shortCaption() }}</span>
                                                     @endif
-                                                    <span class="text-xs text-gray-400">{{ $item->posted_at?->format('j M Y') }}</span>
+                                                    <span class="text-xs text-brand-100/50">{{ $item->posted_at?->format('j M Y') }}</span>
                                                 </div>
                                             </div>
                                         </td>
                                         <td class="px-3 py-2.5 whitespace-nowrap">
-                                            <x-badge color="{{ $item->isReel() ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600' }}">
+                                            <x-badge color="{{ $item->isReel() ? 'bg-purple-400/15 text-purple-200' : 'bg-white/10 text-brand-100/70' }}">
                                                 {{ $item->typeLabel() }}
                                             </x-badge>
                                         </td>
-                                        <td class="px-3 py-2.5 text-right tabular-nums text-gray-900">
+                                        <td class="px-3 py-2.5 text-right tabular-nums text-white">
                                             {{ $item->metricValue('reach') !== null ? number_format($item->metricValue('reach')) : '—' }}
                                         </td>
-                                        <td class="px-3 py-2.5 text-right tabular-nums text-gray-900">
+                                        <td class="px-3 py-2.5 text-right tabular-nums text-white">
                                             {{ $item->metricValue('views') !== null ? number_format($item->metricValue('views')) : '—' }}
                                         </td>
-                                        <td class="px-3 py-2.5 text-right tabular-nums text-gray-900">
+                                        <td class="px-3 py-2.5 text-right tabular-nums text-white">
                                             {{ $item->metricValue('total_interactions') !== null ? number_format($item->metricValue('total_interactions')) : '—' }}
                                         </td>
                                         @can('portfolio.create')
                                             <td class="px-3 py-2.5 whitespace-nowrap">
                                                 <a href="{{ route('portfolio.create', ['client_id' => $client->id, 'media_id' => $item->id]) }}"
-                                                   class="text-xs font-semibold text-brand-600 hover:text-brand-700">
+                                                   class="text-xs font-semibold text-brand-300 hover:text-brand-200">
                                                     Add to portfolio
                                                 </a>
                                             </td>

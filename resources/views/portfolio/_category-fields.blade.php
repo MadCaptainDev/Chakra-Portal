@@ -25,8 +25,8 @@
 <label class="mt-4 flex items-center gap-3 min-h-[44px] cursor-pointer">
     <input type="checkbox" name="is_visible" value="1"
            @checked(old('is_visible', $category?->is_visible ?? true))
-           class="rounded border-gray-300 text-brand-500 focus:ring-brand-400">
-    <span class="text-sm text-gray-700">Show this tab on the website</span>
+           class="rounded bg-white/10 border-white/25 text-brand-400 focus:ring-brand-400">
+    <span class="text-sm text-brand-100/80">Show this tab on the website</span>
 </label>
 
 <div class="mt-4">

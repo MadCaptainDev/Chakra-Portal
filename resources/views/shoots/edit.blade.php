@@ -10,7 +10,7 @@
                 @include('shoots._form')
                 <div class="flex items-center gap-4 mt-6">
                     <x-btn type="submit">Save</x-btn>
-                    <a href="{{ route('shoots.show', $shoot) }}" class="text-sm text-gray-600 hover:text-gray-900">Cancel</a>
+                    <a href="{{ route('shoots.show', $shoot) }}" class="text-sm text-brand-100/70 hover:text-white">Cancel</a>
                 </div>
             </form>
         </x-card>

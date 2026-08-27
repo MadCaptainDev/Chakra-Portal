@@ -58,7 +58,7 @@
 @endphp
 
 @if (! $brief || ! $brief->exists)
-    <p class="text-sm text-gray-500">
+    <p class="text-sm text-brand-100/60">
         Nothing yet — this client has not started their brand brief.
     </p>
 @elseif ($compact)
@@ -70,16 +70,16 @@
                 @continue (! ($answer?->isAnswered() ?? false))
 
                 <div>
-                    <dt class="text-xs text-gray-500 leading-snug">
+                    <dt class="text-xs text-brand-100/60 leading-snug">
                         {{ $question['label'] }}
                         @if ($brief->editedSinceSubmit($key))
-                            <span class="ml-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600"
+                            <span class="ml-1 text-[10px] font-semibold uppercase tracking-wider text-amber-300"
                                   title="Changed after the brief was sent in">
                                 edited {{ $answer->updated_at->diffForHumans(null, true) }} ago
                             </span>
                         @endif
                     </dt>
-                    <dd class="mt-0.5 text-sm text-gray-900 whitespace-pre-line">
+                    <dd class="mt-0.5 text-sm text-white whitespace-pre-line">
                         {{ $brief->displayAnswer($key) }}
                     </dd>
                 </div>
@@ -101,7 +101,7 @@
 
         @foreach ($groups as $groupKey => $group)
             <div x-show="group === '{{ $groupKey }}'" x-cloak>
-                <dl class="divide-y divide-gray-100">
+                <dl class="divide-y divide-white/10">
                     @foreach ($group['questions'] as $key => $question)
                         @php
                             $answer = $answers->get($key);
@@ -109,16 +109,16 @@
                         @endphp
 
                         <div class="py-3">
-                            <dt class="text-xs text-gray-500 leading-snug">
+                            <dt class="text-xs text-brand-100/60 leading-snug">
                                 {{ $question['label'] }}
                                 @if ($answered && $brief->editedSinceSubmit($key))
-                                    <span class="ml-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600"
+                                    <span class="ml-1 text-[10px] font-semibold uppercase tracking-wider text-amber-300"
                                           title="Changed after the brief was sent in">
                                         edited {{ $answer->updated_at->diffForHumans(null, true) }} ago
                                     </span>
                                 @endif
                             </dt>
-                            <dd class="mt-1 text-sm {{ $answered ? 'text-gray-900 whitespace-pre-line' : 'text-gray-400' }}">
+                            <dd class="mt-1 text-sm {{ $answered ? 'text-white whitespace-pre-line' : 'text-brand-100/50' }}">
                                 {{-- Plain {{ }}. These are answers a client
                                      typed, rendered as text and never markup. --}}
                                 {{ $answered ? $brief->displayAnswer($key) : '—' }}

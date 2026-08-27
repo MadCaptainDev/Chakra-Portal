@@ -54,7 +54,7 @@
                 class="min-h-[36px] py-1.5 pl-3 pr-8 rounded-md bg-white/10 border-white/15 text-white text-xs
                        focus:border-brand-400 focus:ring-brand-400">
             @foreach (ContributionGraph::RANGES as $value => $label)
-                <option value="{{ $value }}" class="text-gray-900">{{ $label }}</option>
+                <option value="{{ $value }}" class="text-white">{{ $label }}</option>
             @endforeach
         </select>
     </div>

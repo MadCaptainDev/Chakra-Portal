@@ -17,21 +17,21 @@
     $canManage = auth()->user()->can('clients.manage');
 @endphp
 
-<x-card class="p-4 sm:p-6 border border-brand-100/40">
+<x-card class="p-4 sm:p-6 border border-white/10">
     <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div class="min-w-0">
-            <h3 class="font-semibold text-brand-900">Instagram</h3>
-            <p class="text-xs text-gray-500 mt-0.5">
+            <h3 class="font-semibold text-white">Instagram</h3>
+            <p class="text-xs text-brand-100/60 mt-0.5">
                 Connects {{ $client->name }}'s account so the portal can read their analytics.
             </p>
         </div>
 
         @if ($instagram?->isConnected())
-            <x-badge color="bg-green-100 text-green-800">Connected</x-badge>
+            <x-badge color="bg-green-400/15 text-green-200">Connected</x-badge>
         @elseif ($instagram)
-            <x-badge color="bg-gray-100 text-gray-600">Disconnected</x-badge>
+            <x-badge color="bg-white/10 text-brand-100/70">Disconnected</x-badge>
         @else
-            <x-badge color="bg-gray-100 text-gray-600">Not connected</x-badge>
+            <x-badge color="bg-white/10 text-brand-100/70">Not connected</x-badge>
         @endif
     </div>
 
@@ -43,11 +43,11 @@
                      hides itself. --}}
                 <img src="{{ $instagram->profile_picture_url }}" alt=""
                      onerror="this.remove()"
-                     class="w-11 h-11 rounded-full object-cover ring-1 ring-gray-900/5">
+                     class="w-11 h-11 rounded-full object-cover ring-1 ring-white/10">
             @endif
             <div class="min-w-0">
-                <p class="text-sm font-semibold text-gray-900">{{ $instagram->handle() }}</p>
-                <p class="text-xs text-gray-500">
+                <p class="text-sm font-semibold text-white">{{ $instagram->handle() }}</p>
+                <p class="text-xs text-brand-100/60">
                     @if ($instagram->followers_count !== null)
                         {{ number_format($instagram->followers_count) }} followers ·
                     @endif
@@ -58,25 +58,25 @@
 
         <dl class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm mb-4">
             <div>
-                <dt class="text-xs text-gray-500">Account type</dt>
-                <dd class="text-gray-900">{{ $instagram->account_type ? Str::headline(Str::lower($instagram->account_type)) : '—' }}</dd>
+                <dt class="text-xs text-brand-100/60">Account type</dt>
+                <dd class="text-white">{{ $instagram->account_type ? Str::headline(Str::lower($instagram->account_type)) : '—' }}</dd>
             </div>
             <div>
-                <dt class="text-xs text-gray-500">Last synced</dt>
+                <dt class="text-xs text-brand-100/60">Last synced</dt>
                 {{-- Phase 3 fills this. Saying "not yet" is honest; showing a
                      date that never moves would not be. --}}
-                <dd class="text-gray-900">{{ $instagram->last_synced_at?->diffForHumans() ?? 'Not yet — analytics come next' }}</dd>
+                <dd class="text-white">{{ $instagram->last_synced_at?->diffForHumans() ?? 'Not yet — analytics come next' }}</dd>
             </div>
             <div>
-                <dt class="text-xs text-gray-500">Access expires</dt>
-                <dd class="{{ $instagram->needsRefreshSoon() ? 'text-amber-700 font-medium' : 'text-gray-900' }}">
+                <dt class="text-xs text-brand-100/60">Access expires</dt>
+                <dd class="{{ $instagram->needsRefreshSoon() ? 'text-amber-200 font-medium' : 'text-white' }}">
                     {{ $instagram->token_expires_at?->diffForHumans() ?? '—' }}
                 </dd>
             </div>
         </dl>
 
         @if ($instagram->last_error)
-            <p class="mb-4 text-sm text-amber-800 bg-amber-50 ring-1 ring-amber-100 rounded-lg px-3 py-2">
+            <p class="mb-4 text-sm text-amber-200 bg-amber-400/10 ring-1 ring-amber-400/20 rounded-lg px-3 py-2">
                 Last problem: {{ $instagram->last_error }}
             </p>
         @endif
@@ -89,7 +89,7 @@
                 </a>
 
                 <a href="{{ route('instagram.report', $client) }}"
-                   class="inline-flex items-center gap-1.5 rounded-md border border-brand-300 px-3 py-2 text-xs font-semibold uppercase tracking-widest text-brand-700 hover:bg-brand-50">
+                   class="inline-flex items-center gap-1.5 rounded-md border border-brand-300 px-3 py-2 text-xs font-semibold uppercase tracking-widest text-brand-200 hover:bg-white/10">
                     Monthly Report
                 </a>
 
@@ -97,7 +97,7 @@
                       onsubmit="return confirm('Disconnect {{ $instagram->handle() }}? The stored access token is discarded and analytics stop updating. Anything already collected is kept, and you can reconnect the same account later.')">
                     @csrf @method('DELETE')
                     <button type="submit"
-                            class="text-xs font-semibold uppercase tracking-widest text-gray-500 hover:text-red-700">
+                            class="text-xs font-semibold uppercase tracking-widest text-brand-100/60 hover:text-red-200">
                         Disconnect
                     </button>
                 </form>
@@ -108,7 +108,7 @@
                 <form method="POST" action="{{ route('instagram.connect', $client) }}">
                     @csrf
                     <button type="submit"
-                            class="text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                            class="text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
                         Reconnect
                     </button>
                 </form>
@@ -117,18 +117,18 @@
 
     @else
         @if ($instagram?->last_error)
-            <p class="mb-3 text-sm text-amber-800 bg-amber-50 ring-1 ring-amber-100 rounded-lg px-3 py-2">
+            <p class="mb-3 text-sm text-amber-200 bg-amber-400/10 ring-1 ring-amber-400/20 rounded-lg px-3 py-2">
                 {{ $instagram->last_error }}
             </p>
         @endif
 
-        <p class="text-sm text-gray-600 mb-4">
+        <p class="text-sm text-brand-100/70 mb-4">
             The account must be a Professional one — Business or Creator. Instagram will ask
             {{ $client->name }} to sign in and approve access; the portal never sees their password.
         </p>
 
         @if (! $configured)
-            <p class="text-sm text-amber-800 bg-amber-50 ring-1 ring-amber-100 rounded-lg px-3 py-2">
+            <p class="text-sm text-amber-200 bg-amber-400/10 ring-1 ring-amber-400/20 rounded-lg px-3 py-2">
                 Instagram is not set up yet.
                 @if (auth()->user()->isAdmin())
                     Add the app ID and secret under <a href="{{ route('instagram-settings.edit') }}"
@@ -146,7 +146,7 @@
                 </button>
             </form>
         @else
-            <p class="text-sm text-gray-500">Only somebody with client management rights can connect this.</p>
+            <p class="text-sm text-brand-100/60">Only somebody with client management rights can connect this.</p>
         @endif
     @endif
 </x-card>

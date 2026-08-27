@@ -37,34 +37,34 @@
     {{-- Sticky toolbar. One for the whole editor, acting on whichever block
          has focus -- twenty toolbars is noise, and a bottom-fixed bar hides
          behind the iOS keyboard. --}}
-    <div class="sticky top-0 z-20 -mx-4 sm:mx-0 px-4 sm:px-0 py-2 bg-gray-50/95 backdrop-blur border-b border-gray-200 sm:rounded-t-xl sm:border sm:border-b-0">
+    <div class="sticky top-0 z-20 -mx-4 sm:mx-0 px-4 sm:px-0 py-2 bg-brand-900/85 backdrop-blur border-b border-white/10 sm:rounded-t-xl sm:border sm:border-b-0">
         <div class="flex flex-wrap items-center gap-1">
             <template x-for="cmd in commands" :key="cmd.name">
                 <button type="button" @mousedown.prevent @click="run(cmd.name)"
                         :aria-label="cmd.label" :title="cmd.label"
-                        class="inline-flex items-center justify-center min-w-[38px] min-h-[38px] px-2 rounded-md text-sm font-semibold text-gray-700 hover:bg-gray-200 transition">
+                        class="inline-flex items-center justify-center min-w-[38px] min-h-[38px] px-2 rounded-md text-sm font-semibold text-brand-100/80 hover:bg-white/[0.16] transition">
                     <span x-text="cmd.glyph" :class="cmd.classes"></span>
                 </button>
             </template>
 
-            <span class="w-px h-6 bg-gray-300 mx-1"></span>
+            <span class="w-px h-6 bg-white/20 mx-1"></span>
 
             <button type="button" @mousedown.prevent @click="promptLink()"
-                    class="inline-flex items-center justify-center min-h-[38px] px-3 rounded-md text-sm font-semibold text-gray-700 hover:bg-gray-200 transition">
+                    class="inline-flex items-center justify-center min-h-[38px] px-3 rounded-md text-sm font-semibold text-brand-100/80 hover:bg-white/[0.16] transition">
                 Link
             </button>
             <button type="button" @mousedown.prevent @click="run('removeFormat')"
-                    class="inline-flex items-center justify-center min-h-[38px] px-3 rounded-md text-sm text-gray-600 hover:bg-gray-200 transition">
+                    class="inline-flex items-center justify-center min-h-[38px] px-3 rounded-md text-sm text-brand-100/70 hover:bg-white/[0.16] transition">
                 Clear
             </button>
 
             {{-- Save state. Always visible, because the whole promise of an
                  autosaving editor is that you can see it keeping that promise. --}}
             <span class="ml-auto flex items-center gap-2 text-xs" :class="{
-                    'text-gray-400': state === 'idle',
-                    'text-brand-600': state === 'saving',
-                    'text-green-600': state === 'saved',
-                    'text-red-600': state === 'error',
+                    'text-brand-100/50': state === 'idle',
+                    'text-brand-300': state === 'saving',
+                    'text-green-300': state === 'saved',
+                    'text-red-300': state === 'error',
                   }">
                 <span x-show="state === 'saving'" class="w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse"></span>
                 <span x-text="statusLine"></span>
@@ -76,17 +76,17 @@
         <div x-show="linkFor !== null" x-cloak class="mt-2 flex flex-wrap items-center gap-2">
             <input type="url" x-model="linkUrl" x-ref="linkInput" placeholder="https://"
                    @keydown.enter.prevent="applyLink()"
-                   class="flex-1 min-w-[200px] min-h-[38px] rounded-md border-gray-300 text-sm focus:border-brand-400 focus:ring-brand-400">
+                   class="flex-1 min-w-[200px] min-h-[38px] rounded-md border-white/15 text-sm focus:border-brand-400 focus:ring-brand-400">
             <x-btn type="button" size="sm" @click="applyLink()">Add link</x-btn>
-            <button type="button" @click="linkFor = null" class="text-sm text-gray-500 hover:text-gray-800">Cancel</button>
+            <button type="button" @click="linkFor = null" class="text-sm text-brand-100/60 hover:text-white">Cancel</button>
         </div>
     </div>
 
     {{-- Blocks --}}
     <div class="space-y-3 mt-3">
         <template x-for="(section, index) in sections" :key="section.id">
-            <div class="group rounded-xl bg-white ring-1 transition"
-                 :class="section.conflict ? 'ring-amber-300 bg-amber-50/40' : 'ring-gray-900/5'"
+            <div class="group rounded-xl bg-white/5 ring-1 transition"
+                 :class="section.conflict ? 'ring-amber-400/30 bg-amber-400/10' : 'ring-white/10'"
                  @dragover.prevent="dragOver(index)"
                  @drop.prevent="drop(index)">
 
@@ -95,7 +95,7 @@
                     <button type="button" draggable="true"
                             @dragstart="dragStart(index, $event)" @dragend="dragEnd()"
                             :aria-label="'Reorder ' + section.heading"
-                            class="shrink-0 mt-1 cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 min-w-[28px] min-h-[28px] flex items-center justify-center">
+                            class="shrink-0 mt-1 cursor-grab active:cursor-grabbing text-brand-100/40 hover:text-brand-100/60 min-w-[28px] min-h-[28px] flex items-center justify-center">
                         <x-icon name="grip" class="w-4 h-4" />
                     </button>
 
@@ -103,7 +103,7 @@
                         {{-- Heading is a plain input: it is a label, not prose. --}}
                         <input type="text" x-model="section.heading" @input="queue(section)"
                                :aria-label="'Section name'"
-                               class="w-full border-0 border-b border-transparent hover:border-gray-200 focus:border-brand-400 focus:ring-0 px-0 text-xs font-semibold uppercase tracking-[0.14em] text-brand-600 bg-transparent">
+                               class="w-full border-0 border-b border-transparent hover:border-white/10 focus:border-brand-400 focus:ring-0 px-0 text-xs font-semibold uppercase tracking-[0.14em] text-brand-300 bg-transparent">
 
                         {{-- The writing. Set once on init, read one-way after. --}}
                         <div contenteditable="true"
@@ -113,7 +113,7 @@
                              @focus="activeId = section.id"
                              @paste.prevent="pasteAsText($event)"
                              :data-placeholder="'Write the ' + (section.heading || 'section').toLowerCase() + '…'"
-                             class="script-block mt-2 w-full min-h-[72px] text-[15px] leading-relaxed text-gray-900 focus:outline-none"></div>
+                             class="script-block mt-2 w-full min-h-[72px] text-[15px] leading-relaxed text-white focus:outline-none"></div>
                     </div>
 
                     {{-- Actions. Move up/down are real buttons and always
@@ -123,13 +123,13 @@
                     <div class="shrink-0 flex flex-col items-center gap-0.5">
                         <button type="button" @click="move(index, -1)" :disabled="index === 0"
                                 :aria-label="'Move ' + section.heading + ' up'"
-                                class="min-w-[32px] min-h-[32px] rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:hover:bg-transparent transition">↑</button>
+                                class="min-w-[32px] min-h-[32px] rounded-md text-brand-100/50 hover:bg-white/[0.12] hover:text-brand-100/80 disabled:opacity-30 disabled:hover:bg-transparent transition">↑</button>
                         <button type="button" @click="move(index, 1)" :disabled="index === sections.length - 1"
                                 :aria-label="'Move ' + section.heading + ' down'"
-                                class="min-w-[32px] min-h-[32px] rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:hover:bg-transparent transition">↓</button>
+                                class="min-w-[32px] min-h-[32px] rounded-md text-brand-100/50 hover:bg-white/[0.12] hover:text-brand-100/80 disabled:opacity-30 disabled:hover:bg-transparent transition">↓</button>
                         <button type="button" @click="remove(section)"
                                 :aria-label="'Delete ' + section.heading"
-                                class="min-w-[32px] min-h-[32px] rounded-md text-gray-300 hover:bg-red-50 hover:text-red-600 transition">
+                                class="min-w-[32px] min-h-[32px] rounded-md text-brand-100/40 hover:bg-red-400/10 hover:text-red-300 transition">
                             <x-icon name="trash" class="w-4 h-4 mx-auto" />
                         </button>
                     </div>
@@ -139,9 +139,9 @@
                      the writer decides, and "keep both" guarantees no words
                      are lost whichever they pick. --}}
                 <div x-show="section.conflict" x-cloak class="px-4 pb-4">
-                    <div class="rounded-lg bg-amber-100 border border-amber-300 p-3">
-                        <p class="text-sm font-semibold text-amber-900" x-text="section.conflict.message"></p>
-                        <p class="mt-1 text-xs text-amber-800">Your version is still on screen. Nothing has been saved over.</p>
+                    <div class="rounded-lg bg-amber-400/15 border border-amber-400/30 p-3">
+                        <p class="text-sm font-semibold text-amber-200" x-text="section.conflict.message"></p>
+                        <p class="mt-1 text-xs text-amber-200">Your version is still on screen. Nothing has been saved over.</p>
                         <div class="mt-3 flex flex-wrap gap-2">
                             <x-btn type="button" size="sm" @click="resolve(section, 'mine')">Keep mine</x-btn>
                             <x-btn type="button" size="sm" variant="secondary" @click="resolve(section, 'theirs')">Use theirs</x-btn>
@@ -158,7 +158,7 @@
     <div class="mt-4 flex flex-wrap items-center gap-2">
         <input type="text" x-model="newHeading" list="script-section-names" placeholder="Section name"
                @keydown.enter.prevent="addSection()"
-               class="min-h-[44px] rounded-md border-gray-300 text-sm focus:border-brand-400 focus:ring-brand-400">
+               class="min-h-[44px] rounded-md border-white/15 text-sm focus:border-brand-400 focus:ring-brand-400">
         <datalist id="script-section-names">
             @foreach ($commonHeadings as $heading)
                 <option value="{{ $heading }}"></option>
@@ -175,13 +175,13 @@
 <style>
     .script-block:empty::before {
         content: attr(data-placeholder);
-        color: #9ca3af;
+        color: rgba(228, 242, 247, 0.4);
         pointer-events: none;
     }
     .script-block ul { list-style: disc; padding-left: 1.4rem; margin: .4rem 0; }
     .script-block ol { list-style: decimal; padding-left: 1.4rem; margin: .4rem 0; }
     .script-block p { margin: 0 0 .5rem; }
-    .script-block a { color: #3d8ca6; text-decoration: underline; }
+    .script-block a { color: #8ACCE0; text-decoration: underline; }
 </style>
 @endpush
 

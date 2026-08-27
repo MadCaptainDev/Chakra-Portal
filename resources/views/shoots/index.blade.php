@@ -21,9 +21,9 @@
     <div class="space-y-4">
         @can('shoots.create')
             @if ($notionPending > 0 || $notionUndated > 0 || $notionUnmapped > 0)
-                <div class="rounded-xl bg-blue-50 border border-blue-200 p-4 flex items-start gap-3">
-                    <x-icon name="globe" class="w-5 h-5 shrink-0 mt-0.5 text-blue-600" />
-                    <div class="text-sm text-blue-900 space-y-0.5">
+                <div class="rounded-xl bg-blue-400/10 border border-blue-400/30 p-4 flex items-start gap-3">
+                    <x-icon name="globe" class="w-5 h-5 shrink-0 mt-0.5 text-blue-300" />
+                    <div class="text-sm text-blue-200 space-y-0.5">
                         @if ($notionPending > 0)
                             <p>{{ $notionPending }} {{ Str::plural('shoot', $notionPending) }} in Notion {{ $notionPending === 1 ? "hasn't" : "haven't" }} synced here yet — press <span class="font-semibold">Sync from Notion</span> above.</p>
                         @endif
@@ -78,14 +78,14 @@
                 </div>
 
                 <div class="sm:col-span-2 lg:col-span-4 flex flex-wrap items-center gap-4">
-                    <label for="past" class="inline-flex items-center gap-2 min-h-[44px] text-sm text-gray-700 cursor-pointer">
+                    <label for="past" class="inline-flex items-center gap-2 min-h-[44px] text-sm text-brand-100/80 cursor-pointer">
                         <input id="past" name="past" type="checkbox" value="1" @checked($filters['past'])
-                               class="rounded border-gray-300 text-brand-500 focus:ring-brand-400">
+                               class="rounded bg-white/10 border-white/25 text-brand-400 focus:ring-brand-400">
                         Show past shoots
                     </label>
                     <x-btn type="submit" size="sm">Apply</x-btn>
                     @if ($hasFilters)
-                        <a href="{{ route('shoots.index') }}" class="text-sm font-semibold text-gray-500 hover:text-gray-800">Clear</a>
+                        <a href="{{ route('shoots.index') }}" class="text-sm font-semibold text-brand-100/60 hover:text-white">Clear</a>
                     @endif
                 </div>
             </form>
@@ -116,39 +116,39 @@
                                  ])
                                  aria-label="{{ $column['label'] }}">
                             <div class="flex items-center justify-between gap-2 mb-2 px-0.5">
-                                <h2 class="text-sm font-semibold text-gray-900 truncate">{{ $column['label'] }}</h2>
+                                <h2 class="text-sm font-semibold text-white truncate">{{ $column['label'] }}</h2>
                                 <span class="shrink-0 inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-full
-                                             text-[11px] font-semibold bg-gray-100 text-gray-600">
+                                             text-[11px] font-semibold bg-white/10 text-brand-100/70">
                                     {{ $column['shoots']->count() }}
                                 </span>
                             </div>
 
-                            <div class="flex-1 space-y-2 rounded-xl bg-gray-100/70 ring-1 ring-gray-900/5 p-2 min-h-[8rem]">
+                            <div class="flex-1 space-y-2 rounded-xl bg-white/10 ring-1 ring-white/10 p-2 min-h-[8rem]">
                                 @forelse ($column['shoots'] as $shoot)
                                     <a href="{{ route('shoots.show', $shoot) }}"
-                                       class="block rounded-lg bg-white ring-1 ring-gray-900/5 shadow-sm p-3
+                                       class="block rounded-lg bg-white/5 ring-1 ring-white/10 shadow-sm p-3
                                               min-h-[44px] hover:ring-brand-300/60 hover:shadow-md transition">
                                         <div class="flex items-start gap-3">
                                             <div class="shrink-0 w-10 text-center">
-                                                <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{{ $shoot->starts_at->format('M') }}</p>
-                                                <p class="text-lg font-bold text-gray-900 leading-none">{{ $shoot->starts_at->format('d') }}</p>
-                                                <p class="text-[10px] text-gray-400 mt-0.5">{{ $shoot->starts_at->format('D') }}</p>
+                                                <p class="text-[10px] font-semibold uppercase tracking-wider text-brand-100/50">{{ $shoot->starts_at->format('M') }}</p>
+                                                <p class="text-lg font-bold text-white leading-none">{{ $shoot->starts_at->format('d') }}</p>
+                                                <p class="text-[10px] text-brand-100/50 mt-0.5">{{ $shoot->starts_at->format('D') }}</p>
                                             </div>
 
                                             <div class="min-w-0 flex-1">
                                                 <div class="flex flex-wrap items-center gap-1.5">
-                                                    <p class="font-semibold text-gray-900 text-sm leading-snug line-clamp-2">{{ $shoot->title }}</p>
+                                                    <p class="font-semibold text-white text-sm leading-snug line-clamp-2">{{ $shoot->title }}</p>
                                                     @if ($shoot->hasKitProblems())
                                                         <x-badge status="overdue">Kit issue</x-badge>
                                                     @endif
                                                     @if ($shoot->isFromNotion())
-                                                        <span title="Synced from Notion" class="inline-flex text-gray-400">
+                                                        <span title="Synced from Notion" class="inline-flex text-brand-100/50">
                                                             <x-icon name="globe" class="w-3.5 h-3.5" />
                                                         </span>
                                                     @endif
                                                 </div>
 
-                                                <p class="mt-1 text-xs text-gray-500 truncate">
+                                                <p class="mt-1 text-xs text-brand-100/60 truncate">
                                                     {{ $shoot->starts_at->format('H:i') }}
                                                     @if ($shoot->clientLabel()) &middot; {{ $shoot->clientLabel() }} @endif
                                                     @if ($shoot->location) &middot; {{ $shoot->location }} @endif
@@ -158,7 +158,7 @@
                                                     <x-badge :status="$shoot->status" />
                                                 </div>
 
-                                                <p class="mt-1.5 text-[11px] text-gray-400 truncate">
+                                                <p class="mt-1.5 text-[11px] text-brand-100/50 truncate">
                                                     {{ $shoot->kitSummary() }}
                                                     @if ($shoot->crew->isNotEmpty())
                                                         &middot; {{ $shoot->crew->count() }} {{ Str::plural('crew', $shoot->crew->count()) }}
@@ -168,7 +168,7 @@
                                         </div>
                                     </a>
                                 @empty
-                                    <p class="px-2 py-6 text-center text-xs text-gray-400">None</p>
+                                    <p class="px-2 py-6 text-center text-xs text-brand-100/50">None</p>
                                 @endforelse
                             </div>
                         </section>

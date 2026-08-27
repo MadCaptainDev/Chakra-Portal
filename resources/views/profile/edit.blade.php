@@ -22,8 +22,8 @@
         @else
             <x-card class="p-4 sm:p-8">
                 <div class="max-w-xl">
-                    <h2 class="text-lg font-medium text-gray-900">Password</h2>
-                    <p class="mt-1 text-sm text-gray-600">
+                    <h2 class="text-lg font-medium text-white">Password</h2>
+                    <p class="mt-1 text-sm text-brand-100/70">
                         Ask the studio to reset your password — they can set a new one from the Users screen.
                     </p>
                 </div>

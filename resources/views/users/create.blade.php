@@ -45,7 +45,7 @@
                     <x-input-label for="password" value="Temporary Password" />
                     <x-text-input id="password" name="password" type="password" class="mt-1" required />
                     <x-input-error :messages="$errors->get('password')" class="mt-2" />
-                    <p class="text-xs text-gray-500 mt-1">Share this with them directly - they can change it from their own Profile page after logging in.</p>
+                    <p class="text-xs text-brand-100/60 mt-1">Share this with them directly - they can change it from their own Profile page after logging in.</p>
                 </div>
 
                 <div class="mb-6">
@@ -55,7 +55,7 @@
 
                 <div class="flex items-center gap-4">
                     <x-primary-button>Create Account</x-primary-button>
-                    <a href="{{ route('users.index') }}" class="text-sm text-gray-600 hover:text-gray-900">Cancel</a>
+                    <a href="{{ route('users.index') }}" class="text-sm text-brand-100/70 hover:text-white">Cancel</a>
                 </div>
             </form>
         </x-card>

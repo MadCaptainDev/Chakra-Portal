@@ -23,22 +23,22 @@
 
         <div class="grid grid-cols-3 gap-3">
             <x-card class="p-3 sm:p-4">
-                <p class="text-xs text-gray-500 uppercase tracking-wide">Payroll</p>
-                <p class="text-lg sm:text-2xl font-bold text-gray-900">{{ number_format($totalDue, 2) }}</p>
+                <p class="text-xs text-brand-100/60 uppercase tracking-wide">Payroll</p>
+                <p class="text-lg sm:text-2xl font-bold text-white">{{ number_format($totalDue, 2) }}</p>
             </x-card>
             <x-card class="p-3 sm:p-4">
-                <p class="text-xs text-gray-500 uppercase tracking-wide">Paid</p>
-                <p class="text-lg sm:text-2xl font-bold text-green-600">{{ number_format($totalPaid, 2) }}</p>
+                <p class="text-xs text-brand-100/60 uppercase tracking-wide">Paid</p>
+                <p class="text-lg sm:text-2xl font-bold text-green-300">{{ number_format($totalPaid, 2) }}</p>
             </x-card>
             <x-card class="p-3 sm:p-4">
-                <p class="text-xs text-gray-500 uppercase tracking-wide">Pending</p>
-                <p class="text-lg sm:text-2xl font-bold {{ $outstanding > 0 ? 'text-red-600' : 'text-gray-400' }}">{{ number_format($outstanding, 2) }}</p>
+                <p class="text-xs text-brand-100/60 uppercase tracking-wide">Pending</p>
+                <p class="text-lg sm:text-2xl font-bold {{ $outstanding > 0 ? 'text-red-300' : 'text-brand-100/50' }}">{{ number_format($outstanding, 2) }}</p>
             </x-card>
         </div>
 
         <div class="flex items-center justify-between gap-3">
-            <h3 class="font-semibold text-gray-900">Active employees</h3>
-            <button type="button" @click="adding = ! adding" class="text-sm font-semibold text-brand-500 hover:text-brand-600 min-h-[44px]">
+            <h3 class="font-semibold text-white">Active employees</h3>
+            <button type="button" @click="adding = ! adding" class="text-sm font-semibold text-brand-500 hover:text-brand-300 min-h-[44px]">
                 <span x-show="! adding">+ Add Employee</span>
                 <span x-show="adding" x-cloak>Cancel</span>
             </button>
@@ -50,10 +50,10 @@
 
         @if ($rows->isEmpty())
             <x-empty-state message="No active employees yet.">
-                <button type="button" @click="adding = true" class="text-brand-500 font-semibold text-sm hover:text-brand-600">Add your first employee &rarr;</button>
+                <button type="button" @click="adding = true" class="text-brand-500 font-semibold text-sm hover:text-brand-300">Add your first employee &rarr;</button>
             </x-empty-state>
         @else
-            <x-card class="divide-y divide-gray-200">
+            <x-card class="divide-y divide-white/10">
                 @foreach ($rows as $row)
                     @php
                         $employee = $row['expense'];
@@ -65,14 +65,14 @@
                         <x-avatar :name="$employee->name" :src="$employee->user?->avatarUrl()" />
 
                         <div class="min-w-0 flex-1">
-                            <a href="{{ route('salaries.show', $employee) }}" class="font-medium text-gray-900 hover:text-brand-500 truncate block">
+                            <a href="{{ route('salaries.show', $employee) }}" class="font-medium text-white hover:text-brand-500 truncate block">
                                 {{ $employee->name }}
                             </a>
-                            <p class="text-xs text-gray-500 truncate">
+                            <p class="text-xs text-brand-100/60 truncate">
                                 {{ $employee->role ?: 'No role set' }}
                                 &middot; Salary {{ number_format($employee->amount, 0) }}/mo
                                 @if ($short)
-                                    <span class="text-amber-600 font-semibold">&middot; short {{ number_format($row['due'] - $row['paid'], 0) }}</span>
+                                    <span class="text-amber-300 font-semibold">&middot; short {{ number_format($row['due'] - $row['paid'], 0) }}</span>
                                 @endif
                             </p>
                         </div>
@@ -86,13 +86,13 @@
 
         @if ($left->isNotEmpty())
             <div>
-                <h3 class="font-semibold text-gray-900 mb-2">No longer active ({{ $left->count() }})</h3>
-                <x-card class="divide-y divide-gray-200">
+                <h3 class="font-semibold text-white mb-2">No longer active ({{ $left->count() }})</h3>
+                <x-card class="divide-y divide-white/10">
                     @foreach ($left as $employee)
                         <div class="p-3 flex items-center gap-3">
                             <x-avatar :name="$employee->name" :src="$employee->user?->avatarUrl()" size="sm" class="opacity-60" />
-                            <a href="{{ route('salaries.show', $employee) }}" class="text-sm text-gray-600 hover:text-brand-500 flex-1 truncate">{{ $employee->name }}</a>
-                            <span class="text-xs text-gray-400 shrink-0">{{ number_format($employee->amount, 0) }}/mo</span>
+                            <a href="{{ route('salaries.show', $employee) }}" class="text-sm text-brand-100/70 hover:text-brand-500 flex-1 truncate">{{ $employee->name }}</a>
+                            <span class="text-xs text-brand-100/50 shrink-0">{{ number_format($employee->amount, 0) }}/mo</span>
                         </div>
                     @endforeach
                 </x-card>

@@ -33,7 +33,7 @@
         $overdue => 'before:bg-amber-400',
         $shown === Todo::STATUS_STARTED => 'before:bg-brand-400',
         $shown === Todo::STATUS_BLOCKED => 'before:bg-red-400',
-        default => 'before:bg-gray-200',
+        default => 'before:bg-white/15',
     };
 @endphp
 
@@ -43,59 +43,59 @@
         editing: {{ $errors->any() && (int) old('edit_todo_id') === $todo->id ? 'true' : 'false' }},
         sending: {{ $errors->any() && (int) old('review_ref') === $todo->id ? 'true' : 'false' }},
      }"
-     class="relative overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-900/5
-            transition duration-200 hover:shadow-md hover:ring-gray-900/10
+     class="relative overflow-hidden rounded-xl bg-white/5 shadow-sm ring-1 ring-white/10
+            transition duration-200 hover:shadow-md hover:ring-white/15
             before:absolute before:inset-y-0 before:left-0 before:w-1 {{ $edge }}">
     <div class="p-3 sm:p-4 pl-4 sm:pl-5">
         <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
                 <p @class([
                     'font-semibold leading-snug break-words',
-                    'text-gray-900' => $todo->isOpen(),
-                    'text-gray-500 line-through decoration-gray-300' => $shown === Todo::STATUS_COMPLETED,
-                    'text-gray-400 line-through decoration-gray-300' => $shown === Todo::STATUS_CANCELLED,
+                    'text-white' => $todo->isOpen(),
+                    'text-brand-100/60 line-through decoration-brand-100/40' => $shown === Todo::STATUS_COMPLETED,
+                    'text-brand-100/50 line-through decoration-brand-100/40' => $shown === Todo::STATUS_CANCELLED,
                 ])>{{ $todo->title }}</p>
 
-                <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] text-gray-500">
+                <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] text-brand-100/60">
                     <x-badge :status="$shown" class="animate-pop" />
 
                     @if ($todo->reviewLabel())
                         <span @class([
                             'inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold animate-pop',
-                            'bg-green-100 text-green-800' => $todo->isApproved(),
-                            'bg-red-100 text-red-800' => $todo->wasSentBack(),
+                            'bg-green-400/15 text-green-200' => $todo->isApproved(),
+                            'bg-red-400/15 text-red-200' => $todo->wasSentBack(),
                         ])>
                             <x-icon :name="$todo->isApproved() ? 'check-circle' : 'alert'" class="w-3 h-3" />
                             {{ $todo->reviewLabel() }}
                         </span>
                     @elseif ($waiting)
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 font-bold">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-indigo-400/15 text-indigo-200 font-bold">
                             Waiting to be checked
                         </span>
                     @endif
 
                     @if ($drifted)
-                        <span class="text-gray-400">now {{ $todo->statusLabel() }}</span>
+                        <span class="text-brand-100/50">now {{ $todo->statusLabel() }}</span>
                     @endif
 
                     @if ($span > 1)
-                        <span class="font-semibold text-gray-600">
+                        <span class="font-semibold text-brand-100/70">
                             Day {{ min($todo->dayOfSpan($day), $span) }} of {{ $span }}
                         </span>
                     @endif
 
-                    <span @class(['font-semibold text-amber-700' => $overdue])>
+                    <span @class(['font-semibold text-amber-200' => $overdue])>
                         Due {{ $todo->due_on->format('D j M') }}{{ $overdue ? ' — overdue' : '' }}
                     </span>
 
                     @if ($todo->venture)
-                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full bg-white/10 text-brand-100/80 font-semibold">
                             {{ $todo->venture }}
                         </span>
                     @endif
 
                     @unless ($todo->isSelfAssigned())
-                        <span class="text-gray-500">
+                        <span class="text-brand-100/60">
                             @if ($todo->user_id === auth()->id())
                                 from {{ $todo->assignedBy?->name ?? 'a deleted account' }}
                             @else
@@ -108,14 +108,14 @@
                         {{-- Derived from the history rows, never a column. --}}
                         <span @class([
                             'inline-flex items-center px-1.5 py-0.5 rounded-full font-bold',
-                            'bg-gray-100 text-gray-600' => $moved < 3,
-                            'bg-amber-100 text-amber-800' => $moved >= 3,
+                            'bg-white/10 text-brand-100/70' => $moved < 3,
+                            'bg-amber-400/15 text-amber-200' => $moved >= 3,
                         ])>Moved {{ $moved }}&times;</span>
                     @endif
                 </div>
 
                 @if ($todo->notes)
-                    <p class="mt-2 text-xs text-gray-600 whitespace-pre-line">{{ $todo->notes }}</p>
+                    <p class="mt-2 text-xs text-brand-100/70 whitespace-pre-line">{{ $todo->notes }}</p>
                 @endif
             </div>
 
@@ -136,9 +136,9 @@
 
         {{-- Why it came back. The one thing on this card somebody has to read. --}}
         @if ($todo->wasSentBack() && $todo->review_note)
-            <div class="mt-3 flex items-start gap-2.5 rounded-lg bg-red-50 ring-1 ring-red-100 px-3 py-2.5 animate-settle">
-                <x-icon name="alert" class="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
-                <p class="text-xs text-red-800 min-w-0">
+            <div class="mt-3 flex items-start gap-2.5 rounded-lg bg-red-400/10 ring-1 ring-red-400/20 px-3 py-2.5 animate-settle">
+                <x-icon name="alert" class="w-4 h-4 shrink-0 mt-0.5 text-red-300" />
+                <p class="text-xs text-red-200 min-w-0">
                     <span class="font-semibold">{{ $todo->reviewer?->name ?? 'A manager' }} sent this back</span>
                     — {{ $todo->review_note }}
                 </p>
@@ -203,7 +203,7 @@
             @endif
 
             <button type="button" @click="open = ! open"
-                    class="ml-auto text-[11px] font-semibold text-brand-600 hover:text-brand-700 transition-colors">
+                    class="ml-auto text-[11px] font-semibold text-brand-300 hover:text-brand-200 transition-colors">
                 <span x-show="! open">History ({{ $todo->updates->count() }})</span>
                 <span x-show="open" x-cloak>Hide history</span>
             </button>
@@ -227,7 +227,7 @@
             </div>
 
             <div x-show="editing" x-cloak x-transition.opacity.duration.200ms
-                 class="mt-3 pt-3 border-t border-gray-100">
+                 class="mt-3 pt-3 border-t border-white/10">
                 @include('my._todo-form', ['todo' => $todo, 'day' => $day])
 
                 <form method="POST" action="{{ route('my.todos.destroy', $todo) }}" class="mt-3"
@@ -248,7 +248,7 @@
                     <x-textarea name="review_note" rows="2" required
                                 placeholder="What needs doing before this is right?">{{ (int) old('review_ref') === $todo->id ? old('review_note') : '' }}</x-textarea>
                     <x-input-error :messages="(int) old('review_ref') === $todo->id ? $errors->get('review_note') : []" class="mt-2" />
-                    <p class="mt-1 text-[11px] text-gray-500">This goes straight back on their board as started.</p>
+                    <p class="mt-1 text-[11px] text-brand-100/60">This goes straight back on their board as started.</p>
                     <div class="mt-2">
                         <x-btn size="sm" variant="danger">Send back</x-btn>
                     </div>
@@ -259,19 +259,19 @@
         {{-- The whole point of the feature: every change, with the time, grouped
              by the day it happened on. --}}
         <div x-show="open" x-cloak x-transition.opacity.duration.200ms>
-            <div class="mt-3 pt-3 border-t border-gray-100 space-y-3">
+            <div class="mt-3 pt-3 border-t border-white/10 space-y-3">
                 @forelse ($todo->updates->groupBy(fn ($update) => $update->created_at->toDateString()) as $date => $updates)
                     @php $on = \Illuminate\Support\Carbon::parse($date); @endphp
 
                     <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-brand-100/50">
                             {{ $on->format('D j M Y') }}@if ($on->isToday()) · Today @endif
                         </p>
 
                         <ul class="mt-1.5 space-y-1.5">
                             @foreach ($updates as $update)
-                                <li class="flex items-start gap-2 text-xs text-gray-600">
-                                    <span class="shrink-0 tabular-nums text-gray-400 w-16">{{ $update->timeLabel() }}</span>
+                                <li class="flex items-start gap-2 text-xs text-brand-100/70">
+                                    <span class="shrink-0 tabular-nums text-brand-100/50 w-16">{{ $update->timeLabel() }}</span>
                                     <span class="min-w-0">
                                         @if ($update->action === TodoUpdate::MOVED)
                                             Moved from {{ $update->from_on?->format('D j M') }}
@@ -285,11 +285,11 @@
                                         @endif
 
                                         @if ($update->note)
-                                            <span class="text-gray-500">— {{ $update->note }}</span>
+                                            <span class="text-brand-100/60">— {{ $update->note }}</span>
                                         @endif
 
                                         @if ($update->user && $update->user_id !== $todo->user_id)
-                                            <span class="text-gray-400">by {{ $update->user->name }}</span>
+                                            <span class="text-brand-100/50">by {{ $update->user->name }}</span>
                                         @endif
                                     </span>
                                 </li>
@@ -297,7 +297,7 @@
                         </ul>
                     </div>
                 @empty
-                    <p class="text-xs text-gray-400">Nothing recorded yet.</p>
+                    <p class="text-xs text-brand-100/50">Nothing recorded yet.</p>
                 @endforelse
             </div>
         </div>

@@ -2,7 +2,7 @@
     <x-slot name="header">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex items-center gap-3">
-                <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+                <h2 class="font-semibold text-xl text-white leading-tight">
                     Invoice {{ $invoice->invoice_number ?? '(pending)' }}
                 </h2>
                 <x-badge :status="$invoice->displayStatus()" />
@@ -15,13 +15,13 @@
                             Approve
                         </button>
                     </form>
-                    <a href="{{ route('invoices.edit', $invoice) }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50">
+                    <a href="{{ route('invoices.edit', $invoice) }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white/5 border border-white/15 rounded-md font-semibold text-xs text-brand-100/80 uppercase tracking-widest hover:bg-white/[0.09]">
                         Edit
                     </a>
                     <form method="POST" action="{{ route('invoices.discard', $invoice) }}" onsubmit="return confirm('Discard this pending invoice? This cannot be undone.');">
                         @csrf
                         @method('DELETE')
-                        <button type="submit" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-red-600 uppercase tracking-widest hover:bg-gray-50">
+                        <button type="submit" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white/5 border border-white/15 rounded-md font-semibold text-xs text-red-300 uppercase tracking-widest hover:bg-white/[0.09]">
                             Discard
                         </button>
                     </form>
@@ -29,25 +29,25 @@
                     <a href="{{ route('invoices.pdf', $invoice) }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-brand-400 border border-transparent rounded-md font-semibold text-xs text-brand-900 uppercase tracking-widest hover:bg-brand-500">
                         Download PDF
                     </a>
-                    <a href="{{ route('invoices.edit', $invoice) }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50">
+                    <a href="{{ route('invoices.edit', $invoice) }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white/5 border border-white/15 rounded-md font-semibold text-xs text-brand-100/80 uppercase tracking-widest hover:bg-white/[0.09]">
                         Edit
                     </a>
                     <form method="POST" action="{{ route('invoices.duplicate', $invoice) }}">
                         @csrf
-                        <button type="submit" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50">
+                        <button type="submit" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white/5 border border-white/15 rounded-md font-semibold text-xs text-brand-100/80 uppercase tracking-widest hover:bg-white/[0.09]">
                             Duplicate
                         </button>
                     </form>
                     {{-- A plain GET: it only opens the schedule form pre-filled, so it
                          must not create anything or need a confirmation. --}}
                     <a href="{{ route('recurring.create', ['from_invoice' => $invoice->id]) }}"
-                       class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50">
+                       class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white/5 border border-white/15 rounded-md font-semibold text-xs text-brand-100/80 uppercase tracking-widest hover:bg-white/[0.09]">
                         Make Recurring
                     </a>
                     <form method="POST" action="{{ route('invoices.destroy', $invoice) }}" onsubmit="return confirm('Delete this invoice?');">
                         @csrf
                         @method('DELETE')
-                        <button type="submit" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-red-600 uppercase tracking-widest hover:bg-gray-50">
+                        <button type="submit" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white/5 border border-white/15 rounded-md font-semibold text-xs text-red-300 uppercase tracking-widest hover:bg-white/[0.09]">
                             Delete
                         </button>
                     </form>
@@ -58,7 +58,7 @@
 
     <div class="space-y-6">
         @if ($invoice->isPendingApproval())
-            <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+            <div class="bg-amber-400/10 border border-amber-400/30 rounded-lg p-4 text-sm text-amber-200">
                 This invoice was generated automatically by a recurring schedule and hasn't been sent anywhere yet.
                 Review the details below, then Approve to assign it an invoice number, or Discard to skip this occurrence.
             </div>
@@ -79,7 +79,7 @@
                 {{-- Sized to the scaled page so mx-auto actually centres it; the
                      iframe itself stays 794x1123 (A4 at 96dpi) and is scaled down. --}}
                 <div
-                    class="overflow-hidden mx-auto rounded-md ring-1 ring-gray-200 shadow-sm bg-white"
+                    class="overflow-hidden mx-auto rounded-md ring-1 ring-white/10 shadow-sm bg-white"
                     :style="{ width: (794 * scale) + 'px', height: (1123 * scale) + 'px' }"
                 >
                     <iframe
@@ -94,39 +94,39 @@
 
         @unless ($invoice->isPendingApproval())
             <x-card class="p-4 sm:p-6">
-                <h3 class="font-semibold text-gray-800 mb-4">Payments</h3>
+                <h3 class="font-semibold text-white mb-4">Payments</h3>
 
                 <div class="grid grid-cols-3 gap-4 mb-6 text-center sm:text-left">
                     <div>
-                        <p class="text-xs text-gray-500 uppercase">Total</p>
-                        <p class="font-semibold text-gray-900">{{ number_format($invoice->total, 2) }}</p>
+                        <p class="text-xs text-brand-100/60 uppercase">Total</p>
+                        <p class="font-semibold text-white">{{ number_format($invoice->total, 2) }}</p>
                     </div>
                     <div>
-                        <p class="text-xs text-gray-500 uppercase">Paid</p>
-                        <p class="font-semibold text-green-600">{{ number_format($invoice->paidTotal(), 2) }}</p>
+                        <p class="text-xs text-brand-100/60 uppercase">Paid</p>
+                        <p class="font-semibold text-green-300">{{ number_format($invoice->paidTotal(), 2) }}</p>
                     </div>
                     <div>
-                        <p class="text-xs text-gray-500 uppercase">Balance</p>
-                        <p class="font-semibold text-red-600">{{ number_format($invoice->balanceDue(), 2) }}</p>
+                        <p class="text-xs text-brand-100/60 uppercase">Balance</p>
+                        <p class="font-semibold text-red-300">{{ number_format($invoice->balanceDue(), 2) }}</p>
                     </div>
                 </div>
 
                 @if ($invoice->payments->isNotEmpty())
-                    <div class="divide-y divide-gray-200 border-t border-b mb-6">
+                    <div class="divide-y divide-white/10 border-t border-b mb-6">
                         @foreach ($invoice->payments as $payment)
                             <div class="py-3 flex items-center justify-between gap-2">
                                 <div>
-                                    <p class="text-sm font-medium text-gray-900">{{ number_format($payment->amount, 2) }}
-                                        <span class="text-gray-500 font-normal">on {{ $payment->paid_on->format('d/m/Y') }}</span>
+                                    <p class="text-sm font-medium text-white">{{ number_format($payment->amount, 2) }}
+                                        <span class="text-brand-100/60 font-normal">on {{ $payment->paid_on->format('d/m/Y') }}</span>
                                     </p>
                                     @if ($payment->method || $payment->note)
-                                        <p class="text-xs text-gray-500">{{ collect([$payment->method, $payment->note])->filter()->implode(' — ') }}</p>
+                                        <p class="text-xs text-brand-100/60">{{ collect([$payment->method, $payment->note])->filter()->implode(' — ') }}</p>
                                     @endif
                                 </div>
                                 <form method="POST" action="{{ route('payments.destroy', $payment) }}" onsubmit="return confirm('Remove this payment?');">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="text-red-600 text-sm font-semibold min-h-[44px]">Remove</button>
+                                    <button type="submit" class="text-red-300 text-sm font-semibold min-h-[44px]">Remove</button>
                                 </form>
                             </div>
                         @endforeach

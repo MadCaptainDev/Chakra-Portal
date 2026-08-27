@@ -41,22 +41,22 @@
     ];
 @endphp
 
-<div class="rounded-lg border border-gray-200" x-data="{ open: @js((bool) $item->hasCaseStudy()) }">
+<div class="rounded-lg border border-white/10" x-data="{ open: @js((bool) $item->hasCaseStudy()) }">
     <button type="button" @click="open = ! open"
             class="flex w-full items-center justify-between gap-3 p-4 min-h-[44px] text-left">
         <span>
-            <span class="block font-semibold text-gray-900 text-sm">Case study (optional)</span>
-            <span class="block text-xs text-gray-500 mt-0.5">
+            <span class="block font-semibold text-white text-sm">Case study (optional)</span>
+            <span class="block text-xs text-brand-100/60 mt-0.5">
                 Numbers and creative notes. Fill these in and the piece gets its own page on the website.
             </span>
         </span>
-        <svg class="w-5 h-5 shrink-0 text-gray-400" :class="open && 'rotate-180'" fill="none" viewBox="0 0 24 24"
+        <svg class="w-5 h-5 shrink-0 text-brand-100/50" :class="open && 'rotate-180'" fill="none" viewBox="0 0 24 24"
              stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
     </button>
 
-    <div x-show="open" x-cloak class="border-t border-gray-200 p-4 space-y-6">
+    <div x-show="open" x-cloak class="border-t border-white/10 p-4 space-y-6">
         {{-- What it was --}}
         <div class="space-y-4">
             <div>
@@ -78,7 +78,7 @@
                         @endforeach
                     </x-select>
                     @if ($item->platform_id === null && filled($item->platform))
-                        <p class="mt-1 text-xs text-amber-700">Currently showing “{{ $item->platform }}”, typed before this became a list.</p>
+                        <p class="mt-1 text-xs text-amber-200">Currently showing “{{ $item->platform }}”, typed before this became a list.</p>
                     @endif
                     <x-input-error :messages="$errors->get('platform_id')" class="mt-2" />
                 </div>
@@ -92,9 +92,9 @@
                             </option>
                         @endforeach
                     </x-select>
-                    <p class="mt-1 text-xs text-gray-500">A format containing “9:16” shows the cover vertically.</p>
+                    <p class="mt-1 text-xs text-brand-100/60">A format containing “9:16” shows the cover vertically.</p>
                     @if ($item->format_id === null && filled($item->format))
-                        <p class="mt-1 text-xs text-amber-700">Currently showing “{{ $item->format }}”, typed before this became a list.</p>
+                        <p class="mt-1 text-xs text-amber-200">Currently showing “{{ $item->format }}”, typed before this became a list.</p>
                     @endif
                     <x-input-error :messages="$errors->get('format_id')" class="mt-2" />
                 </div>
@@ -103,7 +103,7 @@
                     <x-text-input id="duration_seconds" name="duration_seconds" type="number" min="0" max="86400" class="mt-1"
                                   value="{{ old('duration_seconds', $item->duration_seconds) }}" placeholder="32" />
                     @if ($item->isMappedToInstagram())
-                        <p class="mt-1 text-xs text-gray-500">Instagram doesn't hand back a video's length, even for a linked reel -- type it by hand.</p>
+                        <p class="mt-1 text-xs text-brand-100/60">Instagram doesn't hand back a video's length, even for a linked reel -- type it by hand.</p>
                     @endif
                     <x-input-error :messages="$errors->get('duration_seconds')" class="mt-2" />
                 </div>
@@ -124,12 +124,12 @@
                         @endforeach
                     </x-select>
                     @if ($item->objective_id === null && filled($item->objective))
-                        <p class="mt-1 text-xs text-amber-700">Currently showing “{{ $item->objective }}”, typed before this became a list.</p>
+                        <p class="mt-1 text-xs text-amber-200">Currently showing “{{ $item->objective }}”, typed before this became a list.</p>
                     @endif
-                    <p class="mt-1 text-xs text-gray-500">
+                    <p class="mt-1 text-xs text-brand-100/60">
                         Platform, format and objective come from the
                         <a href="{{ route('taxonomy.index') }}" target="_blank" rel="noopener"
-                           class="text-brand-500 hover:text-brand-600 font-semibold">master lists</a>.
+                           class="text-brand-500 hover:text-brand-300 font-semibold">master lists</a>.
                     </p>
                     <x-input-error :messages="$errors->get('objective_id')" class="mt-2" />
                 </div>
@@ -137,13 +137,13 @@
         </div>
 
         {{-- Whether the money side is ours to print. --}}
-        <label class="flex items-start gap-3 rounded-lg border border-gray-200 p-3 min-h-[44px] cursor-pointer hover:bg-gray-50">
+        <label class="flex items-start gap-3 rounded-lg border border-white/10 p-3 min-h-[44px] cursor-pointer hover:bg-white/[0.09]">
             <input type="checkbox" name="show_business_impact" value="1"
                    @checked(old('show_business_impact', $item->exists ? $item->show_business_impact : true))
-                   class="mt-0.5 rounded border-gray-300 text-brand-500 focus:ring-brand-400">
+                   class="mt-0.5 rounded bg-white/10 border-white/25 text-brand-400 focus:ring-brand-400">
             <span>
-                <span class="block text-sm font-semibold text-gray-900">Show sales and orders on the website</span>
-                <span class="block text-xs text-gray-500">
+                <span class="block text-sm font-semibold text-white">Show sales and orders on the website</span>
+                <span class="block text-xs text-brand-100/60">
                     Untick when the client's revenue is not ours to publish. The figures stay on file here;
                     only reach and engagement go on the public page.
                 </span>
@@ -153,7 +153,7 @@
         {{-- The numbers --}}
         @foreach ($numbers as $heading => $fields)
             <div>
-                <h5 class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $heading }}</h5>
+                <h5 class="text-xs font-semibold uppercase tracking-wide text-brand-100/60">{{ $heading }}</h5>
                 <div class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
                     @foreach ($fields as $field => $label)
                         <div>
@@ -169,7 +169,7 @@
 
         {{-- Rates and money --}}
         <div>
-            <h5 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Rates, watch time and sales</h5>
+            <h5 class="text-xs font-semibold uppercase tracking-wide text-brand-100/60">Rates, watch time and sales</h5>
             <div class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
                     <x-input-label for="engagement_rate" value="Engagement rate %" />
@@ -220,13 +220,13 @@
                     <x-input-error :messages="$errors->get('roi')" class="mt-2" />
                 </div>
             </div>
-            <p class="mt-2 text-xs text-gray-500">Amounts in rupees, plain numbers &mdash; the page shortens them to L and Cr.</p>
+            <p class="mt-2 text-xs text-brand-100/60">Amounts in rupees, plain numbers &mdash; the page shortens them to L and Cr.</p>
         </div>
 
         {{-- Creative notes --}}
         <div>
             <div class="flex items-center justify-between gap-3">
-                <h5 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Creative strategy</h5>
+                <h5 class="text-xs font-semibold uppercase tracking-wide text-brand-100/60">Creative strategy</h5>
                 @if ($item->exists && $item->social_media_item_id)
                     {{-- Mapped to Instagram, so there is something to generate
                          from -- writing this from scratch has no source
@@ -236,7 +236,7 @@
                     <form method="POST" action="{{ route('portfolio.regenerate-creative', $item) }}"
                           onsubmit="return confirm('Regenerate the description and creative strategy from the linked Instagram post? This overwrites what is here now.');">
                         @csrf
-                        <button type="submit" class="text-xs font-semibold text-brand-600 hover:text-brand-800 min-h-[36px]">
+                        <button type="submit" class="text-xs font-semibold text-brand-300 hover:text-brand-200 min-h-[36px]">
                             ✨ Regenerate with AI
                         </button>
                     </form>
@@ -255,8 +255,8 @@
 
         {{-- Before / after --}}
         <div>
-            <h5 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Before vs after</h5>
-            <p class="mt-1 text-xs text-gray-500">
+            <h5 class="text-xs font-semibold uppercase tracking-wide text-brand-100/60">Before vs after</h5>
+            <p class="mt-1 text-xs text-brand-100/60">
                 Free text, so write it the way the client reads it &mdash; &ldquo;240K&rdquo; to &ldquo;2.1M&rdquo;. Blank rows are ignored.
             </p>
             <div class="mt-3 space-y-3">

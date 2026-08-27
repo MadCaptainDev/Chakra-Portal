@@ -1,10 +1,10 @@
 <section>
     <header>
-        <h2 class="text-lg font-medium text-gray-900">
+        <h2 class="text-lg font-medium text-white">
             {{ __('Profile Information') }}
         </h2>
 
-        <p class="mt-1 text-sm text-gray-600">
+        <p class="mt-1 text-sm text-brand-100/70">
             {{ __('Update your photo, bio, and account details.') }}
         </p>
     </header>
@@ -27,12 +27,12 @@
                         name="avatar"
                         type="file"
                         accept="image/*"
-                        class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
+                        class="block w-full text-sm text-brand-100/70 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-white/5 file:text-brand-200 hover:file:bg-brand-400/20"
                     />
-                    <p class="text-xs text-gray-500">JPG, PNG or WebP. Max 2 MB.</p>
+                    <p class="text-xs text-brand-100/60">JPG, PNG or WebP. Max 2 MB.</p>
                     @if ($user->avatar_path)
-                        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" name="remove_avatar" value="1" class="rounded border-gray-300 text-brand-500 shadow-sm focus:ring-brand-400">
+                        <label class="inline-flex items-center gap-2 text-sm text-brand-100/80">
+                            <input type="checkbox" name="remove_avatar" value="1" class="rounded bg-white/10 border-white/25 text-brand-400 shadow-sm focus:ring-brand-400">
                             {{ __('Remove current photo') }}
                         </label>
                     @endif
@@ -54,16 +54,16 @@
 
             @if ($user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail && ! $user->hasVerifiedEmail())
                 <div>
-                    <p class="text-sm mt-2 text-gray-800">
+                    <p class="text-sm mt-2 text-white">
                         {{ __('Your email address is unverified.') }}
 
-                        <button form="send-verification" class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-400">
+                        <button form="send-verification" class="underline text-sm text-brand-100/70 hover:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-400">
                             {{ __('Click here to re-send the verification email.') }}
                         </button>
                     </p>
 
                     @if (session('status') === 'verification-link-sent')
-                        <p class="mt-2 font-medium text-sm text-green-600">
+                        <p class="mt-2 font-medium text-sm text-green-300">
                             {{ __('A new verification link has been sent to your email address.') }}
                         </p>
                     @endif
@@ -91,10 +91,10 @@
                 name="bio"
                 rows="4"
                 maxlength="1000"
-                class="mt-1 block w-full border-gray-300 focus:border-brand-400 focus:ring-brand-400 rounded-md shadow-sm"
+                class="mt-1 block w-full border-white/15 focus:border-brand-400 focus:ring-brand-400 rounded-md shadow-sm"
                 placeholder="{{ __('A short introduction about yourself…') }}"
             >{{ old('bio', $user->bio) }}</textarea>
-            <p class="mt-1 text-xs text-gray-500">Up to 1000 characters.</p>
+            <p class="mt-1 text-xs text-brand-100/60">Up to 1000 characters.</p>
             <x-input-error class="mt-2" :messages="$errors->get('bio')" />
         </div>
 
@@ -107,7 +107,7 @@
                     x-show="show"
                     x-transition
                     x-init="setTimeout(() => show = false, 2000)"
-                    class="text-sm text-gray-600"
+                    class="text-sm text-brand-100/70"
                 >{{ __('Saved.') }}</p>
             @endif
         </div>

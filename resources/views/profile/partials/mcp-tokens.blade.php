@@ -10,8 +10,8 @@
 
 <section x-data="{ adding: {{ $errors->has('name') ? 'true' : 'false' }} }">
     <header>
-        <h2 class="text-lg font-medium text-gray-900">Connect Claude</h2>
-        <p class="mt-1 text-sm text-gray-600">
+        <h2 class="text-lg font-medium text-white">Connect Claude</h2>
+        <p class="mt-1 text-sm text-brand-100/70">
             Lets Claude read and update your timesheet, to-dos{{ $user->isAdmin() ? ', shoots and scripts' : '' }}
             from a chat. A token acts as you and can never reach further than you can.
         </p>
@@ -19,13 +19,13 @@
 
     {{-- The one and only sighting of the token. --}}
     @if ($plain)
-        <div class="mt-6 rounded-xl bg-brand-50 ring-1 ring-brand-300 p-4">
-            <p class="text-xs font-semibold uppercase tracking-wider text-brand-700">Your new token</p>
-            <p class="mt-1 text-xs text-brand-900/70">Copy it now. It is not stored in a readable form and cannot be shown again.</p>
+        <div class="mt-6 rounded-xl bg-white/5 ring-1 ring-brand-300 p-4">
+            <p class="text-xs font-semibold uppercase tracking-wider text-brand-200">Your new token</p>
+            <p class="mt-1 text-xs text-brand-100/70">Copy it now. It is not stored in a readable form and cannot be shown again.</p>
 
             <div class="mt-3" x-data="{ copied: false }">
-                <code class="block w-full overflow-x-auto rounded-md bg-white px-3 py-2.5 text-xs
-                             text-gray-900 ring-1 ring-gray-200 select-all">{{ $plain }}</code>
+                <code class="block w-full overflow-x-auto rounded-md bg-white/5 px-3 py-2.5 text-xs
+                             text-white ring-1 ring-white/10 select-all">{{ $plain }}</code>
 
                 <button type="button"
                         @click="navigator.clipboard.writeText($el.previousElementSibling.textContent.trim());
@@ -37,22 +37,22 @@
                 </button>
             </div>
 
-            <p class="mt-4 text-xs font-semibold uppercase tracking-wider text-brand-700">Then run this once</p>
-            <code class="mt-2 block w-full overflow-x-auto rounded-md bg-white px-3 py-2.5 text-xs
-                         text-gray-900 ring-1 ring-gray-200 select-all">claude mcp add --transport http chakra {{ route('mcp') }} --header "Authorization: Bearer {{ $plain }}"</code>
+            <p class="mt-4 text-xs font-semibold uppercase tracking-wider text-brand-200">Then run this once</p>
+            <code class="mt-2 block w-full overflow-x-auto rounded-md bg-white/5 px-3 py-2.5 text-xs
+                         text-white ring-1 ring-white/10 select-all">claude mcp add --transport http chakra {{ route('mcp') }} --header "Authorization: Bearer {{ $plain }}"</code>
         </div>
     @endif
 
-    <div class="mt-6 rounded-xl ring-1 ring-gray-900/5 overflow-hidden">
+    <div class="mt-6 rounded-xl ring-1 ring-white/10 overflow-hidden">
         @forelse ($mcpTokens as $token)
-            <div class="flex items-start gap-3.5 p-4 {{ $loop->first ? '' : 'border-t border-gray-100' }}">
-                <span class="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 text-gray-500">
+            <div class="flex items-start gap-3.5 p-4 {{ $loop->first ? '' : 'border-t border-white/10' }}">
+                <span class="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white/10 text-brand-100/60">
                     <x-icon name="sparkles" class="w-5 h-5" />
                 </span>
 
                 <div class="min-w-0 flex-1">
-                    <p class="font-semibold text-gray-900 truncate">{{ $token->name }}</p>
-                    <p class="mt-0.5 text-xs text-gray-500">
+                    <p class="font-semibold text-white truncate">{{ $token->name }}</p>
+                    <p class="mt-0.5 text-xs text-brand-100/60">
                         Created {{ $token->created_at->format('j M Y') }}
                         &middot;
                         {{ $token->last_used_at ? 'last used '.$token->last_used_at->diffForHumans() : 'never used' }}
@@ -64,15 +64,15 @@
                     @csrf
                     @method('DELETE')
                     <button type="submit"
-                            class="inline-flex items-center min-h-[36px] px-3 rounded-md border border-gray-300
-                                   text-[11px] font-semibold uppercase tracking-wider text-gray-700
-                                   hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition-colors">
+                            class="inline-flex items-center min-h-[36px] px-3 rounded-md border border-white/15
+                                   text-[11px] font-semibold uppercase tracking-wider text-brand-100/80
+                                   hover:bg-red-400/10 hover:border-red-400/30 hover:text-red-200 transition-colors">
                         Revoke
                     </button>
                 </form>
             </div>
         @empty
-            <p class="px-4 py-10 text-center text-sm text-gray-500">No tokens yet.</p>
+            <p class="px-4 py-10 text-center text-sm text-brand-100/60">No tokens yet.</p>
         @endforelse
     </div>
 
@@ -94,7 +94,7 @@
 
         <div class="mt-3 flex items-center gap-3">
             <x-primary-button>Create token</x-primary-button>
-            <button type="button" @click="adding = false" class="text-sm text-gray-600 hover:text-gray-900">Cancel</button>
+            <button type="button" @click="adding = false" class="text-sm text-brand-100/70 hover:text-white">Cancel</button>
         </div>
     </form>
 </section>

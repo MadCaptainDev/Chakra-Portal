@@ -15,28 +15,33 @@
         'lg' => 'p-6 sm:p-8',
     ][$padding] ?? '';
 
-    // A hairline ring reads cleaner than a drop shadow at 420px, where stacked
-    // cards otherwise smear into each other.
+    // The default is now the glass panel the Dashboard established -- a
+    // translucent white film over the brand-900 ground with a hairline of
+    // white for an edge. It used to be `bg-white/5 ring-white/10` with 'dark'
+    // as the opt-in; that flipped when the whole signed-in product moved onto
+    // the dark plane. 'light' is kept for anything that must sit on paper or
+    // on a white ground, and 'dark' still resolves for the call sites that
+    // already ask for it by name.
     //
-    // 'dark' matches Dashboard's own local $cardClass exactly (the one dark
-    // screen in the app, built before this variant existed) -- a glassy panel
-    // over the brand-900 canvas rather than a hairline ring, which would be
-    // invisible against that background. No shadow either: shadows read as
-    // "lifted off a light surface" and do nothing useful over navy.
+    // No shadow on the dark tones: a shadow reads as "lifted off a light
+    // surface" and does nothing useful over navy. The ring carries the edge.
     $tones = [
-        'default' => 'bg-white ring-1 ring-gray-900/5',
-        'brand' => 'bg-brand-50/60 ring-1 ring-brand-200/70',
-        'muted' => 'bg-gray-50 ring-1 ring-gray-900/5',
+        'default' => 'bg-white/5 ring-1 ring-white/10',
         'dark' => 'bg-white/5 ring-1 ring-white/10',
+        'brand' => 'bg-brand-400/10 ring-1 ring-brand-400/25',
+        'muted' => 'bg-brand-900/40 ring-1 ring-white/10',
+        'light' => 'bg-white text-gray-900 ring-1 ring-gray-900/5',
     ];
 
+    $isLight = $tone === 'light';
+
     $classes = ($tones[$tone] ?? $tones['default']).' rounded-xl';
-    $classes .= $tone === 'dark' ? '' : ' shadow-sm';
+    $classes .= $isLight ? ' shadow-sm' : '';
 
     if ($interactive) {
-        $classes .= $tone === 'dark'
-            ? ' transition duration-150 hover:bg-white/[0.07] hover:ring-white/20'
-            : ' transition duration-150 hover:shadow-md hover:ring-gray-900/10';
+        $classes .= $isLight
+            ? ' transition duration-150 hover:shadow-md hover:ring-gray-900/10'
+            : ' transition duration-150 hover:bg-white/[0.08] hover:ring-white/20';
     }
 @endphp
 

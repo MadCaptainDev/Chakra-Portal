@@ -33,11 +33,11 @@
         <div class="sm:col-span-2">
             <x-input-label for="description" value="Description" />
             <textarea id="description" name="description" rows="2"
-                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-400 focus:ring-brand-400 text-sm">{{ old('description', $routine?->description) }}</textarea>
+                      class="mt-1 block w-full rounded-md border-white/15 shadow-sm focus:border-brand-400 focus:ring-brand-400 text-sm">{{ old('description', $routine?->description) }}</textarea>
         </div>
         <div>
             <x-input-label for="schedule_type" value="Schedule" />
-            <select id="schedule_type" name="schedule_type" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm">
+            <select id="schedule_type" name="schedule_type" class="mt-1 block w-full rounded-md border-white/15 shadow-sm text-sm">
                 @foreach (Routine::SCHEDULES as $value => $label)
                     <option value="{{ $value }}" @selected(old('schedule_type', $routine?->schedule_type ?? Routine::SCHEDULE_DAILY) === $value)>{{ $label }}</option>
                 @endforeach
@@ -60,7 +60,7 @@
         </div>
         <div>
             <x-input-label for="completion_mode" value="Completion" />
-            <select id="completion_mode" name="completion_mode" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm">
+            <select id="completion_mode" name="completion_mode" class="mt-1 block w-full rounded-md border-white/15 shadow-sm text-sm">
                 @foreach (Routine::MODES as $value => $label)
                     <option value="{{ $value }}" @selected(old('completion_mode', $routine?->completion_mode ?? Routine::MODE_SHARED) === $value)>{{ $label }}</option>
                 @endforeach
@@ -73,18 +73,18 @@
         </div>
         <div class="flex items-center gap-2 pt-6">
             <input type="hidden" name="is_active" value="0">
-            <input id="is_active" type="checkbox" name="is_active" value="1" class="rounded border-gray-300 text-brand-500 focus:ring-brand-400"
+            <input id="is_active" type="checkbox" name="is_active" value="1" class="rounded bg-white/10 border-white/25 text-brand-400 focus:ring-brand-400"
                    @checked(old('is_active', $routine?->is_active ?? true))>
             <x-input-label for="is_active" value="Active" />
         </div>
     </div>
 
     <div>
-        <p class="text-sm font-semibold text-gray-900 mb-1">Permitted people</p>
+        <p class="text-sm font-semibold text-white mb-1">Permitted people</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-40 overflow-y-auto">
             @foreach ($staff as $person)
-                <label class="inline-flex items-center gap-2 text-sm text-gray-700 min-h-[36px]">
-                    <input type="checkbox" name="user_ids[]" value="{{ $person->id }}" class="rounded border-gray-300 text-brand-500"
+                <label class="inline-flex items-center gap-2 text-sm text-brand-100/80 min-h-[36px]">
+                    <input type="checkbox" name="user_ids[]" value="{{ $person->id }}" class="rounded bg-white/10 border-white/25 text-brand-400"
                            @checked(in_array($person->id, $selectedUsers, true))>
                     {{ $person->name }}
                 </label>
@@ -93,13 +93,13 @@
     </div>
 
     <div>
-        <p class="text-sm font-semibold text-gray-900 mb-1">What is this routine about?</p>
-        <p class="text-xs text-gray-500 mb-2">Most duties are about nothing — cleaning the office is just cleaning the office.</p>
+        <p class="text-sm font-semibold text-white mb-1">What is this routine about?</p>
+        <p class="text-xs text-brand-100/60 mb-2">Most duties are about nothing — cleaning the office is just cleaning the office.</p>
         <div class="space-y-1">
             @foreach (RoutineController::SCOPES as $value => $label)
-                <label class="flex items-center gap-2 text-sm text-gray-700 min-h-[36px]">
+                <label class="flex items-center gap-2 text-sm text-brand-100/80 min-h-[36px]">
                     <input type="radio" name="subject_scope" value="{{ $value }}" x-model="scope"
-                           class="border-gray-300 text-brand-500 focus:ring-brand-400">
+                           class="bg-white/10 border-white/25 text-brand-400 focus:ring-brand-400">
                     {{ $label }}
                 </label>
             @endforeach
@@ -111,54 +111,54 @@
         <x-input-error :messages="$errors->get('social_account_ids')" />
 
     <div>
-        <p class="text-sm font-semibold text-gray-900 mb-1">Client Instagram</p>
-        <p class="text-xs text-gray-500 mb-2">Toggle connected client accounts already on Clients → Social Media.</p>
+        <p class="text-sm font-semibold text-white mb-1">Client Instagram</p>
+        <p class="text-xs text-brand-100/60 mb-2">Toggle connected client accounts already on Clients → Social Media.</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-40 overflow-y-auto">
             @forelse ($socialAccounts as $account)
-                <label class="inline-flex items-center gap-2 text-sm text-gray-700 min-h-[36px]">
-                    <input type="checkbox" name="social_account_ids[]" value="{{ $account->id }}" class="rounded border-gray-300 text-brand-500"
+                <label class="inline-flex items-center gap-2 text-sm text-brand-100/80 min-h-[36px]">
+                    <input type="checkbox" name="social_account_ids[]" value="{{ $account->id }}" class="rounded bg-white/10 border-white/25 text-brand-400"
                            @checked(in_array($account->id, $selectedSocial, true))>
                     <span>
                         {{ $account->handle() }}
                         @if ($account->client)
-                            <span class="text-xs text-gray-400">({{ $account->client->name }})</span>
+                            <span class="text-xs text-brand-100/50">({{ $account->client->name }})</span>
                         @endif
                         @if ($account->status === \App\Models\SocialAccount::STATUS_REVOKED)
-                            <span class="text-xs text-red-500">(revoked)</span>
+                            <span class="text-xs text-red-300">(revoked)</span>
                         @endif
                     </span>
                 </label>
             @empty
-                <p class="text-sm text-gray-500">No client Instagram connections yet.</p>
+                <p class="text-sm text-brand-100/60">No client Instagram connections yet.</p>
             @endforelse
         </div>
     </div>
 
     <div>
-        <p class="text-sm font-semibold text-gray-900 mb-1">Venture accounts</p>
-        <p class="text-xs text-gray-500 mb-2">Toggle Content Accounts from Setup → Content Accounts.</p>
+        <p class="text-sm font-semibold text-white mb-1">Venture accounts</p>
+        <p class="text-xs text-brand-100/60 mb-2">Toggle Content Accounts from Setup → Content Accounts.</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-40 overflow-y-auto">
             @forelse ($contentAccounts as $account)
-                <label class="inline-flex items-center gap-2 text-sm text-gray-700 min-h-[36px]">
-                    <input type="checkbox" name="content_account_ids[]" value="{{ $account->id }}" class="rounded border-gray-300 text-brand-500"
+                <label class="inline-flex items-center gap-2 text-sm text-brand-100/80 min-h-[36px]">
+                    <input type="checkbox" name="content_account_ids[]" value="{{ $account->id }}" class="rounded bg-white/10 border-white/25 text-brand-400"
                            @checked(in_array($account->id, $selectedContent, true))>
                     <span>
                         {{ $account->name }}
                         @if ($account->client)
-                            <span class="text-xs text-gray-400">({{ $account->client->name }})</span>
+                            <span class="text-xs text-brand-100/50">({{ $account->client->name }})</span>
                         @endif
                     </span>
                 </label>
             @empty
-                <p class="text-sm text-gray-500">No venture accounts yet.</p>
+                <p class="text-sm text-brand-100/60">No venture accounts yet.</p>
             @endforelse
         </div>
     </div>
     </div>
 
     <div>
-        <p class="text-sm font-semibold text-gray-900 mb-1">Checkpoints</p>
-        <p class="text-xs text-gray-500 mb-2">Leave blank for a single implicit duty. Example: Messages, Comments.</p>
+        <p class="text-sm font-semibold text-white mb-1">Checkpoints</p>
+        <p class="text-xs text-brand-100/60 mb-2">Leave blank for a single implicit duty. Example: Messages, Comments.</p>
         <div class="space-y-2">
             @foreach ($checkpointNames as $i => $name)
                 <x-text-input name="checkpoint_names[]" class="block w-full" :value="$name" placeholder="Checkpoint name" />
@@ -168,8 +168,8 @@
     </div>
 
     <div>
-        <p class="text-sm font-semibold text-gray-900 mb-1">Capture fields</p>
-        <p class="text-xs text-gray-500 mb-2">Optional values collected on complete. Number fields default to 0.</p>
+        <p class="text-sm font-semibold text-white mb-1">Capture fields</p>
+        <p class="text-xs text-brand-100/60 mb-2">Optional values collected on complete. Number fields default to 0.</p>
         @php
             $fields = old('fields', $routine?->fields->map(fn ($f) => [
                 'label' => $f->label,
@@ -187,7 +187,7 @@
                 <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
                     <x-text-input name="fields[{{ $i }}][label]" class="block w-full" :value="$field['label'] ?? ''" placeholder="Label" />
                     <x-text-input name="fields[{{ $i }}][key]" class="block w-full" :value="$field['key'] ?? ''" placeholder="key" />
-                    <select name="fields[{{ $i }}][type]" class="block w-full rounded-md border-gray-300 shadow-sm text-sm">
+                    <select name="fields[{{ $i }}][type]" class="block w-full rounded-md border-white/15 shadow-sm text-sm">
                         @foreach (RoutineField::TYPES as $value => $label)
                             <option value="{{ $value }}" @selected(($field['type'] ?? 'number') === $value)>{{ $label }}</option>
                         @endforeach

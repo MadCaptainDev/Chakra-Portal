@@ -36,7 +36,7 @@
         <div class="flex flex-wrap items-center gap-2 print:hidden">
             <x-badge :status="$script->status" />
             @if ($script->due_on)
-                <span class="text-xs font-semibold {{ $script->isOverdue() ? 'text-red-600' : 'text-gray-500' }}">
+                <span class="text-xs font-semibold {{ $script->isOverdue() ? 'text-red-300' : 'text-brand-100/60' }}">
                     {{ $script->isOverdue() ? 'Overdue' : 'Due' }} {{ $script->due_on->format('d M') }}
                 </span>
             @endif
@@ -47,8 +47,8 @@
                 <dl class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
                     @foreach ($meta as $label => $value)
                         <div>
-                            <dt class="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400">{{ $label }}</dt>
-                            <dd class="mt-0.5 text-gray-900">{{ $value }}</dd>
+                            <dt class="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-100/50">{{ $label }}</dt>
+                            <dd class="mt-0.5 text-white">{{ $value }}</dd>
                         </div>
                     @endforeach
                 </dl>
@@ -72,12 +72,12 @@
                 <div class="space-y-7">
                     @foreach ($script->sections as $section)
                         <section>
-                            <h2 class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-600">{{ $section->heading }}</h2>
-                            <div class="mt-2 h-px bg-gray-100"></div>
+                            <h2 class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">{{ $section->heading }}</h2>
+                            <div class="mt-2 h-px bg-white/10"></div>
 
-                            <div class="script-read mt-3 text-[15px] leading-relaxed text-gray-900">
+                            <div class="script-read mt-3 text-[15px] leading-relaxed text-white">
                                 @if ($section->isEmpty())
-                                    <p class="text-gray-400 italic">Nothing written in this section yet.</p>
+                                    <p class="text-brand-100/50 italic">Nothing written in this section yet.</p>
                                 @else
                                     {{-- Unescaped by necessity: this is the rich text the
                                          writer composed. It is safe because every write
@@ -94,7 +94,7 @@
             </x-card>
         @endif
 
-        <p class="text-xs text-gray-400 print:hidden">
+        <p class="text-xs text-brand-100/50 print:hidden">
             @if ($script->lastEditedBy)
                 Last edited by {{ $script->lastEditedBy->name }} {{ $script->last_edited_at?->diffForHumans() }}.
             @endif
@@ -107,7 +107,7 @@
         .script-read ul { list-style: disc; padding-left: 1.4rem; margin: .4rem 0; }
         .script-read ol { list-style: decimal; padding-left: 1.4rem; margin: .4rem 0; }
         .script-read p { margin: 0 0 .6rem; }
-        .script-read a { color: #3d8ca6; text-decoration: underline; }
+        .script-read a { color: #8ACCE0; text-decoration: underline; }
         @media print {
             .script-read { font-size: 12pt; }
         }

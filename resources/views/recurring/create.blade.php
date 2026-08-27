@@ -7,7 +7,7 @@
 
     <div class="max-w-4xl mx-auto space-y-4">
         @if ($sourceInvoice ?? null)
-            <div class="bg-brand-50 border border-brand-200 rounded-lg p-4 text-sm text-brand-800">
+            <div class="bg-white/5 border border-brand-200 rounded-lg p-4 text-sm text-brand-200">
                 Pre-filled from invoice
                 <a href="{{ route('invoices.show', $sourceInvoice) }}" class="font-semibold underline">{{ $sourceInvoice->invoice_number ?? 'draft' }}</a>
                 for <span class="font-semibold">{{ $sourceInvoice->client->name }}</span>.

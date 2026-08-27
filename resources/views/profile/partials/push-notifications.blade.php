@@ -31,8 +31,8 @@
     x-init="init()"
 >
     <header>
-        <h2 class="text-lg font-medium text-gray-900">Notifications</h2>
-        <p class="mt-1 text-sm text-gray-600">
+        <h2 class="text-lg font-medium text-white">Notifications</h2>
+        <p class="mt-1 text-sm text-brand-100/70">
             Get a push alert on this device for the things you'd want to know about right
             away -- announcements, to-dos, shoot reminders, sent-back timesheets.
         </p>
@@ -40,9 +40,9 @@
 
     <div class="mt-6 space-y-4">
         @unless ($pushConfigured)
-            <div class="flex items-start gap-3 p-4 rounded-xl bg-gray-50 ring-1 ring-gray-900/5">
-                <x-icon name="bell" class="w-5 h-5 shrink-0 mt-0.5 text-gray-400" />
-                <p class="text-sm text-gray-600">
+            <div class="flex items-start gap-3 p-4 rounded-xl bg-brand-900/40 ring-1 ring-white/10">
+                <x-icon name="bell" class="w-5 h-5 shrink-0 mt-0.5 text-brand-100/50" />
+                <p class="text-sm text-brand-100/70">
                     Push notifications haven't been set up for the studio yet. Ask an admin
                     to configure Firebase under Setup &rarr; Notifications.
                 </p>
@@ -50,13 +50,13 @@
         @else
             {{-- Checking support / iOS-not-installed / not-asked / granted / denied --}}
             <template x-if="state === 'checking'">
-                <p class="text-sm text-gray-500">Checking this browser&hellip;</p>
+                <p class="text-sm text-brand-100/60">Checking this browser&hellip;</p>
             </template>
 
             <template x-if="state === 'unsupported'">
-                <div class="flex items-start gap-3 p-4 rounded-xl bg-gray-50 ring-1 ring-gray-900/5">
-                    <x-icon name="bell" class="w-5 h-5 shrink-0 mt-0.5 text-gray-400" />
-                    <p class="text-sm text-gray-600">
+                <div class="flex items-start gap-3 p-4 rounded-xl bg-brand-900/40 ring-1 ring-white/10">
+                    <x-icon name="bell" class="w-5 h-5 shrink-0 mt-0.5 text-brand-100/50" />
+                    <p class="text-sm text-brand-100/70">
                         This browser doesn't support push notifications. Try Chrome, Edge, or
                         Safari on iOS 16.4+ (installed to the Home Screen).
                     </p>
@@ -64,9 +64,9 @@
             </template>
 
             <template x-if="state === 'ios-not-installed'">
-                <div class="flex items-start gap-3 p-4 rounded-xl bg-brand-50 ring-1 ring-brand-900/10">
-                    <x-icon name="bell" class="w-5 h-5 shrink-0 mt-0.5 text-brand-600" />
-                    <p class="text-sm text-gray-700">
+                <div class="flex items-start gap-3 p-4 rounded-xl bg-white/5 ring-1 ring-brand-900/10">
+                    <x-icon name="bell" class="w-5 h-5 shrink-0 mt-0.5 text-brand-300" />
+                    <p class="text-sm text-brand-100/80">
                         On iPhone, notifications only work once the portal is added to your
                         Home Screen. Tap <strong>Share</strong>
                         <span aria-hidden="true">&rarr;</span>
@@ -77,9 +77,9 @@
             </template>
 
             <template x-if="state === 'denied'">
-                <div class="flex items-start gap-3 p-4 rounded-xl bg-amber-50 ring-1 ring-amber-900/10">
-                    <x-icon name="alert" class="w-5 h-5 shrink-0 mt-0.5 text-amber-600" />
-                    <p class="text-sm text-amber-800">
+                <div class="flex items-start gap-3 p-4 rounded-xl bg-amber-400/10 ring-1 ring-amber-900/10">
+                    <x-icon name="alert" class="w-5 h-5 shrink-0 mt-0.5 text-amber-300" />
+                    <p class="text-sm text-amber-200">
                         Notifications are blocked for this site. A page can't re-ask once
                         you've said no -- open your browser's site settings for this page and
                         allow notifications, then reload.
@@ -88,10 +88,10 @@
             </template>
 
             <template x-if="state === 'not-asked'">
-                <div class="flex items-start justify-between gap-4 p-4 rounded-xl bg-gray-50 ring-1 ring-gray-900/5">
+                <div class="flex items-start justify-between gap-4 p-4 rounded-xl bg-brand-900/40 ring-1 ring-white/10">
                     <div class="flex items-start gap-3 min-w-0">
-                        <x-icon name="bell" class="w-5 h-5 shrink-0 mt-0.5 text-gray-400" />
-                        <p class="text-sm text-gray-600">Notifications are off for this device.</p>
+                        <x-icon name="bell" class="w-5 h-5 shrink-0 mt-0.5 text-brand-100/50" />
+                        <p class="text-sm text-brand-100/70">Notifications are off for this device.</p>
                     </div>
                     <x-primary-button type="button" @click="enable()" :disabled="false" x-bind:disabled="busy" class="shrink-0">
                         <span x-show="!busy">Turn on</span>
@@ -101,10 +101,10 @@
             </template>
 
             <template x-if="state === 'granted'">
-                <div class="flex items-start justify-between gap-4 p-4 rounded-xl bg-green-50 ring-1 ring-green-900/10">
+                <div class="flex items-start justify-between gap-4 p-4 rounded-xl bg-green-400/10 ring-1 ring-green-900/10">
                     <div class="flex items-start gap-3 min-w-0">
-                        <x-icon name="check-circle" class="w-5 h-5 shrink-0 mt-0.5 text-green-600" />
-                        <p class="text-sm text-green-800">Notifications are on for this device.</p>
+                        <x-icon name="check-circle" class="w-5 h-5 shrink-0 mt-0.5 text-green-300" />
+                        <p class="text-sm text-green-200">Notifications are on for this device.</p>
                     </div>
                     <x-secondary-button type="button" @click="disable()" x-bind:disabled="busy" class="shrink-0">
                         <span x-show="!busy">Turn off</span>
@@ -113,28 +113,28 @@
                 </div>
             </template>
 
-            <p x-show="error" x-cloak x-text="error" class="text-sm text-red-600"></p>
+            <p x-show="error" x-cloak x-text="error" class="text-sm text-red-300"></p>
         @endunless
 
         @if ($pushTokens->isNotEmpty())
             <div>
-                <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-2">
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 mb-2">
                     Registered devices
                 </p>
-                <div class="rounded-xl ring-1 ring-gray-900/5 overflow-hidden">
+                <div class="rounded-xl ring-1 ring-white/10 overflow-hidden">
                     @foreach ($pushTokens as $token)
-                        <div class="flex items-start gap-3.5 p-4 {{ $loop->first ? '' : 'border-t border-gray-100' }}">
-                            <span class="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 text-gray-500">
+                        <div class="flex items-start gap-3.5 p-4 {{ $loop->first ? '' : 'border-t border-white/10' }}">
+                            <span class="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white/10 text-brand-100/60">
                                 <x-icon :name="$icons[$token->device_kind] ?? 'globe'" class="w-5 h-5" />
                             </span>
 
                             <div class="min-w-0 flex-1">
-                                <p class="font-semibold text-gray-900">{{ $token->device_label }}</p>
-                                <p class="mt-0.5 text-xs text-gray-500">
+                                <p class="font-semibold text-white">{{ $token->device_label }}</p>
+                                <p class="mt-0.5 text-xs text-brand-100/60">
                                     {{ $token->last_used_at ? 'Last notified '.$token->last_used_at->diffForHumans() : 'Not notified yet' }}
                                 </p>
                                 @if ($token->failure_reason)
-                                    <p class="mt-1 text-xs font-medium text-amber-700">{{ $token->failure_reason }}</p>
+                                    <p class="mt-1 text-xs font-medium text-amber-200">{{ $token->failure_reason }}</p>
                                 @endif
                             </div>
 
@@ -143,9 +143,9 @@
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit"
-                                        class="inline-flex items-center min-h-[36px] px-3 rounded-md border border-gray-300
-                                               text-[11px] font-semibold uppercase tracking-wider text-gray-700
-                                               hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition-colors">
+                                        class="inline-flex items-center min-h-[36px] px-3 rounded-md border border-white/15
+                                               text-[11px] font-semibold uppercase tracking-wider text-brand-100/80
+                                               hover:bg-red-400/10 hover:border-red-400/30 hover:text-red-200 transition-colors">
                                     Stop
                                 </button>
                             </form>

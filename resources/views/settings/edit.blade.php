@@ -34,7 +34,7 @@
                         @if ($settings->app_studio_logo_path)
                             <img src="{{ asset($settings->app_studio_logo_path) }}" alt="Current App Studio logo" class="h-12 my-2">
                         @else
-                            <p class="text-xs text-gray-500 my-2">Not set yet -- App Studio invoices use the Production logo above until one is uploaded.</p>
+                            <p class="text-xs text-brand-100/60 my-2">Not set yet -- App Studio invoices use the Production logo above until one is uploaded.</p>
                         @endif
                         <input id="app_studio_logo" name="app_studio_logo" type="file" accept="image/*" class="mt-1 block w-full text-sm">
                         <x-input-error :messages="$errors->get('app_studio_logo')" class="mt-2" />
@@ -68,7 +68,7 @@
                         <x-input-label for="notification_email" value="Notification Email (optional)" />
                         <x-text-input id="notification_email" name="notification_email" type="email" class="mt-1 w-full lg:w-1/2" value="{{ old('notification_email', $settings->notification_email) }}" />
                         <x-input-error :messages="$errors->get('notification_email')" class="mt-2" />
-                        <p class="text-xs text-gray-500 mt-1">Where to send alerts when recurring invoices are generated. Leave blank to notify every staff account.</p>
+                        <p class="text-xs text-brand-100/60 mt-1">Where to send alerts when recurring invoices are generated. Leave blank to notify every staff account.</p>
                     </div>
                 </div>
 

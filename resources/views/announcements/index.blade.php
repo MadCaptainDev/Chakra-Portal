@@ -22,7 +22,7 @@
 
         @if ($announcements->isEmpty())
             <x-empty-state message="Nothing posted yet.">
-                <button type="button" @click="adding = true" class="text-brand-500 font-semibold text-sm hover:text-brand-600">Write the first one &rarr;</button>
+                <button type="button" @click="adding = true" class="text-brand-500 font-semibold text-sm hover:text-brand-300">Write the first one &rarr;</button>
             </x-empty-state>
         @else
             @foreach ($announcements as $announcement)
@@ -30,20 +30,20 @@
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
                             <div class="flex items-center gap-2 flex-wrap">
-                                <p class="font-semibold text-gray-900">{{ $announcement->title }}</p>
+                                <p class="font-semibold text-white">{{ $announcement->title }}</p>
                                 <x-badge :status="$announcement->is_active ? 'active' : 'inactive'" />
                             </div>
-                            <p class="text-[11px] text-gray-500 mt-0.5">
+                            <p class="text-[11px] text-brand-100/60 mt-0.5">
                                 {{ $announcement->author?->name ?? 'Unknown' }} &middot; {{ $announcement->created_at->diffForHumans() }}
                             </p>
                         </div>
                     </div>
 
-                    <p class="text-sm text-gray-700 mt-3 whitespace-pre-line">{{ $announcement->body }}</p>
+                    <p class="text-sm text-brand-100/80 mt-3 whitespace-pre-line">{{ $announcement->body }}</p>
 
                     <div class="mt-3 flex items-center justify-end gap-3">
                         <button type="button" @click="editing = ! editing"
-                                class="min-h-[44px] px-2 text-xs font-semibold text-brand-500 hover:text-brand-600">
+                                class="min-h-[44px] px-2 text-xs font-semibold text-brand-500 hover:text-brand-300">
                             <span x-show="! editing">Edit</span>
                             <span x-show="editing" x-cloak>Cancel</span>
                         </button>
@@ -51,11 +51,11 @@
                               onsubmit="return confirm('Delete this announcement?');">
                             @csrf
                             @method('DELETE')
-                            <button type="submit" class="min-h-[44px] px-2 text-xs font-semibold text-red-600 hover:text-red-800">Delete</button>
+                            <button type="submit" class="min-h-[44px] px-2 text-xs font-semibold text-red-300 hover:text-red-200">Delete</button>
                         </form>
                     </div>
 
-                    <div x-show="editing" x-cloak class="mt-3 pt-3 border-t border-gray-200">
+                    <div x-show="editing" x-cloak class="mt-3 pt-3 border-t border-white/10">
                         @include('announcements._form', ['announcement' => $announcement])
                     </div>
                 </x-card>

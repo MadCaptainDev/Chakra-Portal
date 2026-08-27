@@ -54,15 +54,15 @@
 
         @if ($rows->isEmpty())
             <x-empty-state message="Nothing is payable in {{ $month->format('F Y') }}.">
-                <a href="{{ route('other.index') }}" class="text-brand-500 font-semibold text-sm hover:text-brand-600">Add a one-time expense &rarr;</a>
+                <a href="{{ route('other.index') }}" class="text-brand-500 font-semibold text-sm hover:text-brand-300">Add a one-time expense &rarr;</a>
             </x-empty-state>
         @else
             {{-- Hero month strip --}}
             <x-card class="p-4 sm:p-6">
                 <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-4">
                     <div>
-                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{{ $month->format('F Y') }} outflow</p>
-                        <p class="mt-1 text-sm text-gray-600">
+                        <p class="text-xs font-semibold text-brand-100/60 uppercase tracking-wide">{{ $month->format('F Y') }} outflow</p>
+                        <p class="mt-1 text-sm text-brand-100/70">
                             @if ($outstanding > 0)
                                 {{ $paidPercent }}% paid · {{ number_format($outstanding, 2) }} still open
                             @else
@@ -83,24 +83,24 @@
 
                 <div class="grid grid-cols-3 gap-3 mb-4">
                     <div>
-                        <p class="text-xs text-gray-500 uppercase tracking-wide">Due</p>
-                        <p class="text-lg sm:text-2xl font-bold text-gray-900">{{ number_format($totalDue, 2) }}</p>
+                        <p class="text-xs text-brand-100/60 uppercase tracking-wide">Due</p>
+                        <p class="text-lg sm:text-2xl font-bold text-white">{{ number_format($totalDue, 2) }}</p>
                     </div>
                     <div>
-                        <p class="text-xs text-gray-500 uppercase tracking-wide">Paid</p>
-                        <p class="text-lg sm:text-2xl font-bold text-green-600">{{ number_format($totalPaid, 2) }}</p>
+                        <p class="text-xs text-brand-100/60 uppercase tracking-wide">Paid</p>
+                        <p class="text-lg sm:text-2xl font-bold text-green-300">{{ number_format($totalPaid, 2) }}</p>
                     </div>
                     <div>
-                        <p class="text-xs text-gray-500 uppercase tracking-wide">Outstanding</p>
-                        <p class="text-lg sm:text-2xl font-bold {{ $outstanding > 0 ? 'text-red-600' : 'text-gray-400' }}">{{ number_format($outstanding, 2) }}</p>
+                        <p class="text-xs text-brand-100/60 uppercase tracking-wide">Outstanding</p>
+                        <p class="text-lg sm:text-2xl font-bold {{ $outstanding > 0 ? 'text-red-300' : 'text-brand-100/50' }}">{{ number_format($outstanding, 2) }}</p>
                     </div>
                 </div>
 
-                <div class="h-2.5 rounded-full bg-gray-100 overflow-hidden">
+                <div class="h-2.5 rounded-full bg-white/10 overflow-hidden">
                     <div class="h-full rounded-full {{ $paidPercent >= 100 ? 'bg-green-500' : 'bg-brand-400' }} transition-all"
                          style="width: {{ $paidPercent }}%"></div>
                 </div>
-                <p class="mt-2 text-xs text-gray-500 text-right">{{ $paidPercent }}% paid</p>
+                <p class="mt-2 text-xs text-brand-100/60 text-right">{{ $paidPercent }}% paid</p>
             </x-card>
 
             {{-- At-a-glance cards --}}
@@ -122,40 +122,40 @@
             {{-- Outflow mix board --}}
             <div>
                 <div class="flex items-center justify-between mb-3">
-                    <h3 class="font-semibold text-gray-900">Outflow mix</h3>
-                    <p class="text-xs text-gray-500">EMI · Salary · Bill · One-time</p>
+                    <h3 class="font-semibold text-white">Outflow mix</h3>
+                    <p class="text-xs text-brand-100/60">EMI · Salary · Bill · One-time</p>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
                     @foreach ($byType as $type => $group)
-                        @php $style = $typeStyles[$type] ?? ['dot' => 'bg-gray-400', 'bar' => 'bg-gray-400', 'manage' => null, 'label' => $group['label']]; @endphp
+                        @php $style = $typeStyles[$type] ?? ['dot' => 'bg-white/30', 'bar' => 'bg-white/30', 'manage' => null, 'label' => $group['label']]; @endphp
                         <x-card class="p-4 sm:p-5">
                             <div class="flex items-center justify-between mb-3">
-                                <span class="inline-flex items-center gap-2 font-semibold text-gray-900">
+                                <span class="inline-flex items-center gap-2 font-semibold text-white">
                                     <span class="w-2.5 h-2.5 rounded-full {{ $style['dot'] }}"></span>
                                     {{ $style['label'] }}
                                 </span>
                                 @if (! empty($style['manage']))
-                                    <a href="{{ $style['manage'] }}" class="text-xs font-semibold text-brand-500 hover:text-brand-600">Open</a>
+                                    <a href="{{ $style['manage'] }}" class="text-xs font-semibold text-brand-500 hover:text-brand-300">Open</a>
                                 @endif
                             </div>
                             <div class="grid grid-cols-3 gap-2 text-center mb-3">
                                 <div>
-                                    <p class="text-[11px] text-gray-500 uppercase">Due</p>
-                                    <p class="text-sm font-semibold text-gray-900">{{ number_format($group['due'], 0) }}</p>
+                                    <p class="text-[11px] text-brand-100/60 uppercase">Due</p>
+                                    <p class="text-sm font-semibold text-white">{{ number_format($group['due'], 0) }}</p>
                                 </div>
                                 <div>
-                                    <p class="text-[11px] text-gray-500 uppercase">Paid</p>
-                                    <p class="text-sm font-semibold text-green-600">{{ number_format($group['paid'], 0) }}</p>
+                                    <p class="text-[11px] text-brand-100/60 uppercase">Paid</p>
+                                    <p class="text-sm font-semibold text-green-300">{{ number_format($group['paid'], 0) }}</p>
                                 </div>
                                 <div>
-                                    <p class="text-[11px] text-gray-500 uppercase">Open</p>
-                                    <p class="text-sm font-semibold {{ $group['outstanding'] > 0 ? 'text-red-600' : 'text-gray-400' }}">{{ number_format($group['outstanding'], 0) }}</p>
+                                    <p class="text-[11px] text-brand-100/60 uppercase">Open</p>
+                                    <p class="text-sm font-semibold {{ $group['outstanding'] > 0 ? 'text-red-300' : 'text-brand-100/50' }}">{{ number_format($group['outstanding'], 0) }}</p>
                                 </div>
                             </div>
-                            <div class="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                            <div class="h-1.5 rounded-full bg-white/10 overflow-hidden">
                                 <div class="h-full rounded-full {{ $style['bar'] }}" style="width: {{ $group['percent'] }}%"></div>
                             </div>
-                            <p class="mt-1.5 text-[11px] text-gray-500">{{ $group['percent'] }}% paid · {{ $group['unpaid_count'] }} need action</p>
+                            <p class="mt-1.5 text-[11px] text-brand-100/60">{{ $group['percent'] }}% paid · {{ $group['unpaid_count'] }} need action</p>
                         </x-card>
                     @endforeach
                 </div>
@@ -165,11 +165,11 @@
             <div>
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
                     <div>
-                        <h3 class="font-semibold text-gray-900">Needs attention</h3>
-                        <p class="text-xs text-gray-500">Unpaid or short-paid items for {{ $month->format('F Y') }}</p>
+                        <h3 class="font-semibold text-white">Needs attention</h3>
+                        <p class="text-xs text-brand-100/60">Unpaid or short-paid items for {{ $month->format('F Y') }}</p>
                     </div>
                     @if ($attentionRows->isNotEmpty())
-                        <span class="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1 w-fit">
+                        <span class="text-xs font-semibold text-amber-200 bg-amber-400/10 border border-amber-400/30 rounded-md px-2.5 py-1 w-fit">
                             {{ $attentionRows->count() }} {{ Str::plural('item', $attentionRows->count()) }}
                         </span>
                     @endif
@@ -177,38 +177,38 @@
 
                 @if ($attentionRows->isEmpty())
                     <x-card class="p-6 text-center">
-                        <p class="text-sm font-medium text-green-700">Nothing outstanding — this month is clear.</p>
-                        <p class="text-xs text-gray-500 mt-1">Manage line items on Salaries, Bills, or EMI tabs.</p>
+                        <p class="text-sm font-medium text-green-200">Nothing outstanding — this month is clear.</p>
+                        <p class="text-xs text-brand-100/60 mt-1">Manage line items on Salaries, Bills, or EMI tabs.</p>
                     </x-card>
                 @else
-                    <x-card class="divide-y divide-gray-200">
+                    <x-card class="divide-y divide-white/10">
                         @foreach ($attentionRows as $row)
                             @php
                                 $expense = $row['expense'];
-                                $style = $typeStyles[$expense->type] ?? ['dot' => 'bg-gray-400', 'label' => $expense->typeLabel()];
+                                $style = $typeStyles[$expense->type] ?? ['dot' => 'bg-white/30', 'label' => $expense->typeLabel()];
                                 $isPartial = $row['paid'] > 0;
                             @endphp
                             <div class="p-3 sm:p-4 flex flex-col lg:flex-row lg:items-center gap-3">
                                 <div class="min-w-0 flex-1">
                                     <div class="flex items-center gap-2 flex-wrap">
                                         <span class="w-2 h-2 rounded-full {{ $style['dot'] }}"></span>
-                                        <p class="font-medium text-gray-900 truncate">
+                                        <p class="font-medium text-white truncate">
                                             {{ $expense->name }}
                                             @if ($row['installment'])
-                                                <span class="text-xs font-normal text-gray-500">
+                                                <span class="text-xs font-normal text-brand-100/60">
                                                     &middot; {{ $row['installment'] }} of {{ $expense->installments }}
                                                 </span>
                                             @endif
                                         </p>
-                                        <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{{ $style['label'] }}</span>
+                                        <span class="text-[11px] font-semibold uppercase tracking-wide text-brand-100/60">{{ $style['label'] }}</span>
                                         @if ($isPartial)
-                                            <span class="text-[11px] font-semibold text-amber-700">Short</span>
+                                            <span class="text-[11px] font-semibold text-amber-200">Short</span>
                                         @endif
                                     </div>
-                                    <p class="text-xs text-gray-500 mt-1">
+                                    <p class="text-xs text-brand-100/60 mt-1">
                                         Due {{ number_format($row['due'], 2) }}
                                         · Paid {{ number_format($row['paid'], 2) }}
-                                        · Shortfall <span class="font-semibold text-red-600">{{ number_format($row['shortfall'], 2) }}</span>
+                                        · Shortfall <span class="font-semibold text-red-300">{{ number_format($row['shortfall'], 2) }}</span>
                                     </p>
                                 </div>
 
@@ -225,12 +225,12 @@
                 @foreach ($typeStyles as $type => $style)
                     @php $group = $byType[$type] ?? null; @endphp
                     <a href="{{ $style['manage'] }}"
-                       class="flex items-center justify-between gap-3 rounded-lg bg-white shadow-sm border border-gray-100 px-4 py-3 hover:border-brand-300 transition-colors">
-                        <span class="inline-flex items-center gap-2 text-sm font-semibold text-gray-900">
+                       class="flex items-center justify-between gap-3 rounded-lg bg-white/5 shadow-sm border border-white/10 px-4 py-3 hover:border-brand-300 transition-colors">
+                        <span class="inline-flex items-center gap-2 text-sm font-semibold text-white">
                             <span class="w-2 h-2 rounded-full {{ $style['dot'] }}"></span>
                             {{ $style['label'] }}
                         </span>
-                        <span class="text-xs text-gray-500">
+                        <span class="text-xs text-brand-100/60">
                             @if ($group && $group['outstanding'] > 0)
                                 {{ number_format($group['outstanding'], 0) }} open &rarr;
                             @else

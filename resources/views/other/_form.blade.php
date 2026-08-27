@@ -19,7 +19,7 @@
             <div>
                 <x-input-label for="other_category_{{ $item?->id ?? 'new' }}" value="Category" />
                 <select id="other_category_{{ $item?->id ?? 'new' }}" name="category" required
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
+                        class="mt-1 block w-full rounded-md border-white/15 shadow-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
                     <option value="" disabled @selected(! old('category', $item->category ?? null))>Select category</option>
                     @foreach ($categories as $category)
                         <option value="{{ $category }}" @selected(old('category', $item->category ?? '') === $category)>
@@ -64,7 +64,7 @@
             @if ($item)
                 <button type="button" form="other-delete-{{ $item->id }}"
                         onclick="return confirm('Delete this expense?')"
-                        class="inline-flex items-center justify-center min-h-[44px] px-3 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-red-600 uppercase tracking-widest hover:bg-gray-50">
+                        class="inline-flex items-center justify-center min-h-[44px] px-3 py-2 bg-white/5 border border-white/15 rounded-md font-semibold text-xs text-red-300 uppercase tracking-widest hover:bg-white/[0.09]">
                     Delete
                 </button>
             @endif

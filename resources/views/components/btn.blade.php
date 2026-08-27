@@ -10,12 +10,19 @@
     // Anchors styled as buttons were pasted at ~30 call sites, each repeating
     // the same uppercase/tracking-widest string. x-primary-button only ever
     // rendered a <button>, so links could not use it.
+    //
+    // Every variant is drawn for the brand-900 ground the signed-in app now
+    // runs on. Primary is the Dashboard's own CTA -- solid brand-400 with
+    // navy text, which outreads a white-on-brand-500 button on this plane.
+    // Secondary is glass, matching x-card's surface rather than fighting it.
     $variants = [
-        'primary' => 'bg-brand-500 text-white shadow-sm hover:bg-brand-600 focus-visible:outline-brand-600',
-        'secondary' => 'bg-white text-gray-700 ring-1 ring-gray-900/10 shadow-sm hover:bg-gray-50 hover:text-gray-900',
-        'danger' => 'bg-red-600 text-white shadow-sm hover:bg-red-700 focus-visible:outline-red-700',
-        'ghost' => 'text-brand-600 hover:bg-brand-50 hover:text-brand-700',
-        'dark' => 'bg-brand-900 text-white shadow-sm hover:bg-brand-800',
+        'primary' => 'bg-brand-400 text-brand-900 hover:bg-brand-500 focus-visible:outline-brand-300',
+        'secondary' => 'bg-white/10 text-white ring-1 ring-white/15 hover:bg-white/[0.16] hover:ring-white/25',
+        'danger' => 'bg-red-500 text-white hover:bg-red-400 focus-visible:outline-red-400',
+        'ghost' => 'text-brand-200 hover:bg-white/10 hover:text-white',
+        // Was "a solid navy button on a light page". On navy that inverts:
+        // the emphatic non-brand button is now the white one.
+        'dark' => 'bg-white text-brand-900 hover:bg-brand-100',
     ];
 
     $sizes = [
@@ -28,7 +35,7 @@
 
     $classes = 'inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold '
         .'transition duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 '
-        .'focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none '
+        .'focus-visible:ring-offset-2 focus-visible:ring-offset-brand-900 disabled:opacity-50 disabled:pointer-events-none '
         .($sizes[$size] ?? $sizes['md']).' '.($variants[$variant] ?? $variants['primary']);
 @endphp
 

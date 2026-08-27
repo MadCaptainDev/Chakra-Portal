@@ -4,15 +4,15 @@
      dashboard, each with its own spacing. One component, one spacing. --}}
 <div class="flex items-end justify-between gap-3 mb-3">
     <div class="min-w-0">
-        <h3 class="font-semibold text-gray-900 leading-tight">{{ $title }}</h3>
+        <h3 class="font-semibold text-white leading-tight">{{ $title }}</h3>
         @if ($subtitle)
-            <p class="text-xs text-gray-500 mt-0.5 leading-snug">{{ $subtitle }}</p>
+            <p class="text-xs text-brand-100/60 mt-0.5 leading-snug">{{ $subtitle }}</p>
         @endif
     </div>
 
     @if ($href)
         <a href="{{ $href }}"
-           class="shrink-0 inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:text-brand-700">
+           class="shrink-0 inline-flex items-center gap-1 text-sm font-semibold text-brand-300 hover:text-brand-200">
             {{ $linkLabel }}
             <x-icon name="chevron-right" class="w-4 h-4" />
         </a>

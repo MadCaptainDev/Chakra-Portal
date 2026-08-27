@@ -47,23 +47,23 @@
         : null;
 @endphp
 
-<div {{ $attributes->merge(['class' => 'bg-white shadow-sm rounded-lg border border-brand-100/60 p-3 sm:p-4']) }}>
+<div {{ $attributes->merge(['class' => 'bg-white/5 shadow-sm rounded-lg border border-white/10 p-3 sm:p-4']) }}>
     <div class="flex items-start justify-between gap-2 mb-2.5">
-        <h3 class="text-sm font-semibold text-brand-900 leading-tight">{{ $title }}</h3>
+        <h3 class="text-sm font-semibold text-white leading-tight">{{ $title }}</h3>
         @if ($peakDay)
-            <p class="text-[10px] sm:text-[11px] text-gray-500 tabular-nums shrink-0 text-right leading-tight">
+            <p class="text-[10px] sm:text-[11px] text-brand-100/60 tabular-nums shrink-0 text-right leading-tight">
                 Peak {{ \Illuminate\Support\Carbon::parse($peakDay['date'])->format('j M') }}
-                <span class="text-brand-800 font-medium">{{ $fmt($peak) }}</span>
+                <span class="text-brand-200 font-medium">{{ $fmt($peak) }}</span>
             </p>
         @endif
     </div>
 
     @if (! $hasData)
-        <p class="text-sm text-gray-500 py-6 text-center">No hours logged yet.</p>
+        <p class="text-sm text-brand-100/60 py-6 text-center">No hours logged yet.</p>
     @else
         <div class="flex gap-1.5 sm:gap-2" role="img" aria-label="{{ $title }}">
             {{-- Y-axis: readable hour scale against the shared max. --}}
-            <div class="flex flex-col justify-between shrink-0 w-10 sm:w-12 h-[7.5rem] py-0.5 text-right text-[9px] sm:text-[10px] leading-none text-gray-400 tabular-nums select-none whitespace-nowrap"
+            <div class="flex flex-col justify-between shrink-0 w-10 sm:w-12 h-[7.5rem] py-0.5 text-right text-[9px] sm:text-[10px] leading-none text-brand-100/50 tabular-nums select-none whitespace-nowrap"
                  aria-hidden="true">
                 <span>{{ $axisHours($maxMinutes) }}</span>
                 @if ($midY > 0 && $midY < $maxMinutes)
@@ -76,10 +76,10 @@
 
             <div class="flex-1 min-w-0">
                 {{-- Absolute fill avoids flex align-items:end percentage-height collapse. --}}
-                <div class="relative h-[7.5rem] rounded-sm bg-brand-50/40 ring-1 ring-inset ring-brand-100/50">
-                    <div class="pointer-events-none absolute inset-x-0 top-0 border-t border-brand-100/70" aria-hidden="true"></div>
-                    <div class="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-brand-100/60" aria-hidden="true"></div>
-                    <div class="pointer-events-none absolute inset-x-0 bottom-0 border-t border-brand-100/80" aria-hidden="true"></div>
+                <div class="relative h-[7.5rem] rounded-sm bg-white/5 ring-1 ring-inset ring-white/10">
+                    <div class="pointer-events-none absolute inset-x-0 top-0 border-t border-white/10" aria-hidden="true"></div>
+                    <div class="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-white/10" aria-hidden="true"></div>
+                    <div class="pointer-events-none absolute inset-x-0 bottom-0 border-t border-white/10" aria-hidden="true"></div>
 
                     <div class="absolute inset-0 flex items-end gap-px px-px pb-px">
                         @foreach ($days as $index => $day)
@@ -110,11 +110,11 @@
                                     aria-label="{{ $tip }}">
                                 @if ($minutes > 0)
                                     <span class="w-full rounded-t transition-colors
-                                                 {{ $isPeak ? 'bg-brand-700 group-hover:bg-brand-800 group-focus-visible:bg-brand-800' : 'bg-brand-500 group-hover:bg-brand-600 group-focus-visible:bg-brand-600' }}"
+                                                 {{ $isPeak ? 'bg-brand-300 group-hover:bg-brand-200 group-focus-visible:bg-brand-200' : 'bg-brand-400 group-hover:bg-brand-300 group-focus-visible:bg-brand-300' }}"
                                           style="height: {{ $pct }}%"></span>
                                 @else
                                     {{-- Visible zero stubs keep the month continuum readable. --}}
-                                    <span class="w-full h-0.5 rounded-sm bg-brand-200/90 group-hover:bg-brand-300 group-focus-visible:bg-brand-300"></span>
+                                    <span class="w-full h-0.5 rounded-sm bg-brand-400/60 group-hover:bg-brand-300 group-focus-visible:bg-brand-300"></span>
                                 @endif
 
                                 <span class="pointer-events-none absolute bottom-full z-30 mb-1.5 whitespace-nowrap
@@ -131,7 +131,7 @@
                     </div>
                 </div>
 
-                <div class="flex justify-between mt-1.5 text-[9px] sm:text-[10px] text-gray-400 tabular-nums leading-none">
+                <div class="flex justify-between mt-1.5 text-[9px] sm:text-[10px] text-brand-100/50 tabular-nums leading-none">
                     <span>{{ \Illuminate\Support\Carbon::parse($days[0]['date'])->format('j M') }}</span>
                     @if ($midIndex !== null)
                         <span>{{ \Illuminate\Support\Carbon::parse($days[$midIndex]['date'])->format('j M') }}</span>

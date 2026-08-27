@@ -65,7 +65,7 @@
                      person it was actually handed to. --}}
                 <div class="mt-1 flex items-center gap-2 min-h-[44px]">
                     <x-avatar :name="$todo->user->name" :src="$todo->user->avatarUrl()" size="sm" />
-                    <span class="text-sm text-gray-700">{{ $todo->user->name }}</span>
+                    <span class="text-sm text-brand-100/80">{{ $todo->user->name }}</span>
                 </div>
             @else
                 <x-select :id="'todo_for_'.$uid" name="user_id" class="mt-1" required>
@@ -94,7 +94,7 @@
                 <option value="{{ $allVentures }}" @selected($currentVenture === $allVentures)>{{ $allVentures }}</option>
             </x-select>
             @if ($currentVenture !== '' && ! in_array($currentVenture, $knownVentures, true))
-                <p class="mt-1 text-xs text-amber-700">“{{ $currentVenture }}” is not a client any more — pick one to fix it.</p>
+                <p class="mt-1 text-xs text-amber-200">“{{ $currentVenture }}” is not a client any more — pick one to fix it.</p>
             @endif
             <x-input-error :messages="$errorsFor('venture')" class="mt-2" />
         </div>
@@ -112,7 +112,7 @@
             <x-input-label :for="'todo_due_'.$uid" value="Last day" />
             <x-text-input :id="'todo_due_'.$uid" name="due_on" type="date" class="mt-1 block w-full"
                           x-model="dueOn" />
-            <p class="text-[11px] text-gray-500 mt-1">
+            <p class="text-[11px] text-brand-100/60 mt-1">
                 Same day for a one-day job. <span x-text="spanLabel" class="font-semibold"></span>
             </p>
             <x-input-error :messages="$errorsFor('due_on')" class="mt-2" />

@@ -15,13 +15,13 @@
 
     <div class="max-w-4xl space-y-4" x-data="{ adding: false }">
         <div class="flex items-start justify-between gap-3">
-            <p class="text-sm text-gray-500">
+            <p class="text-sm text-brand-100/60">
                 Each routine generates open occurrences on its schedule. Employees tick them on
-                <a href="{{ route('my.routines') }}" class="font-semibold text-brand-600 hover:text-brand-700">My Routines</a>.
+                <a href="{{ route('my.routines') }}" class="font-semibold text-brand-300 hover:text-brand-200">My Routines</a>.
             </p>
             @can('routines.create')
                 <button type="button" @click="adding = ! adding"
-                        class="shrink-0 min-h-[44px] text-sm font-semibold text-brand-500 hover:text-brand-600">
+                        class="shrink-0 min-h-[44px] text-sm font-semibold text-brand-500 hover:text-brand-300">
                     <span x-show="! adding">+ New</span>
                     <span x-show="adding" x-cloak>Cancel</span>
                 </button>
@@ -42,26 +42,26 @@
         @if ($routines->isEmpty())
             <x-empty-state message="No routines yet.">
                 @can('routines.create')
-                    <button type="button" @click="adding = true" class="text-brand-500 font-semibold text-sm hover:text-brand-600">
+                    <button type="button" @click="adding = true" class="text-brand-500 font-semibold text-sm hover:text-brand-300">
                         Add the first one &rarr;
                     </button>
                 @endcan
             </x-empty-state>
         @else
-            <x-card class="divide-y divide-gray-200">
+            <x-card class="divide-y divide-white/10">
                 @foreach ($routines as $routine)
                     <div class="p-3 sm:p-4" x-data="{ editing: false }">
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0">
                                 <div class="flex items-center gap-2 flex-wrap">
-                                    <p class="font-semibold {{ $routine->is_active ? 'text-gray-900' : 'text-gray-400' }}">
+                                    <p class="font-semibold {{ $routine->is_active ? 'text-white' : 'text-brand-100/50' }}">
                                         {{ $routine->title }}
                                     </p>
                                     @unless ($routine->is_active)
-                                        <x-badge status="retired" color="bg-gray-100 text-gray-600">Inactive</x-badge>
+                                        <x-badge status="retired" color="bg-white/10 text-brand-100/70">Inactive</x-badge>
                                     @endunless
                                 </div>
-                                <p class="text-xs text-gray-500 mt-0.5">
+                                <p class="text-xs text-brand-100/60 mt-0.5">
                                     {{ $routine->scheduleLabel() }}
                                     &middot; {{ Routine::MODES[$routine->completion_mode] ?? $routine->completion_mode }}
                                     &middot; {{ $routine->checkpoints_count }} {{ Str::plural('checkpoint', $routine->checkpoints_count) }}
@@ -71,7 +71,7 @@
                                     &middot; {{ $routine->users_count }} {{ Str::plural('person', $routine->users_count) }}
                                 </p>
                                 @if ($warning = $routine->generationWarning())
-                                    <p class="mt-1.5 text-xs text-amber-800 bg-amber-50 ring-1 ring-amber-200 rounded px-2 py-1">
+                                    <p class="mt-1.5 text-xs text-amber-200 bg-amber-400/10 ring-1 ring-amber-400/30 rounded px-2 py-1">
                                         {{ $warning }}
                                     </p>
                                 @endif
@@ -80,7 +80,7 @@
                             <div class="flex items-center gap-2 shrink-0">
                                 @can('routines.edit')
                                     <button type="button" @click="editing = ! editing"
-                                            class="min-h-[44px] px-2 text-xs font-semibold text-brand-500 hover:text-brand-600">
+                                            class="min-h-[44px] px-2 text-xs font-semibold text-brand-500 hover:text-brand-300">
                                         <span x-show="! editing">Edit</span>
                                         <span x-show="editing" x-cloak>Cancel</span>
                                     </button>
@@ -90,7 +90,7 @@
                                           onsubmit="return confirm('Delete this routine and all its occurrences?')">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="min-h-[44px] px-2 text-xs font-semibold text-red-600 hover:text-red-700">
+                                        <button type="submit" class="min-h-[44px] px-2 text-xs font-semibold text-red-300 hover:text-red-200">
                                             Delete
                                         </button>
                                     </form>
@@ -99,7 +99,7 @@
                         </div>
 
                         @can('routines.edit')
-                            <div x-show="editing" x-cloak class="mt-3 pt-3 border-t border-gray-100">
+                            <div x-show="editing" x-cloak class="mt-3 pt-3 border-t border-white/10">
                                 <form method="POST" action="{{ route('routines.update', $routine) }}">
                                     @csrf
                                     @method('PUT')

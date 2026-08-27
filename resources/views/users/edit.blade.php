@@ -2,7 +2,7 @@
     <x-slot name="header">
         <x-page-header :title="'Edit '.$user->name">
             <x-slot name="actions">
-                <a href="{{ route('users.index') }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50">
+                <a href="{{ route('users.index') }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white/5 border border-white/15 rounded-md font-semibold text-xs text-brand-100/80 uppercase tracking-widest hover:bg-white/[0.09]">
                     Back to Users
                 </a>
             </x-slot>
@@ -11,7 +11,7 @@
 
     <div class="max-w-xl space-y-6">
         @if (session('status'))
-            <div class="rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
+            <div class="rounded-md bg-green-400/10 border border-green-400/30 px-4 py-3 text-sm text-green-200">
                 {{ session('status') }}
             </div>
         @endif
@@ -31,12 +31,12 @@
                                 name="avatar"
                                 type="file"
                                 accept="image/*"
-                                class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
+                                class="block w-full text-sm text-brand-100/70 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-white/5 file:text-brand-200 hover:file:bg-brand-400/20"
                             />
-                            <p class="text-xs text-gray-500">JPG, PNG or WebP. Max 2 MB.</p>
+                            <p class="text-xs text-brand-100/60">JPG, PNG or WebP. Max 2 MB.</p>
                             @if ($user->avatar_path)
-                                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
-                                    <input type="checkbox" name="remove_avatar" value="1" class="rounded border-gray-300 text-brand-500 shadow-sm focus:ring-brand-400">
+                                <label class="inline-flex items-center gap-2 text-sm text-brand-100/80">
+                                    <input type="checkbox" name="remove_avatar" value="1" class="rounded bg-white/10 border-white/25 text-brand-400 shadow-sm focus:ring-brand-400">
                                     Remove current photo
                                 </label>
                             @endif
@@ -76,7 +76,7 @@
                         name="bio"
                         rows="4"
                         maxlength="1000"
-                        class="mt-1 block w-full border-gray-300 focus:border-brand-400 focus:ring-brand-400 rounded-md shadow-sm"
+                        class="mt-1 block w-full border-white/15 focus:border-brand-400 focus:ring-brand-400 rounded-md shadow-sm"
                         placeholder="A short introduction…"
                     >{{ old('bio', $user->bio) }}</textarea>
                     <x-input-error class="mt-2" :messages="$errors->get('bio')" />
@@ -90,7 +90,7 @@
                 <div class="flex items-center gap-4">
                     <x-primary-button>Save Profile</x-primary-button>
                     @if ($user->employeeRecord)
-                        <a href="{{ route('salaries.show', $user->employeeRecord) }}" class="text-sm font-semibold text-brand-500 hover:text-brand-600">
+                        <a href="{{ route('salaries.show', $user->employeeRecord) }}" class="text-sm font-semibold text-brand-500 hover:text-brand-300">
                             View payroll record &rarr;
                         </a>
                     @endif
@@ -100,8 +100,8 @@
 
         <x-card class="p-4 sm:p-8">
             <header>
-                <h2 class="text-lg font-medium text-gray-900">Set New Password</h2>
-                <p class="mt-1 text-sm text-gray-600">
+                <h2 class="text-lg font-medium text-white">Set New Password</h2>
+                <p class="mt-1 text-sm text-brand-100/70">
                     Set a password for this account. They can change it later from their own Profile page.
                 </p>
             </header>
@@ -130,7 +130,7 @@
                             x-show="show"
                             x-transition
                             x-init="setTimeout(() => show = false, 2000)"
-                            class="text-sm text-gray-600"
+                            class="text-sm text-brand-100/70"
                         >Saved.</p>
                     @endif
                 </div>

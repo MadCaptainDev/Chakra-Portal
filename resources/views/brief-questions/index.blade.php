@@ -35,7 +35,7 @@
                 <div class="min-w-[220px]">
                     <x-input-label for="client" value="Editing questions for" />
                     <select name="client" id="client" onchange="this.form.submit()"
-                            class="mt-1 block w-full rounded-md border-gray-300 text-sm focus:border-brand-500 focus:ring-brand-500">
+                            class="mt-1 block w-full rounded-md border-white/15 text-sm focus:border-brand-500 focus:ring-brand-500">
                         <option value="">Every client (shared questions)</option>
                         @foreach ($clients as $option)
                             <option value="{{ $option->id }}" @selected($client?->id === $option->id)>
@@ -50,7 +50,7 @@
                 </noscript>
 
                 @if ($client)
-                    <p class="text-xs text-gray-500 mb-2 flex-1 min-w-[240px]">
+                    <p class="text-xs text-brand-100/60 mb-2 flex-1 min-w-[240px]">
                         {{ $client->name }} is asked every shared question as well. These appear as an extra group at
                         the end of their brief, and no other client ever sees them.
                     </p>
@@ -72,7 +72,7 @@
                 @if ($mine->isEmpty())
                     <x-empty-state message="No questions for this client yet." />
                 @else
-                    <ul class="divide-y divide-gray-100">
+                    <ul class="divide-y divide-white/10">
                         @foreach ($mine as $question)
                             @include('brief-questions._row', [
                                 'question' => $question,
@@ -98,7 +98,7 @@
                         <x-input-label for="group_label" value="Group heading" />
                         <x-text-input name="group_label" type="text" class="mt-1 w-full sm:max-w-xs"
                                       value="{{ old('group_label', $label) }}" />
-                        <p class="text-xs text-gray-500 mt-1">The tab these appear under on their brief.</p>
+                        <p class="text-xs text-brand-100/60 mt-1">The tab these appear under on their brief.</p>
                     </div>
 
                     @include('brief-questions._fields', [
@@ -132,24 +132,24 @@
                         <x-card padding="md">
                             <x-section-heading :title="$step['title']" :subtitle="$step['blurb']" />
 
-                            <ul class="divide-y divide-gray-100">
+                            <ul class="divide-y divide-white/10">
                                 @foreach ($step['questions'] as $key => $question)
                                     <li class="py-3 flex items-start justify-between gap-4">
                                         <div class="min-w-0">
-                                            <p class="text-sm text-gray-900">
+                                            <p class="text-sm text-white">
                                                 {{ $question['label'] }}
                                                 @if ($question['required'] ?? false)
-                                                    <span class="text-red-600">*</span>
+                                                    <span class="text-red-300">*</span>
                                                 @endif
                                             </p>
-                                            <p class="text-xs text-gray-400 mt-0.5">
+                                            <p class="text-xs text-brand-100/50 mt-0.5">
                                                 {{ ucfirst($question['type']) }}@if ($question['multi'] ?? false), multiple @endif
                                                 @if (isset($question['showIf']))
                                                     · only when “{{ $question['showIf'][1] }}”
                                                 @endif
                                             </p>
                                         </div>
-                                        <span class="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Built in</span>
+                                        <span class="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-brand-100/50">Built in</span>
                                     </li>
                                 @endforeach
 

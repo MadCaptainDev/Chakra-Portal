@@ -70,16 +70,16 @@
                 </div>
 
                 <div class="sm:col-span-2 lg:col-span-5 flex flex-wrap items-center gap-4">
-                    <label for="mine" class="inline-flex items-center gap-2 min-h-[44px] text-sm text-gray-700 cursor-pointer">
+                    <label for="mine" class="inline-flex items-center gap-2 min-h-[44px] text-sm text-brand-100/80 cursor-pointer">
                         <input id="mine" name="mine" type="checkbox" value="1" @checked($filters['mine'])
-                               class="rounded border-gray-300 text-brand-500 focus:ring-brand-400">
+                               class="rounded bg-white/10 border-white/25 text-brand-400 focus:ring-brand-400">
                         Only mine
                     </label>
 
                     <x-btn type="submit" size="sm">Apply</x-btn>
 
                     @if ($hasFilters)
-                        <a href="{{ route('scripts.index') }}" class="text-sm font-semibold text-gray-500 hover:text-gray-800">Clear</a>
+                        <a href="{{ route('scripts.index') }}" class="text-sm font-semibold text-brand-100/60 hover:text-white">Clear</a>
                     @endif
                 </div>
             </form>
@@ -92,28 +92,28 @@
                 @endcan
             </x-empty-state>
         @else
-            <x-card class="divide-y divide-gray-100 overflow-hidden">
+            <x-card class="divide-y divide-white/10 overflow-hidden">
                 @foreach ($scripts as $script)
                     <a href="{{ route(auth()->user()->can('scripts.edit') ? 'scripts.edit' : 'scripts.show', $script) }}"
-                       class="group flex items-start gap-4 p-4 min-h-[44px] hover:bg-brand-50/40 transition">
+                       class="group flex items-start gap-4 p-4 min-h-[44px] hover:bg-white/10 transition">
 
                         <div class="min-w-0 flex-1">
                             <div class="flex flex-wrap items-center gap-2">
-                                <p class="font-semibold text-gray-900 truncate group-hover:text-brand-700 transition">{{ $script->title }}</p>
+                                <p class="font-semibold text-white truncate group-hover:text-brand-200 transition">{{ $script->title }}</p>
                                 <x-badge :status="$script->status" />
                                 @if ($script->priority === \App\Models\Script::PRIORITY_HIGH)
                                     <x-badge status="overdue">High priority</x-badge>
                                 @endif
                             </div>
 
-                            <p class="mt-1 text-xs text-gray-500 truncate">
+                            <p class="mt-1 text-xs text-brand-100/60 truncate">
                                 {{ $script->clientLabel() ?: 'No client' }}
                                 @if ($script->writer) &middot; {{ $script->writer->name }} @endif
                                 @if ($script->platformTerm) &middot; {{ $script->platformTerm->name }} @endif
                                 @if ($script->durationLabel()) &middot; {{ $script->durationLabel() }} @endif
                             </p>
 
-                            <p class="mt-1 text-[11px] text-gray-400">
+                            <p class="mt-1 text-[11px] text-brand-100/50">
                                 @if ($script->lastEditedBy)
                                     Last edited by {{ Str::before($script->lastEditedBy->name, ' ') }}
                                     {{ $script->last_edited_at?->diffForHumans() }}
@@ -127,18 +127,18 @@
                             @if ($script->due_on)
                                 <p @class([
                                     'text-sm font-semibold tabular-nums',
-                                    'text-red-600' => $script->isOverdue(),
-                                    'text-gray-900' => ! $script->isOverdue(),
+                                    'text-red-300' => $script->isOverdue(),
+                                    'text-white' => ! $script->isOverdue(),
                                 ])>{{ $script->due_on->format('d M') }}</p>
-                                <p class="text-[11px] {{ $script->isOverdue() ? 'text-red-500' : 'text-gray-400' }}">
+                                <p class="text-[11px] {{ $script->isOverdue() ? 'text-red-300' : 'text-brand-100/50' }}">
                                     {{ $script->isOverdue() ? 'overdue' : 'due' }}
                                 </p>
                             @else
-                                <p class="text-[11px] text-gray-400">No deadline</p>
+                                <p class="text-[11px] text-brand-100/50">No deadline</p>
                             @endif
                         </div>
 
-                        <x-icon name="chevron-right" class="w-4 h-4 shrink-0 mt-1 text-gray-300 group-hover:text-brand-500 transition" />
+                        <x-icon name="chevron-right" class="w-4 h-4 shrink-0 mt-1 text-brand-100/40 group-hover:text-brand-500 transition" />
                     </a>
                 @endforeach
             </x-card>

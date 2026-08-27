@@ -12,20 +12,20 @@
     <div class="space-y-4">
         @if ($schedules->isEmpty())
             <x-empty-state message="No recurring schedules yet.">
-                <a href="{{ route('recurring.create') }}" class="text-brand-500 font-semibold text-sm hover:text-brand-600">Set up your first schedule &rarr;</a>
+                <a href="{{ route('recurring.create') }}" class="text-brand-500 font-semibold text-sm hover:text-brand-300">Set up your first schedule &rarr;</a>
             </x-empty-state>
         @else
             {{-- Mobile: card list --}}
             <div class="md:hidden space-y-3">
                 @foreach ($schedules as $schedule)
-                    <div class="bg-white shadow-sm rounded-lg p-4">
+                    <div class="bg-white/5 shadow-sm rounded-lg p-4">
                         <div class="flex items-start justify-between gap-2">
                             <div class="min-w-0">
-                                <p class="font-semibold text-gray-900 truncate">{{ $schedule->client->name }}</p>
+                                <p class="font-semibold text-white truncate">{{ $schedule->client->name }}</p>
                                 @if ($schedule->label)
-                                    <p class="text-sm text-gray-500 truncate">{{ $schedule->label }}</p>
+                                    <p class="text-sm text-brand-100/60 truncate">{{ $schedule->label }}</p>
                                 @endif
-                                <p class="text-sm text-gray-500">{{ \App\Models\RecurringInvoice::FREQUENCIES[$schedule->frequency] }} &middot; Next: {{ $schedule->next_run_on->format('d/m/Y') }}</p>
+                                <p class="text-sm text-brand-100/60">{{ \App\Models\RecurringInvoice::FREQUENCIES[$schedule->frequency] }} &middot; Next: {{ $schedule->next_run_on->format('d/m/Y') }}</p>
                             </div>
                             <x-badge :status="$schedule->is_active ? 'active' : 'inactive'" />
                         </div>
@@ -34,12 +34,12 @@
                             <form method="POST" action="{{ route('recurring.toggle', $schedule) }}">
                                 @csrf
                                 @method('PATCH')
-                                <button type="submit" class="text-gray-600 font-semibold text-sm min-h-[44px]">{{ $schedule->is_active ? 'Pause' : 'Activate' }}</button>
+                                <button type="submit" class="text-brand-100/70 font-semibold text-sm min-h-[44px]">{{ $schedule->is_active ? 'Pause' : 'Activate' }}</button>
                             </form>
                             <form method="POST" action="{{ route('recurring.destroy', $schedule) }}" onsubmit="return confirm('Delete this schedule?');">
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit" class="text-red-600 font-semibold text-sm min-h-[44px]">Delete</button>
+                                <button type="submit" class="text-red-300 font-semibold text-sm min-h-[44px]">Delete</button>
                             </form>
                         </div>
                     </div>
@@ -48,36 +48,36 @@
 
             {{-- Desktop: table --}}
             <x-card class="hidden md:block overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
+                <table class="min-w-full divide-y divide-white/10">
+                    <thead class="bg-brand-900/40">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Label</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Frequency</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Next Run</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-brand-100/60 uppercase">Client</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-brand-100/60 uppercase">Label</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-brand-100/60 uppercase">Frequency</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-brand-100/60 uppercase">Next Run</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-brand-100/60 uppercase">Status</th>
                             <th class="px-6 py-3"></th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-200">
+                    <tbody class="divide-y divide-white/10">
                         @foreach ($schedules as $schedule)
                             <tr>
-                                <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $schedule->client->name }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $schedule->label }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ \App\Models\RecurringInvoice::FREQUENCIES[$schedule->frequency] }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $schedule->next_run_on->format('d/m/Y') }}</td>
+                                <td class="px-6 py-4 text-sm font-medium text-white">{{ $schedule->client->name }}</td>
+                                <td class="px-6 py-4 text-sm text-brand-100/60">{{ $schedule->label }}</td>
+                                <td class="px-6 py-4 text-sm text-brand-100/60">{{ \App\Models\RecurringInvoice::FREQUENCIES[$schedule->frequency] }}</td>
+                                <td class="px-6 py-4 text-sm text-brand-100/60">{{ $schedule->next_run_on->format('d/m/Y') }}</td>
                                 <td class="px-6 py-4 text-sm"><x-badge :status="$schedule->is_active ? 'active' : 'inactive'" /></td>
                                 <td class="px-6 py-4 text-right text-sm space-x-3 whitespace-nowrap">
-                                    <a href="{{ route('recurring.edit', $schedule) }}" class="text-brand-500 hover:text-brand-600 font-semibold">Edit</a>
+                                    <a href="{{ route('recurring.edit', $schedule) }}" class="text-brand-500 hover:text-brand-300 font-semibold">Edit</a>
                                     <form method="POST" action="{{ route('recurring.toggle', $schedule) }}" class="inline">
                                         @csrf
                                         @method('PATCH')
-                                        <button type="submit" class="text-gray-600 hover:text-gray-900 font-semibold">{{ $schedule->is_active ? 'Pause' : 'Activate' }}</button>
+                                        <button type="submit" class="text-brand-100/70 hover:text-white font-semibold">{{ $schedule->is_active ? 'Pause' : 'Activate' }}</button>
                                     </form>
                                     <form method="POST" action="{{ route('recurring.destroy', $schedule) }}" class="inline" onsubmit="return confirm('Delete this schedule?');">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="text-red-600 hover:text-red-900 font-semibold">Delete</button>
+                                        <button type="submit" class="text-red-300 hover:text-red-200 font-semibold">Delete</button>
                                     </form>
                                 </td>
                             </tr>

@@ -43,10 +43,10 @@
     @if ($item)
         {{-- Retiring rather than deleting is what "we sold it" means: the item
              leaves every picker and keeps its history. --}}
-        <label class="inline-flex items-center gap-2 min-h-[44px] text-sm text-gray-700 cursor-pointer">
+        <label class="inline-flex items-center gap-2 min-h-[44px] text-sm text-brand-100/80 cursor-pointer">
             <input type="hidden" name="is_active" value="0">
             <input type="checkbox" name="is_active" value="1" @checked(old('is_active', $item->is_active))
-                   class="rounded border-gray-300 text-brand-500 focus:ring-brand-400">
+                   class="rounded bg-white/10 border-white/25 text-brand-400 focus:ring-brand-400">
             In service
         </label>
     @endif

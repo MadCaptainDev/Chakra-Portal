@@ -20,7 +20,7 @@
                    class="inline-flex items-center min-h-[44px] px-4 rounded-lg text-sm font-semibold transition
                           {{ $filter === $value
                                 ? 'bg-brand-500 text-white shadow-sm'
-                                : 'bg-white text-gray-600 ring-1 ring-gray-900/10 hover:bg-gray-50 hover:text-gray-900' }}">
+                                : 'bg-white/5 text-brand-100/70 ring-1 ring-white/15 hover:bg-white/[0.09] hover:text-white' }}">
                     {{ $label }}
                 </a>
             @endforeach
@@ -33,17 +33,17 @@
             <div class="md:hidden space-y-3">
                 @foreach ($enquiries as $enquiry)
                     <a href="{{ route('enquiries.show', $enquiry) }}"
-                       class="block bg-white rounded-xl shadow-sm ring-1 ring-gray-900/5 p-4 transition hover:shadow-md
+                       class="block bg-white/5 rounded-xl shadow-sm ring-1 ring-white/10 p-4 transition hover:shadow-md
                               {{ $enquiry->isUnread() ? 'border-l-4 border-brand-400' : '' }}">
                         <div class="flex items-start justify-between gap-2">
-                            <p class="truncate {{ $enquiry->isUnread() ? 'font-bold text-gray-900' : 'font-medium text-gray-700' }}">
+                            <p class="truncate {{ $enquiry->isUnread() ? 'font-bold text-white' : 'font-medium text-brand-100/80' }}">
                                 {{ $enquiry->name }}
                             </p>
                             <x-badge :status="$enquiry->displayStatus()" class="shrink-0" />
                         </div>
-                        <p class="text-sm text-gray-500 truncate mt-0.5">{{ $enquiry->email }}</p>
-                        <p class="text-sm text-gray-600 mt-2 line-clamp-2">{{ $enquiry->message }}</p>
-                        <p class="text-xs text-gray-400 mt-2">
+                        <p class="text-sm text-brand-100/60 truncate mt-0.5">{{ $enquiry->email }}</p>
+                        <p class="text-sm text-brand-100/70 mt-2 line-clamp-2">{{ $enquiry->message }}</p>
+                        <p class="text-xs text-brand-100/50 mt-2">
                             {{ $enquiry->created_at->format('d/m/Y H:i') }}
                             @if ($enquiry->project) &middot; {{ $enquiry->project }} @endif
                             @if ($enquiry->hasSource()) &middot; from {{ $enquiry->sourceLabel() }} @endif
@@ -56,40 +56,40 @@
             <x-card class="hidden md:block overflow-hidden">
                 <table class="min-w-full">
                     <thead>
-                        <tr class="border-b border-gray-200 bg-gray-50/80">
-                            <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">From</th>
-                            <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Looking for</th>
-                            <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Came from</th>
-                            <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Message</th>
-                            <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Received</th>
-                            <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                        <tr class="border-b border-white/10 bg-brand-900/40">
+                            <th class="px-6 py-3 text-left text-[11px] font-bold text-brand-100/60 uppercase tracking-wider">From</th>
+                            <th class="px-6 py-3 text-left text-[11px] font-bold text-brand-100/60 uppercase tracking-wider">Looking for</th>
+                            <th class="px-6 py-3 text-left text-[11px] font-bold text-brand-100/60 uppercase tracking-wider">Came from</th>
+                            <th class="px-6 py-3 text-left text-[11px] font-bold text-brand-100/60 uppercase tracking-wider">Message</th>
+                            <th class="px-6 py-3 text-left text-[11px] font-bold text-brand-100/60 uppercase tracking-wider">Received</th>
+                            <th class="px-6 py-3 text-left text-[11px] font-bold text-brand-100/60 uppercase tracking-wider">Status</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-100">
+                    <tbody class="divide-y divide-white/10">
                         @foreach ($enquiries as $enquiry)
-                            <tr class="hover:bg-gray-50/70 transition cursor-pointer {{ $enquiry->isUnread() ? 'bg-brand-50/30' : '' }}"
+                            <tr class="hover:bg-white/[0.09] transition cursor-pointer {{ $enquiry->isUnread() ? 'bg-white/5' : '' }}"
                                 onclick="window.location='{{ route('enquiries.show', $enquiry) }}'">
                                 <td class="px-6 py-3.5 text-sm">
                                     <a href="{{ route('enquiries.show', $enquiry) }}"
-                                       class="{{ $enquiry->isUnread() ? 'font-bold text-gray-900' : 'font-medium text-gray-700' }}">
+                                       class="{{ $enquiry->isUnread() ? 'font-bold text-white' : 'font-medium text-brand-100/80' }}">
                                         {{ $enquiry->name }}
                                     </a>
-                                    <p class="text-gray-500">{{ $enquiry->email }}</p>
+                                    <p class="text-brand-100/60">{{ $enquiry->email }}</p>
                                 </td>
-                                <td class="px-6 py-3.5 text-sm text-gray-500">{{ $enquiry->project ?: '—' }}</td>
+                                <td class="px-6 py-3.5 text-sm text-brand-100/60">{{ $enquiry->project ?: '—' }}</td>
                                 <td class="px-6 py-3.5 text-sm whitespace-nowrap">
                                     @if ($enquiry->hasSource())
-                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-50 text-brand-700">
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-white/5 text-brand-200">
                                             {{ $enquiry->sourceLabel() }}
                                         </span>
                                     @else
-                                        <span class="text-gray-400">—</span>
+                                        <span class="text-brand-100/50">—</span>
                                     @endif
                                 </td>
-                                <td class="px-6 py-3.5 text-sm text-gray-600 max-w-md">
+                                <td class="px-6 py-3.5 text-sm text-brand-100/70 max-w-md">
                                     <span class="line-clamp-2">{{ $enquiry->message }}</span>
                                 </td>
-                                <td class="px-6 py-3.5 text-sm text-gray-500 whitespace-nowrap">
+                                <td class="px-6 py-3.5 text-sm text-brand-100/60 whitespace-nowrap">
                                     {{ $enquiry->created_at->format('d/m/Y H:i') }}
                                 </td>
                                 <td class="px-6 py-3.5 text-sm"><x-badge :status="$enquiry->displayStatus()" /></td>

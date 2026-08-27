@@ -29,7 +29,7 @@
         <div>
             <x-input-label value="Answer type" />
             <select name="type" x-model="type"
-                    class="mt-1 block w-full rounded-md border-gray-300 text-sm focus:border-brand-500 focus:ring-brand-500">
+                    class="mt-1 block w-full rounded-md border-white/15 text-sm focus:border-brand-500 focus:ring-brand-500">
                 @foreach ($types as $value => $label)
                     <option value="{{ $value }}" @selected($type === $value)>{{ $label }}</option>
                 @endforeach
@@ -48,20 +48,20 @@
     <div x-show="@js($listTypes).includes(type)" x-cloak>
         <x-input-label value="Options, one per line" />
         <textarea name="options" rows="5"
-                  class="mt-1 block w-full rounded-md border-gray-300 text-sm focus:border-brand-500 focus:ring-brand-500"
+                  class="mt-1 block w-full rounded-md border-white/15 text-sm focus:border-brand-500 focus:ring-brand-500"
                   placeholder="Yes&#10;No&#10;Sometimes">{{ old('options', $question?->options ? implode("\n", $question->options) : '') }}</textarea>
         <x-input-error :messages="$errors->get('options')" class="mt-1" />
 
-        <label class="mt-2 inline-flex items-center gap-2 text-sm text-gray-700">
+        <label class="mt-2 inline-flex items-center gap-2 text-sm text-brand-100/80">
             <input type="checkbox" name="multi" value="1" @checked(old('multi', $question?->multi))
-                   class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                   class="rounded border-white/15 text-brand-300 focus:ring-brand-500">
             Allow more than one answer
         </label>
     </div>
 
-    <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+    <label class="inline-flex items-center gap-2 text-sm text-brand-100/80">
         <input type="checkbox" name="required" value="1" @checked(old('required', $question?->required))
-               class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+               class="rounded border-white/15 text-brand-300 focus:ring-brand-500">
         Required — the client cannot submit without it
     </label>
 </div>

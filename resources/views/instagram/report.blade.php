@@ -17,7 +17,7 @@
         <x-page-header :title="$client->name" eyebrow="Monthly Report">
             <x-slot name="actions">
                 <a href="{{ route('clients.show', $client) }}#social"
-                   class="text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                   class="text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
                     ← Back to client
                 </a>
             </x-slot>
@@ -26,11 +26,11 @@
 
     @if (! $account)
         <x-card padding="md" class="max-w-lg">
-            <p class="text-sm text-gray-600">
+            <p class="text-sm text-brand-100/70">
                 No Instagram account is connected for {{ $client->name }} yet.
             </p>
             <a href="{{ route('clients.show', $client) }}#social"
-               class="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+               class="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
                 Connect Instagram
             </a>
         </x-card>
@@ -42,14 +42,14 @@
                 <x-month-nav route="instagram.report" :month="$month" :params="['client' => $client]" class="max-w-xs" />
 
                 <div class="flex flex-wrap items-center gap-2" data-chrome>
-                    <div class="inline-flex items-center gap-1 p-1 rounded-xl bg-gray-100 ring-1 ring-gray-900/5">
+                    <div class="inline-flex items-center gap-1 p-1 rounded-xl bg-white/10 ring-1 ring-white/10">
                         <button type="button" @click="isClient = false"
-                                :class="! isClient ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'"
+                                :class="! isClient ? 'bg-white/5 text-white shadow-sm' : 'text-brand-100/60'"
                                 class="min-h-[40px] px-3 rounded-lg text-sm font-semibold transition-colors">
                             Studio view
                         </button>
                         <button type="button" @click="isClient = true"
-                                :class="isClient ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'"
+                                :class="isClient ? 'bg-white/5 text-white shadow-sm' : 'text-brand-100/60'"
                                 class="min-h-[40px] px-3 rounded-lg text-sm font-semibold transition-colors">
                             Client preview
                         </button>
@@ -68,11 +68,11 @@
                     <div class="flex items-center gap-3">
                         @if ($account->profile_picture_url)
                             <img src="{{ $account->profile_picture_url }}" alt="" onerror="this.remove()"
-                                 class="w-10 h-10 rounded-full object-cover ring-1 ring-gray-900/5">
+                                 class="w-10 h-10 rounded-full object-cover ring-1 ring-white/10">
                         @endif
                         <div>
-                            <p class="text-sm font-semibold text-gray-900">{{ $account->handle() }}</p>
-                            <p class="text-xs text-gray-500">
+                            <p class="text-sm font-semibold text-white">{{ $account->handle() }}</p>
+                            <p class="text-xs text-brand-100/60">
                                 @if ($account->last_synced_at)
                                     Synced {{ $account->last_synced_at->format('j M Y, g:i A') }} IST
                                     ({{ $account->last_synced_at->diffForHumans() }})
@@ -83,7 +83,7 @@
                         </div>
                     </div>
                     <div class="flex items-center gap-3">
-                        <p class="text-xs text-gray-400">Instagram Graph API · cached</p>
+                        <p class="text-xs text-brand-100/50">Instagram Graph API · cached</p>
                         <form method="POST" action="{{ route('instagram.insights.sync', $client) }}">
                             @csrf
                             <x-secondary-button type="submit" :disabled="! $account->canSyncNow()">
@@ -92,17 +92,17 @@
                         </form>
                     </div>
                 </div>
-                <p class="mt-3 text-xs text-gray-500">
-                    Showing <span class="font-medium text-gray-700">{{ $since->format('j M Y') }}</span>
-                    to <span class="font-medium text-gray-700">{{ $until->format('j M Y') }}</span> (Asia/Kolkata).
+                <p class="mt-3 text-xs text-brand-100/60">
+                    Showing <span class="font-medium text-brand-100/80">{{ $since->format('j M Y') }}</span>
+                    to <span class="font-medium text-brand-100/80">{{ $until->format('j M Y') }}</span> (Asia/Kolkata).
                 </p>
             </x-card>
 
             {{-- Note --}}
-            <x-card padding="md" class="bg-brand-50/60 ring-1 ring-brand-200/70" id="note">
+            <x-card padding="md" class="bg-white/5 ring-1 ring-brand-400/20" id="note">
                 <div class="flex items-baseline justify-between gap-3 mb-2">
-                    <h3 class="text-sm font-semibold text-gray-900">The month in one paragraph</h3>
-                    <p class="text-[11px] text-gray-500" data-chrome x-show="! isClient">
+                    <h3 class="text-sm font-semibold text-white">The month in one paragraph</h3>
+                    <p class="text-[11px] text-brand-100/60" data-chrome x-show="! isClient">
                         @if ($note->updated_at)
                             Last edited {{ $note->updated_at->diffForHumans() }}
                         @else
@@ -126,9 +126,9 @@
 
                 <div x-show="isClient" x-cloak>
                     @if ($note->note)
-                        <p class="text-sm text-gray-700 leading-relaxed max-w-3xl">{{ $note->note }}</p>
+                        <p class="text-sm text-brand-100/80 leading-relaxed max-w-3xl">{{ $note->note }}</p>
                     @else
-                        <p class="text-sm text-gray-400 italic">No note written for this month yet.</p>
+                        <p class="text-sm text-brand-100/50 italic">No note written for this month yet.</p>
                     @endif
                 </div>
             </x-card>
@@ -166,20 +166,20 @@
                 @if ($audienceSyncedAt)
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
                         <div>
-                            <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Age, %</p>
+                            <p class="text-xs font-semibold uppercase tracking-wider text-brand-100/60 mb-2">Age, %</p>
                             <x-charts.bar-list :items="$ageBreakdown" decimals="0" />
                         </div>
                         <div>
-                            <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Gender, %</p>
+                            <p class="text-xs font-semibold uppercase tracking-wider text-brand-100/60 mb-2">Gender, %</p>
                             <x-charts.bar-list :items="$genderBreakdown" decimals="0" />
-                            <p class="mt-3 text-[11px] text-gray-400">Instagram reports gender only where a follower has set it.</p>
+                            <p class="mt-3 text-[11px] text-brand-100/50">Instagram reports gender only where a follower has set it.</p>
                         </div>
                         <div>
-                            <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Top cities</p>
+                            <p class="text-xs font-semibold uppercase tracking-wider text-brand-100/60 mb-2">Top cities</p>
                             <x-charts.bar-list :items="$topCities" />
                         </div>
                     </div>
-                    <p class="mt-4 text-[11px] text-gray-400">Audience synced {{ $audienceSyncedAt->diffForHumans() }}.</p>
+                    <p class="mt-4 text-[11px] text-brand-100/50">Audience synced {{ $audienceSyncedAt->diffForHumans() }}.</p>
                 @else
                     <x-empty-state message="Audience demographics haven't been synced for this account yet — press Sync now." />
                 @endif
@@ -191,9 +191,9 @@
                 @if ($formats)
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         @foreach ($formats as $format)
-                            <div class="rounded-lg bg-gray-50 ring-1 ring-gray-900/5 px-4 py-3">
-                                <p class="text-2xl font-bold text-gray-900 tabular-nums">{{ $format['count'] }}</p>
-                                <p class="mt-1 text-[11px] font-semibold uppercase tracking-wider text-gray-500">{{ $format['label'] }}{{ $format['count'] === 1 ? '' : 's' }}</p>
+                            <div class="rounded-lg bg-brand-900/40 ring-1 ring-white/10 px-4 py-3">
+                                <p class="text-2xl font-bold text-white tabular-nums">{{ $format['count'] }}</p>
+                                <p class="mt-1 text-[11px] font-semibold uppercase tracking-wider text-brand-100/60">{{ $format['label'] }}{{ $format['count'] === 1 ? '' : 's' }}</p>
                             </div>
                         @endforeach
                     </div>
@@ -216,7 +216,7 @@
                     <div class="overflow-x-auto">
                         <table class="min-w-full text-sm">
                             <thead>
-                                <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">
+                                <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 border-b border-white/10">
                                     <th class="px-4 sm:px-5 py-2.5">Content</th>
                                     <th class="px-3 py-2.5">Type</th>
                                     <th class="px-3 py-2.5 text-right">Reach</th>
@@ -224,34 +224,34 @@
                                     <th class="px-3 py-2.5 text-right">Engagement</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-100">
+                            <tbody class="divide-y divide-white/10">
                                 @foreach ($content->take(5) as $item)
                                     <tr>
                                         <td class="px-4 sm:px-5 py-2.5">
                                             <div class="min-w-0">
                                                 @if ($item->permalink)
                                                     <a href="{{ $item->permalink }}" target="_blank" rel="noopener"
-                                                       class="text-gray-900 font-medium hover:text-brand-600 truncate block max-w-xs">
+                                                       class="text-white font-medium hover:text-brand-300 truncate block max-w-xs">
                                                         {{ $item->shortCaption() }}
                                                     </a>
                                                 @else
-                                                    <span class="text-gray-900 font-medium truncate block max-w-xs">{{ $item->shortCaption() }}</span>
+                                                    <span class="text-white font-medium truncate block max-w-xs">{{ $item->shortCaption() }}</span>
                                                 @endif
-                                                <span class="text-xs text-gray-400">{{ $item->posted_at?->format('j M Y') }}</span>
+                                                <span class="text-xs text-brand-100/50">{{ $item->posted_at?->format('j M Y') }}</span>
                                             </div>
                                         </td>
                                         <td class="px-3 py-2.5 whitespace-nowrap">
-                                            <x-badge color="{{ $item->isReel() ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600' }}">
+                                            <x-badge color="{{ $item->isReel() ? 'bg-purple-400/15 text-purple-200' : 'bg-white/10 text-brand-100/70' }}">
                                                 {{ $item->typeLabel() }}
                                             </x-badge>
                                         </td>
-                                        <td class="px-3 py-2.5 text-right tabular-nums text-gray-900">
+                                        <td class="px-3 py-2.5 text-right tabular-nums text-white">
                                             {{ $item->metricValue('reach') !== null ? number_format($item->metricValue('reach')) : '—' }}
                                         </td>
-                                        <td class="px-3 py-2.5 text-right tabular-nums text-gray-900">
+                                        <td class="px-3 py-2.5 text-right tabular-nums text-white">
                                             {{ $item->metricValue('views') !== null ? number_format($item->metricValue('views')) : '—' }}
                                         </td>
-                                        <td class="px-3 py-2.5 text-right tabular-nums text-gray-900">
+                                        <td class="px-3 py-2.5 text-right tabular-nums text-white">
                                             {{ $item->metricValue('total_interactions') !== null ? number_format($item->metricValue('total_interactions')) : '—' }}
                                         </td>
                                     </tr>
@@ -266,14 +266,14 @@
             @if ($shoots->isNotEmpty())
                 <x-card padding="md" data-chrome x-show="! isClient">
                     <x-section-heading title="Shoots this month" />
-                    <ul class="divide-y divide-gray-100">
+                    <ul class="divide-y divide-white/10">
                         @foreach ($shoots as $shoot)
                             <li class="py-2.5 flex items-center gap-3">
-                                <span class="text-xs font-semibold text-brand-600 w-14 shrink-0 tabular-nums">{{ $shoot->starts_at?->format('j M') }}</span>
+                                <span class="text-xs font-semibold text-brand-300 w-14 shrink-0 tabular-nums">{{ $shoot->starts_at?->format('j M') }}</span>
                                 <div class="min-w-0 flex-1">
-                                    <p class="text-sm font-medium text-gray-900">{{ $shoot->title }}</p>
+                                    <p class="text-sm font-medium text-white">{{ $shoot->title }}</p>
                                     @if ($shoot->location)
-                                        <p class="text-xs text-gray-500">{{ $shoot->location }}</p>
+                                        <p class="text-xs text-brand-100/60">{{ $shoot->location }}</p>
                                     @endif
                                 </div>
                                 <x-badge status="{{ $shoot->status }}" />

@@ -20,7 +20,7 @@
 @if ($brief?->exists && $brief->answers->isNotEmpty())
     <div x-data="{ brief: false }">
         <button type="button" @click="brief = ! brief"
-                class="inline-flex items-center gap-1.5 min-h-[44px] text-sm font-semibold text-brand-600 hover:text-brand-700">
+                class="inline-flex items-center gap-1.5 min-h-[44px] text-sm font-semibold text-brand-300 hover:text-brand-200">
             <span x-show="! brief">Client brief</span>
             <span x-show="brief" x-cloak>Hide brief</span>
             <x-icon name="chevron-right" class="w-4 h-4 transition-transform" ::class="brief && 'rotate-90'" />
@@ -30,8 +30,8 @@
             <x-card class="p-4 sm:p-6">
                 <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
                     <div class="min-w-0">
-                        <h3 class="font-semibold text-brand-900">{{ $script->client->name }}</h3>
-                        <p class="text-xs text-gray-500 mt-0.5">
+                        <h3 class="font-semibold text-white">{{ $script->client->name }}</h3>
+                        <p class="text-xs text-brand-100/60 mt-0.5">
                             What they told us before we started writing.
                         </p>
                     </div>
@@ -41,7 +41,7 @@
                          to a 403. --}}
                     @can('clients.view')
                         <a href="{{ route('clients.show', $script->client) }}"
-                           class="text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                           class="text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
                             See full brief
                         </a>
                     @endcan

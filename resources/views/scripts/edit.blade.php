@@ -20,14 +20,14 @@
                 @if ($script->due_on)
                     <span @class([
                         'text-xs font-semibold',
-                        'text-red-600' => $script->isOverdue(),
-                        'text-gray-500' => ! $script->isOverdue(),
+                        'text-red-300' => $script->isOverdue(),
+                        'text-brand-100/60' => ! $script->isOverdue(),
                     ])>
                         {{ $script->isOverdue() ? 'Overdue' : 'Due' }} {{ $script->due_on->format('d M') }}
                     </span>
                 @endif
                 @if ($script->lastEditedBy)
-                    <span class="text-xs text-gray-400">
+                    <span class="text-xs text-brand-100/50">
                         Last edited by {{ Str::before($script->lastEditedBy->name, ' ') }}
                         {{ $script->last_edited_at?->diffForHumans() }}
                     </span>
@@ -35,7 +35,7 @@
             </div>
 
             <button type="button" @click="details = ! details"
-                    class="inline-flex items-center gap-1.5 min-h-[44px] text-sm font-semibold text-brand-600 hover:text-brand-700">
+                    class="inline-flex items-center gap-1.5 min-h-[44px] text-sm font-semibold text-brand-300 hover:text-brand-200">
                 <span x-show="! details">Details</span>
                 <span x-show="details" x-cloak>Hide details</span>
                 <x-icon name="chevron-right" class="w-4 h-4 transition-transform" ::class="details && 'rotate-90'" />
@@ -57,7 +57,7 @@
                         @can('scripts.delete')
                             <button type="button"
                                     @click="$dispatch('open-modal', 'delete-script')"
-                                    class="text-sm font-semibold text-red-600 hover:text-red-700 ml-auto">
+                                    class="text-sm font-semibold text-red-300 hover:text-red-200 ml-auto">
                                 Delete script
                             </button>
                         @endcan
@@ -74,8 +74,8 @@
     @can('scripts.delete')
         <x-modal name="delete-script" :show="false" maxWidth="md">
             <div class="p-6">
-                <h2 class="text-lg font-semibold text-gray-900">Delete this script?</h2>
-                <p class="mt-2 text-sm text-gray-600">
+                <h2 class="text-lg font-semibold text-white">Delete this script?</h2>
+                <p class="mt-2 text-sm text-brand-100/70">
                     &ldquo;{{ $script->title }}&rdquo; and all {{ $script->sections->count() }}
                     {{ Str::plural('section', $script->sections->count()) }} of writing go with it. This cannot be undone.
                 </p>
@@ -84,7 +84,7 @@
                     @csrf
                     @method('DELETE')
                     <button type="button" @click="$dispatch('close-modal', 'delete-script')"
-                            class="text-sm font-semibold text-gray-600 hover:text-gray-900 min-h-[44px] px-3">Cancel</button>
+                            class="text-sm font-semibold text-brand-100/70 hover:text-white min-h-[44px] px-3">Cancel</button>
                     <x-danger-button>Delete</x-danger-button>
                 </form>
             </div>

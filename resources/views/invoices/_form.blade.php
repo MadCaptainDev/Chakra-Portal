@@ -54,7 +54,7 @@
                     + New
                 </button>
                 <button type="button" @click="openEdit()" x-show="selected()" x-cloak
-                        class="inline-flex items-center justify-center min-h-[44px] px-3 rounded-md border border-gray-300 bg-white text-xs font-semibold uppercase tracking-widest text-gray-700 hover:bg-gray-50 whitespace-nowrap">
+                        class="inline-flex items-center justify-center min-h-[44px] px-3 rounded-md border border-white/15 bg-white/5 text-xs font-semibold uppercase tracking-widest text-brand-100/80 hover:bg-white/[0.09] whitespace-nowrap">
                     Edit
                 </button>
             </div>
@@ -63,12 +63,12 @@
         <x-input-error :messages="$errors->get('client_id')" class="mt-2" />
 
         <template x-if="selected()">
-            <div class="mt-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 space-y-0.5" x-cloak>
+            <div class="mt-2 rounded-md border border-white/10 bg-brand-900/40 px-3 py-2 text-xs text-brand-100/70 space-y-0.5" x-cloak>
                 <p x-show="selected().address" x-text="selected().address"></p>
                 <p x-show="selected().email || selected().phone">
                     <span x-text="[selected().email, selected().phone].filter(Boolean).join(' · ')"></span>
                 </p>
-                <p x-show="! selected().address && ! selected().email && ! selected().phone" class="italic text-gray-400">
+                <p x-show="! selected().address && ! selected().email && ! selected().phone" class="italic text-brand-100/50">
                     No address or contact on file &mdash; add them with Edit.
                 </p>
             </div>
@@ -78,9 +78,9 @@
              and the modal posts over fetch anyway. --}}
         <x-modal name="client-quick-form" maxWidth="lg" focusable>
             <div class="p-6" @keydown.enter.prevent="submit()">
-                <h2 class="text-lg font-semibold text-gray-900"
+                <h2 class="text-lg font-semibold text-white"
                     x-text="mode === 'edit' ? 'Edit client' : 'New client'"></h2>
-                <p class="mt-1 text-sm text-gray-500"
+                <p class="mt-1 text-sm text-brand-100/60"
                    x-text="mode === 'edit'
                         ? 'Changes apply to the client everywhere, not just this invoice.'
                         : 'Saved straight away and selected on this invoice. Your draft is kept.'"></p>
@@ -89,38 +89,38 @@
                     <div>
                         <x-input-label for="quick_client_name" value="Name" />
                         <x-text-input id="quick_client_name" type="text" class="mt-1 block w-full" x-model="form.name" />
-                        <p class="mt-2 text-sm text-red-600" x-show="errors.name" x-text="errors.name?.[0]" x-cloak></p>
+                        <p class="mt-2 text-sm text-red-300" x-show="errors.name" x-text="errors.name?.[0]" x-cloak></p>
                     </div>
 
                     <div>
                         <x-input-label for="quick_client_address" value="Address (optional)" />
                         <x-text-input id="quick_client_address" type="text" class="mt-1 block w-full" x-model="form.address" />
-                        <p class="mt-2 text-sm text-red-600" x-show="errors.address" x-text="errors.address?.[0]" x-cloak></p>
+                        <p class="mt-2 text-sm text-red-300" x-show="errors.address" x-text="errors.address?.[0]" x-cloak></p>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <x-input-label for="quick_client_email" value="Email (optional)" />
                             <x-text-input id="quick_client_email" type="email" class="mt-1 block w-full" x-model="form.email" />
-                            <p class="mt-2 text-sm text-red-600" x-show="errors.email" x-text="errors.email?.[0]" x-cloak></p>
+                            <p class="mt-2 text-sm text-red-300" x-show="errors.email" x-text="errors.email?.[0]" x-cloak></p>
                         </div>
                         <div>
                             <x-input-label for="quick_client_phone" value="Phone (optional)" />
                             <x-text-input id="quick_client_phone" type="text" class="mt-1 block w-full" x-model="form.phone" />
-                            <p class="mt-2 text-sm text-red-600" x-show="errors.phone" x-text="errors.phone?.[0]" x-cloak></p>
+                            <p class="mt-2 text-sm text-red-300" x-show="errors.phone" x-text="errors.phone?.[0]" x-cloak></p>
                         </div>
                     </div>
 
                     <div>
                         <x-input-label for="quick_client_venture" value="Notion venture (optional)" />
                         <x-text-input id="quick_client_venture" type="text" class="mt-1 block w-full" x-model="form.notion_venture" />
-                        <p class="mt-2 text-sm text-red-600" x-show="errors.notion_venture" x-text="errors.notion_venture?.[0]" x-cloak></p>
+                        <p class="mt-2 text-sm text-red-300" x-show="errors.notion_venture" x-text="errors.notion_venture?.[0]" x-cloak></p>
                     </div>
                 </div>
 
                 <div class="mt-6 flex justify-end gap-3">
                     <button type="button" @click="$dispatch('close-modal', 'client-quick-form')"
-                            class="inline-flex items-center justify-center min-h-[44px] px-4 rounded-md border border-gray-300 bg-white text-xs font-semibold uppercase tracking-widest text-gray-700 hover:bg-gray-50">
+                            class="inline-flex items-center justify-center min-h-[44px] px-4 rounded-md border border-white/15 bg-white/5 text-xs font-semibold uppercase tracking-widest text-brand-100/80 hover:bg-white/[0.09]">
                         Cancel
                     </button>
                     <button type="button" @click="submit()" :disabled="saving"
@@ -142,14 +142,14 @@
             {{-- Left = Production (the default for almost every invoice),
                  right = App Studio -- a toggle rather than a dropdown, since
                  this is the one either/or choice the whole invoice hinges on. --}}
-            <div class="mt-1 inline-flex items-center rounded-lg bg-gray-100 p-1">
+            <div class="mt-1 inline-flex items-center rounded-lg bg-white/10 p-1">
                 <button type="button" @click="studio = false"
-                        :class="! studio ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                        :class="! studio ? 'bg-white/5 text-white shadow-sm' : 'text-brand-100/60 hover:text-brand-100/80'"
                         class="px-4 min-h-[40px] rounded-md text-sm font-semibold transition-colors">
                     Production
                 </button>
                 <button type="button" @click="studio = true"
-                        :class="studio ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                        :class="studio ? 'bg-white/5 text-white shadow-sm' : 'text-brand-100/60 hover:text-brand-100/80'"
                         class="px-4 min-h-[40px] rounded-md text-sm font-semibold transition-colors">
                     App Studio
                 </button>
@@ -174,10 +174,10 @@
                     @php $studioType = old('saas_invoice_type', $invoice->saas_invoice_type ?? null); @endphp
                     <div class="mt-1 flex items-center gap-4 min-h-[44px]">
                         @foreach (\App\Models\Invoice::STUDIO_TYPES as $value => $label)
-                            <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                            <label class="inline-flex items-center gap-2 text-sm text-brand-100/80">
                                 <input type="radio" name="saas_invoice_type" value="{{ $value }}" x-bind:disabled="! studio"
                                        @checked($studioType === $value)
-                                       class="border-gray-300 text-brand-500 focus:ring-brand-400">
+                                       class="bg-white/10 border-white/25 text-brand-400 focus:ring-brand-400">
                                 {{ $label }}
                             </label>
                         @endforeach
@@ -186,7 +186,7 @@
                 </div>
             </div>
 
-            <p class="mt-2 text-xs text-gray-500" x-show="studio" x-cloak>
+            <p class="mt-2 text-xs text-brand-100/60" x-show="studio" x-cloak>
                 AMC: paying this in full extends the product's AMC by one billing period. Development: a one-off
                 build/dev-work invoice -- App Studio income, but never touches AMC.
             </p>
@@ -215,72 +215,72 @@
         <x-input-error :messages="$errors->get('intro_text')" class="mt-2" />
     </div>
 
-    <h3 class="font-semibold text-gray-800 mb-2">Line Items</h3>
+    <h3 class="font-semibold text-white mb-2">Line Items</h3>
 
     {{-- Mobile: stacked cards --}}
     <div class="md:hidden space-y-3 mb-2">
         <template x-for="(item, index) in items" :key="index">
-            <div class="border border-gray-200 rounded-md p-3 space-y-2">
+            <div class="border border-white/10 rounded-md p-3 space-y-2">
                 <div class="flex items-start gap-2">
                     <input type="text" :name="`items[${index}][description]`" x-model="item.description" required placeholder="Description"
-                        class="block w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
+                        class="block w-full rounded-md border-white/15 shadow-sm text-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
                     <button type="button" @click="removeItem(index)" x-show="items.length > 1"
-                        class="shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center text-red-600 text-xl leading-none">&times;</button>
+                        class="shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center text-red-300 text-xl leading-none">&times;</button>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div>
-                        <label class="text-xs text-gray-500">Qty</label>
+                        <label class="text-xs text-brand-100/60">Qty</label>
                         <input type="number" step="0.01" min="0.01" :name="`items[${index}][quantity]`" x-model.number="item.quantity" required
-                            class="block w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
+                            class="block w-full rounded-md border-white/15 shadow-sm text-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
                     </div>
                     <div>
-                        <label class="text-xs text-gray-500">Unit Price</label>
+                        <label class="text-xs text-brand-100/60">Unit Price</label>
                         <input type="number" step="0.01" min="0" :name="`items[${index}][unit_price]`" x-model.number="item.unit_price" required
-                            class="block w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
+                            class="block w-full rounded-md border-white/15 shadow-sm text-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
                     </div>
                 </div>
-                <p class="text-right text-sm font-medium text-gray-700">Amount: <span x-text="lineTotal(item).toFixed(2)"></span></p>
+                <p class="text-right text-sm font-medium text-brand-100/80">Amount: <span x-text="lineTotal(item).toFixed(2)"></span></p>
             </div>
         </template>
     </div>
 
     {{-- Desktop: table --}}
     <div class="hidden md:block border rounded-md overflow-x-auto mb-2">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
+        <table class="min-w-full divide-y divide-white/10">
+            <thead class="bg-brand-900/40">
                 <tr>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase w-24">Qty</th>
-                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase w-32">Unit Price</th>
-                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase w-32">Amount</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-brand-100/60 uppercase">Description</th>
+                    <th class="px-4 py-2 text-right text-xs font-medium text-brand-100/60 uppercase w-24">Qty</th>
+                    <th class="px-4 py-2 text-right text-xs font-medium text-brand-100/60 uppercase w-32">Unit Price</th>
+                    <th class="px-4 py-2 text-right text-xs font-medium text-brand-100/60 uppercase w-32">Amount</th>
                     <th class="w-10"></th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-gray-200">
+            <tbody class="divide-y divide-white/10">
                 <template x-for="(item, index) in items" :key="index">
                     <tr>
                         <td class="px-4 py-2">
                             <input type="text" :name="`items[${index}][description]`" x-model="item.description" required
-                                class="block w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-brand-400 focus:ring-brand-400">
+                                class="block w-full rounded-md border-white/15 shadow-sm text-sm focus:border-brand-400 focus:ring-brand-400">
                         </td>
                         <td class="px-4 py-2">
                             <input type="number" step="0.01" min="0.01" :name="`items[${index}][quantity]`" x-model.number="item.quantity" required
-                                class="block w-full rounded-md border-gray-300 shadow-sm text-sm text-right focus:border-brand-400 focus:ring-brand-400">
+                                class="block w-full rounded-md border-white/15 shadow-sm text-sm text-right focus:border-brand-400 focus:ring-brand-400">
                         </td>
                         <td class="px-4 py-2">
                             <input type="number" step="0.01" min="0" :name="`items[${index}][unit_price]`" x-model.number="item.unit_price" required
-                                class="block w-full rounded-md border-gray-300 shadow-sm text-sm text-right focus:border-brand-400 focus:ring-brand-400">
+                                class="block w-full rounded-md border-white/15 shadow-sm text-sm text-right focus:border-brand-400 focus:ring-brand-400">
                         </td>
                         <td class="px-4 py-2 text-right text-sm font-medium" x-text="lineTotal(item).toFixed(2)"></td>
                         <td class="px-4 py-2 text-right">
-                            <button type="button" @click="removeItem(index)" class="text-red-600 hover:text-red-800" x-show="items.length > 1">&times;</button>
+                            <button type="button" @click="removeItem(index)" class="text-red-300 hover:text-red-200" x-show="items.length > 1">&times;</button>
                         </td>
                     </tr>
                 </template>
             </tbody>
         </table>
     </div>
-    <button type="button" @click="addItem()" class="text-sm text-brand-500 hover:text-brand-600 font-semibold mb-6 min-h-[44px] inline-flex items-center">+ Add line item</button>
+    <button type="button" @click="addItem()" class="text-sm text-brand-500 hover:text-brand-300 font-semibold mb-6 min-h-[44px] inline-flex items-center">+ Add line item</button>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div>
@@ -292,7 +292,7 @@
         <div>
             <x-input-label for="discount_amount" value="Discount Amount (optional)" />
             <input id="discount_amount" name="discount_amount" type="number" step="0.01" min="0" x-model.number="discountAmount"
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
+                class="mt-1 block w-full rounded-md border-white/15 shadow-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
             <x-input-error :messages="$errors->get('discount_amount')" class="mt-2" />
         </div>
     </div>
@@ -307,7 +307,7 @@
 
     <div class="flex flex-wrap items-center gap-4">
         <x-primary-button>Save Invoice</x-primary-button>
-        <a href="{{ route('invoices.index') }}" class="text-sm text-gray-600 hover:text-gray-900">Cancel</a>
+        <a href="{{ route('invoices.index') }}" class="text-sm text-brand-100/70 hover:text-white">Cancel</a>
     </div>
 </div>
 

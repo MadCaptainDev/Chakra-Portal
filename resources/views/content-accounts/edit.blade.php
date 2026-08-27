@@ -38,29 +38,29 @@
                     subtitle="Notion ventures with no account. Their content is not counted on the dashboard until they have one." />
 
                 @if ($unmapped->isEmpty())
-                    <p class="text-sm text-green-700 bg-green-50 ring-1 ring-green-100 rounded-lg px-3 py-2">
+                    <p class="text-sm text-green-200 bg-green-400/10 ring-1 ring-green-400/20 rounded-lg px-3 py-2">
                         Every venture in the synced content is assigned to an account.
                     </p>
                 @else
                     <div class="overflow-x-auto">
                         <table class="min-w-full text-sm">
                             <thead>
-                                <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">
+                                <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 border-b border-white/10">
                                     <th class="py-2">Notion venture</th>
                                     <th class="py-2 text-right w-24">Items</th>
                                     <th class="py-2 w-72">Assign to account</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-100">
+                            <tbody class="divide-y divide-white/10">
                                 @foreach ($unmapped as $row)
                                     <tr>
-                                        <td class="py-2.5 font-medium text-gray-900">
+                                        <td class="py-2.5 font-medium text-white">
                                             {{ $row->venture }}
                                             <input type="hidden" name="map[{{ $i }}][venture]" value="{{ $row->venture }}">
                                         </td>
-                                        <td class="py-2.5 text-right tabular-nums text-gray-500">{{ number_format($row->items) }}</td>
+                                        <td class="py-2.5 text-right tabular-nums text-brand-100/60">{{ number_format($row->items) }}</td>
                                         <td class="py-2.5">
-                                            <select name="map[{{ $i }}][account_id]" class="w-full rounded-md border-gray-300 text-sm py-1.5">
+                                            <select name="map[{{ $i }}][account_id]" class="w-full rounded-md border-white/15 text-sm py-1.5">
                                                 <option value="">— leave unmapped —</option>
                                                 @foreach ($accountsByClient as $clientName => $group)
                                                     <optgroup label="{{ $clientName }}">
@@ -90,11 +90,11 @@
                 @else
                     @foreach ($accountsByClient as $clientName => $group)
                         <div class="mb-5 last:mb-0">
-                            <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-brand-600 mb-2">{{ $clientName }}</p>
+                            <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-brand-300 mb-2">{{ $clientName }}</p>
 
                             <div class="space-y-3">
                                 @foreach ($group as $account)
-                                    <div class="rounded-lg ring-1 ring-gray-900/5 bg-gray-50/60 p-3">
+                                    <div class="rounded-lg ring-1 ring-white/10 bg-brand-900/40 p-3">
                                         <div class="flex flex-wrap items-end gap-3">
                                             <div class="flex-1 min-w-[180px]">
                                                 <x-input-label :for="'name-'.$account->id" value="Account name" />
@@ -114,7 +114,7 @@
                                             @endforeach
                                             <div class="pb-1">
                                                 <button type="submit" form="delete-{{ $account->id }}"
-                                                        class="text-xs font-semibold uppercase tracking-widest text-red-600 hover:text-red-800"
+                                                        class="text-xs font-semibold uppercase tracking-widest text-red-300 hover:text-red-200"
                                                         onclick="return confirm('Delete {{ $account->name }}? Its ventures become unmapped — no content is deleted.')">
                                                     Delete
                                                 </button>
@@ -122,15 +122,15 @@
                                         </div>
 
                                         @if ($account->ventures->isNotEmpty())
-                                            <div class="mt-3 pt-3 border-t border-gray-200/70 space-y-2">
+                                            <div class="mt-3 pt-3 border-t border-white/10 space-y-2">
                                                 @foreach ($account->ventures as $venture)
                                                     <div class="flex flex-wrap items-center gap-2">
-                                                        <span class="text-sm text-gray-700 flex-1 min-w-[160px]">
+                                                        <span class="text-sm text-brand-100/80 flex-1 min-w-[160px]">
                                                             {{ $venture->venture }}
-                                                            <span class="text-[11px] text-gray-400">({{ number_format($ventureCounts[$venture->venture] ?? 0) }})</span>
+                                                            <span class="text-[11px] text-brand-100/50">({{ number_format($ventureCounts[$venture->venture] ?? 0) }})</span>
                                                         </span>
                                                         <input type="hidden" name="map[{{ $i }}][venture]" value="{{ $venture->venture }}">
-                                                        <select name="map[{{ $i }}][account_id]" class="rounded-md border-gray-300 text-xs py-1 w-56">
+                                                        <select name="map[{{ $i }}][account_id]" class="rounded-md border-white/15 text-xs py-1 w-56">
                                                             <option value="">— unmap —</option>
                                                             @foreach ($accountsByClient as $optClient => $optGroup)
                                                                 <optgroup label="{{ $optClient }}">
@@ -145,7 +145,7 @@
                                                 @endforeach
                                             </div>
                                         @else
-                                            <p class="mt-2 text-[11px] text-amber-600">No ventures assigned — this account will always show zero.</p>
+                                            <p class="mt-2 text-[11px] text-amber-300">No ventures assigned — this account will always show zero.</p>
                                         @endif
                                     </div>
                                 @endforeach
@@ -164,7 +164,7 @@
                         title="Notion shoot clients"
                         subtitle="Which portal client each Notion shoot belongs to. Unmapped shoots import with no client attached." />
                     <button type="submit" form="auto-map-shoots"
-                            class="shrink-0 text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                            class="shrink-0 text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
                         Auto-match exact names
                     </button>
                 </div>
@@ -175,22 +175,22 @@
                     <div class="overflow-x-auto">
                         <table class="min-w-full text-sm">
                             <thead>
-                                <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">
+                                <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 border-b border-white/10">
                                     <th class="py-2">Notion client</th>
                                     <th class="py-2 text-right w-24">Shoots</th>
                                     <th class="py-2 w-72">Portal client</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-100">
+                            <tbody class="divide-y divide-white/10">
                                 @foreach ($shootClients as $row)
                                     <tr>
-                                        <td class="py-2.5 font-medium text-gray-900">
+                                        <td class="py-2.5 font-medium text-white">
                                             {{ $row->client }}
                                             <input type="hidden" name="shootMap[{{ $j }}][client]" value="{{ $row->client }}">
                                         </td>
-                                        <td class="py-2.5 text-right tabular-nums text-gray-500">{{ $row->shoots }}</td>
+                                        <td class="py-2.5 text-right tabular-nums text-brand-100/60">{{ $row->shoots }}</td>
                                         <td class="py-2.5">
-                                            <select name="shootMap[{{ $j }}][client_id]" class="w-full rounded-md border-gray-300 text-sm py-1.5">
+                                            <select name="shootMap[{{ $j }}][client_id]" class="w-full rounded-md border-white/15 text-sm py-1.5">
                                                 <option value="">— unmapped —</option>
                                                 @foreach ($clients as $client)
                                                     <option value="{{ $client->id }}" @selected((int) $row->client_id === $client->id)>{{ $client->name }}</option>
@@ -205,7 +205,7 @@
                     </div>
                 @endif
 
-                <div class="mt-5 pt-4 border-t border-gray-100">
+                <div class="mt-5 pt-4 border-t border-white/10">
                     <x-primary-button>Save all changes</x-primary-button>
                 </div>
             </x-card>
@@ -230,7 +230,7 @@
                 @csrf
                 <div class="flex-1 min-w-[180px]">
                     <x-input-label for="client_id" value="Client" />
-                    <select id="client_id" name="client_id" required class="mt-1 w-full rounded-md border-gray-300 text-sm py-1.5">
+                    <select id="client_id" name="client_id" required class="mt-1 w-full rounded-md border-white/15 text-sm py-1.5">
                         <option value="">Choose a client…</option>
                         @foreach ($clients as $client)
                             <option value="{{ $client->id }}" @selected(old('client_id') == $client->id)>{{ $client->name }}</option>

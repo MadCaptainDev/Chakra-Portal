@@ -10,11 +10,11 @@
     $rows = collect($days)->take(7);
 @endphp
 
-<div {{ $attributes->merge(['class' => 'bg-white shadow-sm rounded-lg p-4 sm:p-5']) }}>
-    <h3 class="text-sm font-semibold text-gray-900 mb-3">{{ $title }}</h3>
+<div {{ $attributes->merge(['class' => 'bg-white/5 shadow-sm rounded-lg p-4 sm:p-5']) }}>
+    <h3 class="text-sm font-semibold text-white mb-3">{{ $title }}</h3>
 
     @if ($rows->isEmpty() || $rows->sum('minutes') <= 0)
-        <p class="text-sm text-gray-500 py-6 text-center">{{ $empty }}</p>
+        <p class="text-sm text-brand-100/60 py-6 text-center">{{ $empty }}</p>
     @else
         <ol class="space-y-2.5">
             @foreach ($rows as $index => $day)
@@ -25,22 +25,22 @@
                 <li>
                     <div class="flex items-center justify-between gap-2 mb-1">
                         <div class="flex items-center gap-2 min-w-0">
-                            <span class="inline-flex items-center justify-center w-5 h-5 rounded bg-brand-100 text-[10px] font-semibold text-brand-800 shrink-0">
+                            <span class="inline-flex items-center justify-center w-5 h-5 rounded bg-brand-400/20 text-[10px] font-semibold text-brand-200 shrink-0">
                                 {{ $index + 1 }}
                             </span>
-                            <span class="text-xs sm:text-sm text-gray-800 truncate">{{ $day['label'] }}</span>
+                            <span class="text-xs sm:text-sm text-white truncate">{{ $day['label'] }}</span>
                             @if (! empty($day['entries']))
-                                <span class="text-[10px] text-gray-400 shrink-0 hidden sm:inline">
+                                <span class="text-[10px] text-brand-100/50 shrink-0 hidden sm:inline">
                                     {{ $day['entries'] }} {{ Str::plural('entry', $day['entries']) }}
                                 </span>
                             @endif
                         </div>
-                        <span class="text-xs text-gray-500 shrink-0 tabular-nums">
+                        <span class="text-xs text-brand-100/60 shrink-0 tabular-nums">
                             {{ \App\Models\TimesheetEntry::formatMinutes($minutes) }}
                         </span>
                     </div>
-                    <div class="h-2 rounded-full bg-brand-100 overflow-hidden">
-                        <div class="h-full rounded-full {{ $index === 0 ? 'bg-brand-700' : 'bg-brand-500' }}"
+                    <div class="h-2 rounded-full bg-brand-400/20 overflow-hidden">
+                        <div class="h-full rounded-full {{ $index === 0 ? 'bg-brand-300' : 'bg-brand-400' }}"
                              style="width: {{ $pct }}%"></div>
                     </div>
                 </li>

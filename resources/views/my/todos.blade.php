@@ -36,7 +36,7 @@
          }">
         {{-- Sticky, because the day you are looking at is the one thing you
              need to know at every scroll position on this screen. --}}
-        <div class="sticky top-0 z-20 -mx-4 px-4 py-2 sm:mx-0 sm:px-0 backdrop-blur bg-gray-50/80">
+        <div class="sticky top-0 z-20 -mx-4 px-4 py-2 sm:mx-0 sm:px-0 backdrop-blur bg-brand-900/85">
             <x-card padding="sm">
                 <x-day-nav route="my.todos" :day="$day" />
             </x-card>
@@ -45,16 +45,16 @@
         {{-- Work sent back is the only thing here somebody else is waiting on,
              so it sits above the numbers. --}}
         @if ($sentBack->isNotEmpty())
-            <div class="animate-settle flex items-start gap-3 rounded-xl bg-red-50 ring-1 ring-red-200 p-4">
-                <span class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-red-100 text-red-600">
+            <div class="animate-settle flex items-start gap-3 rounded-xl bg-red-400/10 ring-1 ring-red-400/30 p-4">
+                <span class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-red-400/15 text-red-300">
                     <x-icon name="alert" class="w-5 h-5" />
                 </span>
                 <div class="min-w-0">
-                    <p class="font-semibold text-red-900">
+                    <p class="font-semibold text-red-200">
                         {{ $sentBack->count() }} {{ Str::plural('to-do', $sentBack->count()) }}
                         {{ $sentBack->count() === 1 ? 'was' : 'were' }} sent back
                     </p>
-                    <p class="mt-0.5 text-sm text-red-800/80">The reason is on the card — it is back on your board as started.</p>
+                    <p class="mt-0.5 text-sm text-red-200/80">The reason is on the card — it is back on your board as started.</p>
                 </div>
             </div>
         @endif
@@ -79,8 +79,8 @@
 
         <div x-show="adding" x-cloak x-transition.opacity.duration.200ms>
             <x-card padding="md" tone="brand">
-                <h3 class="font-semibold text-brand-900 mb-1">New to-do</h3>
-                <p class="text-xs text-brand-800/70 mb-4">
+                <h3 class="font-semibold text-white mb-1">New to-do</h3>
+                <p class="text-xs text-brand-200/70 mb-4">
                     Give it a last day further out and it stays on the board every day until it is
                     finished. Put somebody else&rsquo;s name on it to hand the job over.
                 </p>

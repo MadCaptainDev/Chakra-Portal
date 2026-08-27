@@ -16,9 +16,9 @@
 
     $link = fn (string $m) => route($route, array_merge($params, ['month' => $m]));
 
-    $arrow = 'inline-flex items-center justify-center w-11 h-11 shrink-0 rounded-lg bg-white '
-        .'ring-1 ring-gray-900/10 text-gray-600 shadow-sm transition '
-        .'hover:bg-gray-50 hover:text-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400';
+    $arrow = 'inline-flex items-center justify-center w-11 h-11 shrink-0 rounded-lg bg-white/10 '
+        .'ring-1 ring-white/15 text-brand-100/80 transition '
+        .'hover:bg-white/[0.16] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400';
 @endphp
 
 <div {{ $attributes->merge(['class' => 'flex items-center justify-between gap-3']) }}>
@@ -27,15 +27,15 @@
     </a>
 
     <div class="min-w-0 text-center">
-        <p class="font-bold text-gray-900 leading-tight truncate">
-            {{ $month->format('F Y') }}@if ($suffix) <span class="font-medium text-gray-500">{{ $suffix }}</span>@endif
+        <p class="font-bold text-white leading-tight truncate">
+            {{ $month->format('F Y') }}@if ($suffix) <span class="font-medium text-brand-100/60">{{ $suffix }}</span>@endif
         </p>
         @if ($subtitle)
-            <p class="text-xs text-gray-500 truncate">{{ $subtitle }}</p>
+            <p class="text-xs text-brand-100/60 truncate">{{ $subtitle }}</p>
         @elseif (! $isCurrent)
             {{-- Three taps back into last quarter, one tap home again. --}}
             <a href="{{ $link(now()->format('Y-m')) }}"
-               class="text-xs font-semibold text-brand-600 hover:text-brand-700">Back to this month</a>
+               class="text-xs font-semibold text-brand-300 hover:text-brand-200">Back to this month</a>
         @endif
     </div>
 

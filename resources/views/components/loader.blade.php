@@ -16,7 +16,7 @@
     under prefers-reduced-motion the same way every other loop in the app is.
 --}}
 <div {{ $attributes->merge(['class' => $overlay
-    ? 'fixed inset-0 z-50 flex items-center justify-center bg-white/90 backdrop-blur-sm'
+    ? 'fixed inset-0 z-50 flex items-center justify-center bg-brand-900/85 backdrop-blur-sm'
     : 'inline-flex']) }}
     role="status" aria-live="polite"
     x-transition:enter="transition ease-out duration-300"
@@ -37,8 +37,8 @@
                     compiled CSS.
                 --}}
                 @foreach ([
-                    'bg-brand-500', 'bg-brand-300', 'bg-brand-700', 'bg-brand-400',
-                    'bg-brand-500', 'bg-brand-300', 'bg-brand-700', 'bg-brand-400',
+                    'bg-brand-400', 'bg-brand-300', 'bg-brand-200', 'bg-brand-400',
+                    'bg-brand-400', 'bg-brand-300', 'bg-brand-200', 'bg-brand-400',
                 ] as $shade)
                     <div class="h-5 w-[34px] shrink-0 rounded-[3px] {{ $shade }}"></div>
                 @endforeach
@@ -46,13 +46,13 @@
         </div>
 
         <div class="flex w-[200px] flex-col gap-2">
-            <div class="h-1 overflow-hidden rounded-full bg-gray-200">
+            <div class="h-1 overflow-hidden rounded-full bg-white/15">
                 <div class="h-full rounded-full bg-brand-500 animate-bar-grow"></div>
             </div>
 
             <div class="flex items-center gap-1.5">
                 <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500 animate-rec-blink" aria-hidden="true"></span>
-                <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-brand-100/60">
                     {{ $label }}<span class="sr-only">, please wait</span>
                 </span>
             </div>

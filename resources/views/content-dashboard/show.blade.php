@@ -22,7 +22,7 @@
                        subtitle="{{ $month->format('F Y') }} — pipeline tracking and performance.">
             <x-slot name="actions">
                 <a href="{{ route('content-dashboard.index', ['month' => $month->format('Y-m')]) }}"
-                   class="text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                   class="text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
                     ← Content Dashboard
                 </a>
             </x-slot>
@@ -48,9 +48,9 @@
 
         <div class="flex flex-wrap items-center justify-between gap-3">
             <form method="GET" class="flex items-center gap-2">
-                <label for="month" class="text-xs font-semibold uppercase tracking-wider text-gray-500">Month</label>
+                <label for="month" class="text-xs font-semibold uppercase tracking-wider text-brand-100/60">Month</label>
                 <select id="month" name="month" onchange="this.form.submit()"
-                        class="rounded-md border-gray-300 text-sm py-1.5 pr-8">
+                        class="rounded-md border-white/15 text-sm py-1.5 pr-8">
                     @foreach ($months as $m)
                         <option value="{{ $m->format('Y-m') }}" @selected($m->format('Y-m') === $month->format('Y-m'))>
                             {{ $m->format('F Y') }}
@@ -58,7 +58,7 @@
                     @endforeach
                 </select>
             </form>
-            <p class="text-xs text-gray-500">
+            <p class="text-xs text-brand-100/60">
                 Ventures: {{ implode(', ', $account->ventureNames()) ?: 'none assigned' }}
             </p>
         </div>
@@ -91,24 +91,24 @@
                     $planned = $byType->get($source, collect())->count();
                     $target = $account->targetFor($source);
                 @endphp
-                <div class="bg-white rounded-lg ring-1 ring-gray-200 p-4">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">{{ $label }}</p>
+                <div class="bg-white/5 rounded-lg ring-1 ring-white/10 p-4">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-brand-100/60">{{ $label }}</p>
                     <p class="mt-1 text-2xl font-bold tabular-nums">
                         <span @class([
-                            'text-green-600' => $target !== null && $published >= $target,
-                            'text-amber-600' => $target !== null && $published < $target && $planned >= $target,
-                            'text-red-600' => $target !== null && $planned < $target,
-                            'text-gray-900' => $target === null,
+                            'text-green-300' => $target !== null && $published >= $target,
+                            'text-amber-300' => $target !== null && $published < $target && $planned >= $target,
+                            'text-red-300' => $target !== null && $planned < $target,
+                            'text-white' => $target === null,
                         ])>{{ $published }}</span>
                         @if ($planned > $published)
-                            <span class="text-lg text-amber-500 font-normal">/ {{ $planned }}</span>
+                            <span class="text-lg text-amber-300 font-normal">/ {{ $planned }}</span>
                         @endif
                         @if ($target !== null)
-                            <span class="text-lg text-gray-400 font-normal">of {{ $target }}</span>
+                            <span class="text-lg text-brand-100/50 font-normal">of {{ $target }}</span>
                         @endif
                     </p>
                     @if ($planned > $published)
-                        <p class="text-xs text-amber-600 mt-1">{{ $planned - $published }} pending</p>
+                        <p class="text-xs text-amber-300 mt-1">{{ $planned - $published }} pending</p>
                     @endif
                 </div>
             @endforeach
@@ -124,26 +124,26 @@
             <div class="px-4 sm:px-5 pb-4 flex flex-wrap gap-2">
                 <x-filter-chip
                     x-on:click="filters.published = !filters.published"
-                    x-bind:class="filters.published ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    x-bind:class="filters.published ? 'bg-green-500 text-white' : 'bg-white/10 text-brand-100/70 hover:bg-white/[0.16]'"
                     :count="$pipeline['published']">
                     Published
                 </x-filter-chip>
                 <x-filter-chip
                     x-on:click="filters.in_progress = !filters.in_progress"
-                    x-bind:class="filters.in_progress ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    x-bind:class="filters.in_progress ? 'bg-amber-500 text-white' : 'bg-white/10 text-brand-100/70 hover:bg-white/[0.16]'"
                     :count="$pipeline['in_progress']">
                     In Progress
                 </x-filter-chip>
                 <x-filter-chip
                     x-on:click="filters.scheduled = !filters.scheduled"
-                    x-bind:class="filters.scheduled ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    x-bind:class="filters.scheduled ? 'bg-blue-500 text-white' : 'bg-white/10 text-brand-100/70 hover:bg-white/[0.16]'"
                     :count="$pipeline['scheduled']">
                     Scheduled
                 </x-filter-chip>
                 @if ($pipeline['canceled'] > 0)
                     <x-filter-chip
                         x-on:click="filters.canceled = !filters.canceled"
-                        x-bind:class="filters.canceled ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                        x-bind:class="filters.canceled ? 'bg-red-500 text-white' : 'bg-white/10 text-brand-100/70 hover:bg-white/[0.16]'"
                         :count="$pipeline['canceled']">
                         Canceled
                     </x-filter-chip>
@@ -158,7 +158,7 @@
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-sm">
                         <thead>
-                            <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">
+                            <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 border-b border-white/10">
                                 <th class="px-4 sm:px-5 py-2.5">Piece</th>
                                 <th class="px-3 py-2.5">Status</th>
                                 <th class="px-3 py-2.5">Type</th>
@@ -169,43 +169,43 @@
                                 <th class="px-3 py-2.5 text-right">Likes</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-100">
+                        <tbody class="divide-y divide-white/10">
                             @foreach ($items as $item)
                                 @php $media = $item->socialMediaItem; @endphp
                                 <tr x-show="shouldShow(@js($item->status))" x-cloak>
                                     <td class="px-4 sm:px-5 py-2.5">
                                         @if ($item->notion_url)
                                             <a href="{{ $item->notion_url }}" target="_blank" rel="noopener"
-                                               class="text-gray-900 hover:text-brand-600 font-medium truncate block max-w-sm">
+                                               class="text-white hover:text-brand-300 font-medium truncate block max-w-sm">
                                                 {{ $item->title ?: '(untitled)' }}
                                             </a>
                                         @else
-                                            <span class="text-gray-900 truncate block max-w-sm">{{ $item->title ?: '(untitled)' }}</span>
+                                            <span class="text-white truncate block max-w-sm">{{ $item->title ?: '(untitled)' }}</span>
                                         @endif
                                         @if ($media?->permalink)
                                             <a href="{{ $media->permalink }}" target="_blank" rel="noopener"
-                                               class="text-[11px] text-brand-600 hover:text-brand-800">View on Instagram →</a>
+                                               class="text-[11px] text-brand-300 hover:text-brand-200">View on Instagram →</a>
                                         @endif
                                     </td>
                                     <td class="px-3 py-2.5 whitespace-nowrap">
                                         <x-badge :status="$item->status" />
                                     </td>
                                     <td class="px-3 py-2.5 whitespace-nowrap">
-                                        <span class="text-gray-600">{{ $labels[$item->source] ?? ucfirst($item->source) }}</span>
+                                        <span class="text-brand-100/70">{{ $labels[$item->source] ?? ucfirst($item->source) }}</span>
                                     </td>
-                                    <td class="px-3 py-2.5 whitespace-nowrap text-gray-600">
+                                    <td class="px-3 py-2.5 whitespace-nowrap text-brand-100/70">
                                         {{ $item->published_date?->format('j M') }}
                                         @if ($item->published_date?->isFuture())
-                                            <span class="text-[10px] text-amber-500 block">upcoming</span>
+                                            <span class="text-[10px] text-amber-300 block">upcoming</span>
                                         @endif
                                     </td>
-                                    <td class="px-3 py-2.5 whitespace-nowrap text-gray-500">{{ $item->editor ?: '—' }}</td>
+                                    <td class="px-3 py-2.5 whitespace-nowrap text-brand-100/60">{{ $item->editor ?: '—' }}</td>
                                     @foreach (['reach', 'views', 'likes'] as $metric)
                                         <td class="px-3 py-2.5 text-right tabular-nums">
                                             @if ($media && $media->metricValue($metric) !== null)
-                                                <span class="text-gray-900">{{ number_format($media->metricValue($metric)) }}</span>
+                                                <span class="text-white">{{ number_format($media->metricValue($metric)) }}</span>
                                             @else
-                                                <span class="text-gray-300">—</span>
+                                                <span class="text-brand-100/40">—</span>
                                             @endif
                                         </td>
                                     @endforeach

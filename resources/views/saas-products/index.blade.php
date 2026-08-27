@@ -49,17 +49,17 @@
         @if ($products->isEmpty())
             <x-empty-state message="Nothing onboarded yet." />
         @else
-            <x-card class="divide-y divide-gray-100 overflow-hidden">
+            <x-card class="divide-y divide-white/10 overflow-hidden">
                 @foreach ($products as $product)
                     <div class="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
                         <div class="min-w-0 flex-1">
                             <div class="flex items-center gap-2">
-                                <a href="{{ route('saas-products.show', $product) }}" class="font-semibold text-gray-900 hover:text-brand-600">
+                                <a href="{{ route('saas-products.show', $product) }}" class="font-semibold text-white hover:text-brand-300">
                                     {{ $product->name }}
                                 </a>
                                 <x-badge :status="$product->status()" />
                             </div>
-                            <p class="text-xs text-gray-500 mt-0.5">
+                            <p class="text-xs text-brand-100/60 mt-0.5">
                                 {{ $product->client->name }}
                                 &middot; {{ $product->backups_count }} {{ Str::plural('backup', $product->backups_count) }}
                                 @if ($product->amc_paid_until)

@@ -25,7 +25,7 @@
         <x-card padding="md">
             <div class="flex flex-wrap items-center gap-x-8 gap-y-4">
                 <div>
-                    <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Callback verified</p>
+                    <p class="text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 mb-1.5">Callback verified</p>
                     @if ($verified)
                         <x-badge status="active">Verified {{ $settings->verified_at->diffForHumans() }}</x-badge>
                     @else
@@ -34,7 +34,7 @@
                 </div>
 
                 <div>
-                    <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Accepting events</p>
+                    <p class="text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 mb-1.5">Accepting events</p>
                     @if ($receiving)
                         <x-badge status="active">App secret set</x-badge>
                     @else
@@ -43,15 +43,15 @@
                 </div>
 
                 <div>
-                    <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Last event</p>
-                    <p class="text-sm text-gray-900 font-medium">
+                    <p class="text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 mb-1.5">Last event</p>
+                    <p class="text-sm text-white font-medium">
                         {{ $settings->last_event_at?->diffForHumans() ?? 'Nothing received yet' }}
                     </p>
                 </div>
             </div>
 
             @unless ($receiving)
-                <p class="mt-4 text-sm text-red-700 bg-red-50 ring-1 ring-red-100 rounded-lg px-3 py-2">
+                <p class="mt-4 text-sm text-red-200 bg-red-400/10 ring-1 ring-red-400/20 rounded-lg px-3 py-2">
                     Until the app secret below is filled in, every event Meta sends is refused. The endpoint cannot tell
                     Meta apart from anyone else who has learned the URL without it, so it turns everything away rather
                     than trusting a stranger.
@@ -81,12 +81,12 @@
                     <div class="mt-1 flex gap-2">
                         <input type="text" readonly value="{{ $settings->callbackUrl() }}"
                                x-ref="url"
-                               class="flex-1 min-w-0 rounded-md border-gray-300 bg-gray-50 text-sm font-mono text-gray-800 focus:border-brand-500 focus:ring-brand-500">
+                               class="flex-1 min-w-0 rounded-md border-white/15 bg-brand-900/40 text-sm font-mono text-white focus:border-brand-500 focus:ring-brand-500">
                         <x-secondary-button type="button" @click="copy('url', $refs.url)" class="shrink-0">
                             <span x-text="copied === 'url' ? 'Copied' : 'Copy'">Copy</span>
                         </x-secondary-button>
                     </div>
-                    <p class="text-xs text-gray-500 mt-1">
+                    <p class="text-xs text-brand-100/60 mt-1">
                         Fixed, and safe to share — it is useless without the verify token and the signature. Built from
                         APP_URL, so it stays the same whichever hostname you happen to be signed in through.
                     </p>
@@ -97,23 +97,23 @@
                     <div class="mt-1 flex gap-2">
                         <input type="text" readonly value="{{ $settings->verify_token }}"
                                x-ref="token"
-                               class="flex-1 min-w-0 rounded-md border-gray-300 bg-gray-50 text-sm font-mono text-gray-800 focus:border-brand-500 focus:ring-brand-500">
+                               class="flex-1 min-w-0 rounded-md border-white/15 bg-brand-900/40 text-sm font-mono text-white focus:border-brand-500 focus:ring-brand-500">
                         <x-secondary-button type="button" @click="copy('token', $refs.token)" class="shrink-0">
                             <span x-text="copied === 'token' ? 'Copied' : 'Copy'">Copy</span>
                         </x-secondary-button>
                     </div>
-                    <p class="text-xs text-gray-500 mt-1">
+                    <p class="text-xs text-brand-100/60 mt-1">
                         Generated for you, so there is never a moment where someone has to invent a secret on the spot.
                         Meta sends it back once, when you press <span class="font-medium">Verify and save</span>.
                     </p>
                 </div>
             </div>
 
-            <form method="POST" action="{{ route('whatsapp.rotate') }}" class="mt-5 pt-4 border-t border-gray-100"
+            <form method="POST" action="{{ route('whatsapp.rotate') }}" class="mt-5 pt-4 border-t border-white/10"
                   onsubmit="return confirm('Generate a new verify token? The current one stops working immediately and you will have to re-verify the webhook in the Meta dashboard.')">
                 @csrf
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <p class="text-xs text-gray-500 max-w-md">
+                    <p class="text-xs text-brand-100/60 max-w-md">
                         Rotate the token if it has been shared somewhere it should not have been. You will need to paste
                         the new one into Meta and verify again.
                     </p>
@@ -138,7 +138,7 @@
                                   autocomplete="new-password"
                                   placeholder="{{ $receiving ? 'Saved — leave blank to keep it' : 'Meta dashboard → App settings → Basic → App secret' }}" />
                     <x-input-error :messages="$errors->get('app_secret')" class="mt-2" />
-                    <p class="text-xs text-gray-500 mt-1">
+                    <p class="text-xs text-brand-100/60 mt-1">
                         Every incoming event is signed with this and checked before it is stored — it is what proves a
                         POST came from Meta. Stored encrypted and never shown again; leaving this blank keeps the
                         current one.
@@ -151,7 +151,7 @@
                                   autocomplete="new-password"
                                   placeholder="{{ $settings->access_token ? 'Saved — leave blank to keep it' : 'Meta dashboard → WhatsApp → API Setup' }}" />
                     <x-input-error :messages="$errors->get('access_token')" class="mt-2" />
-                    <p class="text-xs text-gray-500 mt-1">
+                    <p class="text-xs text-brand-100/60 mt-1">
                         Only needed to <span class="font-medium">send</span>; receiving works without it. The temporary
                         token on the API Setup screen expires in 24 hours — for anything lasting, generate a System User
                         token with no expiry. Stored encrypted and never shown again.
@@ -180,13 +180,13 @@
                                   value="{{ old('display_phone_number', $settings->display_phone_number) }}"
                                   placeholder="+91 98765 43210" />
                     <x-input-error :messages="$errors->get('display_phone_number')" class="mt-2" />
-                    <p class="text-xs text-gray-500 mt-1">The number clients actually see. Reference only.</p>
+                    <p class="text-xs text-brand-100/60 mt-1">The number clients actually see. Reference only.</p>
                 </div>
 
                 <div class="flex items-center gap-3">
                     <x-primary-button>Save</x-primary-button>
                     @if ($settings->updatedBy)
-                        <span class="text-xs text-gray-500">
+                        <span class="text-xs text-brand-100/60">
                             Last changed by {{ $settings->updatedBy->name }}, {{ $settings->updated_at->diffForHumans() }}
                         </span>
                     @endif
@@ -210,17 +210,17 @@
                 <div class="overflow-x-auto -mx-4 sm:-mx-6">
                     <table class="min-w-full text-sm">
                         <thead>
-                            <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">
+                            <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 border-b border-white/10">
                                 <th class="px-4 sm:px-6 py-2">When</th>
                                 <th class="px-3 py-2">Type</th>
                                 <th class="px-3 py-2">From / To</th>
                                 <th class="px-4 sm:px-6 py-2">Detail</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-100">
+                        <tbody class="divide-y divide-white/10">
                             @foreach ($events as $event)
                                 <tr class="align-top">
-                                    <td class="px-4 sm:px-6 py-2.5 whitespace-nowrap text-gray-500 text-xs">
+                                    <td class="px-4 sm:px-6 py-2.5 whitespace-nowrap text-brand-100/60 text-xs">
                                         {{ ($event->occurred_at ?? $event->received_at)->format('d M, H:i') }}
                                     </td>
                                     <td class="px-3 py-2.5 whitespace-nowrap">
@@ -237,12 +237,12 @@
                                         @endif
                                     </td>
                                     <td class="px-3 py-2.5 whitespace-nowrap">
-                                        <p class="text-gray-900">{{ $event->contact_name ?? '—' }}</p>
+                                        <p class="text-white">{{ $event->contact_name ?? '—' }}</p>
                                         @if ($event->wa_id)
-                                            <p class="text-xs text-gray-500 font-mono">{{ $event->wa_id }}</p>
+                                            <p class="text-xs text-brand-100/60 font-mono">{{ $event->wa_id }}</p>
                                         @endif
                                     </td>
-                                    <td class="px-4 sm:px-6 py-2.5 text-gray-700">
+                                    <td class="px-4 sm:px-6 py-2.5 text-brand-100/80">
                                         {{ Str::limit($event->summary, 90) ?: '—' }}
                                     </td>
                                 </tr>

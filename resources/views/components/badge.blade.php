@@ -1,50 +1,54 @@
 @props(['status' => null, 'color' => null])
 
 @php
+    // One convention across the whole map, drawn for the brand-900 ground:
+    // a 15%-alpha wash of the 400 shade behind the 200 shade of the same hue.
+    // Solid bg-*-100 chips (what these were) read as light-mode leftovers on
+    // navy and lose the text to a near-white-on-pastel contrast.
     $map = [
-        'pending_approval' => 'bg-amber-100 text-amber-800',
-        'unpaid' => 'bg-blue-100 text-blue-800',
-        'partial' => 'bg-amber-100 text-amber-800',
-        'paid' => 'bg-green-100 text-green-800',
-        'overdue' => 'bg-red-100 text-red-800',
-        'active' => 'bg-green-100 text-green-800',
-        'inactive' => 'bg-gray-100 text-gray-600',
-        'suspended' => 'bg-red-100 text-red-800',
-        'unread' => 'bg-brand-100 text-brand-800',
-        'open' => 'bg-amber-100 text-amber-800',
-        'handled' => 'bg-green-100 text-green-800',
-        'completed' => 'bg-green-100 text-green-800',
+        'pending_approval' => 'bg-amber-400/15 text-amber-200',
+        'unpaid' => 'bg-sky-400/15 text-sky-200',
+        'partial' => 'bg-amber-400/15 text-amber-200',
+        'paid' => 'bg-emerald-400/15 text-emerald-200',
+        'overdue' => 'bg-red-400/15 text-red-200',
+        'active' => 'bg-emerald-400/15 text-emerald-200',
+        'inactive' => 'bg-white/10 text-brand-100/70',
+        'suspended' => 'bg-red-400/15 text-red-200',
+        'unread' => 'bg-brand-400/20 text-brand-200',
+        'open' => 'bg-amber-400/15 text-amber-200',
+        'handled' => 'bg-emerald-400/15 text-emerald-200',
+        'completed' => 'bg-emerald-400/15 text-emerald-200',
         // Portal shoot booking statuses (Shoot::STATUSES).
-        'planned' => 'bg-amber-100 text-amber-800',
-        'confirmed' => 'bg-brand-100 text-brand-800',
-        'pending' => 'bg-amber-100 text-amber-800',
-        'idea' => 'bg-gray-100 text-gray-600',
-        'to_be_shooted' => 'bg-purple-100 text-purple-800',
-        'to_be_shot' => 'bg-purple-100 text-purple-800',
-        'to_be_edited' => 'bg-amber-100 text-amber-800',
-        'edit_in_progress' => 'bg-amber-100 text-amber-800',
-        'under_review' => 'bg-indigo-100 text-indigo-800',
-        'video_ready' => 'bg-teal-100 text-teal-800',
-        'scheduled' => 'bg-blue-100 text-blue-800',
-        'published' => 'bg-green-100 text-green-800',
-        'canceled' => 'bg-red-100 text-red-800',
-        'cancelled' => 'bg-red-100 text-red-800',
-        'shooting' => 'bg-brand-100 text-brand-800',
-        'editing' => 'bg-indigo-100 text-indigo-800',
-        'posting' => 'bg-teal-100 text-teal-800',
-        'other' => 'bg-slate-100 text-slate-700',
-        'other_task' => 'bg-slate-100 text-slate-700',
+        'planned' => 'bg-amber-400/15 text-amber-200',
+        'confirmed' => 'bg-brand-400/20 text-brand-200',
+        'pending' => 'bg-amber-400/15 text-amber-200',
+        'idea' => 'bg-white/10 text-brand-100/70',
+        'to_be_shooted' => 'bg-purple-400/15 text-purple-200',
+        'to_be_shot' => 'bg-purple-400/15 text-purple-200',
+        'to_be_edited' => 'bg-amber-400/15 text-amber-200',
+        'edit_in_progress' => 'bg-amber-400/15 text-amber-200',
+        'under_review' => 'bg-indigo-400/15 text-indigo-200',
+        'video_ready' => 'bg-teal-400/15 text-teal-200',
+        'scheduled' => 'bg-sky-400/15 text-sky-200',
+        'published' => 'bg-emerald-400/15 text-emerald-200',
+        'canceled' => 'bg-red-400/15 text-red-200',
+        'cancelled' => 'bg-red-400/15 text-red-200',
+        'shooting' => 'bg-brand-400/20 text-brand-200',
+        'editing' => 'bg-indigo-400/15 text-indigo-200',
+        'posting' => 'bg-teal-400/15 text-teal-200',
+        'other' => 'bg-white/10 text-brand-100/70',
+        'other_task' => 'bg-white/10 text-brand-100/70',
         // To-do statuses. "completed" and "cancelled" above already read right
         // for the two ends of the list, so only the live ones are new here.
-        'waiting' => 'bg-gray-100 text-gray-600',
-        'started' => 'bg-brand-100 text-brand-800',
-        'blocked' => 'bg-red-100 text-red-800',
+        'waiting' => 'bg-white/10 text-brand-100/70',
+        'started' => 'bg-brand-400/20 text-brand-200',
+        'blocked' => 'bg-red-400/15 text-red-200',
         // WhatsApp delivery statuses, which climb sent -> delivered -> read.
         // "failed" borrows the red that overdue and blocked already own.
-        'sent' => 'bg-gray-100 text-gray-600',
-        'delivered' => 'bg-blue-100 text-blue-800',
-        'read' => 'bg-green-100 text-green-800',
-        'failed' => 'bg-red-100 text-red-800',
+        'sent' => 'bg-white/10 text-brand-100/70',
+        'delivered' => 'bg-sky-400/15 text-sky-200',
+        'read' => 'bg-emerald-400/15 text-emerald-200',
+        'failed' => 'bg-red-400/15 text-red-200',
     ];
 
     $labels = [
@@ -92,7 +96,7 @@
     // and spacing was set up in Notion, so normalize before lookup.
     $key = $status ? strtolower(str_replace([' ', '-'], '_', trim((string) $status))) : null;
 
-    $classes = $color ?? ($map[$key] ?? 'bg-gray-100 text-gray-600');
+    $classes = $color ?? ($map[$key] ?? 'bg-white/10 text-brand-100/70');
     $label = $labels[$key] ?? ucfirst(str_replace('_', ' ', (string) $status));
 @endphp
 

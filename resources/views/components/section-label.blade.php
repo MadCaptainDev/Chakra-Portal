@@ -1,8 +1,8 @@
 @props([
-    // Not itself a color name -- callers needing a status tint (green/red/
-    // amber) still write their own class via $attributes, same as before.
-    // This only standardizes the shape: size, weight, case, tracking.
-    'dark' => false,
+    // Kept so the ~40 call sites that name the dark prop -- written while the
+    // Dashboard was the only dark screen still parse. Both branches now
+    // resolve to the same colour: everything signed-in is on the dark plane.
+    'dark' => true,
 ])
 
 {{--
@@ -13,11 +13,9 @@
     tracking-[0.12em]/[0.16em]) for what always reads as the same element.
     One size going forward: 11px, semibold, tracking-wider.
 
-    NOT for table column headers (<th>) -- those are a different role with
-    their own established convention (text-xs text-gray-500 tracking-wide)
-    and stay as they are.
+    Callers needing a status tint (green/red/amber) still write their own
+    class via $attributes, same as before.
 --}}
-<p {{ $attributes->merge(['class' => 'text-[11px] font-semibold uppercase tracking-wider '
-    .($dark ? 'text-brand-300' : 'text-brand-600')]) }}>
+<p {{ $attributes->merge(['class' => 'text-[11px] font-semibold uppercase tracking-wider text-brand-300']) }}>
     {{ $slot }}
 </p>

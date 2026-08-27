@@ -10,8 +10,8 @@
             @endif
 
             @if ($employee?->user)
-                <div class="mb-6 pb-6 border-b border-gray-100">
-                    <h4 class="text-sm font-semibold text-gray-900 mb-3">Profile</h4>
+                <div class="mb-6 pb-6 border-b border-white/10">
+                    <h4 class="text-sm font-semibold text-white mb-3">Profile</h4>
                     <div class="flex items-start gap-4 mb-4">
                         <x-avatar :name="$employee->user->name" :src="$employee->user->avatarUrl()" size="lg" />
                         <div class="min-w-0 flex-1 space-y-2">
@@ -21,12 +21,12 @@
                                 name="avatar"
                                 type="file"
                                 accept="image/*"
-                                class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
+                                class="block w-full text-sm text-brand-100/70 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-white/5 file:text-brand-200 hover:file:bg-brand-400/20"
                             />
-                            <p class="text-xs text-gray-500">JPG, PNG or WebP. Max 2 MB.</p>
+                            <p class="text-xs text-brand-100/60">JPG, PNG or WebP. Max 2 MB.</p>
                             @if ($employee->user->avatar_path)
-                                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
-                                    <input type="checkbox" name="remove_avatar" value="1" class="rounded border-gray-300 text-brand-500 shadow-sm focus:ring-brand-400">
+                                <label class="inline-flex items-center gap-2 text-sm text-brand-100/80">
+                                    <input type="checkbox" name="remove_avatar" value="1" class="rounded bg-white/10 border-white/25 text-brand-400 shadow-sm focus:ring-brand-400">
                                     Remove current photo
                                 </label>
                             @endif
@@ -40,16 +40,16 @@
                             name="bio"
                             rows="3"
                             maxlength="1000"
-                            class="mt-1 block w-full border-gray-300 focus:border-brand-400 focus:ring-brand-400 rounded-md shadow-sm"
+                            class="mt-1 block w-full border-white/15 focus:border-brand-400 focus:ring-brand-400 rounded-md shadow-sm"
                             placeholder="A short introduction…"
                         >{{ old('bio', $employee->user->bio) }}</textarea>
                         <x-input-error :messages="$errors->get('bio')" class="mt-2" />
                     </div>
                 </div>
             @elseif ($employee)
-                <p class="mb-4 text-sm text-gray-500">
+                <p class="mb-4 text-sm text-brand-100/60">
                     No login linked yet — photo and bio need a staff account.
-                    <a href="{{ route('users.create') }}" class="font-semibold text-brand-500 hover:text-brand-600">Create one</a>
+                    <a href="{{ route('users.create') }}" class="font-semibold text-brand-500 hover:text-brand-300">Create one</a>
                 </p>
             @endif
 
@@ -74,9 +74,9 @@
                         <template x-if="! unlocking">
                             <div class="mt-1">
                                 <div class="flex items-center gap-3 min-h-[44px] flex-wrap">
-                                    <p class="text-lg font-semibold text-gray-900">{{ number_format((float) $employee->amount, 2) }}</p>
-                                    <span class="text-[11px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-50 px-2 py-0.5 rounded">Locked</span>
-                                    <button type="button" @click="unlocking = true" class="text-xs font-semibold text-brand-500 hover:text-brand-600">Change amount</button>
+                                    <p class="text-lg font-semibold text-white">{{ number_format((float) $employee->amount, 2) }}</p>
+                                    <span class="text-[11px] font-semibold uppercase tracking-wide text-amber-200 bg-amber-400/10 px-2 py-0.5 rounded">Locked</span>
+                                    <button type="button" @click="unlocking = true" class="text-xs font-semibold text-brand-500 hover:text-brand-300">Change amount</button>
                                 </div>
                             </div>
                         </template>
@@ -85,13 +85,13 @@
                                 <input type="hidden" name="unlock_amount" value="1">
                                 <x-text-input id="emp_amount" name="amount" type="number" step="0.01" min="0"
                                               class="block w-full" value="{{ old('amount', $employee->amount) }}" required />
-                                <label class="inline-flex items-start gap-2 text-sm text-gray-700">
+                                <label class="inline-flex items-start gap-2 text-sm text-brand-100/80">
                                     <input type="checkbox" name="confirm_amount_change" value="1" required
-                                           class="mt-1 rounded border-gray-300 text-brand-500 focus:ring-brand-400"
+                                           class="mt-1 rounded bg-white/10 border-white/25 text-brand-400 focus:ring-brand-400"
                                            @checked(old('confirm_amount_change'))>
                                     <span>I confirm changing this locked salary amount.</span>
                                 </label>
-                                <button type="button" @click="unlocking = false" class="text-xs font-semibold text-gray-500 hover:text-gray-700">Keep locked</button>
+                                <button type="button" @click="unlocking = false" class="text-xs font-semibold text-brand-100/60 hover:text-brand-100/80">Keep locked</button>
                             </div>
                         </template>
                     @else
@@ -123,8 +123,8 @@
                         <input type="hidden" name="is_active" value="0">
                         <input type="checkbox" name="is_active" value="1"
                                @checked(old('is_active', $employee->is_active ?? true))
-                               class="rounded border-gray-300 text-brand-500 focus:ring-brand-400">
-                        <span class="text-sm text-gray-700">Currently working</span>
+                               class="rounded bg-white/10 border-white/25 text-brand-400 focus:ring-brand-400">
+                        <span class="text-sm text-brand-100/80">Currently working</span>
                     </label>
                 </div>
 

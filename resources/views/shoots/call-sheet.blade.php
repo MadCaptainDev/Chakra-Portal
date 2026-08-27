@@ -20,44 +20,44 @@
     <div class="max-w-2xl mx-auto">
         <x-card class="p-6 sm:p-8 print:shadow-none print:ring-0">
 
-            <div class="text-center pb-5 border-b border-gray-200">
-                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">{{ $shoot->starts_at->format('l') }}</p>
-                <p class="mt-1 text-3xl font-extrabold text-gray-900">{{ $shoot->starts_at->format('j F Y') }}</p>
-                <p class="mt-3 text-sm font-semibold uppercase tracking-widest text-brand-600">Call</p>
-                <p class="text-4xl font-extrabold text-gray-900 tabular-nums leading-none">{{ $shoot->starts_at->format('H:i') }}</p>
+            <div class="text-center pb-5 border-b border-white/10">
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-brand-100/50">{{ $shoot->starts_at->format('l') }}</p>
+                <p class="mt-1 text-3xl font-extrabold text-white">{{ $shoot->starts_at->format('j F Y') }}</p>
+                <p class="mt-3 text-sm font-semibold uppercase tracking-widest text-brand-300">Call</p>
+                <p class="text-4xl font-extrabold text-white tabular-nums leading-none">{{ $shoot->starts_at->format('H:i') }}</p>
                 @if ($shoot->ends_at)
-                    <p class="mt-2 text-sm text-gray-500">Expected wrap {{ $shoot->ends_at->format('H:i') }}</p>
+                    <p class="mt-2 text-sm text-brand-100/60">Expected wrap {{ $shoot->ends_at->format('H:i') }}</p>
                 @endif
             </div>
 
-            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 py-5 border-b border-gray-200 text-sm">
+            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 py-5 border-b border-white/10 text-sm">
                 @foreach (array_filter([
                     'Shoot' => $shoot->title,
                     'Client' => $shoot->clientLabel(),
                     'Location' => $shoot->location,
                 ]) as $label => $value)
                     <div>
-                        <dt class="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400">{{ $label }}</dt>
-                        <dd class="mt-0.5 text-gray-900">{{ $value }}</dd>
+                        <dt class="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-100/50">{{ $label }}</dt>
+                        <dd class="mt-0.5 text-white">{{ $value }}</dd>
                     </div>
                 @endforeach
             </dl>
 
             @if ($shoot->crew->isNotEmpty())
-                <div class="py-5 border-b border-gray-200">
-                    <p class="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 mb-3">Crew</p>
+                <div class="py-5 border-b border-white/10">
+                    <p class="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-100/50 mb-3">Crew</p>
                     <table class="w-full text-sm">
                         <tbody>
                             @foreach ($shoot->crew as $member)
-                                <tr class="border-b border-gray-50 last:border-0">
-                                    <td class="py-2 font-medium text-gray-900">{{ $member->user?->name }}</td>
-                                    <td class="py-2 text-gray-500">{{ $member->role }}</td>
-                                    <td class="py-2 text-right tabular-nums text-gray-700">
+                                <tr class="border-b border-white/10 last:border-0">
+                                    <td class="py-2 font-medium text-white">{{ $member->user?->name }}</td>
+                                    <td class="py-2 text-brand-100/60">{{ $member->role }}</td>
+                                    <td class="py-2 text-right tabular-nums text-brand-100/80">
                                         {{ $member->call_time ? \Illuminate\Support\Str::of($member->call_time)->substr(0, 5) : $shoot->starts_at->format('H:i') }}
                                     </td>
                                     <td class="py-2 text-right">
                                         @if ($member->user?->phone)
-                                            <a href="tel:{{ $member->user->phone }}" class="text-brand-600 print:text-gray-900">{{ $member->user->phone }}</a>
+                                            <a href="tel:{{ $member->user->phone }}" class="text-brand-300 print:text-white">{{ $member->user->phone }}</a>
                                         @endif
                                     </td>
                                 </tr>
@@ -68,9 +68,9 @@
             @endif
 
             @if ($shoot->scripts->isNotEmpty())
-                <div class="py-5 border-b border-gray-200">
-                    <p class="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 mb-2">Scripts</p>
-                    <ul class="text-sm text-gray-900 space-y-1">
+                <div class="py-5 border-b border-white/10">
+                    <p class="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-100/50 mb-2">Scripts</p>
+                    <ul class="text-sm text-white space-y-1">
                         @foreach ($shoot->scripts as $script)
                             <li>{{ $script->title }}</li>
                         @endforeach
@@ -80,15 +80,15 @@
 
             @if ($shoot->kits->isNotEmpty())
                 <div class="py-5">
-                    <p class="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 mb-3">Kit — {{ $shoot->kits->count() }} {{ Str::plural('item', $shoot->kits->count()) }}</p>
+                    <p class="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-100/50 mb-3">Kit — {{ $shoot->kits->count() }} {{ Str::plural('item', $shoot->kits->count()) }}</p>
 
                     @foreach ($kitByCategory as $category => $lines)
-                        <p class="text-xs font-semibold text-gray-700 mt-3 first:mt-0">{{ $category }}</p>
-                        <ul class="mt-1 text-sm text-gray-900 space-y-0.5">
+                        <p class="text-xs font-semibold text-brand-100/80 mt-3 first:mt-0">{{ $category }}</p>
+                        <ul class="mt-1 text-sm text-white space-y-0.5">
                             @foreach ($lines as $line)
                                 <li class="flex items-center gap-2">
-                                    <span class="inline-block w-3 h-3 border border-gray-400 rounded-sm shrink-0"></span>
-                                    {{ $line->item?->name }}@if ($line->quantity > 1) <span class="text-gray-500">×{{ $line->quantity }}</span>@endif
+                                    <span class="inline-block w-3 h-3 border border-white/30 rounded-sm shrink-0"></span>
+                                    {{ $line->item?->name }}@if ($line->quantity > 1) <span class="text-brand-100/60">×{{ $line->quantity }}</span>@endif
                                 </li>
                             @endforeach
                         </ul>
@@ -96,7 +96,7 @@
                 </div>
             @endif
 
-            <p class="pt-4 border-t border-gray-200 text-[11px] text-gray-400">
+            <p class="pt-4 border-t border-white/10 text-[11px] text-brand-100/50">
                 Chakra Productions &middot; generated {{ now()->format('j M Y, H:i') }}
             </p>
         </x-card>

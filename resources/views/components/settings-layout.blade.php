@@ -34,7 +34,7 @@
         ];
     @endphp
 
-    <div class="mb-6 -mt-1 border-b border-gray-200 overflow-x-auto">
+    <div class="mb-6 -mt-1 border-b border-white/10 overflow-x-auto">
         <nav class="flex gap-1 min-w-max">
             @foreach ($settingsTabs as $routeName => $label)
                 @continue(! Route::has($routeName))
@@ -42,8 +42,8 @@
                 <a href="{{ route($routeName) }}"
                    class="px-3.5 py-2.5 text-sm font-semibold border-b-2 whitespace-nowrap transition-colors
                           {{ request()->routeIs($module.'.*')
-                              ? 'border-brand-500 text-brand-700'
-                              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}">
+                              ? 'border-brand-400 text-white'
+                              : 'border-transparent text-brand-100/60 hover:text-white hover:border-white/25' }}">
                     {{ $label }}
                 </a>
             @endforeach

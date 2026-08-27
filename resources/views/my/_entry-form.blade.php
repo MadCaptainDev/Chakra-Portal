@@ -63,7 +63,7 @@
                 <option value="{{ $allClientsValue }}" @selected($currentVenture === $allClientsValue)>{{ $allClientsValue }}</option>
             </x-select>
             @if ($currentVenture !== '' && ! in_array($currentVenture, $knownValues, true))
-                <p class="mt-1 text-xs text-amber-700">Current value “{{ $currentVenture }}” is not a client — pick one below to fix it.</p>
+                <p class="mt-1 text-xs text-amber-200">Current value “{{ $currentVenture }}” is not a client — pick one below to fix it.</p>
             @endif
             <x-input-error :messages="$errors->get('venture')" class="mt-2" />
 
@@ -83,7 +83,7 @@
             <div x-data="{ open: {{ $extraVentures->isNotEmpty() || old('new_venture') ? 'true' : 'false' }}, other: {{ old('new_venture') ? 'true' : 'false' }} }"
                  class="mt-2">
                 <button type="button" @click="open = ! open"
-                        class="text-xs font-semibold text-brand-600 hover:text-brand-800">
+                        class="text-xs font-semibold text-brand-300 hover:text-brand-200">
                     <span x-text="open ? 'Fewer options' : '+ Also for other ventures'">+ Also for other ventures</span>
                 </button>
 
@@ -93,9 +93,9 @@
                             @continue ($option['value'] === $currentVenture)
                             @php $checked = $extraVentures->contains($option['value']); @endphp
                             <label class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium cursor-pointer ring-1 ring-inset
-                                          {{ $checked ? 'bg-brand-50 text-brand-800 ring-brand-300' : 'bg-white text-gray-600 ring-gray-200 hover:ring-gray-300' }}">
+                                          {{ $checked ? 'bg-white/5 text-brand-200 ring-brand-300' : 'bg-white/5 text-brand-100/70 ring-white/10 hover:ring-white/10' }}">
                                 <input type="checkbox" name="ventures[]" value="{{ $option['value'] }}" @checked($checked)
-                                       class="rounded border-gray-300 text-brand-600 focus:ring-brand-500 w-3.5 h-3.5">
+                                       class="rounded border-white/15 text-brand-300 focus:ring-brand-500 w-3.5 h-3.5">
                                 {{ $option['label'] }}
                             </label>
                         @endforeach
@@ -103,7 +103,7 @@
 
                     <div>
                         <button type="button" @click="other = ! other"
-                                class="text-xs font-semibold text-brand-600 hover:text-brand-800">
+                                class="text-xs font-semibold text-brand-300 hover:text-brand-200">
                             <span x-text="other ? 'Cancel new venture' : '+ Other venture'">+ Other venture</span>
                         </button>
 
@@ -114,7 +114,7 @@
                             <x-text-input name="new_venture" type="text" class="w-full sm:max-w-xs text-sm"
                                           value="{{ old('new_venture') }}"
                                           placeholder="Name the venture, e.g. Studio showreel" />
-                            <p class="mt-1 text-xs text-gray-500">Added to the venture list for everyone.</p>
+                            <p class="mt-1 text-xs text-brand-100/60">Added to the venture list for everyone.</p>
                             <x-input-error :messages="$errors->get('new_venture')" class="mt-1" />
                         </div>
                     </div>
@@ -169,7 +169,7 @@
             <x-input-label :for="'ts_start_'.$uid" value="Start" />
             <input :id="'ts_start_'.$uid" id="ts_start_{{ $uid }}" name="started_at" type="time"
                    x-model="start" @change="recompute()"
-                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
+                   class="mt-1 block w-full rounded-md border-white/15 shadow-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
             <x-input-error :messages="$errors->get('started_at')" class="mt-2" />
         </div>
 
@@ -177,17 +177,17 @@
             <x-input-label :for="'ts_end_'.$uid" value="Finish" />
             <input id="ts_end_{{ $uid }}" name="ended_at" type="time"
                    x-model="end" @change="recompute()"
-                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
+                   class="mt-1 block w-full rounded-md border-white/15 shadow-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
             <x-input-error :messages="$errors->get('ended_at')" class="mt-2" />
-            <p class="text-[11px] text-gray-500 mt-1">24-hour time (e.g. 22:30).</p>
+            <p class="text-[11px] text-brand-100/60 mt-1">24-hour time (e.g. 22:30).</p>
         </div>
 
         <div>
             <x-input-label :for="'ts_minutes_'.$uid" value="Duration (mins)" />
             <input id="ts_minutes_{{ $uid }}" name="minutes" type="number" min="0" max="1440"
                    x-model.number="minutes"
-                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
-            <p class="text-[11px] text-gray-500 mt-1" x-text="label"></p>
+                   class="mt-1 block w-full rounded-md border-white/15 shadow-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
+            <p class="text-[11px] text-brand-100/60 mt-1" x-text="label"></p>
             <x-input-error :messages="$errors->get('minutes')" class="mt-2" />
         </div>
 

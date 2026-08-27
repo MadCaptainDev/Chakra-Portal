@@ -40,10 +40,10 @@
                     <div class="mt-1">
                         <div class="flex flex-col gap-1 min-h-[44px] justify-center">
                             <div class="flex items-center gap-2 flex-wrap">
-                                <p class="text-lg font-semibold text-gray-900">{{ number_format((float) $emi->amount, 2) }}</p>
-                                <span class="text-[11px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-50 px-2 py-0.5 rounded">Locked</span>
+                                <p class="text-lg font-semibold text-white">{{ number_format((float) $emi->amount, 2) }}</p>
+                                <span class="text-[11px] font-semibold uppercase tracking-wide text-amber-200 bg-amber-400/10 px-2 py-0.5 rounded">Locked</span>
                             </div>
-                            <button type="button" @click="unlocking = true" class="text-xs font-semibold text-brand-500 hover:text-brand-600 text-left">Change amount</button>
+                            <button type="button" @click="unlocking = true" class="text-xs font-semibold text-brand-500 hover:text-brand-300 text-left">Change amount</button>
                         </div>
                     </div>
                 </template>
@@ -52,13 +52,13 @@
                         <input type="hidden" name="unlock_amount" value="1">
                         <x-text-input :id="'emi_amount_'.$uid" name="amount" type="number" step="0.01" min="0"
                                       class="block w-full" value="{{ old('amount', $emi->amount) }}" required />
-                        <label class="inline-flex items-start gap-2 text-sm text-gray-700">
+                        <label class="inline-flex items-start gap-2 text-sm text-brand-100/80">
                             <input type="checkbox" name="confirm_amount_change" value="1" required
-                                   class="mt-1 rounded border-gray-300 text-brand-500 focus:ring-brand-400"
+                                   class="mt-1 rounded bg-white/10 border-white/25 text-brand-400 focus:ring-brand-400"
                                    @checked(old('confirm_amount_change'))>
                             <span>I confirm changing this locked EMI amount.</span>
                         </label>
-                        <button type="button" @click="unlocking = false" class="text-xs font-semibold text-gray-500 hover:text-gray-700">Keep locked</button>
+                        <button type="button" @click="unlocking = false" class="text-xs font-semibold text-brand-100/60 hover:text-brand-100/80">Keep locked</button>
                     </div>
                 </template>
             @else

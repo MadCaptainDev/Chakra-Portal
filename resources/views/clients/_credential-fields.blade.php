@@ -51,7 +51,7 @@
         <x-input-label :for="'notes_'.$uid" value="Notes (optional)" />
         <x-textarea :id="'notes_'.$uid" name="notes" rows="2" class="mt-1"
                     placeholder="Recovery codes, which email it is tied to, who set it up">{{ old('notes') }}</x-textarea>
-        <p class="mt-1 text-xs text-gray-500">Encrypted along with the password, and only shown when revealed.</p>
+        <p class="mt-1 text-xs text-brand-100/60">Encrypted along with the password, and only shown when revealed.</p>
     </div>
 </div>
 

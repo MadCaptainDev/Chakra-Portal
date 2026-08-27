@@ -95,29 +95,53 @@ Several are in good shape and should set the standard:
   paid/unpaid state) mentioned in the same original complaint is *not* extracted
   yet — still duplicated across those same screens. Still open, see §5/§9.
 
-**`card`'s padding problem is fixed; its dark-mode problem isn't.** It already
-has real variants — `padding` (none/sm/md/lg) and `tone` (default/brand/muted,
-plus now `dark`) — pushed into the component rather than re-specified per caller.
-Some older call sites still bypass the prop with raw `p-*` classes (a genuine,
-smaller cleanup item, not the structural problem it used to be). The tone that
-was actually missing until this pass was `dark` — see "the dark-surface gap"
-below, now the more important of the two remaining `card` issues.
+**`card`'s padding problem is fixed, and so is its dark-mode problem.** It has
+real variants — `padding` (none/sm/md/lg) and `tone` — pushed into the component
+rather than re-specified per caller. Some older call sites still bypass the prop
+with raw `p-*` classes (a genuine, smaller cleanup item, not the structural
+problem it used to be). Its *default* tone is now the glass panel; `light` is
+the opt-in for the few surfaces that must stay paper-white.
 
-### The dark-surface gap
+### The dark plane (resolved — was "the dark-surface gap")
 
-`dashboard.blade.php` is the *only* screen in the app that opts into
-`<x-app-layout dark>`, and until this pass it got there by reimplementing
-everything locally instead of using shared components: its own
-`$cardClass = 'rounded-xl bg-white/5 ring-1 ring-white/10'` instead of
-`<x-card tone="dark">`, its own bespoke header block instead of
-`<x-page-header dark>`, its own section-label classes at `tracking-[0.16em]`
-instead of `<x-section-label dark>` (which standardises on `tracking-wider`,
-same as the light-mode eyebrow). `card`, `stat-card`, `page-header` and the new
-`section-label` all now carry a `dark` prop/tone matching Dashboard's own
-existing look exactly — but **Dashboard itself has not been migrated to use
-them yet**. That migration is the highest-value item at the top of §9's
-module-by-module list: it is the one screen already paying the cost of this gap,
-and the only current consumer any of these dark variants would serve.
+Dashboard used to be the *only* screen that opted into `<x-app-layout dark>`,
+with eight screens following it later (the client portal and the employee "My
+work" pages). Everything else was light cards on `brand-50`, so the product had
+two visual planes and a component library that had to carry both.
+
+**That is settled: the signed-in product is one dark plane.**
+`AppLayout::$dark` now defaults to `true`, and every shared component's default
+tone is the one Dashboard established — `bg-white/5` over a `ring-white/10`
+hairline on the `brand-900` ground. The light vocabulary
+(`bg-white`/`text-gray-*`/`border-gray-*` and the `bg-*-50` status tints) was
+swept out of all 115 signed-in views in favour of the dark equivalents:
+
+| Light | Dark | |
+|---|---|---|
+| `bg-white` card | `bg-white/5` + `ring-white/10` | the card |
+| `bg-gray-50` panel | `bg-brand-900/40` | a well, *darker* than its card |
+| `hover:bg-gray-50` | `hover:bg-white/[0.09]` | a lift, *lighter* |
+| `text-gray-900` / `700` / `500` | `text-white` / `brand-100/80` / `brand-100/60` | the text ramp |
+| `text-brand-600` link | `text-brand-300` | |
+| `bg-green-50 text-green-800` | `bg-emerald-400/15 text-emerald-200` | every status tint |
+| chart fill `bg-brand-700` (peak) | `bg-brand-300` | emphasis is brighter, not darker |
+
+Three things a utility class could not reach live in `resources/css/app.css`
+under `.theme-dark`: `color-scheme: dark` (so native date pickers and
+scrollbars stop rendering white), `select option` colours (the OS draws those),
+and a `@media print` block that forces ink-on-paper — the call sheet and the
+read-only script are printed for real, and browsers drop backgrounds when they
+print. There is also a components-layer default for bare `input`/`textarea`/
+`select`, because @tailwindcss/forms paints them white in the base layer and a
+field with no `bg-*` of its own would be white-on-white.
+
+What is left: `dark` props on `card`, `stat-card`, `page-header`,
+`section-label` and `x-app-layout` are inert, kept only so the ~40 call sites
+that name them still parse. They can be deleted in a follow-up.
+
+**Public pages are deliberately untouched** — landing, the public portfolio,
+privacy/terms, the auth screens, the standalone brief and deletion-status
+documents, and the dompdf invoice all keep their own light chrome.
 
 Layouts live in `resources/views/layouts/` — `app` (sidebar shell), `guest` (auth
 pages), `sidebar` (nav, shared by the desktop rail and the mobile drawer, itself
@@ -143,8 +167,8 @@ and footer duplicate markup. The auth pages are still close to stock Breeze and 
 not look like the rest of the product.
 
 ### Dashboard
-`dashboard.blade.php` — uses `x-stat-card` six times. This is the *only* place
-`stat-card` is used; every expense module hand-rolls its own stat tile out of
+`dashboard.blade.php` — uses `x-stat-card`; so do the to-do board and several
+others now. Every expense module still hand-rolls its own stat tile out of
 `x-card`. Those should be the same component.
 
 ### Invoices
@@ -343,16 +367,15 @@ hides, or it renders for a frame before Alpine boots.
 ## 9. Suggested order
 
 1. ~~Settle the design tokens and fix `x-card` / `x-stat-card` first~~ — done.
-   `card` has `padding`/`tone` (including `dark`) variants, `stat-card` has
-   dark-aware accents, `page-header` has a `dark` prop, and a new
-   `section-label` component standardises the uppercase-tracked micro-label
-   idiom. All additive so far — see step 2, the first thing that actually
-   spends them.
-2. **Migrate `dashboard.blade.php` to the shared dark variants** — the one
-   screen currently paying for the dark-surface gap described in §4, and the
-   only current consumer any of step 1's dark variants would serve. Do this
-   before anything else below; it is what makes step 1 real rather than
-   unused capability.
+   `card` has `padding`/`tone` variants, `stat-card` one accent map,
+   `page-header` and `section-label` standardise the header and the
+   uppercase-tracked micro-label.
+2. ~~Move the product onto one plane~~ — done, see "The dark plane" in §4.
+   Every signed-in screen is dark; the components carry it. What remains from
+   this step is cosmetic follow-up: delete the inert `dark` props, and retire
+   the hand-pasted button class strings in favour of `x-btn` (the sweep
+   recoloured them in place rather than replacing them, so they are now
+   *correct* but still duplicated — see step 4).
 3. Extract the pay row (§5, still open — the month navigator half of this step
    is already done via `month-nav`/`day-nav`).
 4. Work module by module: invoices → clients → recurring → expenses/salaries

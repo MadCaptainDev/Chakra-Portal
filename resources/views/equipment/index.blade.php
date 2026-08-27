@@ -29,9 +29,9 @@
                                   placeholder="Name or asset tag" />
                 </div>
 
-                <label for="retired" class="inline-flex items-center gap-2 min-h-[44px] text-sm text-gray-700 cursor-pointer">
+                <label for="retired" class="inline-flex items-center gap-2 min-h-[44px] text-sm text-brand-100/80 cursor-pointer">
                     <input id="retired" name="retired" type="checkbox" value="1" @checked($filters['retired'])
-                           class="rounded border-gray-300 text-brand-500 focus:ring-brand-400">
+                           class="rounded bg-white/10 border-white/25 text-brand-400 focus:ring-brand-400">
                     Show retired
                 </label>
 
@@ -48,26 +48,26 @@
         @else
             @foreach ($groups as $category => $items)
                 <section>
-                    <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400 mb-2">{{ $category }}</p>
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-100/50 mb-2">{{ $category }}</p>
 
-                    <x-card class="divide-y divide-gray-100 overflow-hidden">
+                    <x-card class="divide-y divide-white/10 overflow-hidden">
                         @foreach ($items as $item)
                             @php $short = (int) ($shortfalls[$item->id] ?? 0); @endphp
 
                             <div class="p-4 flex items-start justify-between gap-3">
                                 <div class="min-w-0">
-                                    <p class="font-semibold text-gray-900 truncate">
+                                    <p class="font-semibold text-white truncate">
                                         {{ $item->name }}
                                         @unless ($item->is_active)
-                                            <span class="ml-1 text-xs font-normal text-gray-400">(retired)</span>
+                                            <span class="ml-1 text-xs font-normal text-brand-100/50">(retired)</span>
                                         @endunless
                                     </p>
-                                    <p class="text-xs text-gray-500 mt-0.5">
+                                    <p class="text-xs text-brand-100/60 mt-0.5">
                                         {{ $item->quantity }} owned
                                         @if ($item->identifier) &middot; {{ $item->identifier }} @endif
                                     </p>
                                     @if ($short > 0)
-                                        <p class="text-xs text-red-600 font-semibold mt-1">
+                                        <p class="text-xs text-red-300 font-semibold mt-1">
                                             {{ $short }} never came back
                                         </p>
                                     @endif
@@ -77,7 +77,7 @@
                                     <div class="shrink-0 flex items-center gap-2">
                                         <button type="button"
                                                 @click="$dispatch('open-modal', 'edit-equipment-{{ $item->id }}')"
-                                                class="min-h-[44px] px-3 text-xs font-semibold text-brand-600 hover:text-brand-700">
+                                                class="min-h-[44px] px-3 text-xs font-semibold text-brand-300 hover:text-brand-200">
                                             Edit
                                         </button>
                                     </div>
@@ -89,7 +89,7 @@
                                     <form method="POST" action="{{ route('equipment.update', $item) }}" class="p-6">
                                         @csrf
                                         @method('PUT')
-                                        <h2 class="text-lg font-semibold text-gray-900 mb-4">Edit {{ $item->name }}</h2>
+                                        <h2 class="text-lg font-semibold text-white mb-4">Edit {{ $item->name }}</h2>
                                         @include('equipment._fields', ['item' => $item, 'categories' => $categories])
 
                                         <div class="mt-6 flex items-center justify-between gap-3">
@@ -97,7 +97,7 @@
 
                                             @can('equipment.delete')
                                                 <button type="submit" form="delete-equipment-{{ $item->id }}"
-                                                        class="text-sm font-semibold text-red-600 hover:text-red-700">
+                                                        class="text-sm font-semibold text-red-300 hover:text-red-200">
                                                     Delete
                                                 </button>
                                             @endcan
@@ -124,8 +124,8 @@
         <x-modal name="add-equipment" :show="$errors->any()" maxWidth="lg">
             <form method="POST" action="{{ route('equipment.store') }}" class="p-6">
                 @csrf
-                <h2 class="text-lg font-semibold text-gray-900 mb-1">Add to the register</h2>
-                <p class="text-sm text-gray-500 mb-4">
+                <h2 class="text-lg font-semibold text-white mb-1">Add to the register</h2>
+                <p class="text-sm text-brand-100/60 mb-4">
                     One entry per kind of thing. Twelve identical batteries are one entry with a quantity of twelve.
                 </p>
 
@@ -134,7 +134,7 @@
                 <div class="mt-6 flex items-center gap-3">
                     <x-btn type="submit">Add item</x-btn>
                     <button type="button" @click="$dispatch('close-modal', 'add-equipment')"
-                            class="text-sm text-gray-600 hover:text-gray-900 min-h-[44px] px-2">Cancel</button>
+                            class="text-sm text-brand-100/70 hover:text-white min-h-[44px] px-2">Cancel</button>
                 </div>
             </form>
         </x-modal>

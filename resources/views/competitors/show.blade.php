@@ -21,19 +21,19 @@
 
     <div class="space-y-4">
         @unless ($settings->hasGemini())
-            <div class="rounded-xl bg-amber-50 ring-1 ring-amber-200 p-4">
-                <p class="text-sm text-amber-800">
+            <div class="rounded-xl bg-amber-400/10 ring-1 ring-amber-400/30 p-4">
+                <p class="text-sm text-amber-200">
                     No Gemini key set, so reels can't be analyzed yet. Add one under
                     <a href="{{ route('competitor-settings.edit') }}" class="font-semibold underline">Setup → Competitor Analysis</a>.
                 </p>
             </div>
         @else
             @if ($unanalyzedCount > 0)
-                <div class="rounded-xl bg-brand-50 ring-1 ring-brand-200 p-4">
-                    <p class="text-sm text-brand-800">
+                <div class="rounded-xl bg-white/5 ring-1 ring-brand-200 p-4">
+                    <p class="text-sm text-brand-200">
                         {{ $unanalyzedCount }} {{ Str::plural('reel', $unanalyzedCount) }} not analyzed yet. Run this over SSH:
                     </p>
-                    <code class="block mt-1.5 text-xs bg-white/60 rounded px-2 py-1 text-brand-900">php artisan competitors:analyze --account={{ $competitor->id }}</code>
+                    <code class="block mt-1.5 text-xs bg-brand-900/60 ring-1 ring-white/10 rounded px-2 py-1 text-brand-100/80">php artisan competitors:analyze --account={{ $competitor->id }}</code>
                 </div>
             @endif
         @endunless
@@ -53,7 +53,7 @@
                 @foreach ($reels as $reel)
                     <x-card padding="none" class="overflow-hidden flex flex-col"
                             x-data="{ caseStudy: false, generating: false }">
-                        <div class="relative aspect-[9/16] bg-gray-100">
+                        <div class="relative aspect-[9/16] bg-white/10">
                             @if ($reel->thumbnail_url)
                                 <img src="{{ $reel->thumbnail_url }}" alt="" loading="lazy"
                                      class="absolute inset-0 w-full h-full object-cover">
@@ -96,13 +96,13 @@
 
                         <div class="p-4 flex flex-col gap-3 flex-1">
                             @if ($reel->caption)
-                                <p class="text-sm text-gray-600 line-clamp-2">{{ $reel->caption }}</p>
+                                <p class="text-sm text-brand-100/70 line-clamp-2">{{ $reel->caption }}</p>
                             @endif
 
                             <div class="flex flex-wrap items-center gap-2 mt-auto">
                                 @if ($reel->video_url)
                                     <a href="{{ $reel->video_url }}" target="_blank" rel="noopener"
-                                       class="text-xs font-semibold text-brand-600 hover:text-brand-800 min-h-[44px] inline-flex items-center">
+                                       class="text-xs font-semibold text-brand-300 hover:text-brand-200 min-h-[44px] inline-flex items-center">
                                         Open on Instagram
                                     </a>
                                 @endif
@@ -110,27 +110,27 @@
                                 @if ($reel->analysis)
                                     <button type="button"
                                             @click="caseStudy = ! caseStudy"
-                                            class="ml-auto inline-flex items-center gap-1 min-h-[44px] text-xs font-semibold uppercase tracking-widest text-brand-700 hover:text-brand-900">
+                                            class="ml-auto inline-flex items-center gap-1 min-h-[44px] text-xs font-semibold uppercase tracking-widest text-brand-200 hover:text-white">
                                         Case study
                                         <svg class="w-3.5 h-3.5 transition-transform" :class="caseStudy && 'rotate-90'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                                         </svg>
                                     </button>
                                 @else
-                                    <span class="ml-auto text-[11px] text-gray-400">Not analyzed yet</span>
+                                    <span class="ml-auto text-[11px] text-brand-100/50">Not analyzed yet</span>
                                 @endif
                             </div>
 
                             @if ($reel->analysis)
-                                <div x-show="caseStudy" x-cloak class="pt-3 border-t border-gray-100 space-y-3">
+                                <div x-show="caseStudy" x-cloak class="pt-3 border-t border-white/10 space-y-3">
                                     <div>
-                                        <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Gemini's breakdown</p>
-                                        <p class="mt-2 text-sm text-gray-700 whitespace-pre-line">{{ $reel->analysis->breakdown }}</p>
+                                        <p class="text-[11px] font-semibold uppercase tracking-wider text-brand-100/60">Gemini's breakdown</p>
+                                        <p class="mt-2 text-sm text-brand-100/80 whitespace-pre-line">{{ $reel->analysis->breakdown }}</p>
                                     </div>
 
                                     <div>
                                         <button type="button" @click="generating = ! generating"
-                                                class="text-xs font-semibold text-brand-600 hover:text-brand-800 min-h-[44px]">
+                                                class="text-xs font-semibold text-brand-300 hover:text-brand-200 min-h-[44px]">
                                             <span x-show="! generating">+ Generate concepts</span>
                                             <span x-show="generating" x-cloak>Cancel</span>
                                         </button>
@@ -153,11 +153,11 @@
                                         @if ($reel->analysis->concepts->isNotEmpty())
                                             <div class="mt-3 space-y-3">
                                                 @foreach ($reel->analysis->concepts->sortByDesc('generated_at') as $concept)
-                                                    <div class="rounded-lg bg-gray-50 p-3">
-                                                        <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                                                    <div class="rounded-lg bg-brand-900/40 p-3">
+                                                        <p class="text-[11px] font-semibold uppercase tracking-wider text-brand-100/60">
                                                             {{ $concept->client?->name ?? 'General' }} &middot; {{ $concept->generated_at->diffForHumans() }}
                                                         </p>
-                                                        <p class="mt-1.5 text-sm text-gray-700 whitespace-pre-line">{{ $concept->concept_text }}</p>
+                                                        <p class="mt-1.5 text-sm text-brand-100/80 whitespace-pre-line">{{ $concept->concept_text }}</p>
                                                     </div>
                                                 @endforeach
                                             </div>

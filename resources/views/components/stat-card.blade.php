@@ -6,29 +6,26 @@
     'href' => null,
     'trend' => null,
     'trendLabel' => null,
-    // Every accent below assumes a light bg-white tile. Set this over a
-    // brand-900 canvas (the one dark screen so far is the Dashboard) --
-    // the light accents' contrast ratios do not hold up on navy.
-    'dark' => false,
+    // The tile is drawn for the brand-900 ground the whole signed-in app now
+    // runs on. The prop survives because ~30 call sites pass it by name from
+    // when the Dashboard was the only dark screen; passing false gets the old
+    // light tile back, for a white ground that no longer exists in-product.
+    'dark' => true,
 ])
 
 @php
     // One tile for the whole product. Every expense module used to hand-roll
     // this out of x-card, which is why the dashboard and the month pages never
     // quite matched.
+    // Values a step lighter than the hue's mid, chips a translucent wash of it
+    // rather than a solid fill (a solid bg-*-100 chip reads as a light-mode
+    // leftover sitting on navy), and an edge bar bright enough to register
+    // against the glass tile rather than the page behind it.
+    //
+    // There used to be a second, light-plane copy of this map selected by
+    // $dark. Nothing selects it any more -- the whole signed-in app is on the
+    // dark plane -- so there is one map and the prop is inert.
     $accents = [
-        'brand' => ['value' => 'text-brand-700', 'chip' => 'bg-brand-100 text-brand-700', 'edge' => 'before:bg-brand-400'],
-        'green' => ['value' => 'text-green-700', 'chip' => 'bg-green-100 text-green-700', 'edge' => 'before:bg-green-500'],
-        'red' => ['value' => 'text-red-700', 'chip' => 'bg-red-100 text-red-700', 'edge' => 'before:bg-red-500'],
-        'amber' => ['value' => 'text-amber-700', 'chip' => 'bg-amber-100 text-amber-700', 'edge' => 'before:bg-amber-500'],
-        'gray' => ['value' => 'text-gray-900', 'chip' => 'bg-gray-100 text-gray-600', 'edge' => 'before:bg-gray-300'],
-    ];
-
-    // Lighter values, translucent chips instead of solid ones (a solid
-    // bg-brand-100 chip reads as a light-mode mistake sitting on navy), and
-    // the edge bars lift a step brighter so they still register against the
-    // glass tile rather than the page behind it.
-    $darkAccents = [
         'brand' => ['value' => 'text-brand-200', 'chip' => 'bg-brand-400/15 text-brand-200', 'edge' => 'before:bg-brand-400'],
         'green' => ['value' => 'text-green-300', 'chip' => 'bg-green-400/15 text-green-300', 'edge' => 'before:bg-green-400'],
         'red' => ['value' => 'text-red-300', 'chip' => 'bg-red-400/15 text-red-300', 'edge' => 'before:bg-red-400'],
@@ -36,30 +33,25 @@
         'gray' => ['value' => 'text-white', 'chip' => 'bg-white/10 text-brand-100/70', 'edge' => 'before:bg-white/30'],
     ];
 
-    $map = $dark ? $darkAccents : $accents;
-    $a = $map[$accent] ?? $map['gray'];
+    $a = $accents[$accent] ?? $accents['gray'];
 
     // The colour bleeds up the left edge rather than tinting the whole tile, so
     // a row of four stays readable instead of turning into a colour swatch.
-    $shell = $dark
-        ? 'group relative overflow-hidden bg-white/5 rounded-xl ring-1 ring-white/10 p-4 sm:p-5 '
-        : 'group relative overflow-hidden bg-white rounded-xl ring-1 ring-gray-900/5 shadow-sm p-4 sm:p-5 ';
+    $shell = 'group relative overflow-hidden bg-white/5 rounded-xl ring-1 ring-white/10 p-4 sm:p-5 ';
     $shell .= 'before:absolute before:inset-y-0 before:left-0 before:w-1 before:content-[""] '.$a['edge'];
 
     if ($href) {
-        $shell .= $dark
-            ? ' transition duration-150 hover:bg-white/[0.07] hover:ring-white/20'
-            : ' transition duration-150 hover:shadow-md hover:ring-gray-900/10';
+        $shell .= ' transition duration-150 hover:bg-white/[0.08] hover:ring-white/20';
     }
 
     $trendUp = $trend === 'up';
     $trendDown = $trend === 'down';
 
-    $labelClass = $dark ? 'text-brand-100/70' : 'text-gray-500';
-    $slotClass = $dark ? 'text-brand-100/60' : 'text-gray-500';
-    $trendNeutral = $dark ? 'text-brand-100/70' : 'text-gray-500';
-    $trendUpClass = $dark ? 'text-green-300' : 'text-green-600';
-    $trendDownClass = $dark ? 'text-red-300' : 'text-red-600';
+    $labelClass = 'text-brand-100/70';
+    $slotClass = 'text-brand-100/60';
+    $trendNeutral = 'text-brand-100/70';
+    $trendUpClass = 'text-green-300';
+    $trendDownClass = 'text-red-300';
 @endphp
 
 <div {{ $attributes->merge(['class' => $shell]) }}>

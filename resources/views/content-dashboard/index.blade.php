@@ -14,7 +14,7 @@
         $target = $t['target'];
 
         if ($planned === 0 && $target === null) {
-            return ['text' => '—', 'class' => 'text-gray-300'];
+            return ['text' => '—', 'class' => 'text-brand-100/40'];
         }
 
         if ($target !== null) {
@@ -22,15 +22,15 @@
             $close = ! $hit && $target > 0 && $published / $target >= 0.6;
             return [
                 'text' => $published . ' / ' . $target,
-                'class' => $hit ? 'text-green-700 font-semibold'
-                    : ($close ? 'text-amber-700 font-semibold' : 'text-red-700 font-semibold'),
+                'class' => $hit ? 'text-green-200 font-semibold'
+                    : ($close ? 'text-amber-200 font-semibold' : 'text-red-200 font-semibold'),
                 'sub' => $planned > $published ? '+' . ($planned - $published) . ' pending' : null,
             ];
         }
 
         return [
             'text' => $published . ($planned > $published ? ' / ' . $planned : ''),
-            'class' => $planned > $published ? 'text-amber-700' : 'text-gray-600',
+            'class' => $planned > $published ? 'text-amber-200' : 'text-brand-100/70',
             'sub' => null,
         ];
     };
@@ -54,9 +54,9 @@
 
         <div class="flex flex-wrap items-center justify-between gap-3">
             <form method="GET" action="{{ route('content-dashboard.index') }}" class="flex items-center gap-2">
-                <label for="month" class="text-xs font-semibold uppercase tracking-wider text-gray-500">Month</label>
+                <label for="month" class="text-xs font-semibold uppercase tracking-wider text-brand-100/60">Month</label>
                 <select id="month" name="month" onchange="this.form.submit()"
-                        class="rounded-md border-gray-300 text-sm py-1.5 pr-8">
+                        class="rounded-md border-white/15 text-sm py-1.5 pr-8">
                     @foreach ($months as $m)
                         <option value="{{ $m->format('Y-m') }}" @selected($m->format('Y-m') === $month->format('Y-m'))>
                             {{ $m->format('F Y') }}
@@ -66,17 +66,17 @@
                 <noscript><x-secondary-button type="submit">Go</x-secondary-button></noscript>
             </form>
 
-            <p class="text-xs text-gray-500">Notion synced {{ $lastSynced?->diffForHumans() ?? 'never' }}</p>
+            <p class="text-xs text-brand-100/60">Notion synced {{ $lastSynced?->diffForHumans() ?? 'never' }}</p>
         </div>
 
         @if ($unmappedThisMonth > 0)
-            <div class="rounded-lg bg-amber-50 ring-1 ring-amber-100 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-                <p class="text-sm text-amber-800">
+            <div class="rounded-lg bg-amber-400/10 ring-1 ring-amber-400/20 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                <p class="text-sm text-amber-200">
                     <span class="font-semibold">{{ number_format($unmappedThisMonth) }} item(s) this month</span>
                     belong to {{ $unmapped->count() }} venture(s) with no account, so they are not counted below.
                 </p>
                 <a href="{{ route('content-accounts.edit') }}"
-                   class="shrink-0 text-xs font-semibold uppercase tracking-widest text-amber-900 hover:text-amber-700">Assign them →</a>
+                   class="shrink-0 text-xs font-semibold uppercase tracking-widest text-amber-200 hover:text-amber-200">Assign them →</a>
             </div>
         @endif
 
@@ -113,15 +113,15 @@
 
         {{-- Pipeline progress bar --}}
         @if ($pipeline['total'] > 0)
-            <div class="bg-white rounded-lg ring-1 ring-gray-200 p-4">
+            <div class="bg-white/5 rounded-lg ring-1 ring-white/10 p-4">
                 <div class="flex items-center justify-between mb-2">
-                    <span class="text-sm font-medium text-gray-700">Pipeline Progress</span>
-                    <span class="text-sm tabular-nums text-gray-500">
+                    <span class="text-sm font-medium text-brand-100/80">Pipeline Progress</span>
+                    <span class="text-sm tabular-nums text-brand-100/60">
                         {{ $pipeline['published'] }} of {{ $pipeline['total'] }} published
                         ({{ round($pipeline['published'] / $pipeline['total'] * 100) }}%)
                     </span>
                 </div>
-                <div class="h-3 rounded-full bg-gray-100 overflow-hidden flex">
+                <div class="h-3 rounded-full bg-white/10 overflow-hidden flex">
                     @php
                         $pPub = $pipeline['published'] / $pipeline['total'] * 100;
                         $pSch = $pipeline['scheduled'] / $pipeline['total'] * 100;
@@ -131,14 +131,14 @@
                     <div class="bg-green-500 h-full" style="width: {{ $pPub }}%"></div>
                     <div class="bg-blue-400 h-full" style="width: {{ $pSch }}%"></div>
                     <div class="bg-amber-400 h-full" style="width: {{ $pProg }}%"></div>
-                    <div class="bg-gray-300 h-full" style="width: {{ $pIdea }}%"></div>
+                    <div class="bg-white/20 h-full" style="width: {{ $pIdea }}%"></div>
                 </div>
-                <div class="flex flex-wrap gap-4 mt-2 text-xs text-gray-500">
+                <div class="flex flex-wrap gap-4 mt-2 text-xs text-brand-100/60">
                     <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span> Published</span>
                     <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-400"></span> Scheduled</span>
                     <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span> In Progress</span>
                     @if ($pipeline['idea'] > 0)
-                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-300"></span> Idea</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-white/20"></span> Idea</span>
                     @endif
                 </div>
             </div>
@@ -150,7 +150,7 @@
                                    subtitle="Published / target per account. Click an account to see item-level details." />
                 @if ($untargetedAccounts > 0)
                     <a href="{{ route('content-accounts.edit') }}"
-                       class="shrink-0 text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                       class="shrink-0 text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
                         {{ $untargetedAccounts }} account(s) without a target →
                     </a>
                 @endif
@@ -160,7 +160,7 @@
                 <div class="p-4 sm:p-5">
                     <x-empty-state message="No account has a target set yet.">
                         <a href="{{ route('content-accounts.edit') }}"
-                           class="text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                           class="text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
                             Set targets →
                         </a>
                     </x-empty-state>
@@ -169,7 +169,7 @@
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-sm">
                         <thead>
-                            <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500 border-b border-gray-200">
+                            <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 border-b border-white/10">
                                 <th class="px-4 sm:px-5 py-2.5">Client / Account</th>
                                 @foreach ($targeted as $label)
                                     <th class="px-3 py-2.5 text-right whitespace-nowrap">{{ $label }}</th>
@@ -180,24 +180,24 @@
                                 <th class="px-3 py-2.5 text-right whitespace-nowrap">IG reach</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-100">
+                        <tbody class="divide-y divide-white/10">
                             @foreach ($clients as $group)
-                                <tr class="bg-gray-50/70">
-                                    <td class="px-4 sm:px-5 py-2 font-semibold text-gray-900">
+                                <tr class="bg-brand-900/40">
+                                    <td class="px-4 sm:px-5 py-2 font-semibold text-white">
                                         {{ $group['client']?->name ?? 'Unknown client' }}
                                     </td>
                                     @foreach ($targeted as $source => $label)
-                                        <td class="px-3 py-2 text-right tabular-nums text-gray-400">
+                                        <td class="px-3 py-2 text-right tabular-nums text-brand-100/50">
                                             {{ $group['rows']->sum(fn ($r) => $r['types'][$source]['actual']) ?: '' }}
                                         </td>
                                     @endforeach
-                                    <td class="px-3 py-2 text-right tabular-nums text-gray-400">{{ $group['rows']->sum('stories') ?: '' }}</td>
-                                    <td class="px-3 py-2 text-right tabular-nums font-semibold text-gray-900">
+                                    <td class="px-3 py-2 text-right tabular-nums text-brand-100/50">{{ $group['rows']->sum('stories') ?: '' }}</td>
+                                    <td class="px-3 py-2 text-right tabular-nums font-semibold text-white">
                                         {{ $group['total'] }}
                                         @if ($group['planned'] > $group['total'])
-                                            <span class="text-amber-600 font-normal">/ {{ $group['planned'] }}</span>
+                                            <span class="text-amber-300 font-normal">/ {{ $group['planned'] }}</span>
                                         @elseif ($group['target'])
-                                            <span class="text-gray-400 font-normal">/ {{ $group['target'] }}</span>
+                                            <span class="text-brand-100/50 font-normal">/ {{ $group['target'] }}</span>
                                         @endif
                                     </td>
                                     <td class="px-3 py-2"></td>
@@ -208,11 +208,11 @@
                                     <tr>
                                         <td class="px-4 sm:px-5 py-2.5 pl-8 sm:pl-10">
                                             <a href="{{ route('content-dashboard.show', [$row['account'], 'month' => $month->format('Y-m')]) }}"
-                                               class="text-gray-900 hover:text-brand-600 font-medium">
+                                               class="text-white hover:text-brand-300 font-medium">
                                                 {{ $row['account']->name }}
                                             </a>
                                             @if ($row['account']->ventures->isEmpty())
-                                                <span class="block text-[11px] text-amber-600">No ventures assigned</span>
+                                                <span class="block text-[11px] text-amber-300">No ventures assigned</span>
                                             @endif
                                         </td>
                                         @foreach ($targeted as $source => $label)
@@ -220,17 +220,17 @@
                                             <td class="px-3 py-2.5 text-right tabular-nums whitespace-nowrap {{ $c['class'] }}">
                                                 {{ $c['text'] }}
                                                 @if (! empty($c['sub']))
-                                                    <span class="block text-[10px] text-amber-500">{{ $c['sub'] }}</span>
+                                                    <span class="block text-[10px] text-amber-300">{{ $c['sub'] }}</span>
                                                 @endif
                                             </td>
                                         @endforeach
-                                        <td class="px-3 py-2.5 text-right tabular-nums text-gray-400">{{ $row['stories'] ?: '—' }}</td>
+                                        <td class="px-3 py-2.5 text-right tabular-nums text-brand-100/50">{{ $row['stories'] ?: '—' }}</td>
                                         <td class="px-3 py-2.5 text-right tabular-nums">
-                                            <span class="font-semibold text-gray-900">{{ $row['total'] }}</span>
+                                            <span class="font-semibold text-white">{{ $row['total'] }}</span>
                                             @if ($row['planned'] > $row['total'])
-                                                <span class="text-amber-600">/ {{ $row['planned'] }}</span>
+                                                <span class="text-amber-300">/ {{ $row['planned'] }}</span>
                                             @elseif ($row['target'])
-                                                <span class="text-gray-400">/ {{ $row['target'] }}</span>
+                                                <span class="text-brand-100/50">/ {{ $row['target'] }}</span>
                                             @endif
                                         </td>
                                         <td class="px-3 py-2.5">
@@ -239,10 +239,10 @@
                                                 $p = $denominator > 0 ? min((int) round($row['total'] / $denominator * 100), 999) : 0;
                                             @endphp
                                             @if ($denominator === 0)
-                                                <span class="text-[11px] text-gray-300">—</span>
+                                                <span class="text-[11px] text-brand-100/40">—</span>
                                             @else
                                                 <div class="flex items-center gap-2">
-                                                    <div class="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                                                    <div class="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
                                                         <div @class([
                                                             'h-full rounded-full',
                                                             'bg-green-500' => $p >= 100,
@@ -250,16 +250,16 @@
                                                             'bg-red-400' => $p < 60,
                                                         ]) style="width: {{ min($p, 100) }}%"></div>
                                                     </div>
-                                                    <span class="text-[11px] tabular-nums text-gray-500 w-9 text-right">{{ $p }}%</span>
+                                                    <span class="text-[11px] tabular-nums text-brand-100/60 w-9 text-right">{{ $p }}%</span>
                                                 </div>
                                             @endif
                                         </td>
                                         <td class="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">
                                             @if ($row['performance'])
-                                                <span class="text-gray-900">{{ number_format($row['performance']['reach']) }}</span>
-                                                <span class="block text-[11px] text-gray-400">{{ $row['performance']['items'] }} matched</span>
+                                                <span class="text-white">{{ number_format($row['performance']['reach']) }}</span>
+                                                <span class="block text-[11px] text-brand-100/50">{{ $row['performance']['items'] }} matched</span>
                                             @else
-                                                <span class="text-gray-300">—</span>
+                                                <span class="text-brand-100/40">—</span>
                                             @endif
                                         </td>
                                     </tr>

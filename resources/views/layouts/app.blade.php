@@ -13,13 +13,13 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @stack('styles')
     </head>
-    <body class="font-sans antialiased text-gray-900">
+    <body class="font-sans antialiased text-white">
         <a href="#main"
            class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-brand-900 focus:text-white focus:text-sm focus:font-semibold">
             Skip to content
         </a>
 
-        <div class="min-h-screen {{ $dark ? 'bg-brand-900 text-white' : 'bg-brand-50' }}"
+        <div class="min-h-screen {{ $dark ? 'theme-dark bg-brand-900 text-white' : 'bg-brand-50 text-gray-900' }}"
              x-data="{ sidebarOpen: false }" @keydown.escape.window="sidebarOpen = false">
 
             <!-- Desktop sidebar -->
@@ -80,7 +80,7 @@
             <!-- Main column -->
             <div class="lg:pl-64 flex flex-col min-h-screen">
                 @isset($header)
-                    <header class="bg-white/95 backdrop-blur border-b border-brand-100/80 lg:sticky lg:top-0 lg:z-20">
+                    <header class="bg-brand-900/85 backdrop-blur border-b border-white/10 lg:sticky lg:top-0 lg:z-20">
                         <div class="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
                             {{ $header }}
                         </div>
@@ -88,21 +88,20 @@
                 @endisset
 
                 <main id="main" class="flex-1 w-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+                    {{-- Both flashes used to carry a light-plane twin behind a
+                         $dark ternary. There is no light signed-in screen left
+                         to show it to. --}}
                     @if (session('status'))
-                        <div class="mb-4 flex items-start gap-3 p-4 rounded-xl {{ $dark
-                                ? 'bg-brand-400/15 ring-1 ring-brand-400/40 text-brand-200'
-                                : 'bg-green-50 ring-1 ring-green-200 text-green-800' }}"
+                        <div class="mb-4 flex items-start gap-3 p-4 rounded-xl bg-brand-400/15 ring-1 ring-brand-400/40 text-brand-200"
                              role="status">
-                            <x-icon name="check-circle" class="w-5 h-5 shrink-0 mt-0.5 {{ $dark ? 'text-brand-300' : 'text-green-600' }}" />
+                            <x-icon name="check-circle" class="w-5 h-5 shrink-0 mt-0.5 text-brand-300" />
                             <p class="text-sm font-medium">{{ session('status') }}</p>
                         </div>
                     @endif
                     @if (session('error'))
-                        <div class="mb-4 flex items-start gap-3 p-4 rounded-xl {{ $dark
-                                ? 'bg-red-400/15 ring-1 ring-red-400/40 text-red-200'
-                                : 'bg-red-50 ring-1 ring-red-200 text-red-800' }}"
+                        <div class="mb-4 flex items-start gap-3 p-4 rounded-xl bg-red-400/15 ring-1 ring-red-400/40 text-red-200"
                              role="alert">
-                            <x-icon name="alert" class="w-5 h-5 shrink-0 mt-0.5 {{ $dark ? 'text-red-300' : 'text-red-600' }}" />
+                            <x-icon name="alert" class="w-5 h-5 shrink-0 mt-0.5 text-red-300" />
                             <p class="text-sm font-medium">{{ session('error') }}</p>
                         </div>
                     @endif

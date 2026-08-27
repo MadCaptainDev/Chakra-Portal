@@ -16,7 +16,7 @@
 @endphp
 
 @if ($all->isEmpty())
-    <p class="text-sm text-gray-400 py-6 text-center">{{ $empty }}</p>
+    <p class="text-sm text-brand-100/50 py-6 text-center">{{ $empty }}</p>
 @else
     <div @if ($hidden > 0) x-data="{ expanded: false }" @endif>
         <ul {{ $attributes->merge(['class' => 'space-y-3']) }}>
@@ -32,19 +32,19 @@
                 @endphp
                 <li @if ($collapsed) x-show="expanded" x-cloak x-transition.opacity.duration.150ms @endif>
                     @if ($href)
-                        <a href="{{ $href }}" class="block group rounded-md -mx-1 px-1 py-0.5 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">
+                        <a href="{{ $href }}" class="block group rounded-md -mx-1 px-1 py-0.5 hover:bg-white/[0.09] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">
                     @endif
 
                     <div class="flex items-baseline justify-between gap-3 mb-1.5">
-                        <span class="text-sm text-gray-700 truncate min-w-0 {{ $href ? 'group-hover:text-brand-700 font-medium' : '' }}">
+                        <span class="text-sm text-brand-100/80 truncate min-w-0 {{ $href ? 'group-hover:text-brand-200 font-medium' : '' }}">
                             {{ $item['label'] }}
                         </span>
-                        <span class="text-sm font-semibold text-gray-900 shrink-0 tabular-nums">
+                        <span class="text-sm font-semibold text-white shrink-0 tabular-nums">
                             {{ number_format($value, $decimals) }}
                         </span>
                     </div>
 
-                    <div class="h-2 rounded-full bg-gray-100 overflow-hidden">
+                    <div class="h-2 rounded-full bg-white/10 overflow-hidden">
                         {{-- Inline style, not a Tailwind class: JIT only extracts
                              literal class strings, so a computed w-[x%] never exists. --}}
                         <div class="h-full rounded-full transition-all duration-500"
@@ -52,7 +52,7 @@
                     </div>
 
                     @if (! empty($item['hint']))
-                        <p class="mt-1 text-[11px] text-gray-400">{{ $item['hint'] }}</p>
+                        <p class="mt-1 text-[11px] text-brand-100/50">{{ $item['hint'] }}</p>
                     @endif
 
                     @if ($href)
@@ -64,7 +64,7 @@
 
         @if ($hidden > 0)
             <button type="button"
-                    class="mt-1 inline-flex items-center min-h-[44px] min-w-[44px] text-[11px] text-gray-400 hover:text-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 rounded-md px-1 -mx-1"
+                    class="mt-1 inline-flex items-center min-h-[44px] min-w-[44px] text-[11px] text-brand-100/50 hover:text-brand-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 rounded-md px-1 -mx-1"
                     @click="expanded = ! expanded"
                     :aria-expanded="expanded.toString()">
                 <span x-show="! expanded">+{{ $hidden }} more</span>

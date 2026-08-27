@@ -11,22 +11,22 @@
 
         <div class="grid grid-cols-3 gap-3">
             <x-card class="p-3 sm:p-4">
-                <p class="text-xs text-gray-500 uppercase tracking-wide">Budgeted</p>
-                <p class="text-lg sm:text-2xl font-bold text-gray-900">{{ number_format($totalDue, 2) }}</p>
+                <p class="text-xs text-brand-100/60 uppercase tracking-wide">Budgeted</p>
+                <p class="text-lg sm:text-2xl font-bold text-white">{{ number_format($totalDue, 2) }}</p>
             </x-card>
             <x-card class="p-3 sm:p-4">
-                <p class="text-xs text-gray-500 uppercase tracking-wide">Paid</p>
-                <p class="text-lg sm:text-2xl font-bold text-green-600">{{ number_format($totalPaid, 2) }}</p>
+                <p class="text-xs text-brand-100/60 uppercase tracking-wide">Paid</p>
+                <p class="text-lg sm:text-2xl font-bold text-green-300">{{ number_format($totalPaid, 2) }}</p>
             </x-card>
             <x-card class="p-3 sm:p-4">
-                <p class="text-xs text-gray-500 uppercase tracking-wide">Pending</p>
-                <p class="text-lg sm:text-2xl font-bold {{ $outstanding > 0 ? 'text-red-600' : 'text-gray-400' }}">{{ number_format($outstanding, 2) }}</p>
+                <p class="text-xs text-brand-100/60 uppercase tracking-wide">Pending</p>
+                <p class="text-lg sm:text-2xl font-bold {{ $outstanding > 0 ? 'text-red-300' : 'text-brand-100/50' }}">{{ number_format($outstanding, 2) }}</p>
             </x-card>
         </div>
 
         <div class="flex items-center justify-between gap-3">
-            <h3 class="font-semibold text-gray-900">Active bills</h3>
-            <button type="button" @click="adding = ! adding; editingId = null" class="text-sm font-semibold text-brand-500 hover:text-brand-600 min-h-[44px]">
+            <h3 class="font-semibold text-white">Active bills</h3>
+            <button type="button" @click="adding = ! adding; editingId = null" class="text-sm font-semibold text-brand-500 hover:text-brand-300 min-h-[44px]">
                 <span x-show="! adding">+ Add Bill</span>
                 <span x-show="adding" x-cloak>Cancel</span>
             </button>
@@ -40,10 +40,10 @@
 
         @if ($rows->isEmpty())
             <x-empty-state message="No active bills for this month.">
-                <button type="button" @click="adding = true" class="text-brand-500 font-semibold text-sm hover:text-brand-600">Add your first bill &rarr;</button>
+                <button type="button" @click="adding = true" class="text-brand-500 font-semibold text-sm hover:text-brand-300">Add your first bill &rarr;</button>
             </x-empty-state>
         @else
-            <x-card class="divide-y divide-gray-200">
+            <x-card class="divide-y divide-white/10">
                 @foreach ($rows as $row)
                     @php
                         $bill = $row['expense'];
@@ -54,11 +54,11 @@
                     <div class="p-3 sm:p-4 space-y-3">
                         <div class="flex flex-col sm:flex-row sm:items-center gap-3">
                             <div class="min-w-0 flex-1">
-                                <p class="font-medium text-gray-900 truncate">{{ $bill->name }}</p>
-                                <p class="text-xs text-gray-500">
+                                <p class="font-medium text-white truncate">{{ $bill->name }}</p>
+                                <p class="text-xs text-brand-100/60">
                                     Budget {{ number_format($row['due'], 0) }}
                                     @if ($isPaid && abs($diff) > 0.001)
-                                        <span class="{{ $diff < 0 ? 'text-green-600' : 'text-amber-600' }} font-semibold">
+                                        <span class="{{ $diff < 0 ? 'text-green-300' : 'text-amber-300' }} font-semibold">
                                             &middot; {{ $diff < 0 ? 'under' : 'over' }} by {{ number_format(abs($diff), 0) }}
                                         </span>
                                     @endif
@@ -68,13 +68,13 @@
                             <div class="flex items-center gap-2 shrink-0">
                                 <button type="button"
                                         @click="editingId = editingId === {{ $bill->id }} ? null : {{ $bill->id }}; adding = false"
-                                        class="text-xs font-semibold text-gray-500 hover:text-brand-500 min-h-[44px] px-2">
+                                        class="text-xs font-semibold text-brand-100/60 hover:text-brand-500 min-h-[44px] px-2">
                                     Edit
                                 </button>
                                 <form method="POST" action="{{ route('bills.destroy', $bill) }}" onsubmit="return confirm('Delete {{ $bill->name }}?');">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="text-xs font-semibold text-red-600 hover:text-red-700 min-h-[44px] px-2">Delete</button>
+                                    <button type="submit" class="text-xs font-semibold text-red-300 hover:text-red-200 min-h-[44px] px-2">Delete</button>
                                 </form>
                                 <x-pay-row :action="route('bills.pay', $bill)" :month="$month->format('Y-m-d')"
                                            :due="$row['due']" :paid="$row['paid']" />
@@ -91,16 +91,16 @@
 
         @if ($paused->isNotEmpty())
             <div>
-                <h3 class="font-semibold text-gray-900 mb-2">Paused ({{ $paused->count() }})</h3>
-                <x-card class="divide-y divide-gray-200">
+                <h3 class="font-semibold text-white mb-2">Paused ({{ $paused->count() }})</h3>
+                <x-card class="divide-y divide-white/10">
                     @foreach ($paused as $bill)
                         <div class="p-3 sm:p-4 space-y-3" x-data="{ open: false }">
                             <div class="flex items-center justify-between gap-3">
                                 <div class="min-w-0">
-                                    <p class="text-sm font-medium text-gray-600 truncate">{{ $bill->name }}</p>
-                                    <p class="text-xs text-gray-400">{{ number_format($bill->amount, 0) }}/mo</p>
+                                    <p class="text-sm font-medium text-brand-100/70 truncate">{{ $bill->name }}</p>
+                                    <p class="text-xs text-brand-100/50">{{ number_format($bill->amount, 0) }}/mo</p>
                                 </div>
-                                <button type="button" @click="open = ! open" class="text-xs font-semibold text-brand-500 hover:text-brand-600 min-h-[44px]">
+                                <button type="button" @click="open = ! open" class="text-xs font-semibold text-brand-500 hover:text-brand-300 min-h-[44px]">
                                     Edit
                                 </button>
                             </div>

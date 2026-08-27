@@ -20,11 +20,11 @@
     $midLabel = $count > 2 ? (int) ceil($count / 2) : null;
 @endphp
 
-<div {{ $attributes->merge(['class' => 'bg-white shadow-sm rounded-lg border border-gray-900/5 p-4 sm:p-5']) }}>
-    <h3 class="text-sm font-semibold text-gray-900 mb-3">{{ $title }}</h3>
+<div {{ $attributes->merge(['class' => 'bg-white/5 shadow-sm rounded-lg border border-white/10 p-4 sm:p-5']) }}>
+    <h3 class="text-sm font-semibold text-white mb-3">{{ $title }}</h3>
 
     @if (! $hasData)
-        <p class="text-sm text-gray-500 py-8 text-center">{{ $empty }}</p>
+        <p class="text-sm text-brand-100/60 py-8 text-center">{{ $empty }}</p>
     @else
         <div class="relative h-32 sm:h-40" role="img" aria-label="{{ $title }}">
             <div class="absolute inset-0 flex items-end gap-px sm:gap-0.5">
@@ -37,16 +37,16 @@
                     @endphp
                     <div class="flex-1 min-w-[4px] sm:min-w-[6px] h-full flex flex-col justify-end" title="{{ $tip }}">
                         @if ($value > 0)
-                            <div class="w-full rounded-t transition-colors {{ $isPeak ? 'bg-brand-700 hover:bg-brand-800' : 'bg-brand-400 hover:bg-brand-500' }}"
+                            <div class="w-full rounded-t transition-colors {{ $isPeak ? 'bg-brand-300 hover:bg-brand-200' : 'bg-brand-400 hover:bg-brand-300' }}"
                                  style="height: {{ $pct }}%"></div>
                         @else
-                            <div class="w-full h-px bg-gray-200"></div>
+                            <div class="w-full h-px bg-white/15"></div>
                         @endif
                     </div>
                 @endforeach
             </div>
         </div>
-        <div class="flex justify-between mt-2 text-[10px] sm:text-xs text-gray-400 tabular-nums">
+        <div class="flex justify-between mt-2 text-[10px] sm:text-xs text-brand-100/50 tabular-nums">
             <span>{{ \Illuminate\Support\Carbon::parse($days[0]['date'])->format('j M') }}</span>
             @if ($midLabel)
                 <span>{{ \Illuminate\Support\Carbon::parse($days[$midLabel - 1]['date'])->format('j M') }}</span>

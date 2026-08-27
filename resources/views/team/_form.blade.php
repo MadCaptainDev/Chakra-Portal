@@ -18,7 +18,7 @@
                           value="{{ old('name', $member->name ?? '') }}"
                           list="staff-name-suggestions" required />
             @if (empty($member) && ! empty($staffNames))
-                <p class="mt-1 text-xs text-gray-500">Start typing to pick someone already on the staff list.</p>
+                <p class="mt-1 text-xs text-brand-100/60">Start typing to pick someone already on the staff list.</p>
             @endif
             <x-input-error :messages="$errors->get('name')" class="mt-2" />
         </div>
@@ -48,7 +48,7 @@
 
     <div class="mt-4 flex flex-col sm:flex-row sm:items-start gap-4">
         <div class="shrink-0">
-            <div class="w-24 h-24 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center">
+            <div class="w-24 h-24 rounded-full bg-white/10 border border-white/10 overflow-hidden flex items-center justify-center">
                 <template x-if="preview">
                     <img :src="preview" alt="" class="w-full h-full object-cover">
                 </template>
@@ -56,7 +56,7 @@
                     @if ($member?->photo_path)
                         <img src="{{ asset($member->photo_path) }}" alt="Current photo" class="w-full h-full object-cover">
                     @else
-                        <span class="text-xs text-gray-400">No photo</span>
+                        <span class="text-xs text-brand-100/50">No photo</span>
                     @endif
                 </template>
             </div>
@@ -66,8 +66,8 @@
             <x-input-label :for="'tm_photo_'.$uid" :value="$member?->photo_path ? 'Replace photo' : 'Photo'" />
             <input id="tm_photo_{{ $uid }}" name="photo" type="file" accept="image/*"
                    @change="preview = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : ''"
-                   class="mt-1 block w-full text-sm text-gray-700 file:mr-3 file:min-h-[44px] file:rounded-md file:border-0 file:bg-brand-50 file:px-4 file:text-sm file:font-semibold file:text-brand-700 hover:file:bg-brand-100">
-            <p class="mt-1 text-xs text-gray-500">Square photos crop best. Up to 4 MB.</p>
+                   class="mt-1 block w-full text-sm text-brand-100/80 file:mr-3 file:min-h-[44px] file:rounded-md file:border-0 file:bg-white/5 file:px-4 file:text-sm file:font-semibold file:text-brand-200 hover:file:bg-brand-400/20">
+            <p class="mt-1 text-xs text-brand-100/60">Square photos crop best. Up to 4 MB.</p>
             <x-input-error :messages="$errors->get('photo')" class="mt-2" />
 
             <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -81,8 +81,8 @@
                 <label class="flex items-center gap-3 min-h-[44px] cursor-pointer sm:mt-6">
                     <input type="checkbox" name="is_visible" value="1"
                            @checked(old('is_visible', $member?->is_visible ?? true))
-                           class="rounded border-gray-300 text-brand-500 focus:ring-brand-400">
-                    <span class="text-sm text-gray-700">Show on the website</span>
+                           class="rounded bg-white/10 border-white/25 text-brand-400 focus:ring-brand-400">
+                    <span class="text-sm text-brand-100/80">Show on the website</span>
                 </label>
             </div>
         </div>

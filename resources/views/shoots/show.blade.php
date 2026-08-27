@@ -56,20 +56,20 @@
         <div class="flex flex-wrap items-center gap-2">
             <x-badge :status="$shoot->status" />
             @if ($shoot->clientLabel())
-                <span class="text-sm text-gray-600">{{ $shoot->clientLabel() }}</span>
+                <span class="text-sm text-brand-100/70">{{ $shoot->clientLabel() }}</span>
             @endif
             <span class="ml-auto text-xs" :class="statusClass" x-text="statusLine"></span>
         </div>
 
         @if ($clashes->isNotEmpty())
-            <div class="rounded-xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
-                <x-icon name="alert" class="w-5 h-5 shrink-0 mt-0.5 text-amber-600" />
-                <div class="text-sm text-amber-900">
+            <div class="rounded-xl bg-amber-400/10 border border-amber-400/30 p-4 flex items-start gap-3">
+                <x-icon name="alert" class="w-5 h-5 shrink-0 mt-0.5 text-amber-300" />
+                <div class="text-sm text-amber-200">
                     <p class="font-semibold">
                         {{ $clashes->count() }} {{ Str::plural('item', $clashes->count()) }} on this shoot
                         {{ $clashes->count() === 1 ? 'is' : 'are' }} promised elsewhere too.
                     </p>
-                    <p class="mt-1 text-amber-800">
+                    <p class="mt-1 text-amber-200">
                         Nothing is blocked — somebody just needs to decide who gets it.
                     </p>
                 </div>
@@ -78,10 +78,10 @@
 
         {{-- ——— The kit list. The screen someone opens at the door. ——— --}}
         <x-card class="overflow-hidden">
-            <div class="sticky top-0 z-10 flex items-center justify-between gap-3 px-4 py-3 bg-white border-b border-gray-100">
+            <div class="sticky top-0 z-10 flex items-center justify-between gap-3 px-4 py-3 bg-white/5 border-b border-white/10">
                 <div>
-                    <p class="text-sm font-semibold text-gray-900">Kit</p>
-                    <p class="text-xs text-gray-500" x-text="progress"></p>
+                    <p class="text-sm font-semibold text-white">Kit</p>
+                    <p class="text-xs text-brand-100/60" x-text="progress"></p>
                 </div>
 
                 <div class="flex items-center gap-2">
@@ -91,17 +91,17 @@
             </div>
 
             <template x-if="rows.length === 0">
-                <p class="p-8 text-center text-sm text-gray-500">No kit on this shoot yet.</p>
+                <p class="p-8 text-center text-sm text-brand-100/60">No kit on this shoot yet.</p>
             </template>
 
             <template x-for="row in rows" :key="row.id">
-                <div class="border-b border-gray-100 last:border-0">
+                <div class="border-b border-white/10 last:border-0">
                     {{-- The whole row is the tap target: one hand, dim corridor. --}}
                     <button type="button" @click="toggle(row)"
-                            class="w-full flex items-center gap-3 px-4 py-3 min-h-[56px] text-left hover:bg-gray-50 transition">
+                            class="w-full flex items-center gap-3 px-4 py-3 min-h-[56px] text-left hover:bg-white/[0.09] transition">
                         <span class="shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center transition"
-                              :class="row.returned ? 'bg-gray-300 border-gray-300'
-                                    : row.checkedOut ? 'bg-brand-500 border-brand-500' : 'border-gray-300'">
+                              :class="row.returned ? 'bg-white/20 border-white/15'
+                                    : row.checkedOut ? 'bg-brand-500 border-brand-500' : 'border-white/15'">
                             <svg x-show="row.checkedOut || row.returned" class="w-4 h-4 text-white" fill="none"
                                  viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
@@ -109,12 +109,12 @@
                         </span>
 
                         <span class="min-w-0 flex-1">
-                            <span class="block text-sm font-medium text-gray-900 truncate">
+                            <span class="block text-sm font-medium text-white truncate">
                                 <span x-text="row.name"></span>
-                                <span x-show="row.quantity > 1" class="text-gray-400" x-text="'×' + row.quantity"></span>
+                                <span x-show="row.quantity > 1" class="text-brand-100/50" x-text="'×' + row.quantity"></span>
                             </span>
                             <span class="block text-xs mt-0.5"
-                                  :class="row.over > 0 ? 'text-amber-600' : 'text-gray-500'">
+                                  :class="row.over > 0 ? 'text-amber-300' : 'text-brand-100/60'">
                                 <span x-show="row.returned">Back<span x-show="row.condition" x-text="' · ' + row.condition"></span></span>
                                 <span x-show="row.checkedOut && ! row.returned" x-text="'Taken ' + (row.at || '') + (row.by ? ' by ' + row.by : '')"></span>
                                 <span x-show="! row.checkedOut && ! row.returned && row.over > 0">Also promised to another shoot</span>
@@ -123,13 +123,13 @@
                         </span>
 
                         <span x-show="row.saving" class="shrink-0 w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse"></span>
-                        <span x-show="row.failed" x-cloak class="shrink-0 text-xs font-semibold text-red-600">Retry</span>
+                        <span x-show="row.failed" x-cloak class="shrink-0 text-xs font-semibold text-red-300">Retry</span>
                     </button>
                 </div>
             </template>
 
             @can('shoots.edit')
-                <div class="p-4 bg-gray-50 border-t border-gray-100">
+                <div class="p-4 bg-brand-900/40 border-t border-white/10">
                     <form method="POST" action="{{ route('shoots.kit.store', $shoot) }}"
                           class="flex flex-wrap items-end gap-2" @submit="() => {}">
                         @csrf
@@ -169,14 +169,14 @@
 
         {{-- ——— Crew ——— --}}
         <x-card class="p-4 sm:p-5">
-            <p class="text-sm font-semibold text-gray-900 mb-3">Crew</p>
+            <p class="text-sm font-semibold text-white mb-3">Crew</p>
 
             @forelse ($shoot->crew as $member)
-                <div class="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
+                <div class="flex items-center gap-3 py-2 border-b border-white/10 last:border-0">
                     <x-avatar :name="$member->user?->name ?? '?'" :src="$member->user?->avatarUrl()" size="sm" />
                     <div class="min-w-0 flex-1">
-                        <p class="text-sm font-medium text-gray-900 truncate">{{ $member->user?->name }}</p>
-                        <p class="text-xs text-gray-500">
+                        <p class="text-sm font-medium text-white truncate">{{ $member->user?->name }}</p>
+                        <p class="text-xs text-brand-100/60">
                             {{ $member->role ?: 'Crew' }}
                             @if ($member->call_time) &middot; call {{ \Illuminate\Support\Str::of($member->call_time)->substr(0, 5) }} @endif
                         </p>
@@ -184,16 +184,16 @@
                     @can('shoots.edit')
                         <form method="POST" action="{{ route('shoots.crew.destroy', [$shoot, $member]) }}">
                             @csrf @method('DELETE')
-                            <button type="submit" class="min-h-[44px] px-2 text-xs text-gray-400 hover:text-red-600">Remove</button>
+                            <button type="submit" class="min-h-[44px] px-2 text-xs text-brand-100/50 hover:text-red-300">Remove</button>
                         </form>
                     @endcan
                 </div>
             @empty
-                <p class="text-sm text-gray-500 py-2">Nobody assigned yet.</p>
+                <p class="text-sm text-brand-100/60 py-2">Nobody assigned yet.</p>
             @endforelse
 
             @can('shoots.edit')
-                <form method="POST" action="{{ route('shoots.crew.store', $shoot) }}" class="flex flex-wrap items-end gap-2 mt-4 pt-4 border-t border-gray-100">
+                <form method="POST" action="{{ route('shoots.crew.store', $shoot) }}" class="flex flex-wrap items-end gap-2 mt-4 pt-4 border-t border-white/10">
                     @csrf
                     <div class="flex-1 min-w-[150px]">
                         <x-input-label for="user_id" value="Add someone" />
@@ -221,37 +221,37 @@
             @php $ns = $shoot->notionShoot; @endphp
             <x-card class="p-4 sm:p-5">
                 <div class="flex items-center justify-between gap-3 mb-3">
-                    <p class="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
-                        <x-icon name="globe" class="w-4 h-4 text-gray-400" />
+                    <p class="text-sm font-semibold text-white flex items-center gap-1.5">
+                        <x-icon name="globe" class="w-4 h-4 text-brand-100/50" />
                         From Notion
                     </p>
                     @if ($ns->notion_url)
                         <a href="{{ $ns->notion_url }}" target="_blank" rel="noopener"
-                           class="text-xs font-semibold text-brand-600 hover:text-brand-800">Open in Notion ↗</a>
+                           class="text-xs font-semibold text-brand-300 hover:text-brand-200">Open in Notion ↗</a>
                     @endif
                 </div>
 
                 <dl class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3 text-sm">
                     @if ($ns->video_count)
-                        <div><dt class="text-xs text-gray-400">Videos planned</dt><dd class="text-gray-900">{{ $ns->video_count }}</dd></div>
+                        <div><dt class="text-xs text-brand-100/50">Videos planned</dt><dd class="text-white">{{ $ns->video_count }}</dd></div>
                     @endif
                     @if ($ns->duration)
-                        <div><dt class="text-xs text-gray-400">Duration</dt><dd class="text-gray-900">{{ $ns->duration }}h</dd></div>
+                        <div><dt class="text-xs text-brand-100/50">Duration</dt><dd class="text-white">{{ $ns->duration }}h</dd></div>
                     @endif
                     @if ($ns->host_model)
-                        <div><dt class="text-xs text-gray-400">Host / Model</dt><dd class="text-gray-900">{{ $ns->host_model }}</dd></div>
+                        <div><dt class="text-xs text-brand-100/50">Host / Model</dt><dd class="text-white">{{ $ns->host_model }}</dd></div>
                     @endif
                     @if ($ns->gear_needed)
-                        <div class="col-span-2 sm:col-span-3"><dt class="text-xs text-gray-400">Gear needed</dt><dd class="text-gray-900">{{ $ns->gear_needed }}</dd></div>
+                        <div class="col-span-2 sm:col-span-3"><dt class="text-xs text-brand-100/50">Gear needed</dt><dd class="text-white">{{ $ns->gear_needed }}</dd></div>
                     @endif
                     @if ($ns->weather_forecast)
-                        <div class="col-span-2 sm:col-span-3"><dt class="text-xs text-gray-400">Weather forecast</dt><dd class="text-gray-900">{{ $ns->weather_forecast }}</dd></div>
+                        <div class="col-span-2 sm:col-span-3"><dt class="text-xs text-brand-100/50">Weather forecast</dt><dd class="text-white">{{ $ns->weather_forecast }}</dd></div>
                     @endif
                 </dl>
 
                 @if ($ns->teamMembers() !== [])
-                    <div class="mt-4 pt-4 border-t border-gray-100">
-                        <p class="text-xs text-gray-400 mb-2">Team in Notion</p>
+                    <div class="mt-4 pt-4 border-t border-white/10">
+                        <p class="text-xs text-brand-100/50 mb-2">Team in Notion</p>
                         <div class="flex flex-wrap gap-1.5">
                             @php
                                 $crewNames = $shoot->crew->pluck('user.name')->filter()->map(fn ($n) => \Illuminate\Support\Str::lower(trim($n)))->all();
@@ -260,7 +260,7 @@
                                 @php
                                     $matched = collect($crewNames)->contains(fn ($n) => $n === \Illuminate\Support\Str::lower($name) || \Illuminate\Support\Str::before($n, ' ') === \Illuminate\Support\Str::lower($name));
                                 @endphp
-                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs {{ $matched ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' }}">
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs {{ $matched ? 'bg-green-400/15 text-green-200' : 'bg-amber-400/15 text-amber-200' }}">
                                     {{ $name }}
                                     @unless ($matched) <span title="No matching portal user — add them below">?</span> @endunless
                                 </span>
@@ -269,7 +269,7 @@
                     </div>
                 @endif
 
-                <p class="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-400">
+                <p class="mt-4 pt-4 border-t border-white/10 text-xs text-brand-100/50">
                     Notion owns this shoot's title, date, location and status — a re-sync refreshes them here, but never touches kit, scripts or notes.
                 </p>
             </x-card>
@@ -277,8 +277,8 @@
 
         @if ($shoot->notes)
             <x-card class="p-4 sm:p-5">
-                <p class="text-sm font-semibold text-gray-900 mb-2">Notes</p>
-                <p class="text-sm text-gray-700 whitespace-pre-line">{{ $shoot->notes }}</p>
+                <p class="text-sm font-semibold text-white mb-2">Notes</p>
+                <p class="text-sm text-brand-100/80 whitespace-pre-line">{{ $shoot->notes }}</p>
             </x-card>
         @endif
 
@@ -286,7 +286,7 @@
             <form method="POST" action="{{ route('shoots.destroy', $shoot) }}"
                   onsubmit="return confirm('Delete this shoot? Its crew and kit list go with it.')">
                 @csrf @method('DELETE')
-                <button type="submit" class="text-sm font-semibold text-red-600 hover:text-red-700">Delete shoot</button>
+                <button type="submit" class="text-sm font-semibold text-red-300 hover:text-red-200">Delete shoot</button>
             </form>
         @endcan
     </div>
@@ -314,7 +314,7 @@
                     return '';
                 },
                 get statusClass() {
-                    return this.rows.some(r => r.failed) ? 'text-red-600' : 'text-gray-400';
+                    return this.rows.some(r => r.failed) ? 'text-red-300' : 'text-brand-100/50';
                 },
 
                 url(row, action) {

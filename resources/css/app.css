@@ -229,3 +229,82 @@ html, body {
     caret-color: #67bcd4;
     transition: background-color 9999s ease-out 0s;
 }
+
+/* ---------------------------------------------------------------------------
+   The dark plane.
+
+   Every signed-in screen now runs on brand-900 (see App\View\Components\
+   AppLayout::$dark, default true). Tailwind utilities carry almost all of it;
+   these are the few things a utility class cannot reach.
+   --------------------------------------------------------------------------- */
+
+/* Native controls -- date pickers, scrollbars, spinners -- render from the
+   UA's own light palette otherwise, so a date field on navy shows a white
+   calendar sheet and black glyphs. Scoped to the shell rather than :root so
+   the sign-in page and the public site keep their light chrome. */
+.theme-dark {
+    color-scheme: dark;
+}
+
+/* <option> is drawn by the OS, not the page: without this the list renders
+   white-on-white the moment the select itself is given white text. */
+.theme-dark select option,
+.theme-dark optgroup {
+    background-color: #132A38;
+    color: #fff;
+}
+
+/* Printing. Two signed-in screens are printed for real -- the call sheet and
+   the read-only script -- and browsers drop backgrounds when they print, which
+   would leave white text on white paper. Force ink-on-paper for anything
+   inside the dark shell; the printed invoice is a separate dompdf document and
+   is not affected. */
+@media print {
+    .theme-dark {
+        background: #fff !important;
+    }
+    .theme-dark *,
+    .theme-dark *::before,
+    .theme-dark *::after {
+        color: #111 !important;
+        border-color: #d1d5db !important;
+        box-shadow: none !important;
+    }
+}
+
+/* Form controls that were never given a class of their own.
+
+   @tailwindcss/forms paints every input, textarea and select white in the base
+   layer, so a hand-rolled field with no `bg-*` utility on it renders as a white
+   box with white text on the dark plane. These are the same defaults
+   x-text-input / x-select / x-textarea carry, applied to the raw elements.
+
+   The `:where()` keeps the selector at a single class's weight and the
+   components layer keeps it below the utilities layer -- so any field that
+   does name its own bg/border/text still wins, and nothing here has to be
+   fought with `!important`. */
+@layer components {
+    .theme-dark :where(input, textarea, select) {
+        background-color: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.15);
+        color: #fff;
+    }
+
+    .theme-dark :where(input)::placeholder,
+    .theme-dark :where(textarea)::placeholder {
+        color: rgba(228, 242, 247, 0.4);
+    }
+
+    /* Checkbox and radio are drawn, not filled: they need the well behind the
+       tick, and the tick itself stays the brand teal the forms plugin sets. */
+    .theme-dark :where(input[type='checkbox'], input[type='radio']) {
+        background-color: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.25);
+    }
+
+    /* A file input's button half is UA-drawn and ignores the rules above. */
+    .theme-dark :where(input[type='file']) {
+        background-color: transparent;
+        border-color: transparent;
+    }
+}

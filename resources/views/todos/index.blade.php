@@ -25,7 +25,7 @@
     </x-slot>
 
     <div class="space-y-4" x-data="{ filters: {{ $filtering ? 'true' : 'false' }} }">
-        <div class="sticky top-0 z-20 -mx-4 px-4 py-2 sm:mx-0 sm:px-0 backdrop-blur bg-brand-50/80">
+        <div class="sticky top-0 z-20 -mx-4 px-4 py-2 sm:mx-0 sm:px-0 backdrop-blur bg-white/5">
             <x-card padding="sm">
                 <x-day-nav route="todos.index" :day="$day"
                            :params="array_filter(['user' => $onlyUser, 'status' => $status, 'venture' => $venture])" />
@@ -34,16 +34,16 @@
 
         {{-- The reason a manager opens this screen at all. --}}
         @if ($waiting->isNotEmpty())
-            <div class="animate-settle flex items-start gap-3 rounded-xl bg-indigo-50 ring-1 ring-indigo-200 p-4">
-                <span class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-indigo-100 text-indigo-600">
+            <div class="animate-settle flex items-start gap-3 rounded-xl bg-indigo-400/10 ring-1 ring-indigo-400/30 p-4">
+                <span class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-indigo-400/15 text-indigo-300">
                     <x-icon name="check-circle" class="w-5 h-5" />
                 </span>
                 <div class="min-w-0">
-                    <p class="font-semibold text-indigo-900">
+                    <p class="font-semibold text-indigo-200">
                         {{ $waiting->count() }} finished {{ Str::plural('to-do', $waiting->count()) }}
                         {{ $waiting->count() === 1 ? 'is' : 'are' }} waiting on you
                     </p>
-                    <p class="mt-0.5 text-sm text-indigo-800/80">
+                    <p class="mt-0.5 text-sm text-indigo-200/80">
                         Marking work done is a claim — checking it is what makes this board worth reading.
                     </p>
                 </div>
@@ -53,17 +53,17 @@
         <div class="flex flex-wrap items-center justify-between gap-3">
             @if ($total > 0)
                 <div class="flex flex-wrap items-center gap-2 text-xs">
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white ring-1 ring-gray-900/5 font-semibold text-gray-700">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 ring-1 ring-white/10 font-semibold text-brand-100/80">
                         {{ $total }} on this day
                     </span>
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white ring-1 ring-gray-900/5 font-semibold text-brand-700">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 ring-1 ring-white/10 font-semibold text-brand-200">
                         {{ $counts[Todo::STATUS_STARTED] ?? 0 }} started
                     </span>
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white ring-1 ring-gray-900/5 font-semibold text-red-700">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 ring-1 ring-white/10 font-semibold text-red-200">
                         {{ $counts[Todo::STATUS_BLOCKED] ?? 0 }} blocked
                     </span>
                     @if ($overdue->isNotEmpty())
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 ring-1 ring-amber-200 font-semibold text-amber-800">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-400/10 ring-1 ring-amber-400/30 font-semibold text-amber-200">
                             {{ $overdue->count() }} overdue
                         </span>
                     @endif
@@ -141,14 +141,14 @@
                         <div class="flex items-center gap-3 mb-3 px-1">
                             <x-avatar :name="$member->name" :src="$member->avatarUrl()" size="sm" />
                             <div class="min-w-0">
-                                <p class="font-semibold text-gray-900 leading-tight truncate">{{ $member->name }}</p>
-                                <p class="text-xs text-gray-500">
+                                <p class="font-semibold text-white leading-tight truncate">{{ $member->name }}</p>
+                                <p class="text-xs text-brand-100/60">
                                     {{ $theirs->count() }} {{ \Illuminate\Support\Str::plural('to-do', $theirs->count()) }}
                                     @if ($theirWaiting > 0)
-                                        <span class="font-semibold text-indigo-600">· {{ $theirWaiting }} to check</span>
+                                        <span class="font-semibold text-indigo-300">· {{ $theirWaiting }} to check</span>
                                     @endif
                                     @if ($stuck > 0)
-                                        <span class="font-semibold text-amber-700">· {{ $stuck }} overdue</span>
+                                        <span class="font-semibold text-amber-200">· {{ $stuck }} overdue</span>
                                     @endif
                                 </p>
                             </div>
@@ -156,7 +156,7 @@
 
                         @if ($theirs->isEmpty())
                             <x-card padding="sm" tone="muted">
-                                <p class="text-xs text-gray-500">Nothing written down for this day.</p>
+                                <p class="text-xs text-brand-100/60">Nothing written down for this day.</p>
                             </x-card>
                         @else
                             <div class="space-y-3">

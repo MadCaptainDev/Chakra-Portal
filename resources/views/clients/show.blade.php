@@ -41,25 +41,25 @@
 
         <div x-show="tab === 'overview'" x-cloak class="space-y-6">
         {{-- Contact info --}}
-        <x-card class="p-4 sm:p-6 border border-brand-100/40">
-            <h3 class="font-semibold text-brand-900 mb-3">Contact Info</h3>
+        <x-card class="p-4 sm:p-6 border border-white/10">
+            <h3 class="font-semibold text-white mb-3">Contact Info</h3>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
-                    <dt class="text-gray-500">Address</dt>
-                    <dd class="text-gray-900">{{ $client->address ?: '—' }}</dd>
+                    <dt class="text-brand-100/60">Address</dt>
+                    <dd class="text-white">{{ $client->address ?: '—' }}</dd>
                 </div>
                 <div>
-                    <dt class="text-gray-500">Email</dt>
-                    <dd class="text-gray-900">{{ $client->email ?: '—' }}</dd>
+                    <dt class="text-brand-100/60">Email</dt>
+                    <dd class="text-white">{{ $client->email ?: '—' }}</dd>
                 </div>
                 <div>
-                    <dt class="text-gray-500">Phone</dt>
-                    <dd class="text-gray-900">{{ $client->phone ?: '—' }}</dd>
+                    <dt class="text-brand-100/60">Phone</dt>
+                    <dd class="text-white">{{ $client->phone ?: '—' }}</dd>
                 </div>
                 @if ($ventureLabel)
                     <div>
-                        <dt class="text-gray-500">Timesheet venture</dt>
-                        <dd class="text-gray-900">{{ $ventureLabel }}</dd>
+                        <dt class="text-brand-100/60">Timesheet venture</dt>
+                        <dd class="text-white">{{ $ventureLabel }}</dd>
                     </div>
                 @endif
             </dl>
@@ -74,11 +74,11 @@
              own answers, and a staff edit would need to record who changed
              what before it could be trusted. --}}
         @php $brief = $client->brief; @endphp
-        <x-card class="p-4 sm:p-6 border border-brand-100/40" x-data="{ open: {{ $brief?->exists ? 'false' : 'true' }} }">
+        <x-card class="p-4 sm:p-6 border border-white/10" x-data="{ open: {{ $brief?->exists ? 'false' : 'true' }} }">
             <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
                 <div class="min-w-0">
-                    <h3 class="font-semibold text-brand-900">Brand brief</h3>
-                    <p class="text-xs text-gray-500 mt-0.5">
+                    <h3 class="font-semibold text-white">Brand brief</h3>
+                    <p class="text-xs text-brand-100/60 mt-0.5">
                         @if ($brief?->isSubmitted())
                             Sent in {{ $brief->submitted_at?->format('j M Y') }}
                         @elseif ($brief?->exists)
@@ -93,16 +93,16 @@
                     {{-- x-badge's `color` is a class string, not a colour name.
                          These borrow the palette the status map already uses. --}}
                     @if ($brief?->isSubmitted())
-                        <x-badge color="bg-green-100 text-green-800">Done</x-badge>
+                        <x-badge color="bg-green-400/15 text-green-200">Done</x-badge>
                     @elseif ($brief?->exists)
-                        <x-badge color="bg-amber-100 text-amber-800">In progress</x-badge>
+                        <x-badge color="bg-amber-400/15 text-amber-200">In progress</x-badge>
                     @else
-                        <x-badge color="bg-gray-100 text-gray-600">Not started</x-badge>
+                        <x-badge color="bg-white/10 text-brand-100/70">Not started</x-badge>
                     @endif
 
                     @if ($brief?->exists)
                         <button type="button" @click="open = !open"
-                                class="text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                                class="text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
                             <span x-text="open ? 'Hide' : 'Show'">Show</span>
                         </button>
                     @endif
@@ -139,7 +139,7 @@
                         </a>
                         <button type="button"
                                 @click="navigator.clipboard.writeText(@js($nudge)).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
-                                class="text-xs font-semibold uppercase tracking-widest text-gray-500 hover:text-gray-800">
+                                class="text-xs font-semibold uppercase tracking-widest text-brand-100/60 hover:text-white">
                             <span x-text="copied ? 'Copied' : 'Copy message'">Copy message</span>
                         </button>
                     </div>
@@ -151,23 +151,23 @@
                  sending one, and above the answers because a brief that is not
                  filled in yet has nothing to read underneath. --}}
             @can('clients.edit')
-                <div class="mb-4 rounded-lg bg-gray-50 ring-1 ring-gray-900/5 p-3.5" x-data="{ copied: false }">
+                <div class="mb-4 rounded-lg bg-brand-900/40 ring-1 ring-white/10 p-3.5" x-data="{ copied: false }">
                     <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Fill-in link</p>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-brand-100/60">Fill-in link</p>
                         @if ($brief?->isSubmitted())
-                            <span class="text-[11px] text-gray-500">Closed — this brief has been sent in</span>
+                            <span class="text-[11px] text-brand-100/60">Closed — this brief has been sent in</span>
                         @elseif ($brief?->public_token)
-                            <span class="text-[11px] text-gray-500">Open · anyone with the link can fill it once</span>
+                            <span class="text-[11px] text-brand-100/60">Open · anyone with the link can fill it once</span>
                         @endif
                     </div>
 
                     @if ($brief?->public_token && ! $brief->isSubmitted())
                         <div class="flex gap-2 mb-2">
                             <input type="text" readonly value="{{ $brief->publicUrl() }}" x-ref="link"
-                                   class="flex-1 min-w-0 rounded-md border-gray-300 bg-white text-xs font-mono text-gray-700">
+                                   class="flex-1 min-w-0 rounded-md border-white/15 bg-white/5 text-xs font-mono text-brand-100/80">
                             <button type="button"
                                     @click="$refs.link.select(); navigator.clipboard.writeText($refs.link.value); copied = true; setTimeout(() => copied = false, 2000)"
-                                    class="shrink-0 rounded-md bg-white px-3 py-2 text-xs font-semibold uppercase tracking-widest text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50">
+                                    class="shrink-0 rounded-md bg-white/5 px-3 py-2 text-xs font-semibold uppercase tracking-widest text-brand-100/80 ring-1 ring-white/10 hover:bg-white/[0.09]">
                                 <span x-text="copied ? 'Copied' : 'Copy'">Copy</span>
                             </button>
                         </div>
@@ -178,7 +178,7 @@
                             <form method="POST" action="{{ route('clients.brief.link', $client) }}"
                                   @if ($brief?->public_token) onsubmit="return confirm('Create a new link? The current one stops working immediately.')" @endif>
                                 @csrf
-                                <button type="submit" class="text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                                <button type="submit" class="text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
                                     {{ $brief?->public_token ? 'New link' : 'Create link' }}
                                 </button>
                             </form>
@@ -187,7 +187,7 @@
                                 <form method="POST" action="{{ route('clients.brief.link.revoke', $client) }}"
                                       onsubmit="return confirm('Close this link? Answers already saved are kept, but the client cannot get back in until you issue a new one.')">
                                     @csrf @method('DELETE')
-                                    <button type="submit" class="text-xs font-semibold uppercase tracking-widest text-gray-500 hover:text-red-700">
+                                    <button type="submit" class="text-xs font-semibold uppercase tracking-widest text-brand-100/60 hover:text-red-200">
                                         Close link
                                     </button>
                                 </form>
@@ -200,7 +200,7 @@
                             <form method="POST" action="{{ route('clients.brief.reopen', $client) }}"
                                   onsubmit="return confirm('Reopen this brief? The client will be able to edit and send it again.')">
                                 @csrf
-                                <button type="submit" class="text-xs font-semibold uppercase tracking-widest text-brand-600 hover:text-brand-800">
+                                <button type="submit" class="text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
                                     Reopen for editing
                                 </button>
                             </form>
@@ -208,7 +208,7 @@
 
                         @if ($brief?->exists)
                             <a href="{{ route('clients.brief.export', $client) }}"
-                               class="ml-auto text-xs font-semibold uppercase tracking-widest text-gray-500 hover:text-gray-800">
+                               class="ml-auto text-xs font-semibold uppercase tracking-widest text-brand-100/60 hover:text-white">
                                 Export as text
                             </a>
                         @endif
@@ -226,12 +226,12 @@
         <div x-show="tab === 'overview'" x-cloak class="space-y-6">
         {{-- Production hours against this client --}}
         <div>
-            <h3 class="font-semibold text-brand-900 mb-3">Timesheet hours</h3>
+            <h3 class="font-semibold text-white mb-3">Timesheet hours</h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <x-card class="p-4 sm:p-5 border border-brand-100/60">
-                    <p class="text-xs text-brand-600 uppercase tracking-wide font-semibold">Total logged</p>
-                    <p class="text-2xl font-bold text-brand-900 mt-1">{{ \App\Models\TimesheetEntry::formatMinutes($timesheet['minutes']) }}</p>
-                    <p class="text-xs text-gray-500 mt-1">{{ $timesheet['entries'] }} {{ Str::plural('entry', $timesheet['entries']) }}</p>
+                <x-card class="p-4 sm:p-5 border border-white/10">
+                    <p class="text-xs text-brand-300 uppercase tracking-wide font-semibold">Total logged</p>
+                    <p class="text-2xl font-bold text-white mt-1">{{ \App\Models\TimesheetEntry::formatMinutes($timesheet['minutes']) }}</p>
+                    <p class="text-xs text-brand-100/60 mt-1">{{ $timesheet['entries'] }} {{ Str::plural('entry', $timesheet['entries']) }}</p>
                 </x-card>
                 <x-charts.horizontal-bars
                     :items="collect($timesheet['byType'])->map(fn ($row) => ['label' => $row['label'], 'minutes' => $row['minutes']])->all()"
@@ -246,47 +246,47 @@
 
         {{-- Invoice history --}}
         <div>
-            <h3 class="font-semibold text-brand-900 mb-3">Invoice History</h3>
+            <h3 class="font-semibold text-white mb-3">Invoice History</h3>
             @if ($invoices->isEmpty())
                 <x-empty-state message="No invoices for this client yet." />
             @else
                 {{-- Mobile: card list --}}
                 <div class="md:hidden space-y-3">
                     @foreach ($invoices as $invoice)
-                        <a href="{{ route('invoices.show', $invoice) }}" class="block bg-white shadow-sm rounded-lg p-4 border border-brand-100/40">
+                        <a href="{{ route('invoices.show', $invoice) }}" class="block bg-white/5 shadow-sm rounded-lg p-4 border border-white/10">
                             <div class="flex items-center justify-between gap-2">
-                                <span class="font-semibold text-gray-900">{{ $invoice->invoice_number ?? 'Pending' }}</span>
+                                <span class="font-semibold text-white">{{ $invoice->invoice_number ?? 'Pending' }}</span>
                                 <x-badge :status="$invoice->displayStatus()" />
                             </div>
-                            <div class="mt-1 flex items-center justify-between text-sm text-gray-500">
+                            <div class="mt-1 flex items-center justify-between text-sm text-brand-100/60">
                                 <span>{{ $invoice->invoice_date->format('d/m/Y') }}</span>
-                                <span class="text-gray-900 font-semibold">{{ number_format($invoice->total, 2) }}</span>
+                                <span class="text-white font-semibold">{{ number_format($invoice->total, 2) }}</span>
                             </div>
                         </a>
                     @endforeach
                 </div>
 
                 {{-- Desktop: table --}}
-                <x-card class="hidden md:block overflow-x-auto border border-brand-100/40">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-brand-50/50">
+                <x-card class="hidden md:block overflow-x-auto border border-white/10">
+                    <table class="min-w-full divide-y divide-white/10">
+                        <thead class="bg-white/5">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-brand-100/60 uppercase">Invoice #</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-brand-100/60 uppercase">Date</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-brand-100/60 uppercase">Status</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-brand-100/60 uppercase">Total</th>
                                 <th class="px-6 py-3"></th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-200">
+                        <tbody class="divide-y divide-white/10">
                             @foreach ($invoices as $invoice)
                                 <tr>
-                                    <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $invoice->invoice_number ?? 'Pending' }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-500">{{ $invoice->invoice_date->format('d/m/Y') }}</td>
+                                    <td class="px-6 py-4 text-sm font-medium text-white">{{ $invoice->invoice_number ?? 'Pending' }}</td>
+                                    <td class="px-6 py-4 text-sm text-brand-100/60">{{ $invoice->invoice_date->format('d/m/Y') }}</td>
                                     <td class="px-6 py-4 text-sm"><x-badge :status="$invoice->displayStatus()" /></td>
-                                    <td class="px-6 py-4 text-sm text-gray-900 text-right">{{ number_format($invoice->total, 2) }}</td>
+                                    <td class="px-6 py-4 text-sm text-white text-right">{{ number_format($invoice->total, 2) }}</td>
                                     <td class="px-6 py-4 text-right text-sm">
-                                        <a href="{{ route('invoices.show', $invoice) }}" class="text-brand-500 hover:text-brand-600 font-semibold">View</a>
+                                        <a href="{{ route('invoices.show', $invoice) }}" class="text-brand-500 hover:text-brand-300 font-semibold">View</a>
                                     </td>
                                 </tr>
                             @endforeach
@@ -328,27 +328,27 @@
              Behind `manage`, matching the route: issuing this creates an
              account that can sign in, which is more than editing a record. --}}
         @can('clients.manage')
-        <x-card class="p-4 sm:p-6 border border-brand-100/40" x-data="{ open: false }">
+        <x-card class="p-4 sm:p-6 border border-white/10" x-data="{ open: false }">
             <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                    <h3 class="font-semibold text-brand-900">Client login</h3>
-                    <p class="mt-1 text-sm text-gray-600">
+                    <h3 class="font-semibold text-white">Client login</h3>
+                    <p class="mt-1 text-sm text-brand-100/70">
                         Lets {{ $client->name }} see their own invoices, published work and shoots — nothing else.
                     </p>
                 </div>
 
                 @if ($login)
-                    <span class="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-wide">
+                    <span class="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full bg-green-400/15 text-green-200 text-[10px] font-bold uppercase tracking-wide">
                         Active
                     </span>
                 @endif
             </div>
 
             @if ($login)
-                <div class="mt-4 rounded-lg bg-gray-50 ring-1 ring-gray-900/5 p-4">
-                    <p class="text-sm font-semibold text-gray-900">{{ $login->name }}</p>
-                    <p class="text-xs text-gray-500">{{ $login->email }}</p>
-                    <p class="mt-1 text-xs text-gray-500">
+                <div class="mt-4 rounded-lg bg-brand-900/40 ring-1 ring-white/10 p-4">
+                    <p class="text-sm font-semibold text-white">{{ $login->name }}</p>
+                    <p class="text-xs text-brand-100/60">{{ $login->email }}</p>
+                    <p class="mt-1 text-xs text-brand-100/60">
                         Created {{ $login->created_at->format('j M Y') }}
                     </p>
                 </div>
@@ -369,14 +369,14 @@
                         @csrf
                         @method('DELETE')
                         <button type="submit"
-                                class="inline-flex items-center min-h-[44px] px-4 rounded-md border border-red-300 text-red-700
-                                       text-xs font-semibold uppercase tracking-widest hover:bg-red-50 transition-colors">
+                                class="inline-flex items-center min-h-[44px] px-4 rounded-md border border-red-400/30 text-red-200
+                                       text-xs font-semibold uppercase tracking-widest hover:bg-red-400/10 transition-colors">
                             Revoke login
                         </button>
                     </form>
                 </div>
 
-                <p class="mt-4 text-xs text-gray-500">
+                <p class="mt-4 text-xs text-brand-100/60">
                     There is no self-serve password reset — the studio does not send email yet, so if they
                     forget it, set a new one here and tell them.
                 </p>
@@ -401,7 +401,7 @@
                             <x-text-input id="login_email" name="email" type="email" class="mt-1 block w-full"
                                           value="{{ old('email', $client->email) }}" required />
                             <x-input-error :messages="$errors->get('email')" class="mt-2" />
-                            <p class="mt-1 text-xs text-gray-500">Nothing is sent to it — it is how they sign in.</p>
+                            <p class="mt-1 text-xs text-brand-100/60">Nothing is sent to it — it is how they sign in.</p>
                         </div>
                     </div>
 
@@ -410,12 +410,12 @@
                         <x-text-input id="login_password" name="password" type="text" class="mt-1 block w-full"
                                       placeholder="At least 8 characters" required />
                         <x-input-error :messages="$errors->get('password')" class="mt-2" />
-                        <p class="mt-1 text-xs text-gray-500">Shown in plain text so you can copy it — send it to them directly.</p>
+                        <p class="mt-1 text-xs text-brand-100/60">Shown in plain text so you can copy it — send it to them directly.</p>
                     </div>
 
                     <div class="flex items-center gap-3">
                         <x-primary-button>Create login</x-primary-button>
-                        <button type="button" @click="open = false" class="text-sm text-gray-600 hover:text-gray-900">Cancel</button>
+                        <button type="button" @click="open = false" class="text-sm text-brand-100/70 hover:text-white">Cancel</button>
                     </div>
                 </form>
             @endif

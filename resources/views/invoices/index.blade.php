@@ -38,28 +38,28 @@
         <x-filter-bar>
             <div class="flex items-center justify-between gap-2">
                 <a href="{{ route('invoices.index', array_filter(['month' => $prev, 'status' => $status, 'type' => $type, 'search' => $search])) }}"
-                   class="inline-flex items-center min-h-[44px] px-3 rounded-lg bg-white ring-1 ring-gray-900/10 text-sm font-semibold text-gray-700 hover:bg-gray-50">&larr; Prev</a>
+                   class="inline-flex items-center min-h-[44px] px-3 rounded-lg bg-white/5 ring-1 ring-white/15 text-sm font-semibold text-brand-100/80 hover:bg-white/[0.09]">&larr; Prev</a>
 
                 <div class="text-center">
-                    <p class="font-semibold text-gray-900">{{ $month->format('F Y') }}</p>
-                    <p class="text-xs text-gray-500">
+                    <p class="font-semibold text-white">{{ $month->format('F Y') }}</p>
+                    <p class="text-xs text-brand-100/60">
                         {{ $invoices->total() }} {{ Str::plural('invoice', $invoices->total()) }}
                         &middot; {{ number_format($monthTotal, 2) }} invoiced
                     </p>
                     @if (! $month->isSameMonth(now()))
                         <a href="{{ route('invoices.index', array_filter(['status' => $status, 'type' => $type, 'search' => $search])) }}"
-                           class="text-xs text-brand-500 hover:text-brand-600">Back to this month</a>
+                           class="text-xs text-brand-500 hover:text-brand-300">Back to this month</a>
                     @endif
                 </div>
 
                 <a href="{{ route('invoices.index', array_filter(['month' => $next, 'status' => $status, 'type' => $type, 'search' => $search])) }}"
-                   class="inline-flex items-center min-h-[44px] px-3 rounded-lg bg-white ring-1 ring-gray-900/10 text-sm font-semibold text-gray-700 hover:bg-gray-50">Next &rarr;</a>
+                   class="inline-flex items-center min-h-[44px] px-3 rounded-lg bg-white/5 ring-1 ring-white/15 text-sm font-semibold text-brand-100/80 hover:bg-white/[0.09]">Next &rarr;</a>
             </div>
 
             <div class="flex flex-wrap gap-2">
                 @foreach ($statusFilters as $value => $label)
                     <a href="{{ route('invoices.index', array_filter(['month' => $monthParam, 'search' => $search, 'status' => $value, 'type' => $type])) }}"
-                       class="px-3 py-1.5 rounded-lg text-xs font-semibold {{ $status === $value ? 'bg-brand-400 text-brand-900' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
+                       class="px-3 py-1.5 rounded-lg text-xs font-semibold {{ $status === $value ? 'bg-brand-400 text-brand-900' : 'bg-white/10 text-brand-100/70 hover:bg-white/[0.16]' }}">
                         {{ $label }}
                     </a>
                 @endforeach
@@ -72,7 +72,7 @@
             <div class="flex flex-wrap gap-2">
                 @foreach (['' => 'All work', 'production' => 'Production', 'studio' => 'App Studio', 'amc' => 'AMC only', 'development' => 'Development only'] as $value => $label)
                     <a href="{{ route('invoices.index', array_filter(['month' => $monthParam, 'search' => $search, 'status' => $status, 'type' => $value])) }}"
-                       class="px-3 py-1.5 rounded-lg text-xs font-semibold {{ $type === $value ? 'bg-brand-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
+                       class="px-3 py-1.5 rounded-lg text-xs font-semibold {{ $type === $value ? 'bg-brand-900 text-white' : 'bg-white/10 text-brand-100/70 hover:bg-white/[0.16]' }}">
                         {{ $label }}
                     </a>
                 @endforeach
@@ -83,7 +83,7 @@
                 <input type="hidden" name="status" value="{{ $status }}">
                 <input type="hidden" name="type" value="{{ $type }}">
                 <input type="search" name="search" value="{{ $search }}" placeholder="Search by invoice number or client name..."
-                    class="w-full sm:max-w-md rounded-lg border-gray-300 shadow-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
+                    class="w-full sm:max-w-md rounded-lg border-white/15 shadow-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
             </form>
         </x-filter-bar>
 
@@ -97,11 +97,11 @@
         @if ($invoices->isNotEmpty())
             {{-- Bulk actions --}}
             <div
-                class="flex flex-col sm:flex-row sm:items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+                class="flex flex-col sm:flex-row sm:items-center gap-3 rounded-lg border border-white/10 bg-white/5 p-3 shadow-sm"
                 x-show="selected.length > 0"
                 x-cloak
             >
-                <p class="text-sm text-gray-700">
+                <p class="text-sm text-brand-100/80">
                     <span class="font-semibold" x-text="selected.length"></span>
                     selected
                 </p>
@@ -111,7 +111,7 @@
                         id="invoice-bulk-action"
                         x-model="action"
                         @change="runAction()"
-                        class="w-full sm:w-auto min-h-[44px] rounded-md border-gray-300 shadow-sm focus:border-brand-400 focus:ring-brand-400 text-sm"
+                        class="w-full sm:w-auto min-h-[44px] rounded-md border-white/15 shadow-sm focus:border-brand-400 focus:ring-brand-400 text-sm"
                     >
                         <option value="">Select action…</option>
                         <option value="download-pdf">Download PDF</option>
@@ -119,20 +119,20 @@
                     <button
                         type="button"
                         @click="clearSelection()"
-                        class="inline-flex items-center justify-center min-h-[44px] px-3 rounded-md border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                        class="inline-flex items-center justify-center min-h-[44px] px-3 rounded-md border border-white/15 bg-white/5 text-sm font-semibold text-brand-100/80 hover:bg-white/[0.09]"
                     >
                         Clear
                     </button>
                 </div>
-                <p class="text-xs text-gray-500 sm:w-full" x-show="busy" x-cloak>Preparing download…</p>
+                <p class="text-xs text-brand-100/60 sm:w-full" x-show="busy" x-cloak>Preparing download…</p>
             </div>
 
             {{-- Mobile: card list --}}
             <div class="md:hidden space-y-3">
-                <label class="flex items-center gap-3 min-h-[44px] px-1 text-sm font-semibold text-gray-700">
+                <label class="flex items-center gap-3 min-h-[44px] px-1 text-sm font-semibold text-brand-100/80">
                     <input
                         type="checkbox"
-                        class="h-5 w-5 rounded border-gray-300 text-brand-400 focus:ring-brand-400"
+                        class="h-5 w-5 rounded border-white/15 text-brand-400 focus:ring-brand-400"
                         :checked="allSelected"
                         :indeterminate="partiallySelected"
                         @change="toggleAll($event.target.checked)"
@@ -141,12 +141,12 @@
                 </label>
 
                 @foreach ($invoices as $invoice)
-                    <div class="bg-white shadow-sm rounded-lg p-4">
+                    <div class="bg-white/5 shadow-sm rounded-lg p-4">
                         <div class="flex items-start gap-3">
                             <label class="inline-flex items-center justify-center min-h-[44px] min-w-[44px] -ml-1">
                                 <input
                                     type="checkbox"
-                                    class="h-5 w-5 rounded border-gray-300 text-brand-400 focus:ring-brand-400"
+                                    class="h-5 w-5 rounded border-white/15 text-brand-400 focus:ring-brand-400"
                                     value="{{ $invoice->id }}"
                                     :checked="isSelected({{ $invoice->id }})"
                                     @change="toggle({{ $invoice->id }}, $event.target.checked)"
@@ -154,24 +154,24 @@
                             </label>
                             <a href="{{ route('invoices.show', $invoice) }}" class="min-w-0 flex-1">
                                 <div class="flex items-center justify-between gap-2">
-                                    <span class="font-semibold text-gray-900">{{ $invoice->invoice_number ?? 'Pending' }}</span>
+                                    <span class="font-semibold text-white">{{ $invoice->invoice_number ?? 'Pending' }}</span>
                                     <x-badge :status="$invoice->displayStatus()" />
                                 </div>
-                                <div class="mt-1 flex items-center justify-between text-sm text-gray-500">
+                                <div class="mt-1 flex items-center justify-between text-sm text-brand-100/60">
                                     <span>
                                         {{ $invoice->client->name }}
                                         @if ($invoice->saasProduct)
-                                            <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-indigo-100 text-indigo-700">
+                                            <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-indigo-400/15 text-indigo-200">
                                                 {{ $invoice->saas_invoice_type === \App\Models\Invoice::STUDIO_TYPE_AMC ? 'AMC' : 'DEV' }}
                                             </span>
                                         @endif
                                     </span>
                                     <span>{{ $invoice->invoice_date->format('d/m/Y') }}</span>
                                 </div>
-                                <div class="mt-1 text-right text-gray-900 font-semibold">
+                                <div class="mt-1 text-right text-white font-semibold">
                                     {{ number_format($invoice->total, 2) }}
                                     @if ($invoice->isPartiallyPaid())
-                                        <span class="block text-xs font-semibold text-amber-700">
+                                        <span class="block text-xs font-semibold text-amber-200">
                                             {{ number_format($invoice->paidTotal(), 2) }} paid &middot;
                                             {{ number_format($invoice->balanceDue(), 2) }} due
                                         </span>
@@ -179,13 +179,13 @@
                                 </div>
                             </a>
                         </div>
-                        <div class="mt-3 flex justify-end gap-2 border-t border-gray-100 pt-3">
+                        <div class="mt-3 flex justify-end gap-2 border-t border-white/10 pt-3">
                             <a href="{{ route('invoices.pdf', $invoice) }}"
                                class="inline-flex items-center justify-center min-h-[44px] px-3 rounded-md bg-brand-400 text-xs font-semibold uppercase tracking-widest text-brand-900 hover:bg-brand-500">
                                 PDF
                             </a>
                             <a href="{{ route('invoices.show', $invoice) }}"
-                               class="inline-flex items-center justify-center min-h-[44px] px-3 rounded-md border border-gray-300 bg-white text-xs font-semibold uppercase tracking-widest text-gray-700 hover:bg-gray-50">
+                               class="inline-flex items-center justify-center min-h-[44px] px-3 rounded-md border border-white/15 bg-white/5 text-xs font-semibold uppercase tracking-widest text-brand-100/80 hover:bg-white/[0.09]">
                                 View
                             </a>
                         </div>
@@ -195,58 +195,58 @@
 
             {{-- Desktop: table --}}
             <x-card class="hidden md:block overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
+                <table class="min-w-full divide-y divide-white/10">
+                    <thead class="bg-brand-900/40">
                         <tr>
                             <th class="px-4 py-3 w-12">
                                 <label class="inline-flex items-center justify-center min-h-[44px] min-w-[44px]">
                                     <span class="sr-only">Select all</span>
                                     <input
                                         type="checkbox"
-                                        class="h-5 w-5 rounded border-gray-300 text-brand-400 focus:ring-brand-400"
+                                        class="h-5 w-5 rounded border-white/15 text-brand-400 focus:ring-brand-400"
                                         :checked="allSelected"
                                         :indeterminate="partiallySelected"
                                         @change="toggleAll($event.target.checked)"
                                     >
                                 </label>
                             </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-brand-100/60 uppercase">Invoice #</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-brand-100/60 uppercase">Client</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-brand-100/60 uppercase">Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-brand-100/60 uppercase">Status</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-brand-100/60 uppercase">Total</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-brand-100/60 uppercase">Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-200">
+                    <tbody class="divide-y divide-white/10">
                         @foreach ($invoices as $invoice)
-                            <tr class="hover:bg-gray-50" :class="isSelected({{ $invoice->id }}) ? 'bg-brand-50/40' : ''">
+                            <tr class="hover:bg-white/[0.09]" :class="isSelected({{ $invoice->id }}) ? 'bg-white/5' : ''">
                                 <td class="px-4 py-4">
                                     <label class="inline-flex items-center justify-center min-h-[44px] min-w-[44px]">
                                         <input
                                             type="checkbox"
-                                            class="h-5 w-5 rounded border-gray-300 text-brand-400 focus:ring-brand-400"
+                                            class="h-5 w-5 rounded border-white/15 text-brand-400 focus:ring-brand-400"
                                             value="{{ $invoice->id }}"
                                             :checked="isSelected({{ $invoice->id }})"
                                             @change="toggle({{ $invoice->id }}, $event.target.checked)"
                                         >
                                     </label>
                                 </td>
-                                <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $invoice->invoice_number ?? 'Pending' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">
+                                <td class="px-6 py-4 text-sm font-medium text-white">{{ $invoice->invoice_number ?? 'Pending' }}</td>
+                                <td class="px-6 py-4 text-sm text-brand-100/60">
                                     {{ $invoice->client->name }}
                                     @if ($invoice->saasProduct)
-                                        <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-indigo-100 text-indigo-700">
+                                        <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-indigo-400/15 text-indigo-200">
                                             {{ $invoice->saas_invoice_type === \App\Models\Invoice::STUDIO_TYPE_AMC ? 'AMC' : 'DEV' }}
                                         </span>
                                     @endif
                                 </td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ $invoice->invoice_date->format('d/m/Y') }}</td>
+                                <td class="px-6 py-4 text-sm text-brand-100/60">{{ $invoice->invoice_date->format('d/m/Y') }}</td>
                                 <td class="px-6 py-4 text-sm"><x-badge :status="$invoice->displayStatus()" /></td>
-                                <td class="px-6 py-4 text-sm text-gray-900 text-right">
+                                <td class="px-6 py-4 text-sm text-white text-right">
                                     {{ number_format($invoice->total, 2) }}
                                     @if ($invoice->isPartiallyPaid())
-                                        <span class="block text-xs font-semibold text-amber-700">
+                                        <span class="block text-xs font-semibold text-amber-200">
                                             {{ number_format($invoice->paidTotal(), 2) }} paid &middot;
                                             {{ number_format($invoice->balanceDue(), 2) }} due
                                         </span>
@@ -255,11 +255,11 @@
                                 <td class="px-6 py-4 text-right text-sm">
                                     <div class="inline-flex items-center justify-end gap-3">
                                         <a href="{{ route('invoices.pdf', $invoice) }}"
-                                           class="inline-flex items-center justify-center min-h-[44px] px-2 font-semibold text-brand-500 hover:text-brand-600"
+                                           class="inline-flex items-center justify-center min-h-[44px] px-2 font-semibold text-brand-500 hover:text-brand-300"
                                            title="Download PDF">
                                             PDF
                                         </a>
-                                        <a href="{{ route('invoices.show', $invoice) }}" class="inline-flex items-center justify-center min-h-[44px] px-2 text-brand-500 hover:text-brand-600 font-semibold">View</a>
+                                        <a href="{{ route('invoices.show', $invoice) }}" class="inline-flex items-center justify-center min-h-[44px] px-2 text-brand-500 hover:text-brand-300 font-semibold">View</a>
                                     </div>
                                 </td>
                             </tr>

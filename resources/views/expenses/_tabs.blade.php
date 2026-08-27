@@ -40,13 +40,13 @@
     ];
 @endphp
 
-<nav class="flex gap-1 overflow-x-auto border-b border-gray-200 -mb-px" aria-label="Expenses sections">
+<nav class="flex gap-1 overflow-x-auto border-b border-white/10 -mb-px" aria-label="Expenses sections">
     @foreach ($tabs as $tab)
         <a href="{{ $tab['url'] }}"
            @class([
                'shrink-0 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors',
-               'border-brand-500 text-brand-600' => $tab['active'],
-               'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300' => ! $tab['active'],
+               'border-brand-500 text-brand-300' => $tab['active'],
+               'border-transparent text-brand-100/60 hover:text-white hover:border-white/15' => ! $tab['active'],
            ])>
             {{ $tab['label'] }}
         </a>

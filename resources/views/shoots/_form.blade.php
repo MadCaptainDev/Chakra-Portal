@@ -40,7 +40,7 @@
         <x-input-label for="ends_at" value="Expected wrap (optional)" />
         <x-text-input id="ends_at" name="ends_at" type="datetime-local" class="mt-1"
                       :value="old('ends_at', $shoot->ends_at?->format('Y-m-d\TH:i'))" />
-        <p class="mt-1 text-xs text-gray-500">Left blank, the shoot is treated as holding its kit for the rest of that day.</p>
+        <p class="mt-1 text-xs text-brand-100/60">Left blank, the shoot is treated as holding its kit for the rest of that day.</p>
         <x-input-error :messages="$errors->get('ends_at')" class="mt-2" />
     </div>
 
@@ -55,7 +55,7 @@
         <x-input-label for="notes" value="Notes" />
         <x-textarea id="notes" name="notes" rows="3" class="mt-1"
                     placeholder="Parking behind the shop. Ask for Murugan.">{{ old('notes', $shoot->notes) }}</x-textarea>
-        <p class="mt-1 text-xs text-gray-500">Internal only — these are left off the call sheet.</p>
+        <p class="mt-1 text-xs text-brand-100/60">Internal only — these are left off the call sheet.</p>
         <x-input-error :messages="$errors->get('notes')" class="mt-2" />
     </div>
 </div>
