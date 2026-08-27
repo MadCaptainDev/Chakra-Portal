@@ -52,6 +52,24 @@ class InstagramInsights
     public const MEDIA_METRICS_REELS = ['ig_reels_avg_watch_time', 'ig_reels_video_view_total_time', 'reels_skip_rate'];
 
     /**
+     * Media metrics that answer as a percentage (0-100, one decimal place)
+     * rather than a count -- confirmed empirically against a real connected
+     * account (riyamakeover_artistry, media 18125455090694038): `reels_skip_rate`
+     * came back e.g. `66.5`, `60.6`, `57.4`, NOT a 0-1 fraction as Meta's docs
+     * would suggest by the metric's name. `value` is an unsigned bigint built
+     * for counts, so storeMediaResponse() scales these by
+     * PERCENT_METRIC_SCALE before storing (66.5 -> 6650) instead of casting
+     * straight to int, which would truncate the decimal and silently drop
+     * precision. percentMetricValue() reverses the scale on read.
+     *
+     * @var list<string>
+     */
+    public const PERCENT_METRICS = ['reels_skip_rate'];
+
+    /** Scale factor applied to PERCENT_METRICS before storing -- see above. */
+    public const PERCENT_METRIC_SCALE = 100;
+
+    /**
      * Who follows the account -- confirmed empirically against both live
      * connected accounts (see docs/MONTHLY_REPORT.md): `period=lifetime` +
      * `metric_type=total_value` + `breakdown=age,gender` in ONE call
@@ -499,12 +517,16 @@ class InstagramInsights
                 continue;
             }
 
+            $storedValue = in_array($name, self::PERCENT_METRICS, true)
+                ? (int) round(((float) $value) * self::PERCENT_METRIC_SCALE)
+                : (int) $value;
+
             SocialInsight::record([
                 'social_account_id' => $account->id,
                 'social_media_item_id' => $item->id,
                 'metric' => $name,
                 'metric_type' => SocialInsight::TYPE_TOTAL_VALUE,
-                'value' => (int) $value,
+                'value' => $storedValue,
                 'period' => 'lifetime',
                 'period_start' => $today,
                 'period_end' => $today,
@@ -534,5 +556,17 @@ class InstagramInsights
     private static function isStorableCount(mixed $value): bool
     {
         return is_numeric($value) && (float) $value >= 0;
+    }
+
+    /**
+     * Reverses PERCENT_METRIC_SCALE for a `social_insights.value` row whose
+     * metric is in PERCENT_METRICS -- e.g. a stored 6650 becomes 66.5 (the
+     * percent Meta originally answered with). Not used anywhere yet: nothing
+     * in the UI currently renders reels_skip_rate. Call this instead of
+     * reading `value` directly once something does.
+     */
+    public static function percentMetricValue(int $storedValue): float
+    {
+        return $storedValue / self::PERCENT_METRIC_SCALE;
     }
 }

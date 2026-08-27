@@ -259,6 +259,43 @@ class InstagramInsightsTest extends TestCase
     }
 
     /**
+     * reels_skip_rate answers as a 0-100 percentage with a decimal (confirmed
+     * empirically -- see InstagramInsights::PERCENT_METRICS), not a count.
+     * `value` is an unsigned bigint, so storeMediaResponse() must scale it up
+     * before storing rather than truncating straight to int, which would
+     * silently drop the fraction (66.5 -> 66) or, for a rate under 1%, drop
+     * the whole value to 0.
+     */
+    public function test_reels_skip_rate_is_stored_scaled_not_truncated(): void
+    {
+        $account = $this->connectedAccount();
+
+        Http::fake([
+            'graph.instagram.com/*/media?*' => Http::response(['data' => [
+                [
+                    'id' => 'media-1',
+                    'caption' => 'Behind the scenes',
+                    'media_type' => 'VIDEO',
+                    'media_product_type' => 'REELS',
+                    'timestamp' => now()->toIso8601String(),
+                    'permalink' => 'https://instagram.com/p/media-1',
+                    'thumbnail_url' => 'https://cdn.example/thumb.jpg',
+                ],
+            ]]),
+            'graph.instagram.com/*/media-1/insights*' => Http::response(['data' => [
+                ['name' => 'reels_skip_rate', 'values' => [['value' => 66.5]]],
+            ]]),
+        ]);
+
+        InstagramInsights::make()->syncMedia($account);
+
+        $stored = SocialInsight::where('metric', 'reels_skip_rate')->sole();
+
+        $this->assertSame(6650, $stored->value);
+        $this->assertSame(66.5, InstagramInsights::percentMetricValue($stored->value));
+    }
+
+    /**
      * A media item's insights are not one row per metric -- every daily sync
      * writes a fresh row keyed to that sync's own date (Meta only ever
      * answers with the post's current lifetime total, never a history), so a
