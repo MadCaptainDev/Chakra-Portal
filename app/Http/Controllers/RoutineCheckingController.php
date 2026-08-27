@@ -51,6 +51,12 @@ class RoutineCheckingController extends Controller
             'groups' => $this->groupByPerson($open),
             'settled' => $settledToday,
             'outstandingCount' => $open->count(),
+            // "Late" relative to the day being viewed, not real today --
+            // browsing to a past day via the day-nav should show what was
+            // still late as of THAT day, matching what $open itself already
+            // reflects for that same reason (whereDate('due_on', '<=', $day)
+            // above, not '<=' real today()).
+            'lateCount' => $open->filter(fn (RoutineOccurrence $o) => $o->due_on->lt($day))->count(),
             'warnings' => $this->generationWarnings(),
         ]);
     }

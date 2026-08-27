@@ -14,6 +14,24 @@
     </x-slot>
 
     <div class="max-w-4xl space-y-4" x-data="{ adding: false }">
+        @if ($routines->isNotEmpty())
+            @php
+                // Pure counting over the already-loaded list -- no query of
+                // its own. withCount() on the controller's query already
+                // paid for checkpoints/subjects/users; this just tallies
+                // routines themselves the same cheap way.
+                $activeCount = $routines->where('is_active', true)->count();
+                $inactiveCount = $routines->count() - $activeCount;
+                $accountScopedCount = $routines->filter(fn ($r) => $r->isAccountScoped())->count();
+            @endphp
+            <div class="grid grid-cols-3 gap-3">
+                <x-stat-card label="Active" :value="$activeCount" icon="clipboard-list" accent="green" />
+                <x-stat-card label="Inactive" :value="$inactiveCount" icon="clock"
+                    accent="{{ $inactiveCount > 0 ? 'gray' : 'green' }}" />
+                <x-stat-card label="Account-scoped" :value="$accountScopedCount" icon="users" accent="brand" />
+            </div>
+        @endif
+
         <div class="flex items-start justify-between gap-3">
             <p class="text-sm text-brand-100/60">
                 Each routine generates open occurrences on its schedule. Employees tick them on

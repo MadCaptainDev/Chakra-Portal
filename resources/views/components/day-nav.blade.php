@@ -3,6 +3,12 @@
     'day',
     'subtitle' => null,
     'params' => [],
+    // The query string key the day travels under. 'date' everywhere this
+    // already existed (todos); Routine Check calls its own 'day' -- rather
+    // than rename that route's param to match, this just asks which name to
+    // use, so both callers share one component instead of Routine Check
+    // hand-rolling its own copy of the same prev/next/jump-to-date markup.
+    'param' => 'date',
 ])
 
 @php
@@ -14,7 +20,7 @@
     $next = $day->copy()->addDay()->toDateString();
     $isToday = $day->isToday();
 
-    $link = fn (string $d) => route($route, array_merge($params, ['date' => $d]));
+    $link = fn (string $d) => route($route, array_merge($params, [$param => $d]));
 
     $arrow = 'inline-flex items-center justify-center w-11 h-11 shrink-0 rounded-lg bg-white/10 '
         .'ring-1 ring-white/15 text-brand-100/80 transition '
@@ -42,7 +48,7 @@
                 @endif
             @endforeach
 
-            <input type="date" name="date" value="{{ $day->toDateString() }}"
+            <input type="date" name="{{ $param }}" value="{{ $day->toDateString() }}"
                    onchange="this.form.submit()"
                    aria-label="Jump to a day"
                    class="bg-white/5 border-white/15 text-white focus:border-brand-400 focus:ring-brand-400 rounded-md text-xs py-1">

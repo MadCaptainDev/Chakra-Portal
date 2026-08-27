@@ -315,6 +315,38 @@ class RoutineCheckingTest extends TestCase
         }
     }
 
+    /**
+     * The three numbers the redesigned board leads with -- Outstanding
+     * counts every open row regardless of how late, Late is the subset
+     * actually overdue as of the day being viewed (not real today, since a
+     * manager can browse the day-nav to a past day), Settled is what
+     * actually got closed that day.
+     */
+    public function test_the_boards_stat_row_counts_outstanding_late_and_settled(): void
+    {
+        Carbon::setTestNow('2026-08-25 12:00:00');
+
+        $admin = User::factory()->create();
+        $employee = User::factory()->employee()->create();
+
+        $onTime = Routine::factory()->create(['title' => 'Due today', 'starts_on' => '2026-08-25', 'catch_up_days' => 0]);
+        $onTime->users()->attach($employee);
+
+        $late = Routine::factory()->create(['title' => 'Two days late', 'starts_on' => '2026-08-23', 'catch_up_days' => 5]);
+        $late->users()->attach($employee);
+
+        app(RoutineOccurrenceGenerator::class)->run();
+
+        // 1 (due today) + 3 (23rd, 24th, 25th) = 4 open rows; the late
+        // routine's 23rd and 24th are the 2 that are actually overdue.
+        $this->assertSame(4, RoutineOccurrence::where('status', RoutineOccurrence::STATUS_OPEN)->count());
+
+        $response = $this->actingAs($admin)->get(route('routines.checking'))->assertOk();
+
+        $response->assertViewHas('outstandingCount', 4);
+        $response->assertViewHas('lateCount', 2);
+    }
+
     public function test_checking_board_shows_a_routine_that_has_stopped_generating(): void
     {
         $admin = User::factory()->create();

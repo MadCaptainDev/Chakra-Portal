@@ -104,6 +104,54 @@ class RoutineHttpTest extends TestCase
         $this->assertSame(2, Routine::first()->checkpoints()->count());
     }
 
+    /**
+     * The day-nav on Routine Check travels under its own 'day' query key
+     * (the route/controller pre-date x-day-nav, which everywhere else uses
+     * 'date') -- day-nav's `param` prop is what lets this screen reuse the
+     * shared component instead of hand-rolling its own prev/next markup.
+     */
+    public function test_routine_checks_day_nav_travels_under_its_own_query_key(): void
+    {
+        Carbon::setTestNow('2026-08-25 12:00:00');
+        $admin = User::factory()->create();
+
+        $response = $this->actingAs($admin)
+            ->get(route('routines.checking', ['day' => '2026-08-20']))
+            ->assertOk();
+
+        $response->assertSee('20 Aug 2026');
+        // The "Next day" link must carry the SAME key forward, not 'date' --
+        // a component bug here would silently reset every navigation back
+        // to whatever the controller's own default day is.
+        $response->assertSee(route('routines.checking', ['day' => '2026-08-21']), false);
+    }
+
+    public function test_definitions_screen_shows_active_inactive_and_account_scoped_counts(): void
+    {
+        $admin = User::factory()->create();
+
+        Routine::factory()->create(['title' => 'Active plain', 'is_active' => true]);
+        Routine::factory()->create(['title' => 'Retired', 'is_active' => false]);
+        Routine::factory()->create(['title' => 'Watching accounts', 'is_active' => true, 'subject_type' => Routine::SUBJECT_ACCOUNTS]);
+
+        $content = $this->actingAs($admin)->get(route('routines.index'))->assertOk()->getContent();
+
+        // Not assertSeeInOrder: "1"/"2" are common enough elsewhere on the
+        // page (per-routine meta lines, icon path data) that order alone
+        // proves little. This pins each stat-card's own value to its own
+        // label the way x-stat-card actually renders them -- the label,
+        // then (past the icon span) the value in the next <p>.
+        $statValue = function (string $label) use ($content): string {
+            preg_match('/'.preg_quote($label, '/').'<\/p>.*?<p[^>]*>(\d+)</s', $content, $m);
+
+            return $m[1] ?? 'NOT FOUND';
+        };
+
+        $this->assertSame('2', $statValue('Active'));
+        $this->assertSame('1', $statValue('Inactive'));
+        $this->assertSame('1', $statValue('Account-scoped'));
+    }
+
     public function test_admin_can_toggle_social_and_content_account_subjects(): void
     {
         $admin = User::factory()->create();

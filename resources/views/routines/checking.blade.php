@@ -25,19 +25,19 @@
             </p>
         @endforeach
 
-        <div class="flex items-center justify-between gap-3">
-            <div class="flex items-center gap-2">
-                <x-btn :href="route('routines.checking', ['day' => $day->copy()->subDay()->toDateString()])"
-                       variant="secondary" size="sm">&larr;</x-btn>
-                <p class="text-sm font-semibold text-white">
-                    {{ $day->isToday() ? 'Today' : $day->format('D, j M Y') }}
-                </p>
-                <x-btn :href="route('routines.checking', ['day' => $day->copy()->addDay()->toDateString()])"
-                       variant="secondary" size="sm">&rarr;</x-btn>
-            </div>
-            <p class="text-xs text-brand-100/60">
-                {{ $outstandingCount }} outstanding
-            </p>
+        <x-card padding="sm">
+            <x-day-nav route="routines.checking" :day="$day" param="day" />
+        </x-card>
+
+        {{-- The three numbers this screen exists to answer at a glance --
+             everything else on the page is detail underneath them. --}}
+        <div class="grid grid-cols-3 gap-3">
+            <x-stat-card label="Outstanding" :value="$outstandingCount" icon="clipboard-list"
+                accent="{{ $outstandingCount > 0 ? 'amber' : 'green' }}" />
+            <x-stat-card label="Late" :value="$lateCount" icon="alert"
+                accent="{{ $lateCount > 0 ? 'red' : 'green' }}" />
+            <x-stat-card label="Settled" :value="$settled->count()" icon="check-circle" accent="green"
+                :trendLabel="$day->isToday() ? 'today' : $day->format('j M')" trend="neutral" />
         </div>
 
         @forelse ($groups as $group)

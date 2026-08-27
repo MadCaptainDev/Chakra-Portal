@@ -79,7 +79,7 @@
         </div>
     </div>
 
-    <div>
+    <div class="pt-4 border-t border-white/10">
         <p class="text-sm font-semibold text-white mb-1">Permitted people</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-40 overflow-y-auto">
             @foreach ($staff as $person)
@@ -92,7 +92,7 @@
         </div>
     </div>
 
-    <div>
+    <div class="pt-4 border-t border-white/10">
         <p class="text-sm font-semibold text-white mb-1">What is this routine about?</p>
         <p class="text-xs text-brand-100/60 mb-2">Most duties are about nothing — cleaning the office is just cleaning the office.</p>
         <div class="space-y-1">
@@ -156,7 +156,7 @@
     </div>
     </div>
 
-    <div>
+    <div class="pt-4 border-t border-white/10">
         <p class="text-sm font-semibold text-white mb-1">Checkpoints</p>
         <p class="text-xs text-brand-100/60 mb-2">Leave blank for a single implicit duty. Example: Messages, Comments.</p>
         <div class="space-y-2">
@@ -167,7 +167,7 @@
         </div>
     </div>
 
-    <div>
+    <div class="pt-4 border-t border-white/10">
         <p class="text-sm font-semibold text-white mb-1">Capture fields</p>
         <p class="text-xs text-brand-100/60 mb-2">Optional values collected on complete. Number fields default to 0.</p>
         @php
@@ -178,9 +178,12 @@
                 'default_value' => $f->default_value,
                 'checkpoint_name' => $f->checkpoint?->name,
             ])->all() ?? []);
-            if ($fields === []) {
-                $fields = [['label' => '', 'key' => '', 'type' => 'number', 'default_value' => '0', 'checkpoint_name' => '']];
-            }
+            // Always one blank row past whatever is already saved -- same
+            // reason Checkpoints above always keeps an "Add another…" row:
+            // a blank one gets dropped server-side (validated()'s ->filter()
+            // on label/key), so there is nothing to clean up if it goes
+            // unused, and no round trip needed just to add a second field.
+            $fields[] = ['label' => '', 'key' => '', 'type' => 'number', 'default_value' => '0', 'checkpoint_name' => ''];
         @endphp
         <div class="space-y-3">
             @foreach ($fields as $i => $field)

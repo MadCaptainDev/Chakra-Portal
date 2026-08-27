@@ -22,6 +22,23 @@
         <x-month-nav route="routines.calendar" :month="$month"
                      :subtitle="$occurrencesByDay->flatten()->count().' occurrence(s)'" />
 
+        {{-- What each pill's colour means -- nothing else on the grid says
+             so, and four colours with no key is a guess every time. --}}
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-brand-100/60">
+            <span class="inline-flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-sm bg-white/5 ring-1 ring-white/15"></span> Open
+            </span>
+            <span class="inline-flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-sm bg-red-400/10 ring-1 ring-red-400/30"></span> Overdue
+            </span>
+            <span class="inline-flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-sm bg-green-400/10 ring-1 ring-green-400/30"></span> Done
+            </span>
+            <span class="inline-flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-sm bg-white/10 ring-1 ring-white/15"></span> Skipped
+            </span>
+        </div>
+
         <div class="-mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 overflow-x-auto pb-2">
             <div class="min-w-[640px]">
                 <div class="grid grid-cols-7 gap-1 mb-1">
