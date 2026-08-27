@@ -200,15 +200,18 @@ html, body {
 /* The dark sign-in/auth screens sit on a near-black panel -- the light-brand
    thumb above would nearly vanish there, so give them their own darker,
    higher-contrast pass. */
-[data-dark-forms] {
+[data-dark-forms],
+.theme-dark {
     scrollbar-color: #3D8CA6 transparent; /* brand-600 thumb */
 }
 
-[data-dark-forms] ::-webkit-scrollbar-thumb {
+[data-dark-forms] ::-webkit-scrollbar-thumb,
+.theme-dark ::-webkit-scrollbar-thumb {
     background-color: #2F6E84; /* brand-700 */
 }
 
-[data-dark-forms] ::-webkit-scrollbar-thumb:hover {
+[data-dark-forms] ::-webkit-scrollbar-thumb:hover,
+.theme-dark ::-webkit-scrollbar-thumb:hover {
     background-color: #3D8CA6; /* brand-600 */
 }
 
@@ -218,12 +221,18 @@ html, body {
    the inset shadow covering the field is the only reliable override, and the
    absurd transition delay stops Chrome re-applying its colour on blur.
 
-   Scoped to the dark auth screens: the rest of the admin is light forms, where
-   Chrome's default autofill styling is already correct. */
+   Written for the sign-in screens, which were dark before anything else was;
+   it now covers the signed-in app too, since every field in it is on the dark
+   plane and Chrome would repaint each one white on the first saved-password
+   offer. */
 [data-dark-forms] input:-webkit-autofill,
 [data-dark-forms] input:-webkit-autofill:hover,
 [data-dark-forms] input:-webkit-autofill:focus,
-[data-dark-forms] input:-webkit-autofill:active {
+[data-dark-forms] input:-webkit-autofill:active,
+.theme-dark input:-webkit-autofill,
+.theme-dark input:-webkit-autofill:hover,
+.theme-dark input:-webkit-autofill:focus,
+.theme-dark input:-webkit-autofill:active {
     -webkit-text-fill-color: #ffffff;
     -webkit-box-shadow: 0 0 0 1000px #1b3040 inset;
     caret-color: #67bcd4;
