@@ -82,4 +82,47 @@ class SocialMediaItem extends Model
             ? $this->insights->firstWhere('metric', $metric)?->value
             : $this->insights()->where('metric', $metric)->value('value');
     }
+
+    /**
+     * A reel's average per-view watch time, in seconds. Null for anything
+     * that isn't a reel, or if the metric was never cached.
+     *
+     * Meta returns ig_reels_avg_watch_time in milliseconds despite the name
+     * -- confirmed empirically against a real synced reel (11446 against
+     * 112,659 views, i.e. 11.4 seconds, not 11,446 seconds). Same
+     * conversion PortfolioItem::refreshFromInstagram already applies when
+     * copying this onto a published case study.
+     */
+    public function reelAvgWatchSeconds(): ?float
+    {
+        if (! $this->isReel()) {
+            return null;
+        }
+
+        $ms = $this->metricValue('ig_reels_avg_watch_time');
+
+        return $ms !== null ? round($ms / 1000, 1) : null;
+    }
+
+    /**
+     * Total time every viewer combined spent watching this reel, in seconds.
+     *
+     * Unlike avg watch time above, the millisecond unit here is INFERRED,
+     * not independently confirmed against a real value -- ig_reels_video_view
+     * _total_time is the same metric family (Meta's reels-only "watch time"
+     * group) and follows the same "_time" naming as the confirmed one, but
+     * has not itself been checked against a real synced reel. Revisit if a
+     * displayed value looks implausible (e.g. a total time shorter than the
+     * reel's own average watch time times its view count).
+     */
+    public function reelTotalWatchSeconds(): ?float
+    {
+        if (! $this->isReel()) {
+            return null;
+        }
+
+        $ms = $this->metricValue('ig_reels_video_view_total_time');
+
+        return $ms !== null ? round($ms / 1000, 1) : null;
+    }
 }

@@ -289,10 +289,19 @@
                                     @can('portfolio.create')
                                         <th class="px-3 py-2.5"><span class="sr-only">Actions</span></th>
                                     @endcan
+                                    <th class="px-3 py-2.5"><span class="sr-only">More</span></th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-white/10">
-                                @foreach ($content as $item)
+                            @foreach ($content as $item)
+                                {{-- One <tbody> per row rather than one for the
+                                     whole table: Alpine's x-show below needs
+                                     to see this x-data, and a <tbody> is the
+                                     smallest wrapper that can hold both the
+                                     summary row and its detail row as one
+                                     scope. Multiple <tbody> elements in one
+                                     <table> are valid HTML, each its own row
+                                     group. --}}
+                                <tbody class="divide-y divide-white/10" x-data="{ open: false }">
                                     <tr>
                                         <td class="px-4 sm:px-5 py-2.5">
                                             <div class="flex items-center gap-3 min-w-0">
@@ -336,9 +345,71 @@
                                                 </a>
                                             </td>
                                         @endcan
+                                        <td class="px-3 py-2.5 whitespace-nowrap text-right">
+                                            <button type="button" @click="open = ! open"
+                                                    class="inline-flex items-center gap-1 min-h-[36px] px-1 text-xs font-semibold text-brand-300 hover:text-brand-200">
+                                                <span x-text="open ? 'Less' : 'More'"></span>
+                                                <x-icon name="chevron-right" class="w-3.5 h-3.5 transition-transform duration-150"
+                                                        x-bind:class="open && 'rotate-90'" />
+                                            </button>
+                                        </td>
                                     </tr>
-                                @endforeach
-                            </tbody>
+
+                                    {{-- Likes/comments/shares/saves and, for a
+                                         reel, its watch-time figures -- all of
+                                         this is already synced and cached
+                                         (InstagramInsights fetches it on
+                                         every sync) but had nowhere to show
+                                         before. Collapsed by default so the
+                                         table does not grow six columns wider
+                                         for numbers most rows do not need
+                                         opened. --}}
+                                    <tr x-show="open" x-cloak>
+                                        <td colspan="100%" class="px-4 sm:px-5 pb-3">
+                                            <div class="flex flex-wrap gap-x-6 gap-y-2 rounded-lg bg-brand-900/40 ring-1 ring-white/10 px-4 py-3">
+                                                @foreach ([
+                                                    'likes' => 'Likes',
+                                                    'comments' => 'Comments',
+                                                    'shares' => 'Shares',
+                                                    'saved' => 'Saves',
+                                                ] as $metric => $label)
+                                                    <div>
+                                                        <p class="text-[10px] font-semibold uppercase tracking-wider text-brand-100/50">{{ $label }}</p>
+                                                        <p class="mt-0.5 text-sm font-semibold text-white tabular-nums">
+                                                            {{ $item->metricValue($metric) !== null ? number_format($item->metricValue($metric)) : '—' }}
+                                                        </p>
+                                                    </div>
+                                                @endforeach
+
+                                                @if ($item->isReel())
+                                                    <div>
+                                                        <p class="text-[10px] font-semibold uppercase tracking-wider text-brand-100/50">Avg. watch time</p>
+                                                        <p class="mt-0.5 text-sm font-semibold text-white tabular-nums">
+                                                            {{ $item->reelAvgWatchSeconds() !== null ? rtrim(rtrim(number_format($item->reelAvgWatchSeconds(), 1), '0'), '.').'s' : '—' }}
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <p class="text-[10px] font-semibold uppercase tracking-wider text-brand-100/50">Total watch time</p>
+                                                        <p class="mt-0.5 text-sm font-semibold text-white tabular-nums">
+                                                            @if ($item->reelTotalWatchSeconds() !== null)
+                                                                @php
+                                                                    $totalSeconds = (int) round($item->reelTotalWatchSeconds());
+                                                                    $hours = intdiv($totalSeconds, 3600);
+                                                                    $minutes = intdiv($totalSeconds % 3600, 60);
+                                                                    $seconds = $totalSeconds % 60;
+                                                                @endphp
+                                                                {{ $hours > 0 ? "{$hours}h {$minutes}m" : ($minutes > 0 ? "{$minutes}m {$seconds}s" : "{$seconds}s") }}
+                                                            @else
+                                                                —
+                                                            @endif
+                                                        </p>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            @endforeach
                         </table>
                     </div>
                 @endif

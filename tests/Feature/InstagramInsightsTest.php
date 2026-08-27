@@ -689,6 +689,84 @@ class InstagramInsightsTest extends TestCase
         $response->assertDontSee('Three weeks ago');
     }
 
+    /**
+     * Likes/comments/shares/saves and a reel's watch-time figures are all
+     * synced already (see test_syncing_media_caches_items_and_their_insights
+     * above) but previously had nowhere to render -- the actual gap that was
+     * reported ("cannot see all the insights data... like shown in the
+     * Edits app"). They now show in the row's collapsed "More" detail.
+     */
+    public function test_content_performance_shows_the_previously_hidden_metrics_in_its_detail_row(): void
+    {
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+
+        $reel = SocialMediaItem::create([
+            'social_account_id' => $account->id, 'platform_media_id' => 'reel-1',
+            'media_type' => 'VIDEO', 'media_product_type' => 'REELS',
+            'caption' => 'A reel with full metrics',
+            'posted_at' => now()->subDay(), 'cached_at' => now(),
+        ]);
+
+        foreach ([
+            'reach' => 5000, 'views' => 9000, 'total_interactions' => 300,
+            'likes' => 200, 'comments' => 40, 'shares' => 30, 'saved' => 30,
+            // 11,400ms -> 11.4s average; 2,280,000ms -> 2280s = 38m total.
+            'ig_reels_avg_watch_time' => 11400,
+            'ig_reels_video_view_total_time' => 2_280_000,
+        ] as $metric => $value) {
+            SocialInsight::record([
+                'social_account_id' => $account->id,
+                'social_media_item_id' => $reel->id,
+                'metric' => $metric,
+                'metric_type' => SocialInsight::TYPE_TOTAL_VALUE,
+                'value' => $value,
+                'period' => 'lifetime',
+                'period_start' => now()->toDateString(),
+            ]);
+        }
+
+        $response = $this->actingAs($this->staff())
+            ->get(route('instagram.insights', $client))
+            ->assertOk();
+
+        $response->assertSee('Likes');
+        $response->assertSee('200');
+        $response->assertSee('Comments');
+        $response->assertSee('40');
+        $response->assertSee('Shares');
+        $response->assertSee('Saves');
+        $response->assertSee('30');
+        $response->assertSee('Avg. watch time');
+        $response->assertSee('11.4s', false);
+        $response->assertSee('Total watch time');
+        $response->assertSee('38m 0s', false);
+    }
+
+    /**
+     * A photo/carousel has none of the reel-only watch-time metrics -- the
+     * detail row should not claim it does.
+     */
+    public function test_a_non_reel_detail_row_omits_watch_time(): void
+    {
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+
+        SocialMediaItem::create([
+            'social_account_id' => $account->id, 'platform_media_id' => 'photo-1',
+            'media_type' => 'IMAGE', 'caption' => 'Just a photo',
+            'posted_at' => now()->subDay(), 'cached_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->staff())
+            ->get(route('instagram.insights', $client))
+            ->assertOk();
+
+        $response->assertSee('Likes');
+        $response->assertDontSee('Avg. watch time');
+        $response->assertDontSee('Total watch time');
+    }
+
     // -- Custom range reaching past the 90-day account-insights window ------
 
     public function test_a_custom_range_can_reach_far_beyond_the_ninety_day_account_insights_window(): void
