@@ -27,10 +27,13 @@ class SidebarRestructureTest extends TestCase
 
         $response->assertOk()->assertSee(route('settings.edit'));
 
-        // The other eight used to each get their own sidebar row.
+        // The other eight used to each get their own sidebar row. Matched with
+        // a trailing quote -- since the whatsapp-crm module, route('whatsapp.edit')
+        // is a URL-prefix of route('whatsapp-crm.index'), which the sidebar
+        // does legitimately link to, so a bare substring match would false-positive.
         foreach (['whatsapp.edit', 'instagram-settings.edit', 'notion.edit', 'push.edit',
             'competitor-settings.edit', 'content-accounts.edit', 'brief-questions.index', 'invoice-template.edit'] as $routeName) {
-            $response->assertDontSee(route($routeName));
+            $response->assertDontSee(route($routeName).'"', false);
         }
     }
 

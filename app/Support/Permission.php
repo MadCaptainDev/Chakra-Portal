@@ -240,6 +240,22 @@ class Permission
             'icon' => 'globe',
             'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
+
+        /*
+         * The CRM side of WhatsApp -- phonebooks, contacts, quick replies and
+         * campaigns. Its own module rather than folded into the admin-only
+         * `/whatsapp` credentials screen (routes/web.php, WhatsappSettingController):
+         * that screen holds the Meta app secret and connecting it is not
+         * delegated, but day-to-day conversation and campaign work is exactly
+         * the kind of thing a producer should be able to run without being
+         * made an admin of the studio.
+         */
+        'whatsapp-crm' => [
+            'label' => 'WhatsApp CRM',
+            'group' => 'Marketing',
+            'icon' => 'chat',
+            'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
+        ],
     ];
 
     /**

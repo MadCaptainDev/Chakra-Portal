@@ -69,6 +69,7 @@ use App\Http\Controllers\TimesheetDayController;
 use App\Http\Controllers\TodoReviewController;
 use App\Http\Controllers\TodoTrackerController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WhatsappCrmDashboardController;
 use App\Http\Controllers\WhatsappSettingController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
@@ -812,6 +813,16 @@ Route::middleware(['auth', 'module:saas-products,view'])->group(function () {
         Route::get('developer', [DeveloperController::class, 'index'])->name('developer.index');
         Route::get('developer/openapi.json', [DeveloperController::class, 'openapi'])->name('developer.openapi');
     });
+});
+
+/*
+ * WhatsApp CRM: contacts, quick replies and campaigns. Separate from the
+ * admin-only `/whatsapp` credentials screen further down (WhatsappSettingController)
+ * -- that screen holds the Meta app secret, this is day-to-day work a
+ * producer can be granted without being made an admin of the studio.
+ */
+Route::middleware(['auth', 'module:whatsapp-crm,view'])->prefix('whatsapp-crm')->name('whatsapp-crm.')->group(function () {
+    Route::get('/', [WhatsappCrmDashboardController::class, 'index'])->name('index');
 });
 
 /*
