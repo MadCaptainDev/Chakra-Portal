@@ -69,7 +69,9 @@ use App\Http\Controllers\TimesheetDayController;
 use App\Http\Controllers\TodoReviewController;
 use App\Http\Controllers\TodoTrackerController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WhatsappContactController;
 use App\Http\Controllers\WhatsappCrmDashboardController;
+use App\Http\Controllers\WhatsappPhonebookController;
 use App\Http\Controllers\WhatsappSettingController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
@@ -823,6 +825,23 @@ Route::middleware(['auth', 'module:saas-products,view'])->group(function () {
  */
 Route::middleware(['auth', 'module:whatsapp-crm,view'])->prefix('whatsapp-crm')->name('whatsapp-crm.')->group(function () {
     Route::get('/', [WhatsappCrmDashboardController::class, 'index'])->name('index');
+
+    Route::resource('phonebooks', WhatsappPhonebookController::class)->except('show')
+        ->middlewareFor('store', 'module:whatsapp-crm,create')
+        ->middlewareFor('update', 'module:whatsapp-crm,edit')
+        ->middlewareFor('destroy', 'module:whatsapp-crm,delete');
+
+    Route::resource('contacts', WhatsappContactController::class)
+        ->middlewareFor('store', 'module:whatsapp-crm,create')
+        ->middlewareFor('update', 'module:whatsapp-crm,edit')
+        ->middlewareFor('destroy', 'module:whatsapp-crm,delete');
+
+    // "contacts-import", not "contacts/import" -- a sibling path rather than
+    // a child of the resource, so it never has to fight the {contact}
+    // wildcard for GET/POST contacts/{contact}.
+    Route::get('contacts-import', [WhatsappContactController::class, 'importForm'])->name('contacts.import.form');
+    Route::post('contacts-import', [WhatsappContactController::class, 'import'])
+        ->middleware('module:whatsapp-crm,create')->name('contacts.import');
 });
 
 /*

@@ -97,6 +97,16 @@
                 </x-sidebar-link>
             @endif
 
+            {{-- Contacts, nested under WhatsApp CRM: its own resource with its
+                 own routes, but not a fourth top-level Marketing row -- the
+                 module's `view` gate (already checked above) is all it needs,
+                 since Contacts carries no separate permission of its own. --}}
+            @if ($module === 'whatsapp-crm' && Route::has('whatsapp-crm.contacts.index'))
+                <x-sidebar-link icon="users" :href="route('whatsapp-crm.contacts.index')" :active="request()->routeIs('whatsapp-crm.contacts.*')">
+                    Contacts
+                </x-sidebar-link>
+            @endif
+
             {{-- The Swagger/API reference lives on its own page (never nested
                  inside a specific client or product), reached from here --
                  "sidebar sub-heading in App Studio, named Developer" is the
