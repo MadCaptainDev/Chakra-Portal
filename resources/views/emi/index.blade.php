@@ -91,14 +91,18 @@
                             $percent = $emi->progressPercent($asOf);
                             $current = $emi->installmentNumberFor($asOf);
                             $outstanding = $emi->outstandingAmount($asOf);
+                            $futureCount = $emi->remainingAfterCurrentMonth($asOf);
+                            $futureAmount = $futureCount * (float) $emi->amount;
                             $lastTwo = max($emi->installments - $completed, 0) <= 2;
                             $row = $payRows->get($emi->id);
                             $isDue = $emi->isDueIn($asOf);
                             $paidThisMonth = $row ? (float) $row['paid'] : 0.0;
                             $dueThisMonth = $row ? (float) $row['due'] : (float) $emi->amount;
+                            $unpaidThisMonth = $isDue ? max($dueThisMonth - $paidThisMonth, 0.0) : 0.0;
                             $isPaid = $paidThisMonth > 0;
                             $isPaidFull = $isPaid && $paidThisMonth + 0.001 >= $dueThisMonth;
                             $isShort = $isPaid && ! $isPaidFull;
+                            $lastMonthLabel = $emi->lastMonth()?->format('M Y');
                         @endphp
 
                         <x-card class="p-4 space-y-3">
@@ -115,6 +119,15 @@
                                     @if ($outstanding < 0.001)
                                         <p class="text-sm font-bold text-green-200">0</p>
                                         <p class="text-[11px] text-green-300 font-semibold">cleared</p>
+                                    @elseif ($isPaidFull && $futureCount > 0)
+                                        <p class="text-sm font-bold text-white">{{ number_format($futureAmount, 0) }}</p>
+                                        <p class="text-[11px] text-brand-100/60">{{ $futureCount === 1 ? 'due '.$lastMonthLabel : 'left after this month' }}</p>
+                                    @elseif ($isDue)
+                                        <p class="text-sm font-bold text-white">{{ number_format($unpaidThisMonth, 0) }}</p>
+                                        <p class="text-[11px] text-brand-100/60">due this month</p>
+                                        @if ($futureCount > 0)
+                                            <p class="text-[11px] text-brand-100/60">{{ number_format($futureAmount, 0) }} after · ends {{ $lastMonthLabel }}</p>
+                                        @endif
                                     @else
                                         <p class="text-sm font-bold text-white">{{ number_format($outstanding, 0) }}</p>
                                         <p class="text-[11px] text-brand-100/60">left</p>
@@ -144,7 +157,11 @@
                                     @endif
                                 </span>
                                 <span class="{{ $lastTwo ? 'text-green-300 font-semibold' : 'text-brand-100/60' }}">
-                                    ends {{ $emi->lastMonth()?->format('M Y') }}
+                                    @if ($isDue && $futureCount === 0)
+                                        this month due only
+                                    @else
+                                        ends {{ $lastMonthLabel }}
+                                    @endif
                                 </span>
                             </div>
 
@@ -161,7 +178,7 @@
                                         <div x-show="payEditId !== {{ $emi->id }}" class="flex items-center justify-between gap-2 rounded-md bg-green-400/10 px-3 py-2">
                                             <div class="min-w-0">
                                                 <p class="text-sm font-semibold text-green-200">Paid this month</p>
-                                                <p class="text-xs text-green-200">{{ number_format($paidThisMonth, 0) }} recorded · EMI rate stays {{ number_format($dueThisMonth, 0) }}/mo</p>
+                                                <p class="text-xs text-green-200">{{ number_format($paidThisMonth, 0) }} recorded · EMI rate stays {{ number_format($dueThisMonth, 0) }}/mo{{ $futureCount === 1 ? ' · last installment '.$lastMonthLabel : ($futureCount > 0 ? ' · '.$futureCount.' left after this' : '') }}</p>
                                             </div>
                                             <button type="button" @click="payEditId = {{ $emi->id }}"
                                                     class="shrink-0 text-xs font-semibold text-green-200 hover:text-green-200 min-h-[44px]">

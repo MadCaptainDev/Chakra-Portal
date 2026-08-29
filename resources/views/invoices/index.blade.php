@@ -191,6 +191,11 @@
                         </div>
                     </div>
                 @endforeach
+
+                <div class="bg-white/5 shadow-sm rounded-lg p-4 flex items-center justify-between">
+                    <p class="text-sm font-semibold text-brand-100/80">Sum</p>
+                    <p class="text-white font-semibold">{{ number_format($monthTotal, 2) }}</p>
+                </div>
             </div>
 
             {{-- Desktop: table --}}
@@ -265,6 +270,13 @@
                             </tr>
                         @endforeach
                     </tbody>
+                    <tfoot>
+                        <tr class="bg-brand-900/40">
+                            <td colspan="5" class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-brand-100/60">Sum</td>
+                            <td class="px-6 py-3 text-sm font-bold text-white text-right">{{ number_format($monthTotal, 2) }}</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
                 </table>
             </x-card>
         @endif

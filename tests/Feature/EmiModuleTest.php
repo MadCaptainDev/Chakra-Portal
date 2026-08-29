@@ -253,4 +253,66 @@ class EmiModuleTest extends TestCase
 
         Carbon::setTestNow();
     }
+
+    public function test_emi_that_clears_next_month_shows_this_month_due_only(): void
+    {
+        Carbon::setTestNow(Carbon::create(2026, 8, 15));
+
+        // Mar–Sep: August is due now, September is the last installment — not extra August due.
+        $emi = Expense::create([
+            'name' => 'Cam 2 - B',
+            'type' => Expense::TYPE_EMI,
+            'payee' => 'CANA',
+            'amount' => 6250,
+            'start_month' => '2026-03-01',
+            'installments' => 7,
+        ]);
+
+        $aug = Carbon::create(2026, 8, 1);
+        $this->assertTrue($emi->isDueIn($aug));
+        $this->assertSame(1, $emi->remainingAfterCurrentMonth($aug));
+        $this->assertSame('2026-09-01', $emi->lastMonth()->toDateString());
+        $this->assertFalse($emi->isFinished($aug));
+
+        $user = User::factory()->create();
+        $unpaid = $this->actingAs($user)->get(route('emi.index'));
+
+        $unpaid->assertOk();
+        $unpaid->assertViewHas('monthlyLoad', 6250.0);
+        $this->assertCount(1, $unpaid->viewData('running')->where('id', $emi->id));
+        $unpaid->assertSee('due this month');
+        $unpaid->assertSee('ends Sep 2026');
+        $unpaid->assertDontSee('this month due only');
+
+        ExpensePayment::create(['expense_id' => $emi->id, 'period' => '2026-08-01', 'amount_paid' => 6250]);
+        $emi->unsetRelation('payments');
+        $emi->load('payments');
+
+        $this->assertSame(6250.0, $emi->outstandingAmount($aug));
+        $this->assertFalse($emi->isFinished($aug));
+
+        $paid = $this->actingAs($user)->get(route('emi.index'));
+
+        $paid->assertOk();
+        $this->assertCount(1, $paid->viewData('running')->where('id', $emi->id));
+        $this->assertCount(0, $paid->viewData('finished')->where('id', $emi->id));
+        $paid->assertSee('Paid this month');
+        $paid->assertSee('due Sep 2026');
+
+        Carbon::setTestNow();
+    }
+
+    public function test_last_installment_month_is_labelled_this_month_due_only(): void
+    {
+        Carbon::setTestNow(Carbon::create(2026, 8, 15));
+        $emi = $this->gimbal(); // last installment is August
+
+        $response = $this->actingAs(User::factory()->create())->get(route('emi.index'));
+
+        $response->assertOk();
+        $response->assertSee('this month due only');
+        $this->assertSame(0, $emi->remainingAfterCurrentMonth(Carbon::create(2026, 8, 1)));
+
+        Carbon::setTestNow();
+    }
 }

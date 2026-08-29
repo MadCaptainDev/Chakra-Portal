@@ -239,6 +239,25 @@ class Expense extends Model
     }
 
     /**
+     * Installments that fall after the asOf month. This month itself is not
+     * counted — it is due now, not leftover.
+     */
+    public function remainingAfterCurrentMonth(?Carbon $asOf = null): int
+    {
+        if (! $this->isEmi() || ! $this->installments) {
+            return 0;
+        }
+
+        $asOf = ($asOf ?? now())->copy()->startOfMonth();
+        $dueThisMonth = $this->isDueIn($asOf);
+
+        return max(
+            $this->installments - $this->installmentsElapsed($asOf) - ($dueThisMonth ? 1 : 0),
+            0
+        );
+    }
+
+    /**
      * Still owed: future installments after asOf, plus any unpaid slice of
      * the current month. Paying this month reduces (or clears) the figure.
      */
@@ -250,16 +269,9 @@ class Expense extends Model
 
         $asOf = ($asOf ?? now())->copy()->startOfMonth();
         $amount = (float) $this->amount;
-        $dueThisMonth = $this->isDueIn($asOf);
+        $outstanding = $this->remainingAfterCurrentMonth($asOf) * $amount;
 
-        $afterCurrent = max(
-            $this->installments - $this->installmentsElapsed($asOf) - ($dueThisMonth ? 1 : 0),
-            0
-        );
-
-        $outstanding = $afterCurrent * $amount;
-
-        if ($dueThisMonth) {
+        if ($this->isDueIn($asOf)) {
             $outstanding += max($amount - $this->recordedPaidFor($asOf), 0.0);
         }
 

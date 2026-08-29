@@ -66,6 +66,58 @@ class InvoiceTest extends TestCase
         $this->assertSame(['CP-0001', 'CP-0002'], $numbers);
     }
 
+    public function test_index_sums_the_invoices_on_the_list(): void
+    {
+        $user = User::factory()->create();
+        Invoice::factory()->create([
+            'total' => 10000,
+            'subtotal' => 10000,
+            'invoice_date' => now(),
+            'status' => Invoice::STATUS_UNPAID,
+        ]);
+        Invoice::factory()->pendingApproval()->create([
+            'total' => 5000,
+            'subtotal' => 5000,
+            'invoice_date' => now(),
+        ]);
+        Invoice::factory()->create([
+            'total' => 8000,
+            'subtotal' => 8000,
+            'invoice_date' => now()->subMonthNoOverflow(),
+        ]);
+
+        $response = $this->actingAs($user)->get(route('invoices.index'));
+
+        $response->assertOk();
+        $response->assertViewHas('monthTotal', 15000.0);
+        $response->assertSee('15,000.00 invoiced');
+        $response->assertSee('Sum');
+    }
+
+    public function test_index_sum_follows_the_status_filter(): void
+    {
+        $user = User::factory()->create();
+        Invoice::factory()->create([
+            'total' => 10000,
+            'subtotal' => 10000,
+            'invoice_date' => now(),
+            'status' => Invoice::STATUS_UNPAID,
+        ]);
+        Invoice::factory()->create([
+            'total' => 4000,
+            'subtotal' => 4000,
+            'invoice_date' => now(),
+            'status' => Invoice::STATUS_PAID,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('invoices.index', ['status' => 'unpaid']));
+
+        $response->assertOk();
+        $response->assertViewHas('monthTotal', 10000.0);
+        $response->assertSee('10,000.00 invoiced');
+        $response->assertDontSee('14,000.00 invoiced');
+    }
+
     public function test_pdf_download_returns_a_pdf(): void
     {
         $user = User::factory()->create();

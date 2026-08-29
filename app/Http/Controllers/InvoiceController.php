@@ -29,8 +29,31 @@ class InvoiceController extends Controller
         $type = $request->string('type')->toString();
         $month = $this->resolveMonth($request->query('month'));
 
-        $invoices = Invoice::query()
+        $listed = $this->listedInvoicesQuery($request, $month);
+
+        $monthTotal = (float) (clone $listed)->sum('total');
+
+        $invoices = $listed
             ->with(['client', 'payments', 'saasProduct'])
+            ->latest('invoice_date')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('invoices.index', compact('invoices', 'search', 'status', 'type', 'month', 'monthTotal'));
+    }
+
+    /**
+     * The invoices the index actually lists for this month and filter set.
+     * Sum and table share this so the total is "what you see", not a
+     * separate unpaid+paid-only figure.
+     */
+    private function listedInvoicesQuery(Request $request, Carbon $month)
+    {
+        $search = $request->string('search')->toString();
+        $status = $request->string('status')->toString();
+        $type = $request->string('type')->toString();
+
+        return Invoice::query()
             ->whereDate('invoice_date', '>=', $month->copy()->startOfMonth()->toDateString())
             ->whereDate('invoice_date', '<=', $month->copy()->endOfMonth()->toDateString())
             ->when($search, function ($query, $search) {
@@ -52,18 +75,7 @@ class InvoiceController extends Controller
             ->when($type === 'studio', fn ($query) => $query->whereNotNull('saas_product_id'))
             ->when($type === 'production', fn ($query) => $query->whereNull('saas_product_id'))
             ->when($type === 'amc', fn ($query) => $query->where('saas_invoice_type', Invoice::STUDIO_TYPE_AMC))
-            ->when($type === 'development', fn ($query) => $query->where('saas_invoice_type', Invoice::STUDIO_TYPE_DEVELOPMENT))
-            ->latest('invoice_date')
-            ->paginate(20)
-            ->withQueryString();
-
-        $monthTotal = (float) Invoice::query()
-            ->whereDate('invoice_date', '>=', $month->copy()->startOfMonth()->toDateString())
-            ->whereDate('invoice_date', '<=', $month->copy()->endOfMonth()->toDateString())
-            ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PAID])
-            ->sum('total');
-
-        return view('invoices.index', compact('invoices', 'search', 'status', 'type', 'month', 'monthTotal'));
+            ->when($type === 'development', fn ($query) => $query->where('saas_invoice_type', Invoice::STUDIO_TYPE_DEVELOPMENT));
     }
 
     private function resolveMonth(?string $value): Carbon
