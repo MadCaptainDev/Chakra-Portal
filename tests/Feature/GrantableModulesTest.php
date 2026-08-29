@@ -73,9 +73,19 @@ class GrantableModulesTest extends TestCase
         $user = $this->employee();
         $user->syncPermissions([$module => ['view']]);
 
-        $this->actingAs($user->refresh())
-            ->get(route($module.'.index'))
-            ->assertOk();
+        $response = $this->actingAs($user->refresh())->get(route($module.'.index'));
+
+        /*
+         * whatsapp-crm.index redirects straight to its campaigns list rather
+         * than rendering its own view (see WhatsappCrmDashboardController) --
+         * followed once here rather than special-cased out of this test, so
+         * any future module doing the same is covered for free.
+         */
+        if ($response->status() === 302) {
+            $response = $this->actingAs($user)->get($response->headers->get('Location'));
+        }
+
+        $response->assertOk();
 
         // The whole point of granting one module is that it stays one module.
         foreach (array_keys(Permission::MODULES) as $other) {

@@ -84,5 +84,13 @@ class AppServiceProvider extends ServiceProvider
          */
         RateLimiter::for('saas-api', fn (Request $request) => Limit::perMinute(20)
             ->by($request->bearerToken() ?: $request->ip()));
+
+        /*
+         * SendWhatsappCampaignMessage's own queue throttle. Meta paces sends
+         * in batches rather than accepting a burst -- 40/minute roughly
+         * matches the reference spec's batchSize=20 every 30s, expressed as
+         * the one number Illuminate\Queue\Middleware\RateLimited needs.
+         */
+        RateLimiter::for('whatsapp-campaign', fn () => Limit::perMinute(40));
     }
 }

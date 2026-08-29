@@ -46,7 +46,10 @@ class WhatsappContact extends Model
 
     public function campaignLogs(): HasMany
     {
-        return $this->hasMany(WhatsappCampaignLog::class);
+        // Same explicit-FK fix as WhatsappCampaign::logs() -- the default
+        // ("whatsapp_contact_id") does not match the migration's
+        // "contact_id" column.
+        return $this->hasMany(WhatsappCampaignLog::class, 'contact_id');
     }
 
     /**

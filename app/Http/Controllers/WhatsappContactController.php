@@ -6,6 +6,7 @@ use App\Models\WhatsappContact;
 use App\Models\WhatsappPhonebook;
 use App\Services\WhatsappContactImporter;
 use App\Services\WhatsappSender;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -99,10 +100,23 @@ class WhatsappContactController extends Controller
             ->with('status', "\"{$label}\" updated.");
     }
 
+    /**
+     * A contact a campaign has already logged a send to cannot be removed --
+     * whatsapp_campaign_logs.contact_id is restrictOnDelete() on purpose (see
+     * its migration): the send history stays traceable to who it went to,
+     * rather than silently orphaning or cascading it away. Caught here so
+     * that shows up as a clear flash message instead of a raw 500.
+     */
     public function destroy(WhatsappContact $contact): RedirectResponse
     {
         $label = $contact->name ?: $contact->phone;
-        $contact->delete();
+
+        try {
+            $contact->delete();
+        } catch (QueryException) {
+            return redirect()->route('whatsapp-crm.contacts.index')
+                ->with('error', "\"{$label}\" has campaign history and cannot be deleted.");
+        }
 
         return redirect()->route('whatsapp-crm.contacts.index')
             ->with('status', "\"{$label}\" deleted.");

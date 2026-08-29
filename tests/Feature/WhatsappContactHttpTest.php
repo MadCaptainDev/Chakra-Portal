@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Models\WhatsappCampaign;
 use App\Models\WhatsappContact;
 use App\Models\WhatsappPhonebook;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -181,6 +182,48 @@ class WhatsappContactHttpTest extends TestCase
     }
 
     public function test_a_user_with_delete_can_delete_a_contact(): void
+    {
+        $contact = $this->contact();
+
+        $this->actingAs($this->employee(['view', 'delete']))
+            ->delete(route('whatsapp-crm.contacts.destroy', $contact))
+            ->assertRedirect(route('whatsapp-crm.contacts.index'));
+
+        $this->assertDatabaseMissing('whatsapp_contacts', ['id' => $contact->id]);
+    }
+
+    /**
+     * whatsapp_campaign_logs.contact_id is restrictOnDelete() -- a contact a
+     * campaign already logged a send to must not be silently deletable, so
+     * this proves the resulting FK violation is caught and turned into a
+     * flash message rather than a raw 500.
+     */
+    public function test_a_contact_with_campaign_history_cannot_be_deleted(): void
+    {
+        $contact = $this->contact();
+        $phonebook = WhatsappPhonebook::create(['name' => 'Leads']);
+        $campaign = WhatsappCampaign::create([
+            'name' => 'August Reminder',
+            'meta_template_name' => 'shoot_reminder',
+            'meta_template_language' => 'en_US',
+            'phonebook_id' => $phonebook->id,
+            'status' => 'completed',
+        ]);
+        $campaign->logs()->create(['contact_id' => $contact->id, 'phone' => $contact->phone, 'status' => 'sent']);
+
+        $response = $this->actingAs($this->employee(['view', 'delete']))
+            ->delete(route('whatsapp-crm.contacts.destroy', $contact));
+
+        $response->assertRedirect(route('whatsapp-crm.contacts.index'));
+        $response->assertSessionHas('error');
+        $this->assertDatabaseHas('whatsapp_contacts', ['id' => $contact->id]);
+    }
+
+    /**
+     * The same contact, with no campaign history at all, deletes exactly as
+     * before -- the FK only blocks a delete once there is history to lose.
+     */
+    public function test_a_contact_with_no_campaign_history_can_still_be_deleted(): void
     {
         $contact = $this->contact();
 

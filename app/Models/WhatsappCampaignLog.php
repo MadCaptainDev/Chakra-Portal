@@ -19,6 +19,7 @@ class WhatsappCampaignLog extends Model
         'contact_id',
         'phone',
         'status',
+        'dispatched_at',
         'wamid',
         'error',
         'sent_at',
@@ -27,6 +28,7 @@ class WhatsappCampaignLog extends Model
     ];
 
     protected $casts = [
+        'dispatched_at' => 'datetime',
         'sent_at' => 'datetime',
         'delivered_at' => 'datetime',
         'read_at' => 'datetime',

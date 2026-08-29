@@ -47,7 +47,12 @@ class WhatsappCampaign extends Model
 
     public function logs(): HasMany
     {
-        return $this->hasMany(WhatsappCampaignLog::class);
+        // Explicit FK: hasMany's default ("whatsapp_campaign_id", derived
+        // from this class's own name) does not match the migration's
+        // "campaign_id" column -- left implicit, every insert through this
+        // relation fails, which is exactly what surfaced this while wiring
+        // up campaign store() in Task 5.
+        return $this->hasMany(WhatsappCampaignLog::class, 'campaign_id');
     }
 
     public function createdBy(): BelongsTo

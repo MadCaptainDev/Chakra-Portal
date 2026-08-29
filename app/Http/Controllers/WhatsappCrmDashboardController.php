@@ -2,20 +2,22 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\View\View;
+use Illuminate\Http\RedirectResponse;
 
 /**
  * The WhatsApp CRM module's landing page.
  *
- * Placeholder for now -- a later task decides what this actually shows
- * (likely the campaigns list). This exists so the module is routable and
- * navigable end to end: the `whatsapp-crm.view` gate, the route, and the
- * sidebar link all need somewhere real to point.
+ * Redirects to the campaigns list -- the module's natural front page, and
+ * the one screen that already shows everything else (contacts, phonebooks,
+ * templates) feeds into. Kept as its own controller/route rather than
+ * pointing the sidebar link straight at campaigns.index, so the `whatsapp-
+ * crm.view` gate still has one fixed landing spot to redirect unauthorized
+ * or bare `/whatsapp-crm` visits to.
  */
 class WhatsappCrmDashboardController extends Controller
 {
-    public function index(): View
+    public function index(): RedirectResponse
     {
-        return view('whatsapp-crm.dashboard');
+        return redirect()->route('whatsapp-crm.campaigns.index');
     }
 }

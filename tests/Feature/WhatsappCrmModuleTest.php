@@ -28,15 +28,14 @@ class WhatsappCrmModuleTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_a_granted_employee_reaches_the_placeholder_page(): void
+    public function test_a_granted_employee_is_redirected_to_the_campaigns_index(): void
     {
         $user = $this->employee();
         $user->syncPermissions(['whatsapp-crm' => ['view']]);
 
         $this->actingAs($user->refresh())
             ->get(route('whatsapp-crm.index'))
-            ->assertOk()
-            ->assertSee('WhatsApp CRM');
+            ->assertRedirect(route('whatsapp-crm.campaigns.index'));
     }
 
     public function test_a_guest_is_sent_to_login_rather_than_refused(): void

@@ -44,3 +44,9 @@ Schedule::command('instagram:sync --force')->dailyAt('02:00')->timezone(config('
 // what keeps it current without someone opening the screen and pressing
 // "Sync from Notion" themselves. See NotionShootImporter.
 Schedule::command('notion:sync-shoots')->everyThirtyMinutes();
+
+// Promotes due WhatsApp campaigns from scheduled to sending and queues their
+// messages. Every minute, not less often: a campaign scheduled for "now" on
+// the campaign form should start within a minute of that click, not wait for
+// the next half-hour or daily tick the way the sync jobs above do.
+Schedule::command('whatsapp:dispatch-campaigns')->everyMinute();

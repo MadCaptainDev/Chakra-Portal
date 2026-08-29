@@ -97,6 +97,16 @@
                 </x-sidebar-link>
             @endif
 
+            {{-- Campaigns, nested under WhatsApp CRM the same way as Contacts
+                 below: the module's landing page (WhatsappCrmDashboardController
+                 redirects here), so it reads first in this list even though it
+                 was the last of the four to be added. --}}
+            @if ($module === 'whatsapp-crm' && Route::has('whatsapp-crm.campaigns.index'))
+                <x-sidebar-link icon="megaphone" :href="route('whatsapp-crm.campaigns.index')" :active="request()->routeIs('whatsapp-crm.campaigns.*')">
+                    Campaigns
+                </x-sidebar-link>
+            @endif
+
             {{-- Contacts, nested under WhatsApp CRM: its own resource with its
                  own routes, but not a fourth top-level Marketing row -- the
                  module's `view` gate (already checked above) is all it needs,

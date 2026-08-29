@@ -69,6 +69,7 @@ use App\Http\Controllers\TimesheetDayController;
 use App\Http\Controllers\TodoReviewController;
 use App\Http\Controllers\TodoTrackerController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WhatsappCampaignController;
 use App\Http\Controllers\WhatsappContactController;
 use App\Http\Controllers\WhatsappCrmDashboardController;
 use App\Http\Controllers\WhatsappPhonebookController;
@@ -855,6 +856,21 @@ Route::middleware(['auth', 'module:whatsapp-crm,view'])->prefix('whatsapp-crm')-
     // the group's own `view` gate rather than a separate ability.
     Route::get('templates', [WhatsappTemplateController::class, 'index'])->name('templates.index');
     Route::post('templates/refresh', [WhatsappTemplateController::class, 'refresh'])->name('templates.refresh');
+
+    // No edit/update -- a campaign with logs under it is not rewritten, only
+    // created, cancelled and (via send-now) re-triggered. destroy stays
+    // behind `delete` like every other resource here, even though it only
+    // ever removes a campaign that never sent anything (see
+    // WhatsappCampaignController::destroy()).
+    Route::resource('campaigns', WhatsappCampaignController::class)->except(['edit', 'update'])
+        ->middlewareFor('store', 'module:whatsapp-crm,create')
+        ->middlewareFor('destroy', 'module:whatsapp-crm,delete');
+
+    Route::get('campaigns/{campaign}/progress', [WhatsappCampaignController::class, 'progress'])->name('campaigns.progress');
+    Route::post('campaigns/{campaign}/send-now', [WhatsappCampaignController::class, 'sendNow'])
+        ->middleware('module:whatsapp-crm,edit')->name('campaigns.send-now');
+    Route::post('campaigns/{campaign}/cancel', [WhatsappCampaignController::class, 'cancel'])
+        ->middleware('module:whatsapp-crm,edit')->name('campaigns.cancel');
 });
 
 /*
