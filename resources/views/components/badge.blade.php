@@ -49,6 +49,12 @@
         'delivered' => 'bg-sky-400/15 text-sky-200',
         'read' => 'bg-emerald-400/15 text-emerald-200',
         'failed' => 'bg-red-400/15 text-red-200',
+        // Meta message template statuses (WhatsappTemplateService::list()).
+        // "pending" above already covers PENDING; approved/rejected/disabled
+        // are the other statuses Meta actually returns for a template.
+        'approved' => 'bg-emerald-400/15 text-emerald-200',
+        'rejected' => 'bg-red-400/15 text-red-200',
+        'disabled' => 'bg-white/10 text-brand-100/70',
     ];
 
     $labels = [
@@ -89,6 +95,9 @@
         'delivered' => 'Delivered',
         'read' => 'Read',
         'failed' => 'Failed',
+        'approved' => 'Approved',
+        'rejected' => 'Rejected',
+        'disabled' => 'Disabled',
     ];
 
     // Invoice/recurring statuses arrive as snake_case; Notion statuses arrive as

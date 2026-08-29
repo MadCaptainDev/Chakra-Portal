@@ -81,6 +81,29 @@ class WhatsappTemplateHttpTest extends TestCase
             ->assertDontSee('draft_one');
     }
 
+    /**
+     * Every template list() ever returns is pre-filtered to APPROVED (the
+     * controller never passes approvedOnly: false), so this is the one
+     * status badge that actually renders on this screen -- pin its styled
+     * class and Title Case label so a future badge.blade.php change that
+     * drops the 'approved' map entry (falling back to the raw, all-caps
+     * "APPROVED" label) fails a test instead of shipping unnoticed.
+     */
+    public function test_the_status_badge_renders_styled_rather_than_the_raw_uppercase_fallback(): void
+    {
+        $this->configured();
+        $this->fakeTemplates([
+            ['name' => 'hello_world', 'status' => 'APPROVED', 'language' => 'en_US', 'category' => 'MARKETING'],
+        ]);
+
+        $response = $this->actingAs($this->employee())->get(route('whatsapp-crm.templates.index'));
+
+        $response->assertOk();
+        $response->assertSee('bg-emerald-400/15 text-emerald-200', false);
+        $response->assertSee('Approved', false);
+        $response->assertDontSee('APPROVED', false);
+    }
+
     public function test_refresh_busts_the_cache_and_calls_meta_again(): void
     {
         $this->configured();
