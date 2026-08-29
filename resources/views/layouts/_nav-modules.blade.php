@@ -107,6 +107,21 @@
                 </x-sidebar-link>
             @endif
 
+            {{-- Quick Replies and Templates, nested the same way as Contacts
+                 above -- both are day-to-day WhatsApp CRM work, not modules
+                 of their own. --}}
+            @if ($module === 'whatsapp-crm' && Route::has('whatsapp-crm.quick-replies.index'))
+                <x-sidebar-link icon="chat" :href="route('whatsapp-crm.quick-replies.index')" :active="request()->routeIs('whatsapp-crm.quick-replies.*')">
+                    Quick Replies
+                </x-sidebar-link>
+            @endif
+
+            @if ($module === 'whatsapp-crm' && Route::has('whatsapp-crm.templates.index'))
+                <x-sidebar-link icon="document" :href="route('whatsapp-crm.templates.index')" :active="request()->routeIs('whatsapp-crm.templates.*')">
+                    Templates
+                </x-sidebar-link>
+            @endif
+
             {{-- The Swagger/API reference lives on its own page (never nested
                  inside a specific client or product), reached from here --
                  "sidebar sub-heading in App Studio, named Developer" is the

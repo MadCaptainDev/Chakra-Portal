@@ -72,7 +72,9 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\WhatsappContactController;
 use App\Http\Controllers\WhatsappCrmDashboardController;
 use App\Http\Controllers\WhatsappPhonebookController;
+use App\Http\Controllers\WhatsappQuickReplyController;
 use App\Http\Controllers\WhatsappSettingController;
+use App\Http\Controllers\WhatsappTemplateController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 
@@ -842,6 +844,17 @@ Route::middleware(['auth', 'module:whatsapp-crm,view'])->prefix('whatsapp-crm')-
     Route::get('contacts-import', [WhatsappContactController::class, 'importForm'])->name('contacts.import.form');
     Route::post('contacts-import', [WhatsappContactController::class, 'import'])
         ->middleware('module:whatsapp-crm,create')->name('contacts.import');
+
+    Route::resource('quick-replies', WhatsappQuickReplyController::class)->except('show')
+        ->middlewareFor('store', 'module:whatsapp-crm,create')
+        ->middlewareFor('update', 'module:whatsapp-crm,edit')
+        ->middlewareFor('destroy', 'module:whatsapp-crm,delete');
+
+    // Templates are read-only here (Meta owns them) -- "refresh" only busts
+    // the cache and re-reads, it does not write anything, so it stays behind
+    // the group's own `view` gate rather than a separate ability.
+    Route::get('templates', [WhatsappTemplateController::class, 'index'])->name('templates.index');
+    Route::post('templates/refresh', [WhatsappTemplateController::class, 'refresh'])->name('templates.refresh');
 });
 
 /*
