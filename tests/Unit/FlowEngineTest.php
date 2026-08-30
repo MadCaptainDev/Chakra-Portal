@@ -48,9 +48,19 @@ class FlowEngineTest extends TestCase
         ]);
     }
 
+    /**
+     * Created with model events suppressed: since Task 9,
+     * WhatsappWebhookEventObserver itself calls
+     * FlowEngine::handleInbound() for a TYPE_MESSAGE event, and every test
+     * in this file drives the engine a second time by hand right after
+     * calling this helper -- without withoutEvents(), that would be two
+     * runs per inbound event instead of one. The observer's own wiring is
+     * WhatsappFlowIntegrationTest's job (tests/Feature); this file's job,
+     * unchanged since Task 8, is the engine in isolation.
+     */
     private function inboundEvent(string $waId, string $summary = 'hello'): WhatsappWebhookEvent
     {
-        return WhatsappWebhookEvent::create([
+        return WhatsappWebhookEvent::withoutEvents(fn () => WhatsappWebhookEvent::create([
             'type' => WhatsappWebhookEvent::TYPE_MESSAGE,
             'dedupe_key' => 'test-'.$waId.'-'.uniqid('', true),
             'wa_id' => $waId,
@@ -58,7 +68,7 @@ class FlowEngineTest extends TestCase
             'summary' => $summary,
             'payload' => [],
             'received_at' => now(),
-        ]);
+        ]));
     }
 
     /**

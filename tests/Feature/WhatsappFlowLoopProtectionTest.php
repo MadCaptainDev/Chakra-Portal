@@ -62,7 +62,12 @@ class WhatsappFlowLoopProtectionTest extends TestCase
             ],
         ]);
 
-        $event = WhatsappWebhookEvent::create([
+        // Model events suppressed: since Task 9, creating a TYPE_MESSAGE
+        // event fires WhatsappWebhookEventObserver, which itself calls
+        // FlowEngine::handleInbound() -- this test drives the engine by
+        // hand instead, so without withoutEvents() the flow would run
+        // twice for one event.
+        $event = WhatsappWebhookEvent::withoutEvents(fn () => WhatsappWebhookEvent::create([
             'type' => WhatsappWebhookEvent::TYPE_MESSAGE,
             'dedupe_key' => 'loop-protection-test',
             'wa_id' => '917000000099',
@@ -70,7 +75,7 @@ class WhatsappFlowLoopProtectionTest extends TestCase
             'summary' => 'hello',
             'payload' => [],
             'received_at' => now(),
-        ]);
+        ]));
 
         $startedAt = microtime(true);
 
@@ -132,7 +137,7 @@ class WhatsappFlowLoopProtectionTest extends TestCase
             ],
         ]);
 
-        $event = WhatsappWebhookEvent::create([
+        $event = WhatsappWebhookEvent::withoutEvents(fn () => WhatsappWebhookEvent::create([
             'type' => WhatsappWebhookEvent::TYPE_MESSAGE,
             'dedupe_key' => 'loop-protection-clamp-test',
             'wa_id' => '917000000098',
@@ -140,7 +145,7 @@ class WhatsappFlowLoopProtectionTest extends TestCase
             'summary' => 'hello',
             'payload' => [],
             'received_at' => now(),
-        ]);
+        ]));
 
         $startedAt = microtime(true);
 
