@@ -1,0 +1,226 @@
+/*
+ * Companion stylesheet for resources/js/whatsapp-flow-builder.js, imported
+ * from that JS module (not this app's global resources/css/app.css) so it
+ * ships only on the one page that mounts Drawflow -- see the Vite entry in
+ * vite.config.js and the @vite(['resources/js/whatsapp-flow-builder.js'])
+ * call in flows/edit.blade.php.
+ *
+ * Plain CSS, not Tailwind utility classes: Tailwind's `content` scan
+ * (tailwind.config.js) only reads .blade.php files, so any Tailwind class
+ * name that only ever appeared inside a JS-built HTML string here would be
+ * purged from the compiled bundle. Colors below are the same brand-900/
+ * brand-400 hex values app.css's Tailwind theme defines, copied literally
+ * for that reason.
+ */
+
+.flow-canvas-shell {
+    position: relative;
+    background: #0c1e29; /* brand-900, slightly darker than the app shell so the canvas reads as its own surface */
+    border-radius: 0.75rem;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#flow-drawflow {
+    width: 100%;
+    height: 65vh;
+    min-height: 480px;
+}
+
+/* Drawflow's own background dot grid, recolored for the dark canvas. */
+.drawflow {
+    background-color: #0c1e29;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1.2px, transparent 1.2px);
+    background-size: 22px 22px;
+}
+
+.drawflow .drawflow-node {
+    background: #16303f;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-left: 4px solid #67bcd4;
+    border-radius: 0.5rem;
+    color: #fff;
+    padding: 0;
+    width: 240px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.drawflow .drawflow-node.selected {
+    border-color: #8acce0;
+    box-shadow: 0 0 0 2px #67bcd4;
+}
+
+.drawflow .drawflow-node.is-start-node {
+    border-left-color: #34d399;
+}
+
+/* One accent color per node type, matched to the palette chips below. */
+.drawflow .drawflow-node.send_message { border-left-color: #67bcd4; }
+.drawflow .drawflow-node.send_template { border-left-color: #8acce0; }
+.drawflow .drawflow-node.condition { border-left-color: #fbbf24; }
+.drawflow .drawflow-node.delay { border-left-color: #a78bfa; }
+.drawflow .drawflow-node.set_label { border-left-color: #34d399; }
+.drawflow .drawflow-node.agent_transfer { border-left-color: #f87171; }
+.drawflow .drawflow-node.make_request { border-left-color: #f472b6; }
+
+.drawflow .drawflow-node .drawflow_content_node {
+    width: 100%;
+}
+
+.drawflow .connection .main-path {
+    stroke: #67bcd4;
+    stroke-width: 3px;
+}
+
+.drawflow .connection .main-path:hover {
+    stroke: #8acce0;
+    cursor: pointer;
+}
+
+.drawflow .connection.selected .main-path {
+    stroke: #fbbf24;
+}
+
+.drawflow .drawflow-node .input,
+.drawflow .drawflow-node .output {
+    height: 14px;
+    width: 14px;
+    background: #67bcd4;
+    border: 2px solid #0c1e29;
+}
+
+.drawflow .drawflow-node .output:hover,
+.drawflow .drawflow-node .input:hover {
+    background: #8acce0;
+}
+
+.flow-node {
+    font-family: inherit;
+}
+
+.flow-node__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.flow-node__title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.flow-node__badge {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgba(230, 245, 250, 0.55);
+}
+
+.flow-node__start-pill {
+    display: none;
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #0c1e29;
+    background: #34d399;
+    border-radius: 999px;
+    padding: 0.1rem 0.4rem;
+}
+
+.is-start-node .flow-node__start-pill {
+    display: inline-block;
+}
+
+.flow-node__body {
+    padding: 0.5rem 0.75rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.flow-node__field label {
+    display: block;
+    font-size: 0.65rem;
+    color: rgba(230, 245, 250, 0.6);
+    margin-bottom: 0.15rem;
+}
+
+.flow-node__field input,
+.flow-node__field textarea,
+.flow-node__field select {
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 0.35rem;
+    color: #fff;
+    font-size: 0.75rem;
+    padding: 0.3rem 0.4rem;
+    /* Drawflow drags the node on mousedown unless the target is an input/
+       textarea/select -- nodrag stops that so a field can actually be
+       clicked into and typed in. */
+}
+
+.flow-node__field textarea {
+    resize: vertical;
+    min-height: 2.4rem;
+}
+
+.flow-node__hint {
+    font-size: 0.62rem;
+    color: rgba(230, 245, 250, 0.45);
+    line-height: 1.3;
+}
+
+.flow-node__set-start {
+    font-size: 0.62rem;
+    color: #8acce0;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.flow-node__set-start:hover {
+    color: #abdae7;
+}
+
+/* Palette */
+.flow-palette-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-left: 4px solid #67bcd4;
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: grab;
+    user-select: none;
+    margin-bottom: 0.5rem;
+}
+
+.flow-palette-item:active {
+    cursor: grabbing;
+}
+
+.flow-palette-item.send_message { border-left-color: #67bcd4; }
+.flow-palette-item.send_template { border-left-color: #8acce0; }
+.flow-palette-item.condition { border-left-color: #fbbf24; }
+.flow-palette-item.delay { border-left-color: #a78bfa; }
+.flow-palette-item.set_label { border-left-color: #34d399; }
+.flow-palette-item.agent_transfer { border-left-color: #f87171; }
+.flow-palette-item.make_request { border-left-color: #f472b6; }

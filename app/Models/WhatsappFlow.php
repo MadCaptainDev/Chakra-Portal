@@ -36,9 +36,19 @@ class WhatsappFlow extends Model
         'version' => 'integer',
     ];
 
+    /**
+     * Foreign key given explicitly: Eloquent's own default guess for a
+     * hasMany() is `{snake(class_basename($this))}_id` --
+     * `whatsapp_flow_id` for this model -- but the actual column
+     * (see the whatsapp_flow_sessions migration) is `flow_id`. Left
+     * un-guessed, `$flow->sessions`/`withCount('sessions')` fails outright
+     * (querying a column that does not exist) rather than silently
+     * returning the wrong rows -- caught by Task 10's own flows.index test,
+     * fixed here as a one-line, pre-existing bug in this relation.
+     */
     public function sessions(): HasMany
     {
-        return $this->hasMany(WhatsappFlowSession::class);
+        return $this->hasMany(WhatsappFlowSession::class, 'flow_id');
     }
 
     public function createdBy(): BelongsTo

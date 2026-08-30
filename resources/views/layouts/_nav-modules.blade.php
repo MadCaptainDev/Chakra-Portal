@@ -149,6 +149,23 @@
                 </x-sidebar-link>
             @endif
 
+            {{-- Automations (the Drawflow flow builder) and Sessions (its
+                 read-only debug list), nested the same way as Contacts above.
+                 Sessions sits alongside rather than under Automations -- it
+                 is its own top-level list across every flow, not a child
+                 screen of any one flow. --}}
+            @if ($module === 'whatsapp-crm' && Route::has('whatsapp-crm.flows.index'))
+                <x-sidebar-link icon="sparkles" :href="route('whatsapp-crm.flows.index')" :active="request()->routeIs('whatsapp-crm.flows.*')">
+                    Automations
+                </x-sidebar-link>
+            @endif
+
+            @if ($module === 'whatsapp-crm' && Route::has('whatsapp-crm.flow-sessions.index'))
+                <x-sidebar-link icon="clipboard-list" :href="route('whatsapp-crm.flow-sessions.index')" :active="request()->routeIs('whatsapp-crm.flow-sessions.*')">
+                    Sessions
+                </x-sidebar-link>
+            @endif
+
             {{-- The Swagger/API reference lives on its own page (never nested
                  inside a specific client or product), reached from here --
                  "sidebar sub-heading in App Studio, named Developer" is the

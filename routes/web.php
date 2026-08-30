@@ -73,6 +73,8 @@ use App\Http\Controllers\WhatsappCampaignController;
 use App\Http\Controllers\WhatsappContactController;
 use App\Http\Controllers\WhatsappConversationNoteController;
 use App\Http\Controllers\WhatsappCrmDashboardController;
+use App\Http\Controllers\WhatsappFlowController;
+use App\Http\Controllers\WhatsappFlowSessionController;
 use App\Http\Controllers\WhatsappInboxController;
 use App\Http\Controllers\WhatsappPhonebookController;
 use App\Http\Controllers\WhatsappQuickReplyController;
@@ -897,6 +899,26 @@ Route::middleware(['auth', 'module:whatsapp-crm,view'])->prefix('whatsapp-crm')-
         ->middleware('module:whatsapp-crm,edit')->name('inbox.labels.attach');
     Route::delete('inbox/{conversation}/labels/{label}', [WhatsappInboxController::class, 'detachLabel'])
         ->middleware('module:whatsapp-crm,edit')->name('inbox.labels.detach');
+
+    /*
+     * Automations: the visual flow builder (Task 10). No `show` -- a flow has
+     * nothing worth a read-only detail page beyond what index's row and the
+     * builder itself already carry, the same reasoning quick-replies and
+     * phonebooks above already settled on.
+     */
+    Route::resource('flows', WhatsappFlowController::class)->except('show')
+        ->middlewareFor('store', 'module:whatsapp-crm,create')
+        ->middlewareFor('update', 'module:whatsapp-crm,edit')
+        ->middlewareFor('destroy', 'module:whatsapp-crm,delete');
+    Route::post('flows/{flow}/activate', [WhatsappFlowController::class, 'activate'])
+        ->middleware('module:whatsapp-crm,edit')->name('flows.activate');
+    Route::post('flows/{flow}/deactivate', [WhatsappFlowController::class, 'deactivate'])
+        ->middleware('module:whatsapp-crm,edit')->name('flows.deactivate');
+
+    // Read-only, operator-facing "why did this contact get stuck" screen --
+    // stays behind the group's own `view` gate only, like inbox index/show.
+    Route::get('flow-sessions', [WhatsappFlowSessionController::class, 'index'])->name('flow-sessions.index');
+    Route::get('flow-sessions/{flowSession}', [WhatsappFlowSessionController::class, 'show'])->name('flow-sessions.show');
 });
 
 /*

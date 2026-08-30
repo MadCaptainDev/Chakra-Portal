@@ -19,6 +19,7 @@
         "vite": "^7.0.7"
     },
     "dependencies": {
+        "drawflow": "^0.0.60",
         "firebase": "^12.18.0",
         "swagger-ui-dist": "^5.32.14"
     }
