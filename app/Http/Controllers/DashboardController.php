@@ -170,8 +170,6 @@ class DashboardController extends Controller
             'netCash' => $netCash,
         ]);
 
-        $contentAccount = DashboardWidgets::resolveContentAccount($request->integer('account') ?: null);
-
         return view('dashboard', [
             // Twenty further figures used to be passed here, one per row of the
             // old bottlenecks widget. They are still computed above, because
@@ -214,8 +212,9 @@ class DashboardController extends Controller
             // —— Delivery ——
             'content' => $this->contentPulse($month),
             'contentAccounts' => DashboardWidgets::contentAccounts(),
-            'contentAccount' => $contentAccount,
-            'contentPipeline' => DashboardWidgets::contentPipeline($contentAccount, $month),
+            'contentCards' => DashboardWidgets::contentCards($request->user(), $month),
+            'pinnedAccountIds' => DashboardWidgets::pinnedAccountsFor($request->user())->pluck('id'),
+            'hasPinnedAccounts' => DashboardWidgets::hasPinned($request->user()),
         ]);
     }
 

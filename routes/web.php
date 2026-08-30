@@ -19,6 +19,7 @@ use App\Http\Controllers\CompetitorSettingController;
 use App\Http\Controllers\ContentAccountController;
 use App\Http\Controllers\ContentDashboardController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardWidgetController;
 use App\Http\Controllers\DeveloperController;
 use App\Http\Controllers\EditorOutputController;
 use App\Http\Controllers\EmiController;
@@ -168,6 +169,14 @@ Route::get('i/{token}', [PublicInvoiceController::class, 'pdf'])->name('invoices
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+
+    /*
+     * Arranging your own dashboard cards. Sits in the plain `auth` group
+     * with the other Permission::DEFAULTS screens rather than behind a
+     * module: the controller scopes every write to the signed-in user, so
+     * there is no one else's dashboard to reach and nothing to grant.
+     */
+    Route::put('/dashboard/widgets', [DashboardWidgetController::class, 'update'])->name('dashboard.widgets.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     /*

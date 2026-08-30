@@ -299,6 +299,165 @@ class ContentDashboard
     }
 
     /**
+     * The same per-type picture forMonth() builds, but for an arbitrary set
+     * of accounts rather than every targeted one -- what a dashboard card
+     * needs, where the accounts are whichever ones somebody pinned and an
+     * account with no target is still worth a card.
+     *
+     * Query count does not grow with the number of accounts: the private
+     * helpers below each answer for every account in one query, and this
+     * picks out the ones asked for. Ten pinned cards cost the same as one.
+     *
+     * @param  Collection<int, ContentAccount>  $accounts
+     * @return Collection<int, array<string, mixed>>
+     */
+    public static function forAccounts(Collection $accounts, Carbon $month): Collection
+    {
+        if ($accounts->isEmpty()) {
+            return collect();
+        }
+
+        $published = self::countsByAccount($month);
+        $planned = self::countsByAccountAllStatuses($month);
+        $previous = self::countsByAccount($month->copy()->subMonthNoOverflow());
+        $performance = self::performanceByAccount($month);
+        $topPerformers = self::topPerformerByAccount($month);
+
+        // Pace only means something while a month is still running. A
+        // finished month is not "behind", it is simply what it was, and
+        // colouring a closed month amber invites chasing work nobody can
+        // still do.
+        $isCurrentMonth = $month->isSameMonth(now());
+        $pace = $isCurrentMonth ? self::monthElapsedFraction($month) : null;
+
+        return $accounts->map(function (ContentAccount $account) use (
+            $published, $planned, $previous, $performance, $topPerformers, $pace
+        ) {
+            $publishedCounts = $published[$account->id] ?? [];
+            $plannedCounts = $planned[$account->id] ?? [];
+            $previousCounts = $previous[$account->id] ?? [];
+
+            $types = collect(self::TARGETED)->map(function (string $label, string $source) use (
+                $account, $publishedCounts, $plannedCounts, $previousCounts, $pace
+            ) {
+                $actual = $publishedCounts[$source] ?? 0;
+                $target = $account->targetFor($source);
+                $was = $previousCounts[$source] ?? 0;
+
+                return [
+                    'label' => $label,
+                    'actual' => $actual,
+                    'planned' => $plannedCounts[$source] ?? 0,
+                    'target' => $target,
+                    'pct' => $target ? (int) round($actual / $target * 100) : null,
+                    'delta' => $actual - $was,
+                    'previous' => $was,
+                    'pace' => self::paceVerdict($actual, $target, $pace),
+                ];
+            })->all();
+
+            return [
+                'account' => $account,
+                'types' => $types,
+                // Stories are counted but never targeted, so they carry no
+                // pace or percentage -- just the number.
+                'stories' => $publishedCounts[ContentItem::SOURCE_STORY] ?? 0,
+                'total' => collect($types)->sum('actual'),
+                'target' => $account->totalTarget(),
+                'delta' => collect($types)->sum('delta'),
+                'performance' => $performance[$account->id] ?? null,
+                'top' => $topPerformers[$account->id] ?? null,
+            ];
+        })->values();
+    }
+
+    /**
+     * How far through the month we are, 0..1 -- the yardstick a pace
+     * verdict is measured against.
+     */
+    private static function monthElapsedFraction(Carbon $month): float
+    {
+        $days = $month->daysInMonth;
+
+        return min(1.0, now()->day / max(1, $days));
+    }
+
+    /**
+     * "on_track" / "behind", or null when the question does not apply --
+     * no target set, or a month that has already finished.
+     *
+     * Deliberately two states, not a percentage: the only decision this
+     * drives is "does someone need to shoot more this week", and a number
+     * that is 91% of the way to a target invites arguing with the metric
+     * instead of answering that.
+     */
+    private static function paceVerdict(int $actual, ?int $target, ?float $elapsed): ?string
+    {
+        if ($target === null || $target <= 0 || $elapsed === null) {
+            return null;
+        }
+
+        return $actual >= $target * $elapsed ? 'on_track' : 'behind';
+    }
+
+    /**
+     * The single best-performing published item per account this month, by
+     * views -- the one line of "what actually worked" a card can carry.
+     *
+     * Views rather than likes: a reel's view count is the number the studio
+     * is judged on, and likes on a small account swing on who happened to be
+     * online. Accounts with no connected Instagram get nothing rather than a
+     * zero, same convention as performanceByAccount().
+     *
+     * @return array<int, array{item: ContentItem, views: int}>
+     */
+    private static function topPerformerByAccount(Carbon $month): array
+    {
+        [$since, $until] = self::monthRange($month);
+
+        $ventureToAccount = ContentAccountVenture::pluck('content_account_id', 'venture');
+
+        $linked = ContentItem::query()
+            ->whereNotNull('social_media_item_id')
+            ->where('status', 'Published')
+            ->whereNotNull('published_date')
+            ->whereBetween('published_date', [$since, $until])
+            ->get();
+
+        if ($linked->isEmpty()) {
+            return [];
+        }
+
+        $views = SocialInsight::query()
+            ->selectRaw('social_media_item_id, SUM(value) as total')
+            ->whereIn('social_media_item_id', $linked->pluck('social_media_item_id'))
+            ->where('metric', 'views')
+            ->groupBy('social_media_item_id')
+            ->pluck('total', 'social_media_item_id');
+
+        $best = [];
+
+        foreach ($linked as $item) {
+            $accountId = $ventureToAccount[$item->venture] ?? null;
+
+            if ($accountId === null) {
+                continue;
+            }
+
+            $itemViews = (int) ($views[$item->social_media_item_id] ?? 0);
+
+            if (! isset($best[$accountId]) || $itemViews > $best[$accountId]['views']) {
+                $best[$accountId] = ['item' => $item, 'views' => $itemViews];
+            }
+        }
+
+        // An account whose every matched post has zero recorded views has
+        // no "top" worth printing -- that is missing insight data, not a
+        // winner that happened to score nothing.
+        return array_filter($best, fn (array $b) => $b['views'] > 0);
+    }
+
+    /**
      * How many published items this month belong to no account at all --
      * the number that makes an unmapped-venture warning worth acting on
      * rather than ignoring.

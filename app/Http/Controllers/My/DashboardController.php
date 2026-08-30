@@ -40,8 +40,6 @@ class DashboardController extends Controller
          * owns those charts; the dashboard links to it rather than repeating
          * them, which TimesheetTest pins.
          */
-        $contentAccount = DashboardWidgets::resolveContentAccount($request->integer('account') ?: null);
-
         return view('my.dashboard', [
             'month' => $month,
             'employee' => $user->employeeRecord,
@@ -81,8 +79,9 @@ class DashboardController extends Controller
                 ->get(),
             'myShoots' => DashboardWidgets::upcomingShootsForUser($user),
             'contentAccounts' => DashboardWidgets::contentAccounts(),
-            'contentAccount' => $contentAccount,
-            'contentPipeline' => DashboardWidgets::contentPipeline($contentAccount, $month),
+            'contentCards' => DashboardWidgets::contentCards($user, $month),
+            'pinnedAccountIds' => DashboardWidgets::pinnedAccountsFor($user)->pluck('id'),
+            'hasPinnedAccounts' => DashboardWidgets::hasPinned($user),
         ]);
     }
 }

@@ -260,8 +260,9 @@
             @include('dashboard._content-pipeline', [
                 'month' => $month,
                 'contentAccounts' => $contentAccounts,
-                'contentAccount' => $contentAccount,
-                'contentPipeline' => $contentPipeline,
+                'contentCards' => $contentCards,
+                'pinnedAccountIds' => $pinnedAccountIds,
+                'hasPinnedAccounts' => $hasPinnedAccounts,
                 'routeName' => 'dashboard',
             ])
 
