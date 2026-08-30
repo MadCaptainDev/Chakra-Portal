@@ -80,6 +80,19 @@ class FlowEngine
 
         $this->recordInboundMessage($session, $event);
 
+        // A session parked by DelayNode still reads as `active` -- that is
+        // what lets AdvanceWhatsappFlowSession resume it later -- so without
+        // this check any message the contact sends before that delayed job
+        // fires would walk straight through the wait via this same
+        // handleInbound() path. The message is still recorded above (not
+        // lost), it just does not trigger advancement while the wait is
+        // still genuinely outstanding. resume() -- the delayed job's own
+        // path -- never calls handleInbound(), so it is never subject to
+        // this check; it only ever fires once expires_at has passed anyway.
+        if ($session->expires_at !== null && $session->expires_at->isFuture()) {
+            return;
+        }
+
         $this->run($session);
     }
 

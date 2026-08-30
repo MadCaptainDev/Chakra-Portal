@@ -153,6 +153,71 @@ class WhatsappFlowIntegrationTest extends TestCase
         );
     }
 
+    /**
+     * Finding 2 (final whole-branch review): a session parked by DelayNode
+     * still reads as `active`, which is exactly what lets
+     * AdvanceWhatsappFlowSession resume it later -- but also what let ANY
+     * inbound message from that number walk straight through the wait via
+     * handleInbound()'s own "continue the active session" path, skipping
+     * the delay entirely. DelayNode now stamps `expires_at`, and
+     * handleInbound() must refuse to advance while it is still in the
+     * future -- recording the early message into `variables` (so it is not
+     * lost) but not calling run().
+     */
+    public function test_an_inbound_message_before_the_delay_elapses_does_not_advance_the_session_past_the_wait(): void
+    {
+        $this->configured();
+        Queue::fake();
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.reply']]])]);
+
+        WhatsappFlow::create([
+            'name' => 'Delayed follow-up',
+            'trigger_type' => 'inbound_message',
+            'graph' => [
+                'start_node_id' => 'wait',
+                'nodes' => [
+                    'wait' => ['type' => 'delay', 'seconds' => 3600, 'next' => 'after_wait'],
+                    'after_wait' => ['type' => 'send_message', 'body' => 'Delay done!', 'next' => null],
+                ],
+            ],
+            'is_active' => true,
+        ]);
+
+        $this->postWebhook($this->messagePayload('wamid.EARLY1', 'start please'))->assertOk();
+
+        $session = WhatsappFlowSession::sole();
+        $this->assertSame('active', $session->status);
+        $this->assertSame('after_wait', $session->current_node_id);
+        $this->assertNotNull($session->expires_at);
+        $this->assertTrue($session->expires_at->isFuture());
+
+        // A second message from the same number, well before the delay's
+        // hour is up -- and before AdvanceWhatsappFlowSession (faked, so it
+        // never actually ran) would have fired.
+        $this->postWebhook($this->messagePayload('wamid.EARLY2', 'are you there?'))->assertOk();
+
+        $session->refresh();
+        $this->assertSame('active', $session->status, 'The early message must not complete the flow.');
+        $this->assertSame('after_wait', $session->current_node_id, 'The early message must not walk past the delay.');
+        Http::assertNotSent(fn (Request $request) => ($request->data()['text']['body'] ?? null) === 'Delay done!');
+
+        // Not lost, though -- still recorded, same as every other inbound
+        // message handleInbound() sees.
+        $this->assertSame('are you there?', $session->variables['message']['text'] ?? null);
+
+        // Now the delay has genuinely elapsed. AdvanceWhatsappFlowSession
+        // never re-enters handleInbound() -- it calls FlowEngine::resume()
+        // directly -- so it is not subject to the expires_at guard at all;
+        // it only ever fires once expires_at is naturally in the past.
+        $session->update(['expires_at' => now()->subSecond()]);
+        (new AdvanceWhatsappFlowSession($session->id))->handle(app(FlowEngine::class));
+
+        $session->refresh();
+        $this->assertSame('completed', $session->status);
+        $this->assertNull($session->current_node_id);
+        Http::assertSent(fn (Request $request) => ($request->data()['text']['body'] ?? null) === 'Delay done!');
+    }
+
     public function test_a_webhook_post_still_returns_200_when_the_flow_engine_throws(): void
     {
         $this->configured();

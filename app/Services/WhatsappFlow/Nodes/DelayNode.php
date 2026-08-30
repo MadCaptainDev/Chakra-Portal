@@ -15,14 +15,23 @@ use App\Models\WhatsappFlowSession;
  * whether a job reaches the queue.
  *
  * Config: `seconds` (delay length), `next` (node id to resume at).
+ *
+ * Also stamps `expires_at` to when this wait is actually due to elapse.
+ * FlowEngine::handleInbound() reads it back to tell an early inbound message
+ * (arriving before AdvanceWhatsappFlowSession fires) apart from a legitimate
+ * resume, so a still-`active` session parked here cannot be nudged past its
+ * delay just because the contact happened to text again first.
  */
 class DelayNode implements NodeHandler
 {
     public function handle(WhatsappFlowSession $session, array $nodeConfig): NodeResult
     {
+        $seconds = (int) ($nodeConfig['seconds'] ?? 0);
+
         $session->current_node_id = $nodeConfig['next'] ?? null;
+        $session->expires_at = now()->addSeconds($seconds);
         $session->save();
 
-        return NodeResult::waiting((int) ($nodeConfig['seconds'] ?? 0));
+        return NodeResult::waiting($seconds);
     }
 }

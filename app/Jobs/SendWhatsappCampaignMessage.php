@@ -23,6 +23,20 @@ class SendWhatsappCampaignMessage implements ShouldQueue
 {
     use Queueable;
 
+    /**
+     * This app's own worker convention (composer.json's "dev" script) runs
+     * `queue:listen --tries=1`. On the database queue driver, every pop --
+     * including the RateLimited middleware below releasing this job back
+     * onto the queue because it hit whatsapp-campaign's 40/minute cap --
+     * increments the job's attempts counter. With the worker's own --tries=1
+     * that would let the very first rate-limit release exhaust the job
+     * before handle() ever ran, silently stranding the WhatsappCampaignLog
+     * row at `pending` forever. This overrides that per-job, independent of
+     * how the worker is launched: comfortably larger than any release count
+     * a normal campaign's throttling should produce.
+     */
+    public int $tries = 25;
+
     public function __construct(public readonly int $campaignLogId) {}
 
     /**
