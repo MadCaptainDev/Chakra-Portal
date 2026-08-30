@@ -427,6 +427,19 @@ class FlowEngineTest extends TestCase
         yield 'localhost by name' => ['http://localhost/admin'];
         yield 'private range' => ['http://10.0.0.5/internal'];
         yield 'non-http scheme' => ['file:///etc/passwd'];
+        // Bracketed IPv6 loopback/private -- parse_url() leaves the
+        // brackets on, which filter_var() does not strip on its own
+        // (review round 2, finding on the round-1 SSRF guard).
+        yield 'bracketed IPv6 loopback' => ['http://[::1]/x'];
+        yield 'bracketed IPv6 private (ULA)' => ['http://[fd00::1]/x'];
+        yield 'bracketed IPv6 link-local' => ['http://[fe80::1]/x'];
+        // Alternate spellings of 127.0.0.1 that filter_var() does not
+        // recognise as an IP at all, but curl/getaddrinfo do resolve as
+        // loopback (same review round).
+        yield 'decimal IPv4 (2130706433 == 127.0.0.1)' => ['http://2130706433/x'];
+        yield 'octal-octet IPv4 (0177.0.0.1 == 127.0.0.1)' => ['http://0177.0.0.1/x'];
+        yield 'shorthand IPv4 (127.1 == 127.0.0.1)' => ['http://127.1/x'];
+        yield 'hex IPv4 (0x7f000001 == 127.0.0.1)' => ['http://0x7f000001/x'];
     }
 
     #[DataProvider('unsafeMakeRequestUrls')]
@@ -464,6 +477,43 @@ class FlowEngineTest extends TestCase
         (new FlowEngine)->handleInbound($this->inboundEvent('917000000016'));
 
         Http::assertSent(fn (Request $request) => $request->url() === 'https://example.test/hooks/flow');
+        $this->assertSame('completed', $session->fresh()->status);
+    }
+
+    /**
+     * isAllowedUrl() only ever validated the URL the graph named -- not
+     * wherever a 3xx response from it might point next. Confirmed against
+     * the real Guzzle redirect middleware Http::fake() runs underneath its
+     * mocked responses (not just an assertion on MakeRequestNode's own
+     * code): faking the allowed URL as a 302 to the blocked metadata
+     * address and giving that address its own fake response proves, by
+     * whether that second fake ever gets hit, whether the redirect was
+     * actually followed.
+     */
+    public function test_make_request_node_does_not_follow_a_redirect_to_a_blocked_address(): void
+    {
+        Http::fake([
+            'https://example.test/redirects-away' => Http::response('', 302, [
+                'Location' => 'http://169.254.169.254/latest/meta-data/',
+            ]),
+            'http://169.254.169.254/*' => Http::response('should never be reached', 200),
+        ]);
+
+        $flow = $this->flow([
+            'start_node_id' => 'notify',
+            'nodes' => [
+                'notify' => ['type' => 'make_request', 'url' => 'https://example.test/redirects-away', 'next' => null],
+            ],
+        ]);
+        $session = $this->sessionAt($flow, '917000000017', 'notify');
+
+        (new FlowEngine)->handleInbound($this->inboundEvent('917000000017'));
+
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://example.test/redirects-away');
+        Http::assertNotSent(fn (Request $request) => str_contains($request->url(), '169.254.169.254'));
+        // The un-followed 302 is exactly what should happen -- the flow
+        // still completes; this node's job was to deliver the graph's own
+        // URL, not to chase whatever it redirects to.
         $this->assertSame('completed', $session->fresh()->status);
     }
 }

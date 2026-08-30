@@ -33,17 +33,29 @@ class MakeRequestNode implements NodeHandler
             throw new RuntimeException("MakeRequestNode refused an unsafe or invalid URL: {$url}");
         }
 
-        Http::timeout(10)->post($url, $nodeConfig['payload'] ?? []);
+        // Redirects are refused outright rather than followed: this node
+        // is a fire-and-forget notification, and the pre-flight check
+        // above only ever validated the URL the graph named -- not
+        // wherever a 3xx response might point next. Following it would
+        // let a validated, allowed URL hand the actual request off to an
+        // address isAllowedUrl() never saw (a well-known way to smuggle a
+        // request past exactly this kind of check). A legitimate webhook
+        // endpoint that needs to move should be repointed in the graph,
+        // not relied upon to redirect a POST correctly.
+        Http::timeout(10)->withoutRedirecting()->post($url, $nodeConfig['payload'] ?? []);
 
         return NodeResult::advance($nodeConfig['next'] ?? null);
     }
 
     /**
      * A pragmatic SSRF guard: refuses anything that is not plain http(s),
-     * and any literal loopback/private/link-local/reserved IP or an
-     * obvious localhost-shaped name -- closing the cheap, common case of a
-     * flow graph aimed straight at a cloud metadata endpoint
-     * (169.254.169.254) or an internal address.
+     * any literal loopback/private/link-local/reserved IPv4 or IPv6
+     * address (including the bracketed form a URL's authority carries an
+     * IPv6 literal in, and the decimal/octal/shorthand spellings of an
+     * IPv4 address that curl/getaddrinfo accept but PHP's own IP filter
+     * does not recognise as one), and an obvious localhost-shaped name --
+     * closing the cheap, common case of a flow graph aimed straight at a
+     * cloud metadata endpoint (169.254.169.254) or an internal address.
      *
      * What this does not do is resolve a hostname to catch DNS-rebinding
      * SSRF -- a public-looking name that resolves to a private address at
@@ -67,6 +79,12 @@ class MakeRequestNode implements NodeHandler
         $scheme = strtolower($parts['scheme'] ?? '');
         $host = strtolower($parts['host'] ?? '');
 
+        // parse_url() leaves an IPv6 literal's brackets on ("[::1]") --
+        // filter_var only recognises the bare form, so a bracketed
+        // loopback/private address would otherwise fall straight through
+        // to "not an IP, must be a hostname" below and be allowed.
+        $host = trim($host, '[]');
+
         if (! in_array($scheme, ['http', 'https'], true) || $host === '') {
             return false;
         }
@@ -77,6 +95,21 @@ class MakeRequestNode implements NodeHandler
 
         if (filter_var($host, FILTER_VALIDATE_IP)) {
             return filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;
+        }
+
+        // Not a clean IP literal by filter_var's (strict, dotted-quad or
+        // standard IPv6) reading -- but that is not the same thing as "must
+        // be a real hostname". curl/getaddrinfo happily resolve an IPv4
+        // address written as a bare decimal integer (2130706433 ==
+        // 127.0.0.1), hex (0x7f000001), octal octets (0177.0.0.1), or a
+        // shorthand form (127.1 == 127.0.0.1) -- none of which filter_var
+        // recognises as an IP at all. Rather than reimplementing that
+        // parsing to normalise and re-check every such form, anything
+        // shaped like one of them is refused outright: a real DNS name is
+        // never composed of only digits and dots, or only hex digits after
+        // a 0x prefix.
+        if (preg_match('/^[0-9.]+$/', $host) === 1 || preg_match('/^0x[0-9a-f]+$/i', $host) === 1) {
+            return false;
         }
 
         return true;
