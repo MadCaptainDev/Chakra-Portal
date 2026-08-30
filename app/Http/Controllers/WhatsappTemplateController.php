@@ -45,6 +45,11 @@ class WhatsappTemplateController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        // How many {{1}}, {{2}}, ... the typed body actually uses -- decides
+        // whether body_example is required at all and, if so, exactly how
+        // many values it must carry.
+        $placeholderCount = preg_match_all('/\{\{\d+\}\}/', (string) $request->input('body'));
+
         $validated = $request->validate([
             // Meta's own rule for template names: lowercase letters, digits
             // and underscores only, and immutable once submitted.
@@ -54,9 +59,33 @@ class WhatsappTemplateController extends Controller
             'header' => ['nullable', 'string', 'max:60'],
             'body' => ['required', 'string', 'max:1024'],
             'footer' => ['nullable', 'string', 'max:60'],
+            // Meta will not even review a body with variables unless a
+            // sample value is on file for each one -- required here rather
+            // than left to fail on Meta's side, where the reason ("missing
+            // expected field(s) (example)") never makes it back to this form.
+            'body_example' => [
+                $placeholderCount > 0 ? 'required' : 'nullable',
+                'string',
+                'max:1024',
+            ],
         ], [
             'name.regex' => "Use lowercase letters, digits and underscores only, e.g. \"order_confirmation\" (Meta's naming rule).",
+            'body_example.required' => 'Give one example value per {{n}} in the body -- Meta will not review a template it cannot render a sample of.',
         ]);
+
+        if ($placeholderCount > 0) {
+            $examples = array_map('trim', explode(',', $validated['body_example']));
+
+            if (count($examples) !== $placeholderCount) {
+                return back()->withInput()->withErrors([
+                    'body_example' => "The body uses {$placeholderCount} placeholder(s), but ".count($examples).' example value(s) were given -- they must match, one per comma.',
+                ]);
+            }
+
+            $validated['body_example'] = $examples;
+        } else {
+            unset($validated['body_example']);
+        }
 
         try {
             WhatsappTemplateService::make()->create($validated);

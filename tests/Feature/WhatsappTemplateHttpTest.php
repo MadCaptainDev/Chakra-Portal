@@ -142,11 +142,45 @@ class WhatsappTemplateHttpTest extends TestCase
                 'category' => 'MARKETING',
                 'language' => 'en_US',
                 'body' => 'Hi {{1}}, your order {{2}} has shipped.',
+                'body_example' => 'Priya, ORD-1042',
             ]);
 
         $response->assertRedirect(route('whatsapp-crm.templates.index'));
         $response->assertSessionHas('status', fn (string $status) => str_contains($status, 'submitted to Meta'));
         Http::assertSentCount(1);
+    }
+
+    public function test_a_body_with_placeholders_but_no_example_values_is_rejected_before_meta_is_ever_called(): void
+    {
+        Http::fake();
+
+        $response = $this->actingAs($this->employee(['view', 'create']))
+            ->post(route('whatsapp-crm.templates.store'), [
+                'name' => 'order_confirmation',
+                'category' => 'MARKETING',
+                'language' => 'en_US',
+                'body' => 'Hi {{1}}, your order {{2}} has shipped.',
+            ]);
+
+        $response->assertSessionHasErrors('body_example');
+        Http::assertNothingSent();
+    }
+
+    public function test_a_mismatched_example_value_count_is_rejected_before_meta_is_ever_called(): void
+    {
+        Http::fake();
+
+        $response = $this->actingAs($this->employee(['view', 'create']))
+            ->post(route('whatsapp-crm.templates.store'), [
+                'name' => 'order_confirmation',
+                'category' => 'MARKETING',
+                'language' => 'en_US',
+                'body' => 'Hi {{1}}, your order {{2}} has shipped.',
+                'body_example' => 'Priya',
+            ]);
+
+        $response->assertSessionHasErrors('body_example');
+        Http::assertNothingSent();
     }
 
     public function test_an_invalid_name_is_rejected_before_meta_is_ever_called(): void
@@ -178,6 +212,7 @@ class WhatsappTemplateHttpTest extends TestCase
                 'category' => 'MARKETING',
                 'language' => 'en_US',
                 'body' => 'Hi {{1}}.',
+                'body_example' => 'Priya',
             ]);
 
         $response->assertSessionHasErrors(['name' => 'A template with this name already exists.']);

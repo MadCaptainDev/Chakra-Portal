@@ -8,6 +8,7 @@ use App\Models\CompanySetting;
 use App\Models\Invoice;
 use App\Models\SaasProduct;
 use App\Services\InvoiceDocumentRenderer;
+use App\Services\WhatsappSender;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,7 @@ use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -196,6 +198,54 @@ class InvoiceController extends Controller
         $invoice->approve();
 
         return redirect()->route('invoices.show', $invoice)->with('status', "Approved as {$invoice->invoice_number}.");
+    }
+
+    /**
+     * Hand this invoice to its client on WhatsApp: a template message ("your
+     * invoice is ready") whose button links to a no-login PDF.
+     *
+     * A template rather than free text because this is very often the first
+     * contact with that number -- outside the 24-hour reply window, only an
+     * approved template can reach them at all (see WhatsappSender's own
+     * doc block). "invoice_ready" is the one this feature was built around;
+     * it must exist and be Meta-approved before this can send (see
+     * SeedInvoiceReadyTemplate).
+     */
+    public function sendWhatsapp(Invoice $invoice): RedirectResponse
+    {
+        $invoice->loadMissing('client');
+
+        if (! $invoice->isSendableViaWhatsapp()) {
+            return redirect()->route('invoices.show', $invoice)
+                ->with('error', 'This invoice cannot be sent over WhatsApp -- it needs to be approved, recurring, and its client needs a phone number on file.');
+        }
+
+        try {
+            WhatsappSender::make()->sendTemplate(
+                to: $invoice->client->phone,
+                template: 'invoice_ready',
+                bodyParameters: [
+                    $invoice->client->name,
+                    $invoice->invoice_number,
+                    number_format((float) $invoice->total, 2),
+                ],
+                // The button's dynamic segment is just the token -- the
+                // template's own static base URL supplies the rest (see
+                // SeedInvoiceReadyTemplate), so this must not be the full
+                // invoice->publicUrl().
+                buttonUrlParameter: $invoice->ensurePublicToken(),
+            );
+        } catch (RuntimeException $e) {
+            // Meta's own reason (template not approved yet, number not
+            // reachable, ...) is the useful part -- surfaced as-is rather
+            // than a generic "failed to send".
+            return redirect()->route('invoices.show', $invoice)->with('error', $e->getMessage());
+        }
+
+        $invoice->update(['whatsapp_sent_at' => now()]);
+
+        return redirect()->route('invoices.show', $invoice)
+            ->with('status', "Sent to {$invoice->client->name} on WhatsApp.");
     }
 
     public function discard(Invoice $invoice): RedirectResponse

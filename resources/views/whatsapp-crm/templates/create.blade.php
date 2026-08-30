@@ -60,6 +60,16 @@
                 </div>
 
                 <div class="mb-6">
+                    <x-input-label for="body_example" value="Example values for the placeholders above" />
+                    <x-text-input id="body_example" name="body_example" type="text" class="mt-1"
+                        value="{{ old('body_example') }}" placeholder="e.g. Priya, ORD-1042" />
+                    <p class="text-xs text-brand-100/60 mt-1">
+                        One per @{{n}}, comma-separated, in order. Required if the body has any -- Meta needs a sample to review the template at all.
+                    </p>
+                    <x-input-error :messages="$errors->get('body_example')" class="mt-2" />
+                </div>
+
+                <div class="mb-6">
                     <x-input-label for="footer" value="Footer (optional)" />
                     <x-text-input id="footer" name="footer" type="text" class="mt-1"
                         value="{{ old('footer') }}" placeholder="e.g. Chakra Groups" maxlength="60" />

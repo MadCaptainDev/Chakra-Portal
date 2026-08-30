@@ -29,6 +29,15 @@
                     <a href="{{ route('invoices.pdf', $invoice) }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-brand-400 border border-transparent rounded-md font-semibold text-xs text-brand-900 uppercase tracking-widest hover:bg-brand-500">
                         Download PDF
                     </a>
+                    @if ($invoice->isSendableViaWhatsapp())
+                        <form method="POST" action="{{ route('invoices.send-whatsapp', $invoice) }}"
+                              onsubmit="return confirm('Send this invoice to {{ $invoice->client->name }} ({{ $invoice->client->phone }}) on WhatsApp?');">
+                            @csrf
+                            <button type="submit" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white/5 border border-white/15 rounded-md font-semibold text-xs text-brand-100/80 uppercase tracking-widest hover:bg-white/[0.09]">
+                                {{ $invoice->whatsapp_sent_at ? 'Resend via WhatsApp' : 'Send via WhatsApp' }}
+                            </button>
+                        </form>
+                    @endif
                     <a href="{{ route('invoices.edit', $invoice) }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white/5 border border-white/15 rounded-md font-semibold text-xs text-brand-100/80 uppercase tracking-widest hover:bg-white/[0.09]">
                         Edit
                     </a>
@@ -61,6 +70,10 @@
             <div class="bg-amber-400/10 border border-amber-400/30 rounded-lg p-4 text-sm text-amber-200">
                 This invoice was generated automatically by a recurring schedule and hasn't been sent anywhere yet.
                 Review the details below, then Approve to assign it an invoice number, or Discard to skip this occurrence.
+            </div>
+        @elseif ($invoice->whatsapp_sent_at)
+            <div class="bg-emerald-400/10 border border-emerald-400/30 rounded-lg p-4 text-sm text-emerald-200">
+                Sent to {{ $invoice->client->name }} on WhatsApp, {{ $invoice->whatsapp_sent_at->format('d M Y, g:i A') }}.
             </div>
         @endif
 

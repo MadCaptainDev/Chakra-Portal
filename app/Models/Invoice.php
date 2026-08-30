@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class Invoice extends Model
 {
@@ -54,6 +55,8 @@ class Invoice extends Model
         'total',
         'status',
         'approved_at',
+        'whatsapp_sent_at',
+        'public_token',
         'created_by',
         'recurring_invoice_id',
         'saas_product_id',
@@ -64,6 +67,7 @@ class Invoice extends Model
         'invoice_date' => 'date',
         'due_date' => 'date',
         'approved_at' => 'datetime',
+        'whatsapp_sent_at' => 'datetime',
         'discount_amount' => 'decimal:2',
         'subtotal' => 'decimal:2',
         'total' => 'decimal:2',
@@ -191,6 +195,44 @@ class Invoice extends Model
     public function isPendingApproval(): bool
     {
         return $this->status === self::STATUS_PENDING_APPROVAL;
+    }
+
+    /**
+     * Whether the "Send via WhatsApp" button belongs on this invoice.
+     *
+     * Recurring-generated only, on purpose: a manually created invoice
+     * usually gets handed over some other way (in person, email, a client
+     * portal) that was already the plan before this feature existed, so
+     * offering the button there would be a second, uncoordinated channel for
+     * the same invoice rather than the one this was actually asked for --
+     * "once I approve a recurring invoice, I can send it to the client".
+     */
+    public function isSendableViaWhatsapp(): bool
+    {
+        return ! $this->isPendingApproval()
+            && $this->recurring_invoice_id !== null
+            && filled($this->client?->phone);
+    }
+
+    /**
+     * The token this invoice's no-login PDF link is reached by, minting one
+     * on first use. Never rotated afterwards -- unlike ClientBrief's
+     * public_token, there is no "close this link" need for a bare PDF that
+     * carries no write access, so one token for the life of the invoice is
+     * simpler and just as safe.
+     */
+    public function ensurePublicToken(): string
+    {
+        if ($this->public_token === null) {
+            $this->forceFill(['public_token' => Str::random(48)])->save();
+        }
+
+        return $this->public_token;
+    }
+
+    public function publicUrl(): string
+    {
+        return route('invoices.public-pdf', $this->ensurePublicToken());
     }
 
     /**

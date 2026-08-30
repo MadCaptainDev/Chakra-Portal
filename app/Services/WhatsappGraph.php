@@ -51,6 +51,36 @@ class WhatsappGraph
     }
 
     /**
+     * Meta's DELETE endpoints (e.g. removing a template by name) take their
+     * arguments as query parameters, not a JSON body -- unlike post(), so
+     * this does not go through send(): Laravel's ->delete($url, $data) puts
+     * $data in the request body, which Meta silently ignores on a DELETE.
+     *
+     * @param  array<string, mixed>  $query
+     * @return array<string, mixed>
+     */
+    public function delete(string $path, array $query = []): array
+    {
+        if (! $this->isConfigured()) {
+            throw new RuntimeException(
+                'WhatsApp is not configured: set the access token in Settings -> WhatsApp.'
+            );
+        }
+
+        $url = $this->url($path).($query !== [] ? '?'.http_build_query($query) : '');
+
+        $response = Http::withToken($this->settings->access_token)
+            ->timeout(self::TIMEOUT_SECONDS)
+            ->delete($url);
+
+        if ($response->failed()) {
+            $this->throwFrom($response, $path);
+        }
+
+        return $response->json() ?? [];
+    }
+
+    /**
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */

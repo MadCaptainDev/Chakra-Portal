@@ -47,6 +47,7 @@ use App\Http\Controllers\PortfolioCategoryController;
 use App\Http\Controllers\PortfolioItemController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicBriefController;
+use App\Http\Controllers\PublicInvoiceController;
 use App\Http\Controllers\PublicPortfolioController;
 use App\Http\Controllers\PushSettingController;
 use App\Http\Controllers\PushTokenController;
@@ -150,6 +151,16 @@ Route::middleware('throttle:30,1')->group(function () {
 Route::post('/enquiry', [EnquiryController::class, 'store'])
     ->middleware('throttle:5,1')
     ->name('enquiry.store');
+
+/*
+ * An invoice PDF a client can open without an account -- the link sent over
+ * WhatsApp when an invoice is approved (see InvoiceController::sendWhatsapp()).
+ * Token-only, same convention as brief/{token} above: Meta's own
+ * template-button rules require a static base URL plus exactly one path
+ * segment ("https://.../i/{{1}}"), which rules out a signed route's query
+ * string, so the token itself -- not a signature -- is the credential.
+ */
+Route::get('i/{token}', [PublicInvoiceController::class, 'pdf'])->name('invoices.public-pdf');
 
 /*
  * Shared account area — admins and employees both manage their own profile.
@@ -718,6 +729,13 @@ Route::middleware(['auth', 'module:invoices,view', 'recurring.catchup'])->group(
     // necessarily be the one who signs it off.
     Route::post('invoices/{invoice}/approve', [InvoiceController::class, 'approve'])
         ->middleware('module:invoices,approve')->name('invoices.approve');
+
+    // Handing the invoice to the client over WhatsApp sits behind the same
+    // `approve` ability as approving itself -- the two are one motion for a
+    // recurring invoice (see the show page), not separate permissions to
+    // grant.
+    Route::post('invoices/{invoice}/send-whatsapp', [InvoiceController::class, 'sendWhatsapp'])
+        ->middleware('module:invoices,approve')->name('invoices.send-whatsapp');
 
     Route::middleware('module:invoices,delete')->group(function () {
         Route::delete('invoices/{invoice}', [InvoiceController::class, 'destroy'])->name('invoices.destroy');

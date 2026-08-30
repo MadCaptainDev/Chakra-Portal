@@ -77,7 +77,7 @@ class WhatsappTemplateService
      * before it can send, so the caller gets back Meta's own response
      * (typically `{"status": "PENDING", ...}`) to show, not a fake "done".
      *
-     * @param  array{name: string, category: string, language: string, header?: ?string, body: string, footer?: ?string}  $data
+     * @param  array{name: string, category: string, language: string, header?: ?string, body: string, body_example?: array<int, string>, footer?: ?string, buttons?: array<int, array<string, mixed>>}  $data
      * @return array<string, mixed>
      */
     public function create(array $data): array
@@ -96,10 +96,31 @@ class WhatsappTemplateService
             $components[] = ['type' => 'HEADER', 'format' => 'TEXT', 'text' => $data['header']];
         }
 
-        $components[] = ['type' => 'BODY', 'text' => $data['body']];
+        $body = ['type' => 'BODY', 'text' => $data['body']];
+
+        // Meta requires one sample value per {{n}} in the body before it
+        // will review a template that has any -- without it the create call
+        // itself is rejected with "component of type BODY is missing
+        // expected field(s) (example)", never mind the content.
+        if (filled($data['body_example'] ?? null)) {
+            $body['example'] = ['body_text' => [$data['body_example']]];
+        }
+
+        $components[] = $body;
 
         if (filled($data['footer'] ?? null)) {
             $components[] = ['type' => 'FOOTER', 'text' => $data['footer']];
+        }
+
+        /*
+         * Raw Meta button defs, not yet exposed on the create-template form
+         * (WhatsappTemplateController@create) -- so far the only caller is
+         * the system's own "invoice_ready" template (a dynamic URL button),
+         * seeded once from a console command rather than clicked together in
+         * the UI. A second caller is the trigger to build the form fields.
+         */
+        if (filled($data['buttons'] ?? null)) {
+            $components[] = ['type' => 'BUTTONS', 'buttons' => $data['buttons']];
         }
 
         $response = (new WhatsappGraph($this->settings))->post("{$businessAccountId}/message_templates", [
@@ -114,6 +135,26 @@ class WhatsappTemplateService
         Cache::forget(self::CACHE_KEY);
 
         return $response;
+    }
+
+    /**
+     * Remove a template Meta rejected (or one no longer wanted) so its name
+     * is free to resubmit -- Meta refuses a second submission under a name
+     * that already has content in that language, rejected or not.
+     */
+    public function delete(string $name): void
+    {
+        $businessAccountId = $this->settings->business_account_id;
+
+        if (blank($businessAccountId)) {
+            throw new RuntimeException(
+                'WhatsApp is not configured: set the Business Account ID in Settings -> WhatsApp.'
+            );
+        }
+
+        (new WhatsappGraph($this->settings))->delete("{$businessAccountId}/message_templates", ['name' => $name]);
+
+        Cache::forget(self::CACHE_KEY);
     }
 
     /**

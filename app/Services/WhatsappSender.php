@@ -33,14 +33,19 @@ class WhatsappSender
     /**
      * Send an approved template. This is the one that works cold.
      *
-     * @param  array<int, string>  $bodyParameters  fills {{1}}, {{2}} ... in order
+     * @param  array<int, string>  $bodyParameters  fills the BODY component's {{1}}, {{2}} ... in order
+     * @param  string|null  $buttonUrlParameter  fills a dynamic URL button's {{1}} -- the one path
+     *                                            segment Meta allows after the button's static base URL
+     *                                            (see WhatsappTemplateService::create()'s `buttons` option).
+     *                                            Assumed to be the template's first (index 0) button.
      * @return array{wamid: string|null, response: array<string, mixed>}
      */
     public function sendTemplate(
         string $to,
         string $template,
         string $language = 'en_US',
-        array $bodyParameters = []
+        array $bodyParameters = [],
+        ?string $buttonUrlParameter = null
     ): array {
         $payload = [
             'messaging_product' => 'whatsapp',
@@ -52,14 +57,29 @@ class WhatsappSender
             ],
         ];
 
+        $components = [];
+
         if ($bodyParameters !== []) {
-            $payload['template']['components'] = [[
+            $components[] = [
                 'type' => 'body',
                 'parameters' => array_map(
                     fn (string $text) => ['type' => 'text', 'text' => $text],
                     $bodyParameters
                 ),
-            ]];
+            ];
+        }
+
+        if ($buttonUrlParameter !== null) {
+            $components[] = [
+                'type' => 'button',
+                'sub_type' => 'url',
+                'index' => '0',
+                'parameters' => [['type' => 'text', 'text' => $buttonUrlParameter]],
+            ];
+        }
+
+        if ($components !== []) {
+            $payload['template']['components'] = $components;
         }
 
         return $this->send($payload, summary: sprintf('[template: %s]', $template));
