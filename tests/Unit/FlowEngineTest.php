@@ -440,6 +440,19 @@ class FlowEngineTest extends TestCase
         yield 'octal-octet IPv4 (0177.0.0.1 == 127.0.0.1)' => ['http://0177.0.0.1/x'];
         yield 'shorthand IPv4 (127.1 == 127.0.0.1)' => ['http://127.1/x'];
         yield 'hex IPv4 (0x7f000001 == 127.0.0.1)' => ['http://0x7f000001/x'];
+        // IPv4-mapped IPv6 literals -- a perfectly valid, "public"-looking
+        // IPv6 address to filter_var()'s own private/reserved-range flags,
+        // because those flags never look inside the IPv4 address an
+        // IPv4-mapped literal actually carries (review round 3).
+        yield 'IPv4-mapped IPv6 (metadata address)' => ['http://[::ffff:169.254.169.254]/x'];
+        yield 'IPv4-mapped IPv6 loopback' => ['http://[::ffff:127.0.0.1]/x'];
+        yield 'IPv4-mapped IPv6 private' => ['http://[::ffff:10.0.0.5]/x'];
+        // Per-octet-hex and mixed hex/decimal dotted forms -- neither the
+        // round-2 fix's filter_var() check nor its digit/hex regexes
+        // caught these; curl genuinely resolves both to loopback/private
+        // (review round 3).
+        yield 'per-octet hex IPv4 (0x7f.0x0.0x0.0x1 == 127.0.0.1)' => ['http://0x7f.0x0.0x0.0x1/x'];
+        yield 'mixed hex/decimal IPv4 (192.168.0x1 == 192.168.0.1)' => ['http://192.168.0x1/x'];
     }
 
     #[DataProvider('unsafeMakeRequestUrls')]
@@ -477,6 +490,32 @@ class FlowEngineTest extends TestCase
         (new FlowEngine)->handleInbound($this->inboundEvent('917000000016'));
 
         Http::assertSent(fn (Request $request) => $request->url() === 'https://example.test/hooks/flow');
+        $this->assertSame('completed', $session->fresh()->status);
+    }
+
+    /**
+     * Guards against the fix for review round 3 over-correcting: a public
+     * IPv4-mapped IPv6 address, and a host that is numeric-and-dotted
+     * shaped but canonicalises to a public address, must both still go
+     * through.
+     */
+    public function test_make_request_node_does_not_false_positive_on_public_looking_ip_forms(): void
+    {
+        Http::fake([
+            '[::ffff:8.8.8.8]/*' => Http::response(['ok' => true]),
+        ]);
+
+        $flow = $this->flow([
+            'start_node_id' => 'notify',
+            'nodes' => [
+                'notify' => ['type' => 'make_request', 'url' => 'http://[::ffff:8.8.8.8]/x', 'next' => null],
+            ],
+        ]);
+        $session = $this->sessionAt($flow, '917000000018', 'notify');
+
+        (new FlowEngine)->handleInbound($this->inboundEvent('917000000018'));
+
+        Http::assertSent(fn (Request $request) => str_contains($request->url(), '8.8.8.8'));
         $this->assertSame('completed', $session->fresh()->status);
     }
 
