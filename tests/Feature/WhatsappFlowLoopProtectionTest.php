@@ -91,4 +91,67 @@ class WhatsappFlowLoopProtectionTest extends TestCase
         $this->assertLessThanOrEqual(12, $session->iteration_count);
         $this->assertGreaterThan(0, $session->iteration_count);
     }
+
+    /**
+     * A flow's own graph may only ever tighten FlowEngine's caps, never
+     * raise them -- this graph tries to raise all three to a million, and
+     * must still be stopped at (or under) the engine's own class defaults,
+     * not anywhere near what it asked for. Otherwise a flow's JSON --
+     * ultimately user-authored, once a visual editor writes it -- could
+     * disable its own loop protection from the inside.
+     */
+    public function test_a_flow_cannot_raise_its_own_caps_above_the_engine_defaults(): void
+    {
+        $flow = WhatsappFlow::create([
+            'name' => 'Tries to disable its own protection',
+            'trigger_type' => 'inbound_message',
+            'is_active' => true,
+            'graph' => [
+                'start_node_id' => 'a',
+                'limits' => [
+                    'max_iterations' => 1_000_000,
+                    'max_node_visits' => 1_000_000,
+                    'max_execution_seconds' => 1_000_000,
+                ],
+                'nodes' => [
+                    'a' => [
+                        'type' => 'condition',
+                        'variable' => 'never_set',
+                        'operator' => 'exists',
+                        'next_true' => 'b',
+                        'next_false' => 'b',
+                    ],
+                    'b' => [
+                        'type' => 'condition',
+                        'variable' => 'never_set',
+                        'operator' => 'exists',
+                        'next_true' => 'a',
+                        'next_false' => 'a',
+                    ],
+                ],
+            ],
+        ]);
+
+        $event = WhatsappWebhookEvent::create([
+            'type' => WhatsappWebhookEvent::TYPE_MESSAGE,
+            'dedupe_key' => 'loop-protection-clamp-test',
+            'wa_id' => '917000000098',
+            'message_type' => 'text',
+            'summary' => 'hello',
+            'payload' => [],
+            'received_at' => now(),
+        ]);
+
+        $startedAt = microtime(true);
+
+        (new FlowEngine)->handleInbound($event);
+
+        $elapsedSeconds = microtime(true) - $startedAt;
+
+        $this->assertLessThan(2.0, $elapsedSeconds);
+
+        $session = WhatsappFlowSession::where('flow_id', $flow->id)->sole();
+        $this->assertSame('failed', $session->status);
+        $this->assertLessThanOrEqual(FlowEngine::MAX_ITERATIONS, $session->iteration_count);
+    }
 }

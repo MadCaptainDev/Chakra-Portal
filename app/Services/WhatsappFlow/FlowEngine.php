@@ -15,6 +15,8 @@ use App\Services\WhatsappFlow\Nodes\SendMessageNode;
 use App\Services\WhatsappFlow\Nodes\SendTemplateNode;
 use App\Services\WhatsappFlow\Nodes\SetLabelNode;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Walks a WhatsappFlowSession through its flow's graph, one node at a time.
@@ -22,15 +24,21 @@ use Illuminate\Support\Arr;
  * Two entry points, both funnelling into the same run() loop:
  * - handleInbound(): an inbound message either continues that number's
  *   already-active session, or -- if there is none -- starts one from
- *   whichever is_active flow it matches, then runs it.
+ *   whichever is_active flow it matches, seeds the session's variables with
+ *   the message that just arrived, then runs it.
  * - resume(): AdvanceWhatsappFlowSession calls this once a DelayNode's wait
  *   has elapsed, to pick a still-active session back up.
  *
  * Loop protection lives here and only here, checked at the top of every
  * iteration before a node handler is ever invoked -- a handler that always
  * reports "advance" (by bug, or by a hand-built graph that never reaches an
- * end node) still cannot make this loop run forever, because the caps are
- * enforced independently of whatever the handler returns.
+ * end node) still cannot make this loop run forever. Two things make that
+ * true rather than just intended: the caps a flow's own graph can request
+ * are clamped to never exceed this class's defaults (a flow cannot raise
+ * its own ceiling), and the counters the caps are checked against are kept
+ * in run()-local variables rather than re-read from $session between
+ * iterations, so a handler that overwrites $session->variables wholesale
+ * cannot reset the visit count for the run already in progress.
  */
 class FlowEngine
 {
@@ -70,6 +78,8 @@ class FlowEngine
             return;
         }
 
+        $this->recordInboundMessage($session, $event);
+
         $this->run($session);
     }
 
@@ -95,7 +105,8 @@ class FlowEngine
             return null;
         }
 
-        $startNodeId = data_get($flow->graph, 'start_node_id');
+        $graph = is_array($flow->graph) ? $flow->graph : [];
+        $startNodeId = $graph['start_node_id'] ?? null;
 
         if (blank($startNodeId)) {
             return null;
@@ -110,6 +121,26 @@ class FlowEngine
             'iteration_count' => 0,
             'started_at' => now(),
         ]);
+    }
+
+    /**
+     * Seeds the session's variables with the message that just arrived, so
+     * ConditionNode has something real to branch on the moment a flow
+     * reaches one -- `message.text`/`message.type` are the two things
+     * every inbound webhook event already carries. Merged into whatever is
+     * already there rather than replacing `variables` wholesale, so this
+     * never clobbers `_visits` or a variable an earlier node already set
+     * for a session that is mid-flow.
+     */
+    private function recordInboundMessage(WhatsappFlowSession $session, WhatsappWebhookEvent $event): void
+    {
+        $variables = $session->variables ?? [];
+        $variables['message'] = [
+            'text' => $event->summary,
+            'type' => $event->message_type,
+        ];
+        $session->variables = $variables;
+        $session->save();
     }
 
     /**
@@ -145,44 +176,76 @@ class FlowEngine
         $flow = $session->flow;
 
         if (! $flow) {
-            $session->update(['status' => 'failed']);
+            $this->fail($session, 'The session\'s flow no longer exists.');
 
             return;
         }
 
-        $maxIterations = (int) (data_get($flow->graph, 'limits.max_iterations') ?? self::MAX_ITERATIONS);
-        $maxNodeVisits = (int) (data_get($flow->graph, 'limits.max_node_visits') ?? self::MAX_NODE_VISITS);
-        $maxExecutionSeconds = (int) (data_get($flow->graph, 'limits.max_execution_seconds') ?? self::MAX_EXECUTION_SECONDS);
+        $graph = is_array($flow->graph) ? $flow->graph : [];
+        $limits = is_array($graph['limits'] ?? null) ? $graph['limits'] : [];
+        $nodes = is_array($graph['nodes'] ?? null) ? $graph['nodes'] : [];
+
+        // A flow's own graph may only ever tighten these, never raise them
+        // -- min() against the class default is what makes that a fact
+        // rather than a convention. Without it, a flow's JSON (ultimately
+        // user-authored, once a visual editor writes it) could set
+        // max_iterations to a huge number and disable this engine's own
+        // protection from the inside.
+        $maxIterations = min((int) ($limits['max_iterations'] ?? self::MAX_ITERATIONS), self::MAX_ITERATIONS);
+        $maxNodeVisits = min((int) ($limits['max_node_visits'] ?? self::MAX_NODE_VISITS), self::MAX_NODE_VISITS);
+        $maxExecutionSeconds = min((int) ($limits['max_execution_seconds'] ?? self::MAX_EXECUTION_SECONDS), self::MAX_EXECUTION_SECONDS);
+
+        // Authoritative for this run. Seeded from the session's persisted
+        // state (so a resumed session remembers its history across the gap
+        // a DelayNode leaves), then only ever advanced locally and written
+        // back to $session for persistence/observability -- never re-read
+        // from $session mid-run, so nothing a handler does to
+        // $session->variables can reset them out from under this loop.
+        $iterations = $session->iteration_count;
+        $visits = Arr::get($session->variables, '_visits', []);
+        $visits = is_array($visits) ? $visits : [];
+
+        // Bounds only *this* synchronous walk, starting fresh every time
+        // run() is entered -- including a resume long after a real delay.
+        // $session->started_at is the session's lifetime clock and must
+        // never be used here: a session that legitimately waited an hour on
+        // a DelayNode would otherwise fail the instant it resumed, before a
+        // single node had a chance to run.
+        $runStartedAt = microtime(true);
 
         while (true) {
-            if ($session->started_at && $session->started_at->diffInSeconds(now()) > $maxExecutionSeconds) {
-                $session->update(['status' => 'failed']);
+            if (microtime(true) - $runStartedAt > $maxExecutionSeconds) {
+                $this->fail($session, 'Exceeded max_execution_seconds for a single run.', $iterations, $visits);
 
                 return;
             }
 
-            if ($session->iteration_count >= $maxIterations) {
-                $session->update(['status' => 'failed']);
+            if ($iterations >= $maxIterations) {
+                $this->fail($session, 'Exceeded max_iterations.', $iterations, $visits);
 
                 return;
             }
 
             $nodeId = $session->current_node_id;
-            $nodeConfig = $nodeId !== null ? data_get($flow->graph, "nodes.{$nodeId}") : null;
 
-            if ($nodeId === null || ! is_array($nodeConfig)) {
-                $session->update(['status' => 'completed', 'current_node_id' => null]);
+            if ($nodeId === null) {
+                $this->complete($session);
 
                 return;
             }
 
-            $visits = Arr::get($session->variables, '_visits', []);
+            $nodeConfig = $nodes[$nodeId] ?? null;
+
+            if (! is_array($nodeConfig)) {
+                $this->fail($session, "Flow graph has no node '{$nodeId}'.", $iterations, $visits);
+
+                return;
+            }
+
             $visits[$nodeId] = ($visits[$nodeId] ?? 0) + 1;
 
             if ($visits[$nodeId] > $maxNodeVisits) {
-                $variables = $session->variables ?? [];
-                $variables['_visits'] = $visits;
-                $session->update(['status' => 'failed', 'variables' => $variables]);
+                $this->fail($session, "Exceeded max_node_visits on node '{$nodeId}'.", $iterations, $visits);
 
                 return;
             }
@@ -190,26 +253,51 @@ class FlowEngine
             $handlerClass = self::HANDLERS[$nodeConfig['type'] ?? null] ?? null;
 
             if (! $handlerClass) {
-                $variables = $session->variables ?? [];
-                $variables['_visits'] = $visits;
-                $session->update(['status' => 'failed', 'variables' => $variables]);
+                $this->fail(
+                    $session,
+                    "Unknown node type '".($nodeConfig['type'] ?? '(none)')."' on node '{$nodeId}'.",
+                    $iterations,
+                    $visits,
+                );
 
                 return;
             }
 
+            $iterations++;
+
             $variables = $session->variables ?? [];
             $variables['_visits'] = $visits;
             $session->variables = $variables;
-            $session->iteration_count += 1;
+            $session->iteration_count = $iterations;
             $session->last_advanced_at = now();
             $session->save();
 
-            /** @var NodeHandler $handler */
-            $handler = app($handlerClass);
-            $result = $handler->handle($session, $nodeConfig);
+            try {
+                /** @var NodeHandler $handler */
+                $handler = app($handlerClass);
+                $result = $handler->handle($session, $nodeConfig);
+            } catch (Throwable $e) {
+                // A node handler throwing (WhatsApp not configured, a
+                // MakeRequestNode timeout/DNS failure, ...) must not leave
+                // the session sitting `active` on the node that just threw
+                // -- left alone, the very next inbound message from this
+                // number would re-enter here and re-throw on the same node
+                // forever, burning the visit cap on failures instead of
+                // progress once this is wired into the webhook path.
+                Log::error('WhatsApp flow node handler threw.', [
+                    'session_id' => $session->id,
+                    'flow_id' => $session->flow_id,
+                    'node_id' => $nodeId,
+                    'exception' => $e->getMessage(),
+                ]);
+
+                $session->update(['status' => 'failed', 'last_error' => $e->getMessage()]);
+
+                return;
+            }
 
             if ($result->isEnded()) {
-                $session->update(['status' => 'completed', 'current_node_id' => null]);
+                $this->complete($session);
 
                 return;
             }
@@ -225,12 +313,50 @@ class FlowEngine
             }
 
             if ($result->nextNodeId === null) {
-                $session->update(['status' => 'completed', 'current_node_id' => null]);
+                $this->complete($session);
 
                 return;
             }
 
             $session->update(['current_node_id' => $result->nextNodeId]);
         }
+    }
+
+    /**
+     * Ends a session as `failed`, recording why. $iterationCount/$visits are
+     * only passed by the loop-protection abort paths (there is run-local
+     * bookkeeping to persist back); the one abort that can happen before
+     * the loop even starts -- the session's flow having been deleted out
+     * from under it -- has none to give, so both are optional.
+     *
+     * @param  array<string, int>|null  $visits
+     */
+    private function fail(WhatsappFlowSession $session, string $reason, ?int $iterationCount = null, ?array $visits = null): void
+    {
+        Log::warning('WhatsApp flow session aborted.', [
+            'session_id' => $session->id,
+            'flow_id' => $session->flow_id,
+            'node_id' => $session->current_node_id,
+            'reason' => $reason,
+        ]);
+
+        $attributes = ['status' => 'failed', 'last_error' => $reason];
+
+        if ($iterationCount !== null) {
+            $attributes['iteration_count'] = $iterationCount;
+        }
+
+        if ($visits !== null) {
+            $variables = $session->variables ?? [];
+            $variables['_visits'] = $visits;
+            $attributes['variables'] = $variables;
+        }
+
+        $session->update($attributes);
+    }
+
+    private function complete(WhatsappFlowSession $session): void
+    {
+        $session->update(['status' => 'completed', 'current_node_id' => null]);
     }
 }

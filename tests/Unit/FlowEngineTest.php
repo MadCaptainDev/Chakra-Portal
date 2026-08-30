@@ -15,6 +15,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -308,7 +309,7 @@ class FlowEngineTest extends TestCase
         $this->assertSame(1, WhatsappFlowSession::count());
     }
 
-    public function test_a_second_inbound_message_continues_the_existing_active_session_instead_of_starting_a_new_one(): void
+    public function test_a_completed_sessions_flow_does_not_block_a_later_message_from_starting_a_fresh_session(): void
     {
         Http::fake();
 
@@ -328,5 +329,141 @@ class FlowEngineTest extends TestCase
         // reusing the completed one.
         (new FlowEngine)->handleInbound($this->inboundEvent('917000000010', 'hi again'));
         $this->assertSame(2, WhatsappFlowSession::count());
+    }
+
+    // -- Inbound message seeds variables (review finding 5, option a) -------
+
+    public function test_handle_inbound_seeds_the_just_arrived_message_into_variables_for_condition_node_to_read(): void
+    {
+        $this->configuredSender();
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.5']]])]);
+
+        $flow = $this->flow([
+            'start_node_id' => 'check',
+            'nodes' => [
+                'check' => [
+                    'type' => 'condition',
+                    'variable' => 'message.text',
+                    'operator' => 'contains',
+                    'value' => 'urgent',
+                    'next_true' => 'on_urgent',
+                    'next_false' => 'on_calm',
+                ],
+                'on_urgent' => ['type' => 'send_message', 'body' => 'Escalating now.', 'next' => null],
+                'on_calm' => ['type' => 'send_message', 'body' => 'Noted, thanks.', 'next' => null],
+            ],
+        ], triggerType: 'inbound_message');
+
+        // No variables seeded by hand this time -- handleInbound() itself
+        // is responsible for putting the inbound event's own text where
+        // ConditionNode can see it, with no session pre-existing yet.
+        (new FlowEngine)->handleInbound($this->inboundEvent('917000000012', 'This is urgent, please call me back'));
+
+        Http::assertSent(fn (Request $request) => $request->data()['text']['body'] === 'Escalating now.');
+        $this->assertSame('completed', WhatsappFlowSession::sole()->status);
+    }
+
+    // -- Wall-clock cap is per-run, not per-session-lifetime (review finding 1) --
+
+    public function test_resuming_a_session_long_after_a_real_delay_still_advances_instead_of_failing(): void
+    {
+        $this->configuredSender();
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.6']]])]);
+
+        $flow = $this->flow([
+            'start_node_id' => 'after_wait',
+            'limits' => ['max_execution_seconds' => 5],
+            'nodes' => [
+                'after_wait' => ['type' => 'send_message', 'body' => 'Thanks for waiting!', 'next' => null],
+            ],
+        ]);
+        // Represents exactly what a real DelayNode leaves behind once its
+        // wait has elapsed: a session parked on the post-delay node, whose
+        // started_at (its lifetime clock, not this run's clock) is long in
+        // the past -- here, two hours, comfortably past the 5-second
+        // max_execution_seconds this flow configures for a single run.
+        $session = $this->sessionAt($flow, '917000000013', 'after_wait');
+        $session->update(['started_at' => now()->subHours(2)]);
+
+        (new FlowEngine)->resume($session->fresh());
+
+        Http::assertSent(fn (Request $request) => $request->data()['text']['body'] === 'Thanks for waiting!');
+        $this->assertSame('completed', $session->fresh()->status);
+        $this->assertNull($session->fresh()->last_error);
+    }
+
+    // -- A node handler's exception fails the session cleanly (review finding 4) --
+
+    public function test_a_node_handler_exception_fails_the_session_instead_of_leaving_it_stuck_active(): void
+    {
+        // Deliberately not configuring WhatsApp -- WhatsappSender throws a
+        // RuntimeException when it isn't, which is exactly the kind of
+        // handler failure that must not strand the session.
+        Http::fake();
+
+        $flow = $this->flow([
+            'start_node_id' => 'greet',
+            'nodes' => [
+                'greet' => ['type' => 'send_message', 'body' => 'Hello!', 'next' => null],
+            ],
+        ]);
+        $session = $this->sessionAt($flow, '917000000014', 'greet');
+
+        (new FlowEngine)->handleInbound($this->inboundEvent('917000000014'));
+
+        $session->refresh();
+        $this->assertSame('failed', $session->status);
+        $this->assertStringContainsString('WhatsApp sending is not configured', (string) $session->last_error);
+        Http::assertNothingSent();
+    }
+
+    // -- MakeRequestNode refuses unsafe URLs (review finding 6) --------------
+
+    /** @return iterable<string, array{string}> */
+    public static function unsafeMakeRequestUrls(): iterable
+    {
+        yield 'cloud metadata address' => ['http://169.254.169.254/latest/meta-data/'];
+        yield 'loopback' => ['http://127.0.0.1/admin'];
+        yield 'localhost by name' => ['http://localhost/admin'];
+        yield 'private range' => ['http://10.0.0.5/internal'];
+        yield 'non-http scheme' => ['file:///etc/passwd'];
+    }
+
+    #[DataProvider('unsafeMakeRequestUrls')]
+    public function test_make_request_node_refuses_an_unsafe_url_and_fails_the_session(string $url): void
+    {
+        Http::fake();
+
+        $flow = $this->flow([
+            'start_node_id' => 'notify',
+            'nodes' => [
+                'notify' => ['type' => 'make_request', 'url' => $url, 'next' => null],
+            ],
+        ]);
+        $session = $this->sessionAt($flow, '917000000015', 'notify');
+
+        (new FlowEngine)->handleInbound($this->inboundEvent('917000000015'));
+
+        Http::assertNothingSent();
+        $this->assertSame('failed', $session->fresh()->status);
+        $this->assertStringContainsString('unsafe or invalid URL', (string) $session->fresh()->last_error);
+    }
+
+    public function test_make_request_node_still_allows_an_ordinary_external_host(): void
+    {
+        Http::fake(['example.test/*' => Http::response(['ok' => true])]);
+
+        $flow = $this->flow([
+            'start_node_id' => 'notify',
+            'nodes' => [
+                'notify' => ['type' => 'make_request', 'url' => 'https://example.test/hooks/flow', 'next' => null],
+            ],
+        ]);
+        $session = $this->sessionAt($flow, '917000000016', 'notify');
+
+        (new FlowEngine)->handleInbound($this->inboundEvent('917000000016'));
+
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://example.test/hooks/flow');
+        $this->assertSame('completed', $session->fresh()->status);
     }
 }

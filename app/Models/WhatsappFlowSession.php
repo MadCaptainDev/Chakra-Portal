@@ -17,6 +17,7 @@ class WhatsappFlowSession extends Model
         'current_node_id',
         'variables',
         'status',
+        'last_error',
         'iteration_count',
         'started_at',
         'last_advanced_at',
