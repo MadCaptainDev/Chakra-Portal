@@ -256,9 +256,18 @@
              healthy through a month where the content commitments were
              missed, and the first anyone hears of that is the client
              asking. --}}
-        <section>
+        <section class="space-y-6">
+            @include('dashboard._content-pipeline', [
+                'month' => $month,
+                'contentAccounts' => $contentAccounts,
+                'contentAccount' => $contentAccount,
+                'contentPipeline' => $contentPipeline,
+                'routeName' => 'dashboard',
+            ])
+
+            <div>
             <div class="flex items-baseline justify-between gap-4 mb-4">
-                <x-section-label dark>Delivery</x-section-label>
+                <x-section-label dark>Delivery summary</x-section-label>
                 <a href="{{ route('content-dashboard.index') }}"
                    class="text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-white">Content Dashboard →</a>
             </div>
@@ -340,6 +349,7 @@
                         </p>
                     @endif
                 </x-card>
+            </div>
             </div>
         </section>
 

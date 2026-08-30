@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Services\ClientBriefNudge;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -69,6 +71,30 @@ class ClientBriefLinkController extends Controller
         }
 
         return back()->with('status', 'Reopened. The client can edit and send it again on the same link.');
+    }
+
+    /**
+     * Send the brand-brief reminder through the studio's connected WhatsApp.
+     *
+     * Free text when the client messaged within 24 hours; otherwise the
+     * approved template. Either way the send is filed in WhatsApp CRM.
+     */
+    public function nudge(Request $request, Client $client): RedirectResponse
+    {
+        try {
+            $conversation = app(ClientBriefNudge::class)->send($client, $request->user());
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $crmLink = $request->user()->can('whatsapp-crm.view')
+            ? route('whatsapp-crm.inbox.show', $conversation)
+            : null;
+
+        return back()->with([
+            'status' => 'Brand brief reminder sent on WhatsApp.',
+            'whatsapp_crm_url' => $crmLink,
+        ]);
     }
 
     /**

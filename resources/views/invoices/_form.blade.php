@@ -1,8 +1,12 @@
 @php
+    use App\Support\InvoiceQuantityVariable;
+
     $existingItems = old('items', isset($invoice)
         ? $invoice->items->map(fn ($item) => [
             'description' => $item->description,
-            'quantity' => (float) $item->quantity,
+            'quantity' => InvoiceQuantityVariable::isVariable($item->quantity)
+                ? (string) $item->quantity
+                : (float) $item->quantity,
             'unit_price' => (float) $item->unit_price,
         ])->all()
         : [['description' => '', 'quantity' => 1, 'unit_price' => 0]]
@@ -22,6 +26,7 @@
         items: {{ Illuminate\Support\Js::from($existingItems) }},
         discountAmount: {{ Illuminate\Support\Js::from((float) old('discount_amount', $invoice->discount_amount ?? 0)) }},
     })"
+    x-init="init()"
 >
     <div
         class="mb-6"
@@ -217,6 +222,8 @@
 
     <h3 class="font-semibold text-white mb-2">Line Items</h3>
 
+    <div class="grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-4 mb-2">
+        <div class="min-w-0">
     {{-- Mobile: stacked cards --}}
     <div class="md:hidden space-y-3 mb-2">
         <template x-for="(item, index) in items" :key="index">
@@ -230,8 +237,9 @@
                 <div class="grid grid-cols-2 gap-2">
                     <div>
                         <label class="text-xs text-brand-100/60">Qty</label>
-                        <input type="number" step="0.01" min="0.01" :name="`items[${index}][quantity]`" x-model.number="item.quantity" required
-                            class="block w-full rounded-md border-white/15 shadow-sm text-sm focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
+                        <input type="text" :name="`items[${index}][quantity]`" x-model="item.quantity" required
+                            @focus="focusQty(index)" @input="schedulePreview()"
+                            class="block w-full rounded-md border-white/15 shadow-sm text-sm font-mono focus:border-brand-400 focus:ring-brand-400 min-h-[44px]">
                     </div>
                     <div>
                         <label class="text-xs text-brand-100/60">Unit Price</label>
@@ -250,7 +258,7 @@
             <thead class="bg-brand-900/40">
                 <tr>
                     <th class="px-4 py-2 text-left text-xs font-medium text-brand-100/60 uppercase">Description</th>
-                    <th class="px-4 py-2 text-right text-xs font-medium text-brand-100/60 uppercase w-24">Qty</th>
+                    <th class="px-4 py-2 text-right text-xs font-medium text-brand-100/60 uppercase w-36">Qty</th>
                     <th class="px-4 py-2 text-right text-xs font-medium text-brand-100/60 uppercase w-32">Unit Price</th>
                     <th class="px-4 py-2 text-right text-xs font-medium text-brand-100/60 uppercase w-32">Amount</th>
                     <th class="w-10"></th>
@@ -264,8 +272,9 @@
                                 class="block w-full rounded-md border-white/15 shadow-sm text-sm focus:border-brand-400 focus:ring-brand-400">
                         </td>
                         <td class="px-4 py-2">
-                            <input type="number" step="0.01" min="0.01" :name="`items[${index}][quantity]`" x-model.number="item.quantity" required
-                                class="block w-full rounded-md border-white/15 shadow-sm text-sm text-right focus:border-brand-400 focus:ring-brand-400">
+                            <input type="text" :name="`items[${index}][quantity]`" x-model="item.quantity" required
+                                @focus="focusQty(index)" @input="schedulePreview()"
+                                class="block w-full rounded-md border-white/15 shadow-sm text-sm text-right font-mono focus:border-brand-400 focus:ring-brand-400">
                         </td>
                         <td class="px-4 py-2">
                             <input type="number" step="0.01" min="0" :name="`items[${index}][unit_price]`" x-model.number="item.unit_price" required
@@ -279,6 +288,10 @@
                 </template>
             </tbody>
         </table>
+    </div>
+        </div>
+
+        @include('invoices._quantity-variables', ['clientInputId' => 'client_id', 'monthInputId' => 'invoice_date'])
     </div>
     <button type="button" @click="addItem()" class="text-sm text-brand-500 hover:text-brand-300 font-semibold mb-6 min-h-[44px] inline-flex items-center">+ Add line item</button>
 
@@ -310,6 +323,8 @@
         <a href="{{ route('invoices.index') }}" class="text-sm text-brand-100/70 hover:text-white">Cancel</a>
     </div>
 </div>
+
+@include('invoices._quantity-variables-script')
 
 <script>
     const BLANK_CLIENT = { name: '', address: '', email: '', phone: '', notion_venture: '' };
@@ -419,10 +434,15 @@
 
     function invoiceForm({ items, discountAmount }) {
         return {
+            ...lineItemsWithVariables({
+                previewUrl: @js(route('invoices.quantity-variables.preview')),
+                clientInputId: 'client_id',
+                monthInputId: 'invoice_date',
+            }),
             items: items.length ? items : [{ description: '', quantity: 1, unit_price: 0 }],
             discountAmount: discountAmount,
-            lineTotal(item) {
-                return (Number(item.quantity) || 0) * (Number(item.unit_price) || 0);
+            init() {
+                this.initLineItemsVariables();
             },
             subtotal() {
                 return this.items.reduce((sum, item) => sum + this.lineTotal(item), 0);

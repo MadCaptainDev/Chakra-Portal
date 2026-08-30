@@ -499,6 +499,7 @@ Route::middleware(['auth', 'module:clients,view'])->scopeBindings()->group(funct
 
     Route::middleware('module:clients,edit')->group(function () {
         Route::post('clients/{client}/brief/link', [ClientBriefLinkController::class, 'issue'])->name('clients.brief.link');
+        Route::post('clients/{client}/brief/nudge', [ClientBriefLinkController::class, 'nudge'])->name('clients.brief.nudge');
         Route::delete('clients/{client}/brief/link', [ClientBriefLinkController::class, 'revoke'])->name('clients.brief.link.revoke');
         Route::post('clients/{client}/brief/reopen', [ClientBriefLinkController::class, 'reopen'])->name('clients.brief.reopen');
     });
@@ -699,6 +700,8 @@ Route::middleware(['auth', 'module:timesheets,view'])->group(function () {
  * middleware for why it is not a scheduled job.
  */
 Route::middleware(['auth', 'module:invoices,view', 'recurring.catchup'])->group(function () {
+    Route::get('invoices/quantity-variables/preview', [InvoiceController::class, 'previewQuantityVariables'])
+        ->name('invoices.quantity-variables.preview');
     Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
     Route::post('invoices/download-pdfs', [InvoiceController::class, 'downloadPdfs'])->name('invoices.download-pdfs');
 

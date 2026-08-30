@@ -12,6 +12,14 @@
     </x-slot>
 
     <div class="space-y-4">
+        @if ($portalClients > 0 && ! $activePortalFlow)
+            <div class="rounded-xl bg-amber-400/15 ring-1 ring-amber-400/40 p-4 text-sm text-amber-100">
+                {{ $portalClients }} {{ str('client')->plural($portalClients) }} {{ $portalClients === 1 ? 'has' : 'have' }} WhatsApp self-service enabled,
+                but no <strong>Activated client number</strong> automation is active — their messages will not get the menu.
+                Run <code class="text-amber-50">php artisan whatsapp:ensure-client-portal</code> on the server, or activate one under Automations.
+            </div>
+        @endif
+
         @if ($flows->isEmpty())
             <x-empty-state message="No automations yet.">
                 @can('whatsapp-crm.create')
@@ -22,6 +30,7 @@
             @php
                 $triggerSummary = function ($flow) {
                     return match ($flow->trigger_type) {
+                        'client_portal' => 'Activated client number',
                         'keyword' => 'Keyword: '.($flow->trigger_config['keyword'] ?? '—'),
                         'label_applied' => 'Label applied',
                         default => 'Any inbound message',

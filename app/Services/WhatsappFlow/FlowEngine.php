@@ -3,9 +3,11 @@
 namespace App\Services\WhatsappFlow;
 
 use App\Jobs\AdvanceWhatsappFlowSession;
+use App\Models\Client;
 use App\Models\WhatsappFlow;
 use App\Models\WhatsappFlowSession;
 use App\Models\WhatsappWebhookEvent;
+use App\Services\WhatsappFlow\Nodes\ClientActionNode;
 use App\Services\WhatsappFlow\Nodes\AgentTransferNode;
 use App\Services\WhatsappFlow\Nodes\ConditionNode;
 use App\Services\WhatsappFlow\Nodes\DelayNode;
@@ -15,7 +17,9 @@ use App\Services\WhatsappFlow\Nodes\SendMessageNode;
 use App\Services\WhatsappFlow\Nodes\SendTemplateNode;
 use App\Services\WhatsappFlow\Nodes\SetLabelNode;
 use Illuminate\Support\Arr;
+use App\Support\ClientPortalContent;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -57,12 +61,21 @@ class FlowEngine
         'set_label' => SetLabelNode::class,
         'agent_transfer' => AgentTransferNode::class,
         'make_request' => MakeRequestNode::class,
+        'client_action' => ClientActionNode::class,
     ];
 
     public function handleInbound(WhatsappWebhookEvent $event): void
     {
         if (blank($event->wa_id)) {
             return;
+        }
+
+        if (Client::findForWhatsappPortal($event->wa_id) !== null) {
+            WhatsappFlowSession::query()
+                ->where('wa_id', $event->wa_id)
+                ->where('status', 'active')
+                ->whereHas('flow', fn ($query) => $query->where('trigger_type', '!=', 'client_portal'))
+                ->update(['status' => 'completed', 'current_node_id' => null]);
         }
 
         $session = WhatsappFlowSession::where('wa_id', $event->wa_id)
@@ -75,6 +88,8 @@ class FlowEngine
         }
 
         if (! $session) {
+            $this->handleUnmatchedPortalMessage($event);
+
             return;
         }
 
@@ -150,8 +165,17 @@ class FlowEngine
         $variables = $session->variables ?? [];
         $variables['message'] = [
             'text' => $event->summary,
+            'normalized' => mb_strtolower(trim((string) ($event->summary ?? ''))),
             'type' => $event->message_type,
         ];
+
+        if ($client = Client::findForWhatsappPortal($event->wa_id)) {
+            $variables['client'] = [
+                'id' => $client->id,
+                'name' => $client->name,
+            ];
+        }
+
         $session->variables = $variables;
         $session->save();
     }
@@ -164,6 +188,14 @@ class FlowEngine
      */
     private function matchFlow(WhatsappWebhookEvent $event): ?WhatsappFlow
     {
+        if (Client::findForWhatsappPortal($event->wa_id) !== null) {
+            return WhatsappFlow::query()
+                ->where('is_active', true)
+                ->where('trigger_type', 'client_portal')
+                ->orderBy('id')
+                ->first();
+        }
+
         $text = mb_strtolower((string) ($event->summary ?? ''));
 
         $candidates = WhatsappFlow::query()
@@ -182,6 +214,34 @@ class FlowEngine
         });
 
         return $keywordMatch ?? $candidates->first(fn (WhatsappFlow $flow) => $flow->trigger_type === 'inbound_message');
+    }
+
+    /**
+     * Portal-enabled clients never fall through to the generic catch-all.
+     * If no automation is active yet, tell them plainly and log it for staff.
+     */
+    private function handleUnmatchedPortalMessage(WhatsappWebhookEvent $event): void
+    {
+        $client = Client::findForWhatsappPortal($event->wa_id);
+
+        if ($client === null) {
+            return;
+        }
+
+        Log::warning('WhatsApp client portal message received but no active automation is configured.', [
+            'wa_id' => $event->wa_id,
+            'client_id' => $client->id,
+            'summary' => $event->summary,
+        ]);
+
+        try {
+            ClientPortalContent::sendToSession(
+                new WhatsappFlowSession(['wa_id' => $event->wa_id, 'variables' => ['client' => ['id' => $client->id, 'name' => $client->name]]]),
+                'Hi '.$client->name." — our WhatsApp menu is being set up. Someone from the studio will reply shortly.",
+            );
+        } catch (RuntimeException $e) {
+            Log::error('Could not reply to portal client.', ['error' => $e->getMessage(), 'wa_id' => $event->wa_id]);
+        }
     }
 
     private function run(WhatsappFlowSession $session): void

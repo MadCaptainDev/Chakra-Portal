@@ -2,7 +2,7 @@
 
 namespace App\Http\Middleware;
 
-use App\Services\RecurringInvoiceGenerator;
+use App\Services\RecurringInvoiceRunPipeline;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -22,7 +22,7 @@ class EnsureRecurringInvoicesGenerated
         $claimed = Cache::add('recurring-invoices-generated-on-'.today()->toDateString(), true, now()->addDay());
 
         if ($claimed) {
-            app(RecurringInvoiceGenerator::class)->run();
+            app(RecurringInvoiceRunPipeline::class)->run();
         }
 
         return $next($request);

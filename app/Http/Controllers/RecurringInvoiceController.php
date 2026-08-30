@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\Invoice;
 use App\Models\RecurringInvoice;
 use App\Models\RecurringInvoiceItem;
+use App\Support\InvoiceQuantityVariable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -138,14 +139,20 @@ class RecurringInvoiceController extends Controller
     }
 
     /**
-     * @param  array<int, array{description: string, quantity: float, unit_price: float}>  $items
+     * @param  array<int, array{description: string, quantity: mixed, unit_price: float}>  $items
      */
     private function syncItems(RecurringInvoice $schedule, array $items): void
     {
         foreach ($items as $index => $item) {
+            $quantity = $item['quantity'];
+
+            if (InvoiceQuantityVariable::isVariable($quantity)) {
+                $quantity = InvoiceQuantityVariable::normalizeToken((string) $quantity);
+            }
+
             $schedule->items()->create([
                 'description' => $item['description'],
-                'quantity' => $item['quantity'],
+                'quantity' => (string) $quantity,
                 'unit_price' => $item['unit_price'],
                 'sort_order' => $index,
             ]);

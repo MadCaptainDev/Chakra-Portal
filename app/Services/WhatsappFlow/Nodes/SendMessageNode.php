@@ -4,6 +4,7 @@ namespace App\Services\WhatsappFlow\Nodes;
 
 use App\Models\WhatsappFlowSession;
 use App\Services\WhatsappSender;
+use App\Support\FlowVariables;
 
 /**
  * Sends free text to the number the session belongs to.
@@ -18,7 +19,7 @@ class SendMessageNode implements NodeHandler
     {
         WhatsappSender::make()->sendText(
             $nodeConfig['to'] ?? $session->wa_id,
-            (string) ($nodeConfig['body'] ?? ''),
+            FlowVariables::interpolate((string) ($nodeConfig['body'] ?? ''), $session),
         );
 
         return NodeResult::advance($nodeConfig['next'] ?? null);

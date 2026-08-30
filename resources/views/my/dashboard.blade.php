@@ -115,6 +115,13 @@
             </a>
         @endif
 
+        @include('dashboard._upcoming-shoots', [
+            'shoots' => $myShoots,
+            'title' => 'My upcoming shoots',
+            'empty' => 'You are not on any shoot crew yet.',
+            'allHref' => auth()->user()->can('shoots.view') ? route('shoots.index') : null,
+        ])
+
         {{-- Today's plan, as counts and a way in. The list itself lives on the
              board; what belongs here is the nudge to go and look at it, since a
              to-do list nobody is reminded of is a to-do list nobody keeps. --}}
@@ -151,6 +158,14 @@
             </div>
             <x-icon name="chevron-right" class="w-4 h-4 shrink-0 mt-1 text-brand-300 group-hover:translate-x-0.5 transition-transform" />
         </a>
+
+        @include('dashboard._content-pipeline', [
+            'month' => $month,
+            'contentAccounts' => $contentAccounts,
+            'contentAccount' => $contentAccount,
+            'contentPipeline' => $contentPipeline,
+            'routeName' => 'my.dashboard',
+        ])
 
         {{-- The breakdown charts live on the timesheet, not here. This is the
              link to them -- the dashboard summarises, the timesheet analyses. --}}

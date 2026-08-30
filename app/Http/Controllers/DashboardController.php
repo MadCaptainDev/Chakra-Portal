@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Enquiry;
 use App\Models\NotionShoot;
 use App\Models\RoutineOccurrence;
-use App\Models\Shoot;
 use App\Models\Expense;
 use App\Models\ExpensePayment;
 use App\Models\Invoice;
@@ -14,9 +13,11 @@ use App\Services\ExpenseLedger;
 use App\Services\Notion\NotionSyncRunner;
 use App\Support\ContentDashboard;
 use App\Support\ContributionGraph;
+use App\Support\DashboardWidgets;
 use App\Support\Metric;
 use App\Support\PortfolioSuggestions;
 use App\Support\TeamPulse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -26,7 +27,7 @@ class DashboardController extends Controller
 {
     public function __construct(private readonly ExpenseLedger $ledger) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
         $month = now()->startOfMonth();
         $monthKey = $month->format('Y-m');
@@ -169,6 +170,8 @@ class DashboardController extends Controller
             'netCash' => $netCash,
         ]);
 
+        $contentAccount = DashboardWidgets::resolveContentAccount($request->integer('account') ?: null);
+
         return view('dashboard', [
             // Twenty further figures used to be passed here, one per row of the
             // old bottlenecks widget. They are still computed above, because
@@ -210,6 +213,9 @@ class DashboardController extends Controller
 
             // —— Delivery ——
             'content' => $this->contentPulse($month),
+            'contentAccounts' => DashboardWidgets::contentAccounts(),
+            'contentAccount' => $contentAccount,
+            'contentPipeline' => DashboardWidgets::contentPipeline($contentAccount, $month),
         ]);
     }
 
@@ -228,13 +234,7 @@ class DashboardController extends Controller
     {
         $board = ContentDashboard::forMonth($month);
 
-        $upcoming = Shoot::query()
-            ->with(['client', 'notionShoot'])
-            ->whereDate('starts_at', '>=', today())
-            ->where('status', '!=', Shoot::STATUS_CANCELLED)
-            ->orderBy('starts_at')
-            ->limit(5)
-            ->get();
+        $upcoming = DashboardWidgets::upcomingShootsAll(5);
 
         return [
             'types' => $board['typeTotals'],

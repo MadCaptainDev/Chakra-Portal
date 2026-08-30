@@ -125,6 +125,24 @@ class DrawflowGraphTranslator
                 ['key' => 'payload', 'label' => 'Payload (JSON)', 'type' => 'textarea', 'cast' => 'json_object', 'placeholder' => '{}'],
             ],
         ],
+        'client_action' => [
+            'label' => 'Client Action',
+            'outputs' => 1,
+            'fields' => [
+                [
+                    'key' => 'action',
+                    'label' => 'Send to client',
+                    'type' => 'select',
+                    'cast' => 'string',
+                    'default' => 'invoices',
+                    'options' => [
+                        'invoices' => 'Invoices',
+                        'monthly_report' => 'Monthly report',
+                        'upcoming_shoots' => 'Upcoming shoots',
+                    ],
+                ],
+            ],
+        ],
     ];
 
     /**

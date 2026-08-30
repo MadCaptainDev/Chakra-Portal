@@ -162,6 +162,11 @@ class WhatsappSender
     {
         $digits = preg_replace('/\D+/', '', $number) ?? '';
 
+        // 0-prefixed Indian mobiles (09876543210) must become 10 digits before +91.
+        if (strlen($digits) === 11 && str_starts_with($digits, '0')) {
+            $digits = substr($digits, 1);
+        }
+
         if (strlen($digits) === 10) {
             $digits = '91'.$digits;
         }

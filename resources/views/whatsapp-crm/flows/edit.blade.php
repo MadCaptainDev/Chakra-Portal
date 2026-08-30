@@ -60,7 +60,12 @@
                 <div>
                     <x-input-label for="trigger_type" value="Trigger" />
                     <x-select id="trigger_type" name="trigger_type" class="mt-1">
-                        @foreach (['inbound_message' => 'Any inbound message (catch-all)', 'keyword' => 'Keyword match', 'label_applied' => 'Label applied'] as $value => $label)
+                        @foreach ([
+                            'client_portal' => 'Activated client number (self-service menu)',
+                            'inbound_message' => 'Any inbound message (catch-all)',
+                            'keyword' => 'Keyword match',
+                            'label_applied' => 'Label applied',
+                        ] as $value => $label)
                             <option value="{{ $value }}" @selected($selectedTrigger === $value)>{{ $label }}</option>
                         @endforeach
                     </x-select>
@@ -71,6 +76,10 @@
                          #trigger-keyword-field is -- picking "Label
                          applied" from the dropdown must show this
                          immediately, not only after a save round-trip. --}}
+                    <p id="trigger-client-portal-hint" class="mt-1 text-xs text-brand-100/60 {{ $selectedTrigger === 'client_portal' ? '' : 'hidden' }}">
+                        Runs only for clients with <strong class="text-brand-200">WhatsApp self-service portal</strong> enabled on their phone number.
+                        Use <strong class="text-brand-200">Client Action</strong> nodes for invoices, reports and shoots. In Send Message, use <code class="text-brand-300">@{{client.name}}</code>.
+                    </p>
                     <p id="trigger-label-applied-warning" class="mt-1 text-xs text-amber-300 {{ $selectedTrigger === 'label_applied' ? '' : 'hidden' }}">
                         Not wired up yet -- a flow with this trigger will never start on its own.
                     </p>

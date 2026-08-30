@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\WhatsappSender;
 use App\Support\TimesheetVenture;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -20,9 +21,40 @@ class Client extends Model
         'address',
         'email',
         'phone',
+        'whatsapp_portal_enabled',
         'notion_venture',
         'industry_id',
     ];
+
+    protected $casts = [
+        'whatsapp_portal_enabled' => 'boolean',
+    ];
+
+    /**
+     * A client whose WhatsApp number may use the self-service menu.
+     */
+    public function scopeWhatsappPortalEnabled(Builder $query): Builder
+    {
+        return $query->where('whatsapp_portal_enabled', true)->whereNotNull('phone');
+    }
+
+    /**
+     * Match an inbound wa_id to an activated client portal, if any.
+     */
+    public static function findForWhatsappPortal(string $waId): ?self
+    {
+        $normalised = WhatsappSender::normalise($waId);
+        $suffix = strlen($normalised) >= 10 ? substr($normalised, -10) : $normalised;
+
+        return static::query()
+            ->whatsappPortalEnabled()
+            ->get()
+            ->first(function (self $client) use ($normalised, $suffix) {
+                $phone = WhatsappSender::normalise($client->phone);
+
+                return $phone === $normalised || ($suffix !== '' && str_ends_with($phone, $suffix));
+            });
+    }
 
     /**
      * The client's logo, or null. Stored relative to public/, so asset()

@@ -36,6 +36,11 @@ class WhatsappFlowController extends Controller
     {
         return view('whatsapp-crm.flows.index', [
             'flows' => WhatsappFlow::withCount('sessions')->orderBy('name')->paginate(20),
+            'portalClients' => \App\Models\Client::query()->whatsappPortalEnabled()->count(),
+            'activePortalFlow' => WhatsappFlow::query()
+                ->where('trigger_type', 'client_portal')
+                ->where('is_active', true)
+                ->exists(),
         ]);
     }
 
@@ -121,6 +126,13 @@ class WhatsappFlowController extends Controller
                     ->update(['is_active' => false]);
             }
 
+            if ($flow->trigger_type === 'client_portal') {
+                WhatsappFlow::where('trigger_type', 'client_portal')
+                    ->where('id', '!=', $flow->id)
+                    ->where('is_active', true)
+                    ->update(['is_active' => false]);
+            }
+
             $flow->update(['is_active' => true]);
         });
 
@@ -154,7 +166,7 @@ class WhatsappFlowController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'trigger_type' => ['required', Rule::in(['inbound_message', 'keyword', 'label_applied'])],
+            'trigger_type' => ['required', Rule::in(['inbound_message', 'keyword', 'label_applied', 'client_portal'])],
             'trigger_config' => ['nullable', 'array'],
             'trigger_config.keyword' => ['required_if:trigger_type,keyword', 'nullable', 'string', 'max:255'],
             'graph' => ['required', 'string'],

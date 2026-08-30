@@ -46,6 +46,14 @@ class ClientRequest extends FormRequest
             // that is stored XSS, so the extensions are named explicitly.
             'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
             'remove_logo' => ['sometimes', 'boolean'],
+            'whatsapp_portal_enabled' => ['sometimes', 'boolean'],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'whatsapp_portal_enabled' => $this->boolean('whatsapp_portal_enabled'),
+        ]);
     }
 }

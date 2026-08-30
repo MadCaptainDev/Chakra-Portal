@@ -77,10 +77,25 @@
     <x-input-error :messages="$errors->get('email')" class="mt-2" />
 </div>
 
-<div class="mb-6">
+<div class="mb-4">
     <x-input-label for="phone" value="Phone" />
     <x-text-input id="phone" name="phone" type="text" class="mt-1 block w-full" value="{{ old('phone', $client->phone ?? '') }}" />
     <x-input-error :messages="$errors->get('phone')" class="mt-2" />
+</div>
+
+<div class="mb-6">
+    <label class="inline-flex items-start gap-2.5 text-sm text-brand-100/80">
+        <input type="checkbox" name="whatsapp_portal_enabled" value="1"
+               @checked(old('whatsapp_portal_enabled', $client->whatsapp_portal_enabled ?? false))
+               class="mt-0.5 rounded bg-white/10 border-white/25 text-brand-400 focus:ring-brand-400">
+        <span>
+            <span class="font-semibold text-white">WhatsApp self-service portal</span>
+            <span class="block mt-0.5 text-xs text-brand-100/60">
+                When this number messages the studio, your active <a href="{{ route('whatsapp-crm.flows.index') }}" class="text-brand-300 hover:text-white underline">Client portal automation</a> runs (WhatsApp CRM → Automations).
+            </span>
+        </span>
+    </label>
+    <x-input-error :messages="$errors->get('whatsapp_portal_enabled')" class="mt-2" />
 </div>
 
 <div class="flex items-center gap-4">

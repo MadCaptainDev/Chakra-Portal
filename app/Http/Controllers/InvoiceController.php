@@ -9,7 +9,9 @@ use App\Models\Invoice;
 use App\Models\SaasProduct;
 use App\Services\InvoiceDocumentRenderer;
 use App\Services\WhatsappSender;
+use App\Support\InvoiceQuantityVariable;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
@@ -120,7 +122,10 @@ class InvoiceController extends Controller
                 'created_by' => $request->user()->id,
             ]);
 
-            $this->syncItems($invoice, $request->validated('items'));
+            $client = Client::findOrFail($request->validated('client_id'));
+            $month = Carbon::parse($request->validated('invoice_date'))->startOfMonth();
+
+            $this->syncItems($invoice, $request->validated('items'), $client, $month);
 
             $invoice->load('items');
             $invoice->recalculateTotals();
@@ -163,8 +168,11 @@ class InvoiceController extends Controller
                 'discount_amount' => $request->validated('discount_amount'),
             ]);
 
+            $client = Client::findOrFail($request->validated('client_id'));
+            $month = Carbon::parse($request->validated('invoice_date'))->startOfMonth();
+
             $invoice->items()->delete();
-            $this->syncItems($invoice, $request->validated('items'));
+            $this->syncItems($invoice, $request->validated('items'), $client, $month);
 
             $invoice->load('items');
             $invoice->recalculateTotals();
@@ -386,17 +394,32 @@ class InvoiceController extends Controller
         return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
     }
 
+    public function previewQuantityVariables(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'client_id' => ['required', 'exists:clients,id'],
+            'month' => ['required', 'date'],
+        ]);
+
+        $client = Client::findOrFail($validated['client_id']);
+        $month = Carbon::parse($validated['month'])->startOfMonth();
+
+        return response()->json(InvoiceQuantityVariable::countsFor($client, $month));
+    }
+
     /**
-     * @param  array<int, array{description: string, quantity: float, unit_price: float}>  $items
+     * @param  array<int, array{description: string, quantity: mixed, unit_price: float}>  $items
      */
-    private function syncItems(Invoice $invoice, array $items): void
+    private function syncItems(Invoice $invoice, array $items, Client $client, Carbon $month): void
     {
         foreach ($items as $index => $item) {
+            $quantity = InvoiceQuantityVariable::resolve($item['quantity'], $client, $month);
+
             $invoice->items()->create([
                 'description' => $item['description'],
-                'quantity' => $item['quantity'],
+                'quantity' => $quantity,
                 'unit_price' => $item['unit_price'],
-                'line_total' => $item['quantity'] * $item['unit_price'],
+                'line_total' => $quantity * (float) $item['unit_price'],
                 'sort_order' => $index,
             ]);
         }

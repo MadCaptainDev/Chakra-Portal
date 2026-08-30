@@ -92,6 +92,24 @@ const NODE_TYPES = {
             { key: 'payload', label: 'Payload (JSON)', type: 'textarea', placeholder: '{}', default: '' },
         ],
     },
+    client_action: {
+        label: 'Client Action',
+        inputs: 1,
+        outputs: 1,
+        fields: [
+            {
+                key: 'action',
+                label: 'Send to client',
+                type: 'select',
+                options: [
+                    ['invoices', 'Invoices'],
+                    ['monthly_report', 'Monthly report'],
+                    ['upcoming_shoots', 'Upcoming shoots'],
+                ],
+                default: 'invoices',
+            },
+        ],
+    },
 };
 
 function escapeHtml(value) {
@@ -304,6 +322,7 @@ function init() {
     triggerType?.addEventListener('change', () => {
         keywordField?.classList.toggle('hidden', triggerType.value !== 'keyword');
         labelAppliedWarning?.classList.toggle('hidden', triggerType.value !== 'label_applied');
+        document.getElementById('trigger-client-portal-hint')?.classList.toggle('hidden', triggerType.value !== 'client_portal');
     });
 
     form?.addEventListener('submit', (event) => {

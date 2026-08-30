@@ -7,6 +7,7 @@ use App\Models\Invoice;
 use App\Models\RecurringInvoice;
 use App\Models\User;
 use App\Notifications\RecurringInvoicesGenerated;
+use App\Support\InvoiceQuantityVariable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 
@@ -81,11 +82,17 @@ class RecurringInvoiceGenerator
             ]);
 
             foreach ($schedule->items as $item) {
+                $quantity = InvoiceQuantityVariable::resolve(
+                    $item->quantity,
+                    $schedule->client,
+                    $invoiceDate->copy()->startOfMonth()
+                );
+
                 $invoice->items()->create([
                     'description' => $item->description,
-                    'quantity' => $item->quantity,
+                    'quantity' => $quantity,
                     'unit_price' => $item->unit_price,
-                    'line_total' => $item->quantity * $item->unit_price,
+                    'line_total' => $quantity * (float) $item->unit_price,
                     'sort_order' => $item->sort_order,
                 ]);
             }

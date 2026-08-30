@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Services\RecurringInvoiceGenerator;
+use App\Services\RecurringInvoiceRunPipeline;
 use Illuminate\Console\Command;
 
 class GenerateRecurringInvoices extends Command
@@ -21,9 +21,9 @@ class GenerateRecurringInvoices extends Command
      */
     protected $description = 'Generate pending-approval invoices for any recurring schedule that is due, catching up on missed periods.';
 
-    public function handle(RecurringInvoiceGenerator $generator): int
+    public function handle(RecurringInvoiceRunPipeline $pipeline): int
     {
-        $created = $generator->run();
+        $created = $pipeline->run();
 
         $this->info($created > 0
             ? "Generated {$created} pending invoice(s)."

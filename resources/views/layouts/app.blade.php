@@ -95,7 +95,15 @@
                         <div class="mb-4 flex items-start gap-3 p-4 rounded-xl bg-brand-400/15 ring-1 ring-brand-400/40 text-brand-200"
                              role="status">
                             <x-icon name="check-circle" class="w-5 h-5 shrink-0 mt-0.5 text-brand-300" />
-                            <p class="text-sm font-medium">{{ session('status') }}</p>
+                            <div class="min-w-0">
+                                <p class="text-sm font-medium">{{ session('status') }}</p>
+                                @if (session('whatsapp_crm_url'))
+                                    <a href="{{ session('whatsapp_crm_url') }}"
+                                       class="mt-1 inline-block text-xs font-semibold uppercase tracking-widest text-brand-100 hover:text-white">
+                                        Open in WhatsApp CRM →
+                                    </a>
+                                @endif
+                            </div>
                         </div>
                     @endif
                     @if (session('error'))

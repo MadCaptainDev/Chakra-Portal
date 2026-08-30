@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\InvoiceItemQuantity;
 use Illuminate\Foundation\Http\FormRequest;
 
 class RecurringInvoiceRequest extends FormRequest
@@ -28,7 +29,7 @@ class RecurringInvoiceRequest extends FormRequest
             'discount_amount' => ['nullable', 'numeric', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.description' => ['required', 'string', 'max:255'],
-            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'items.*.quantity' => ['required', new InvoiceItemQuantity],
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
         ];
     }

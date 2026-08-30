@@ -56,6 +56,12 @@
                     <dt class="text-brand-100/60">Phone</dt>
                     <dd class="text-white">{{ $client->phone ?: '—' }}</dd>
                 </div>
+                @if ($client->whatsapp_portal_enabled && $client->phone)
+                    <div>
+                        <dt class="text-brand-100/60">WhatsApp portal</dt>
+                        <dd class="text-white">Active — runs the Client portal automation in WhatsApp CRM</dd>
+                    </div>
+                @endif
                 @if ($ventureLabel)
                     <div>
                         <dt class="text-brand-100/60">Timesheet venture</dt>
@@ -111,32 +117,20 @@
 
             @unless ($brief?->isSubmitted())
                 @if ($client->phone)
-                    {{-- A wa.me deep link, not WhatsappSender. A cold reminder
-                         to somebody who has not messaged the studio in the last
-                         24 hours is only deliverable as a Meta-approved
-                         template, and no brand_brief_reminder template exists.
-                         This needs no approval, no token and no send quota, and
-                         leaves the trail in the sender's own WhatsApp.
-
-                         When a template is approved the upgrade is one route:
-                         POST clients/{client}/brief/nudge behind
-                         module:clients,edit calling sendTemplate(). --}}
                     @php
-                        /*
-                         * The public link when one has been issued, the portal
-                         * URL otherwise. Most clients have no login, so a nudge
-                         * pointing at a sign-in screen is a nudge that comes
-                         * back as "it asked me for a password".
-                         */
                         $nudge = 'Hi '.$client->name.' — before we start writing, could you fill in your brand brief? '
                             .'It takes about ten minutes: '.($brief?->publicUrl() ?? route('client.brief'));
                     @endphp
                     <div class="mb-3 flex flex-wrap items-center gap-2" x-data="{ copied: false }">
-                        <a href="https://wa.me/{{ \App\Services\WhatsappSender::normalise($client->phone) }}?text={{ urlencode($nudge) }}"
-                           target="_blank" rel="noopener"
-                           class="inline-flex items-center gap-1.5 rounded-md bg-brand-400 px-3 py-2 text-xs font-semibold uppercase tracking-widest text-brand-900 hover:bg-brand-500">
-                            Nudge on WhatsApp
-                        </a>
+                        @can('clients.edit')
+                            <form method="POST" action="{{ route('clients.brief.nudge', $client) }}">
+                                @csrf
+                                <button type="submit"
+                                        class="inline-flex items-center gap-1.5 rounded-md bg-brand-400 px-3 py-2 text-xs font-semibold uppercase tracking-widest text-brand-900 hover:bg-brand-500">
+                                    Nudge on WhatsApp
+                                </button>
+                            </form>
+                        @endcan
                         <button type="button"
                                 @click="navigator.clipboard.writeText(@js($nudge)).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
                                 class="text-xs font-semibold uppercase tracking-widest text-brand-100/60 hover:text-white">

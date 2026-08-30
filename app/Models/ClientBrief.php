@@ -21,6 +21,9 @@ class ClientBrief extends Model
 {
     use HasFactory;
 
+    /** Meta-approved template for cold brand-brief reminders. */
+    public const WHATSAPP_TEMPLATE = 'brand_brief_reminder';
+
     public const STATUS_NOT_STARTED = 'not_started';
 
     public const STATUS_IN_PROGRESS = 'in_progress';

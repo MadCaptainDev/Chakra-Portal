@@ -7,6 +7,7 @@ use App\Models\Announcement;
 use App\Models\EmployeePoint;
 use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
+use App\Support\DashboardWidgets;
 use App\Support\TimesheetAnomalies;
 use App\Models\Todo;
 use Illuminate\Http\Request;
@@ -39,6 +40,8 @@ class DashboardController extends Controller
          * owns those charts; the dashboard links to it rather than repeating
          * them, which TimesheetTest pins.
          */
+        $contentAccount = DashboardWidgets::resolveContentAccount($request->integer('account') ?: null);
+
         return view('my.dashboard', [
             'month' => $month,
             'employee' => $user->employeeRecord,
@@ -76,6 +79,10 @@ class DashboardController extends Controller
                 ->orderBy('started_at')
                 ->take(5)
                 ->get(),
+            'myShoots' => DashboardWidgets::upcomingShootsForUser($user),
+            'contentAccounts' => DashboardWidgets::contentAccounts(),
+            'contentAccount' => $contentAccount,
+            'contentPipeline' => DashboardWidgets::contentPipeline($contentAccount, $month),
         ]);
     }
 }
