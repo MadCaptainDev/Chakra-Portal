@@ -117,4 +117,69 @@ class WhatsappTemplateHttpTest extends TestCase
 
         Http::assertSentCount(2);
     }
+
+    public function test_an_employee_without_create_is_refused_the_form_and_the_submit(): void
+    {
+        $employee = $this->employee(['view']);
+
+        $this->actingAs($employee)->get(route('whatsapp-crm.templates.create'))->assertForbidden();
+        $this->actingAs($employee)->post(route('whatsapp-crm.templates.store'), [
+            'name' => 'order_confirmation',
+            'category' => 'MARKETING',
+            'language' => 'en_US',
+            'body' => 'Hi {{1}}.',
+        ])->assertForbidden();
+    }
+
+    public function test_a_valid_submission_is_posted_to_meta_and_redirects_with_a_status_message(): void
+    {
+        $this->configured();
+        Http::fake(['graph.facebook.com/*' => Http::response(['id' => '123', 'status' => 'PENDING'])]);
+
+        $response = $this->actingAs($this->employee(['view', 'create']))
+            ->post(route('whatsapp-crm.templates.store'), [
+                'name' => 'order_confirmation',
+                'category' => 'MARKETING',
+                'language' => 'en_US',
+                'body' => 'Hi {{1}}, your order {{2}} has shipped.',
+            ]);
+
+        $response->assertRedirect(route('whatsapp-crm.templates.index'));
+        $response->assertSessionHas('status', fn (string $status) => str_contains($status, 'submitted to Meta'));
+        Http::assertSentCount(1);
+    }
+
+    public function test_an_invalid_name_is_rejected_before_meta_is_ever_called(): void
+    {
+        Http::fake();
+
+        $response = $this->actingAs($this->employee(['view', 'create']))
+            ->post(route('whatsapp-crm.templates.store'), [
+                'name' => 'Order Confirmation!',
+                'category' => 'MARKETING',
+                'language' => 'en_US',
+                'body' => 'Hi {{1}}.',
+            ]);
+
+        $response->assertSessionHasErrors('name');
+        Http::assertNothingSent();
+    }
+
+    public function test_metas_own_rejection_reason_is_surfaced_on_the_form(): void
+    {
+        $this->configured();
+        Http::fake(['graph.facebook.com/*' => Http::response([
+            'error' => ['message' => 'A template with this name already exists.'],
+        ], 400)]);
+
+        $response = $this->actingAs($this->employee(['view', 'create']))
+            ->post(route('whatsapp-crm.templates.store'), [
+                'name' => 'order_confirmation',
+                'category' => 'MARKETING',
+                'language' => 'en_US',
+                'body' => 'Hi {{1}}.',
+            ]);
+
+        $response->assertSessionHasErrors(['name' => 'A template with this name already exists.']);
+    }
 }

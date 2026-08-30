@@ -70,6 +70,53 @@ class WhatsappTemplateService
     }
 
     /**
+     * Submit a new template to Meta for approval.
+     *
+     * Templates are not created here -- this is a thin wrapper over the one
+     * Graph call, mirroring `list()`'s shape. Meta reviews every submission
+     * before it can send, so the caller gets back Meta's own response
+     * (typically `{"status": "PENDING", ...}`) to show, not a fake "done".
+     *
+     * @param  array{name: string, category: string, language: string, header?: ?string, body: string, footer?: ?string}  $data
+     * @return array<string, mixed>
+     */
+    public function create(array $data): array
+    {
+        $businessAccountId = $this->settings->business_account_id;
+
+        if (blank($businessAccountId)) {
+            throw new RuntimeException(
+                'WhatsApp is not configured: set the Business Account ID in Settings -> WhatsApp.'
+            );
+        }
+
+        $components = [];
+
+        if (filled($data['header'] ?? null)) {
+            $components[] = ['type' => 'HEADER', 'format' => 'TEXT', 'text' => $data['header']];
+        }
+
+        $components[] = ['type' => 'BODY', 'text' => $data['body']];
+
+        if (filled($data['footer'] ?? null)) {
+            $components[] = ['type' => 'FOOTER', 'text' => $data['footer']];
+        }
+
+        $response = (new WhatsappGraph($this->settings))->post("{$businessAccountId}/message_templates", [
+            'name' => $data['name'],
+            'language' => $data['language'],
+            'category' => $data['category'],
+            'components' => $components,
+        ]);
+
+        // The list just changed (a PENDING template now exists that did not
+        // before) -- next visit to the index should see it, not the stale cache.
+        Cache::forget(self::CACHE_KEY);
+
+        return $response;
+    }
+
+    /**
      * The raw Graph call, mirroring CheckWhatsappPermissions' proven shape
      * for this exact endpoint.
      *

@@ -855,11 +855,17 @@ Route::middleware(['auth', 'module:whatsapp-crm,view'])->prefix('whatsapp-crm')-
         ->middlewareFor('update', 'module:whatsapp-crm,edit')
         ->middlewareFor('destroy', 'module:whatsapp-crm,delete');
 
-    // Templates are read-only here (Meta owns them) -- "refresh" only busts
-    // the cache and re-reads, it does not write anything, so it stays behind
-    // the group's own `view` gate rather than a separate ability.
+    // index/refresh are read-only (Meta owns the templates) -- "refresh" only
+    // busts the cache and re-reads, it does not write anything, so it stays
+    // behind the group's own `view` gate rather than a separate ability.
+    // create/store submit a new template to Meta, so those get the same
+    // `create` ability every other "add one of these" route in this group uses.
     Route::get('templates', [WhatsappTemplateController::class, 'index'])->name('templates.index');
     Route::post('templates/refresh', [WhatsappTemplateController::class, 'refresh'])->name('templates.refresh');
+    Route::get('templates/create', [WhatsappTemplateController::class, 'create'])
+        ->middleware('module:whatsapp-crm,create')->name('templates.create');
+    Route::post('templates', [WhatsappTemplateController::class, 'store'])
+        ->middleware('module:whatsapp-crm,create')->name('templates.store');
 
     // No edit/update -- a campaign with logs under it is not rewritten, only
     // created, cancelled and (via send-now) re-triggered. destroy stays

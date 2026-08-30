@@ -8,6 +8,7 @@
                         @csrf
                         <x-btn type="submit" variant="secondary" icon="refresh">Refresh from Meta</x-btn>
                     </form>
+                    <x-btn :href="route('whatsapp-crm.templates.create')" icon="plus">New Template</x-btn>
                 </x-slot>
             @endif
         </x-page-header>
