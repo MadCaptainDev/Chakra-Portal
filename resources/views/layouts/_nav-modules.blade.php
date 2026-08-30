@@ -97,6 +97,23 @@
                 </x-sidebar-link>
             @endif
 
+            {{-- Inbox, nested under WhatsApp CRM ahead of Campaigns: reading and
+                 replying to what contacts actually send is the daily job, the
+                 broadcast list is not. Carries its own copy of the module's
+                 badge (same $badge computed above) so the unread count is
+                 pointing at the screen that actually clears it, not just the
+                 group heading. --}}
+            @if ($module === 'whatsapp-crm' && Route::has('whatsapp-crm.inbox.index'))
+                <x-sidebar-link icon="inbox" :href="route('whatsapp-crm.inbox.index')" :active="request()->routeIs('whatsapp-crm.inbox.*')">
+                    Inbox
+                    @if ($badge > 0)
+                        <span class="ml-auto shrink-0 inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-brand-400 text-brand-900 text-[11px] font-bold">
+                            {{ $badge > 99 ? '99+' : $badge }}
+                        </span>
+                    @endif
+                </x-sidebar-link>
+            @endif
+
             {{-- Campaigns, nested under WhatsApp CRM the same way as Contacts
                  below: the module's landing page (WhatsappCrmDashboardController
                  redirects here), so it reads first in this list even though it

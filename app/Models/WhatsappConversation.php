@@ -43,12 +43,18 @@ class WhatsappConversation extends Model
 
     public function notes(): HasMany
     {
-        return $this->hasMany(WhatsappConversationNote::class);
+        // Explicit FK: the default ("whatsapp_conversation_id") does not
+        // match the migration's "conversation_id" column -- same fix as
+        // WhatsappCampaign::logs() needed for the same reason.
+        return $this->hasMany(WhatsappConversationNote::class, 'conversation_id');
     }
 
     public function labels(): BelongsToMany
     {
-        return $this->belongsToMany(WhatsappLabel::class, 'whatsapp_conversation_label');
+        // Same explicit-FK fix as notes() above -- the pivot's columns are
+        // conversation_id/label_id, not the whatsapp_-prefixed defaults
+        // Eloquent would otherwise guess from the class names.
+        return $this->belongsToMany(WhatsappLabel::class, 'whatsapp_conversation_label', 'conversation_id', 'label_id');
     }
 
     public function assignedTo(): BelongsTo

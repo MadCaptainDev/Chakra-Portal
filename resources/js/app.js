@@ -1,8 +1,15 @@
 import './bootstrap';
 
 import Alpine from 'alpinejs';
+import { whatsappInboxThread } from './whatsapp-inbox.js';
 
 window.Alpine = Alpine;
+
+// Registered before start() so resources/views/whatsapp-crm/inbox/show.blade.php's
+// x-data="whatsappInboxThread(...)" can resolve it -- unlike push.js below,
+// this is not lazy: the thread's polling has to be running the moment the
+// page it belongs to loads, not after a first user gesture opts in.
+Alpine.data('whatsappInboxThread', whatsappInboxThread);
 
 Alpine.start();
 

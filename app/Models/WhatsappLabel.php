@@ -14,6 +14,9 @@ class WhatsappLabel extends Model
 
     public function conversations(): BelongsToMany
     {
-        return $this->belongsToMany(WhatsappConversation::class, 'whatsapp_conversation_label');
+        // Explicit FK, matching the fix on the inverse side in
+        // WhatsappConversation::labels() -- the pivot's columns are
+        // label_id/conversation_id, not the whatsapp_-prefixed defaults.
+        return $this->belongsToMany(WhatsappConversation::class, 'whatsapp_conversation_label', 'label_id', 'conversation_id');
     }
 }

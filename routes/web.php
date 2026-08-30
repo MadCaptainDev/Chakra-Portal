@@ -71,7 +71,9 @@ use App\Http\Controllers\TodoTrackerController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WhatsappCampaignController;
 use App\Http\Controllers\WhatsappContactController;
+use App\Http\Controllers\WhatsappConversationNoteController;
 use App\Http\Controllers\WhatsappCrmDashboardController;
+use App\Http\Controllers\WhatsappInboxController;
 use App\Http\Controllers\WhatsappPhonebookController;
 use App\Http\Controllers\WhatsappQuickReplyController;
 use App\Http\Controllers\WhatsappSettingController;
@@ -871,6 +873,30 @@ Route::middleware(['auth', 'module:whatsapp-crm,view'])->prefix('whatsapp-crm')-
         ->middleware('module:whatsapp-crm,edit')->name('campaigns.send-now');
     Route::post('campaigns/{campaign}/cancel', [WhatsappCampaignController::class, 'cancel'])
         ->middleware('module:whatsapp-crm,edit')->name('campaigns.cancel');
+
+    /*
+     * The 2-way inbox. index/show/messages stay behind the group's own `view`
+     * gate only -- reading a thread is not a different ability from seeing
+     * the module at all. Everything that changes a conversation (reply,
+     * assign, labels) needs `edit`; notes follow the same store->create,
+     * destroy->delete split every other resource in this group uses.
+     */
+    Route::get('inbox', [WhatsappInboxController::class, 'index'])->name('inbox.index');
+    Route::get('inbox/{conversation}', [WhatsappInboxController::class, 'show'])->name('inbox.show');
+    Route::get('inbox/{conversation}/messages', [WhatsappInboxController::class, 'messages'])->name('inbox.messages');
+    Route::post('inbox/{conversation}/reply', [WhatsappInboxController::class, 'reply'])
+        ->middleware('module:whatsapp-crm,edit')->name('inbox.reply');
+    Route::post('inbox/{conversation}/read', [WhatsappInboxController::class, 'markRead'])->name('inbox.read');
+    Route::post('inbox/{conversation}/assign', [WhatsappInboxController::class, 'assign'])
+        ->middleware('module:whatsapp-crm,edit')->name('inbox.assign');
+    Route::post('inbox/{conversation}/notes', [WhatsappConversationNoteController::class, 'store'])
+        ->middleware('module:whatsapp-crm,create')->name('inbox.notes.store');
+    Route::delete('inbox/{conversation}/notes/{note}', [WhatsappConversationNoteController::class, 'destroy'])
+        ->middleware('module:whatsapp-crm,delete')->name('inbox.notes.destroy');
+    Route::post('inbox/{conversation}/labels/{label}', [WhatsappInboxController::class, 'attachLabel'])
+        ->middleware('module:whatsapp-crm,edit')->name('inbox.labels.attach');
+    Route::delete('inbox/{conversation}/labels/{label}', [WhatsappInboxController::class, 'detachLabel'])
+        ->middleware('module:whatsapp-crm,edit')->name('inbox.labels.detach');
 });
 
 /*
