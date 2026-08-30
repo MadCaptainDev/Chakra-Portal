@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Observers\WhatsappWebhookEventObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
@@ -19,6 +21,7 @@ use Illuminate\Support\Facades\Log;
  * does not understand, the row still lands, still shows in the admin list, and
  * the full JSON is there to read.
  */
+#[ObservedBy(WhatsappWebhookEventObserver::class)]
 class WhatsappWebhookEvent extends Model
 {
     public const TYPE_MESSAGE = 'message';

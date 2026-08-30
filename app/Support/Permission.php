@@ -254,6 +254,7 @@ class Permission
             'label' => 'WhatsApp CRM',
             'group' => 'Marketing',
             'icon' => 'chat',
+            'badge' => [\App\Models\WhatsappConversation::class, 'unreadCount'],
             'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
     ];
