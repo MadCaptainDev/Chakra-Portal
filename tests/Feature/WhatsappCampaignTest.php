@@ -375,6 +375,34 @@ class WhatsappCampaignTest extends TestCase
         Bus::assertNotDispatched(SendWhatsappCampaignMessage::class);
     }
 
+    /**
+     * The scenario the FK-style whereNull/pluck-then-update version of this
+     * command was vulnerable to: a run that takes long enough for a second
+     * tick to start before the first has stamped every row's dispatched_at.
+     * Simulated here by calling the command twice back to back with
+     * Bus::fake() in play -- nothing dispatched by the first call has
+     * actually run, so every log is still `pending` when the second call's
+     * own claim step looks at the table, exactly as it would be mid-way
+     * through an overlapping real run. The per-row atomic claim in
+     * claimAndDispatch() must still land each log's job exactly once.
+     */
+    public function test_calling_the_command_twice_in_a_row_does_not_double_dispatch_the_same_logs(): void
+    {
+        Bus::fake();
+
+        $phonebook = $this->phonebookWithContacts(3);
+        $campaign = $this->campaign($phonebook, ['status' => 'sending']);
+        foreach ($phonebook->contacts as $contact) {
+            $campaign->logs()->create(['contact_id' => $contact->id, 'phone' => $contact->phone, 'status' => 'pending']);
+        }
+
+        Artisan::call('whatsapp:dispatch-campaigns');
+        Artisan::call('whatsapp:dispatch-campaigns');
+
+        Bus::assertDispatchedTimes(SendWhatsappCampaignMessage::class, 3);
+        $this->assertSame(3, $campaign->logs()->whereNotNull('dispatched_at')->count());
+    }
+
     public function test_a_sending_campaign_with_zero_pending_logs_left_flips_to_completed(): void
     {
         Bus::fake();

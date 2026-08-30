@@ -49,4 +49,12 @@ Schedule::command('notion:sync-shoots')->everyThirtyMinutes();
 // messages. Every minute, not less often: a campaign scheduled for "now" on
 // the campaign form should start within a minute of that click, not wait for
 // the next half-hour or daily tick the way the sync jobs above do.
-Schedule::command('whatsapp:dispatch-campaigns')->everyMinute();
+//
+// withoutOverlapping() is a belt-and-suspenders guard, not the actual fix for
+// double-dispatch -- a large campaign's run can plausibly take longer than a
+// minute (one HTTP call to Meta per pending log), so without this a second
+// tick could start before the first finishes. The real fix is the per-row
+// atomic claim in DispatchWhatsappCampaigns::claimAndDispatch(), which holds
+// even if two runs do overlap (a manual `artisan whatsapp:dispatch-campaigns`
+// bypasses this scheduler mutex entirely, for instance).
+Schedule::command('whatsapp:dispatch-campaigns')->everyMinute()->withoutOverlapping();
