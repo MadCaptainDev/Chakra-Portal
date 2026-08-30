@@ -2,37 +2,34 @@
     /*
      * Pipeline tracking per content type, per account, for one month.
      *
-     * Shows ALL items with published_date in the month (not just status=Published),
-     * grouped by pipeline stage: Published, In Progress, Scheduled, Canceled.
-     *
      * Reads the local Notion cache; the controller refreshes it on the way
      * in when stale. See NotionSyncRunner for why Notion is not read live.
+     *
+     * Which platform a content type actually is -- Reels and Posts are
+     * Instagram, Shorts are YouTube. Used to put the real brand mark next
+     * to each row instead of asking someone to remember that "Insta Reel"
+     * and "Insta Post" are the same platform by reading the label.
      */
-    $cell = function (array $t) {
-        $published = $t['actual'];
-        $planned = $t['planned'] ?? $published;
-        $target = $t['target'];
+    $platformIcon = [
+        \App\Models\ContentItem::SOURCE_REEL => 'instagram',
+        \App\Models\ContentItem::SOURCE_POST => 'instagram',
+        \App\Models\ContentItem::SOURCE_YOUTUBE => 'youtube',
+    ];
 
-        if ($planned === 0 && $target === null) {
-            return ['text' => '—', 'class' => 'text-brand-100/40'];
+    // Deliberately three states, not a percentage, for the same reason the
+    // per-account dashboard cards use a pace verdict rather than a number:
+    // "hit" / "close" / "behind" is the decision this cell exists to
+    // support, and a raw 91% invites arguing with the metric instead.
+    $verdict = function (int $actual, ?int $target): ?string {
+        if ($target === null || $target <= 0) {
+            return null;
         }
 
-        if ($target !== null) {
-            $hit = $published >= $target;
-            $close = ! $hit && $target > 0 && $published / $target >= 0.6;
-            return [
-                'text' => $published . ' / ' . $target,
-                'class' => $hit ? 'text-green-200 font-semibold'
-                    : ($close ? 'text-amber-200 font-semibold' : 'text-red-200 font-semibold'),
-                'sub' => $planned > $published ? '+' . ($planned - $published) . ' pending' : null,
-            ];
+        if ($actual >= $target) {
+            return 'hit';
         }
 
-        return [
-            'text' => $published . ($planned > $published ? ' / ' . $planned : ''),
-            'class' => $planned > $published ? 'text-amber-200' : 'text-brand-100/70',
-            'sub' => null,
-        ];
+        return $actual / $target >= 0.6 ? 'close' : 'behind';
     };
 @endphp
 
@@ -144,131 +141,126 @@
             </div>
         @endif
 
-        <x-card padding="none">
-            <div class="p-4 sm:p-5 pb-0 flex flex-wrap items-start justify-between gap-3">
-                <x-section-heading title="{{ $month->format('F Y') }}"
-                                   subtitle="Published / target per account. Click an account to see item-level details." />
-                @if ($untargetedAccounts > 0)
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <x-section-heading title="{{ $month->format('F Y') }}"
+                               subtitle="Published against target per account, split by platform. Open an account for item-level detail." />
+            @if ($untargetedAccounts > 0)
+                <a href="{{ route('content-accounts.edit') }}"
+                   class="shrink-0 text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
+                    {{ $untargetedAccounts }} account(s) without a target →
+                </a>
+            @endif
+        </div>
+
+        @if ($clients->isEmpty())
+            <x-card class="p-4 sm:p-5">
+                <x-empty-state message="No account has a target set yet.">
                     <a href="{{ route('content-accounts.edit') }}"
-                       class="shrink-0 text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
-                        {{ $untargetedAccounts }} account(s) without a target →
+                       class="text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
+                        Set targets →
                     </a>
-                @endif
-            </div>
+                </x-empty-state>
+            </x-card>
+        @else
+            <div class="space-y-6">
+                @foreach ($clients as $group)
+                    <section>
+                        <div class="flex items-baseline justify-between gap-3 mb-3">
+                            <h3 class="font-semibold text-white">{{ $group['client']?->name ?? 'Unknown client' }}</h3>
+                            <p class="text-xs text-brand-100/50 tabular-nums">
+                                {{ $group['total'] }}@if ($group['target'])<span class="text-brand-100/40"> / {{ $group['target'] }}</span>@endif published
+                            </p>
+                        </div>
 
-            @if ($clients->isEmpty())
-                <div class="p-4 sm:p-5">
-                    <x-empty-state message="No account has a target set yet.">
-                        <a href="{{ route('content-accounts.edit') }}"
-                           class="text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
-                            Set targets →
-                        </a>
-                    </x-empty-state>
-                </div>
-            @else
-                <div class="overflow-x-auto">
-                    <table class="min-w-full text-sm">
-                        <thead>
-                            <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 border-b border-white/10">
-                                <th class="px-4 sm:px-5 py-2.5">Client / Account</th>
-                                @foreach ($targeted as $label)
-                                    <th class="px-3 py-2.5 text-right whitespace-nowrap">{{ $label }}</th>
-                                @endforeach
-                                <th class="px-3 py-2.5 text-right">Stories</th>
-                                <th class="px-3 py-2.5 text-right whitespace-nowrap">Published</th>
-                                <th class="px-3 py-2.5 w-32">Progress</th>
-                                <th class="px-3 py-2.5 text-right whitespace-nowrap">IG reach</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-white/10">
-                            @foreach ($clients as $group)
-                                <tr class="bg-brand-900/40">
-                                    <td class="px-4 sm:px-5 py-2 font-semibold text-white">
-                                        {{ $group['client']?->name ?? 'Unknown client' }}
-                                    </td>
-                                    @foreach ($targeted as $source => $label)
-                                        <td class="px-3 py-2 text-right tabular-nums text-brand-100/50">
-                                            {{ $group['rows']->sum(fn ($r) => $r['types'][$source]['actual']) ?: '' }}
-                                        </td>
-                                    @endforeach
-                                    <td class="px-3 py-2 text-right tabular-nums text-brand-100/50">{{ $group['rows']->sum('stories') ?: '' }}</td>
-                                    <td class="px-3 py-2 text-right tabular-nums font-semibold text-white">
-                                        {{ $group['total'] }}
-                                        @if ($group['planned'] > $group['total'])
-                                            <span class="text-amber-300 font-normal">/ {{ $group['planned'] }}</span>
-                                        @elseif ($group['target'])
-                                            <span class="text-brand-100/50 font-normal">/ {{ $group['target'] }}</span>
-                                        @endif
-                                    </td>
-                                    <td class="px-3 py-2"></td>
-                                    <td class="px-3 py-2"></td>
-                                </tr>
-
-                                @foreach ($group['rows'] as $row)
-                                    <tr>
-                                        <td class="px-4 sm:px-5 py-2.5 pl-8 sm:pl-10">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                            @foreach ($group['rows'] as $row)
+                                <x-card class="p-5 space-y-4">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div class="min-w-0">
                                             <a href="{{ route('content-dashboard.show', [$row['account'], 'month' => $month->format('Y-m')]) }}"
-                                               class="text-white hover:text-brand-300 font-medium">
+                                               class="text-sm font-semibold text-white hover:text-brand-300 truncate block">
                                                 {{ $row['account']->name }}
                                             </a>
                                             @if ($row['account']->ventures->isEmpty())
-                                                <span class="block text-[11px] text-amber-300">No ventures assigned</span>
+                                                <span class="block text-[11px] text-amber-300 mt-0.5">No ventures assigned</span>
                                             @endif
-                                        </td>
+                                        </div>
+                                        @if ($row['performance'])
+                                            <span class="shrink-0 text-right">
+                                                <span class="block text-xs font-semibold text-white tabular-nums">{{ number_format($row['performance']['reach']) }}</span>
+                                                <span class="block text-[10px] text-brand-100/40">IG reach</span>
+                                            </span>
+                                        @endif
+                                    </div>
+
+                                    {{-- One row per platform: the split this whole
+                                         redesign exists for. A bare "8 published"
+                                         used to hide whether that was eight reels
+                                         or eight stories. --}}
+                                    <div class="space-y-3">
                                         @foreach ($targeted as $source => $label)
-                                            @php $c = $cell($row['types'][$source]); @endphp
-                                            <td class="px-3 py-2.5 text-right tabular-nums whitespace-nowrap {{ $c['class'] }}">
-                                                {{ $c['text'] }}
-                                                @if (! empty($c['sub']))
-                                                    <span class="block text-[10px] text-amber-300">{{ $c['sub'] }}</span>
-                                                @endif
-                                            </td>
-                                        @endforeach
-                                        <td class="px-3 py-2.5 text-right tabular-nums text-brand-100/50">{{ $row['stories'] ?: '—' }}</td>
-                                        <td class="px-3 py-2.5 text-right tabular-nums">
-                                            <span class="font-semibold text-white">{{ $row['total'] }}</span>
-                                            @if ($row['planned'] > $row['total'])
-                                                <span class="text-amber-300">/ {{ $row['planned'] }}</span>
-                                            @elseif ($row['target'])
-                                                <span class="text-brand-100/50">/ {{ $row['target'] }}</span>
-                                            @endif
-                                        </td>
-                                        <td class="px-3 py-2.5">
                                             @php
-                                                $denominator = $row['planned'] > 0 ? $row['planned'] : ($row['target'] ?? 0);
-                                                $p = $denominator > 0 ? min((int) round($row['total'] / $denominator * 100), 999) : 0;
+                                                $t = $row['types'][$source];
+                                                $v = $verdict($t['actual'], $t['target']);
                                             @endphp
-                                            @if ($denominator === 0)
-                                                <span class="text-[11px] text-brand-100/40">—</span>
-                                            @else
-                                                <div class="flex items-center gap-2">
-                                                    <div class="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                                                        <div @class([
-                                                            'h-full rounded-full',
-                                                            'bg-green-500' => $p >= 100,
-                                                            'bg-amber-400' => $p >= 60 && $p < 100,
-                                                            'bg-red-400' => $p < 60,
-                                                        ]) style="width: {{ min($p, 100) }}%"></div>
+                                            <div class="flex items-center gap-3">
+                                                <x-brand-icon :name="$platformIcon[$source]" class="w-6 h-6 shrink-0" />
+                                                <div class="flex-1 min-w-0">
+                                                    <div class="flex items-baseline justify-between gap-2">
+                                                        <span class="text-xs text-brand-100/70">{{ $label }}</span>
+                                                        <span @class([
+                                                            'text-sm font-semibold tabular-nums',
+                                                            'text-green-300' => $v === 'hit',
+                                                            'text-amber-300' => $v === 'close',
+                                                            'text-red-300' => $v === 'behind',
+                                                            'text-white' => $v === null,
+                                                        ])>
+                                                            {{ $t['actual'] }}@if ($t['target'] !== null)<span class="text-brand-100/40">/{{ $t['target'] }}</span>@endif
+                                                            @if ($t['planned'] > $t['actual'])
+                                                                <span class="text-brand-100/40 font-normal">(+{{ $t['planned'] - $t['actual'] }} pending)</span>
+                                                            @endif
+                                                        </span>
                                                     </div>
-                                                    <span class="text-[11px] tabular-nums text-brand-100/60 w-9 text-right">{{ $p }}%</span>
+                                                    @if ($t['target'] !== null)
+                                                        <div class="h-1.5 rounded-full bg-white/[0.07] overflow-hidden mt-1">
+                                                            <div @class([
+                                                                'h-full rounded-full',
+                                                                'bg-green-400' => $v === 'hit',
+                                                                'bg-amber-400' => $v === 'close',
+                                                                'bg-red-400' => $v === 'behind',
+                                                            ]) style="width: {{ min(100, $t['pct'] ?? 0) }}%"></div>
+                                                        </div>
+                                                    @endif
                                                 </div>
+                                            </div>
+                                        @endforeach
+
+                                        @if ($row['stories'] > 0)
+                                            <div class="flex items-center gap-3 pt-1">
+                                                <x-brand-icon name="instagram" class="w-6 h-6 shrink-0 opacity-60" />
+                                                <div class="flex-1 flex items-baseline justify-between gap-2">
+                                                    <span class="text-xs text-brand-100/70">Stories</span>
+                                                    <span class="text-sm font-semibold tabular-nums text-white">{{ $row['stories'] }}</span>
+                                                </div>
+                                            </div>
+                                        @endif
+                                    </div>
+
+                                    <div class="flex items-baseline justify-between gap-2 pt-3 border-t border-white/5 text-xs">
+                                        <span class="text-brand-100/50">Total</span>
+                                        <span class="font-semibold tabular-nums text-white">
+                                            {{ $row['total'] }}
+                                            @if ($row['target'])
+                                                <span class="text-brand-100/40 font-normal">/ {{ $row['target'] }}</span>
                                             @endif
-                                        </td>
-                                        <td class="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">
-                                            @if ($row['performance'])
-                                                <span class="text-white">{{ number_format($row['performance']['reach']) }}</span>
-                                                <span class="block text-[11px] text-brand-100/50">{{ $row['performance']['items'] }} matched</span>
-                                            @else
-                                                <span class="text-brand-100/40">—</span>
-                                            @endif
-                                        </td>
-                                    </tr>
-                                @endforeach
+                                        </span>
+                                    </div>
+                                </x-card>
                             @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
-        </x-card>
+                        </div>
+                    </section>
+                @endforeach
+            </div>
+        @endif
     </div>
 </x-app-layout>

@@ -228,6 +228,48 @@ class ContentDashboardTest extends TestCase
             ->assertSee('Insta Reel');
     }
 
+    /**
+     * The redesign this pins: one card per account, split by platform
+     * rather than one flat "published" number. A card carrying only a Reel
+     * target must still show the real Instagram brand mark next to it, not
+     * a generic icon that could be mistaken for anything.
+     */
+    public function test_each_targeted_type_gets_its_own_row_with_the_right_platform_mark(): void
+    {
+        $this->account('Janet', 'Janet Hospitals', 'Janet', ['reel' => 5, 'post' => 3, 'youtube' => 2]);
+        $this->published('Janet', ContentItem::SOURCE_REEL, '2026-08-05');
+        $this->published('Janet', ContentItem::SOURCE_POST, '2026-08-06');
+        $this->published('Janet', ContentItem::SOURCE_YOUTUBE, '2026-08-07');
+
+        $response = $this->actingAs($this->admin())
+            ->get(route('content-dashboard.index').'?month=2026-08');
+
+        $response->assertOk()
+            ->assertSee('Insta Reel')
+            ->assertSee('Insta Post')
+            ->assertSee('YouTube Shorts')
+            // Each type's own actual/target pair, not just one combined total.
+            ->assertSeeInOrder(['1', '/5'], false)
+            ->assertSeeInOrder(['1', '/3'], false)
+            ->assertSeeInOrder(['1', '/2'], false);
+
+        // Instagram's mark (the gradient defined in brand-icon.blade.php)
+        // appears for Reel and Post; YouTube's for Shorts.
+        $response->assertSee('ig-grad-', false);
+        $response->assertSee('#FF0000', false);
+    }
+
+    public function test_stories_are_shown_but_carry_no_target_row(): void
+    {
+        $this->account('Janet', 'Janet Hospitals', 'Janet', ['reel' => 5]);
+        $this->published('Janet', ContentItem::SOURCE_STORY, '2026-08-05');
+
+        $this->actingAs($this->admin())
+            ->get(route('content-dashboard.index').'?month=2026-08')
+            ->assertOk()
+            ->assertSee('Stories');
+    }
+
     public function test_the_drill_down_lists_the_months_pieces(): void
     {
         $account = $this->account('Janet', 'Janet Hospitals', 'Janet', ['reel' => 5]);
