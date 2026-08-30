@@ -201,8 +201,9 @@ class InvoiceController extends Controller
     }
 
     /**
-     * Hand this invoice to its client on WhatsApp: a template message ("your
-     * invoice is ready") whose button links to a no-login PDF.
+     * Hand this invoice to whatever WhatsApp number is typed in -- the
+     * client's own on file by default, but any number, any time: a template
+     * message ("your invoice is ready") whose button links to a no-login PDF.
      *
      * A template rather than free text because this is very often the first
      * contact with that number -- outside the 24-hour reply window, only an
@@ -211,18 +212,24 @@ class InvoiceController extends Controller
      * built around; it must exist and be Meta-approved before this can send
      * (see SeedInvoiceReadyTemplate).
      */
-    public function sendWhatsapp(Invoice $invoice): RedirectResponse
+    public function sendWhatsapp(Request $request, Invoice $invoice): RedirectResponse
     {
         $invoice->loadMissing('client');
 
         if (! $invoice->isSendableViaWhatsapp()) {
             return redirect()->route('invoices.show', $invoice)
-                ->with('error', 'This invoice cannot be sent over WhatsApp -- it needs to be approved, recurring, and its client needs a phone number on file.');
+                ->with('error', 'This invoice cannot be sent over WhatsApp until it is approved.');
         }
+
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'min:10', 'max:20', 'regex:/^[0-9+\-\s()]+$/'],
+        ], [
+            'phone.regex' => 'That doesn\'t look like a phone number.',
+        ]);
 
         try {
             WhatsappSender::make()->sendTemplate(
-                to: $invoice->client->phone,
+                to: $validated['phone'],
                 template: Invoice::WHATSAPP_TEMPLATE,
                 bodyParameters: [
                     $invoice->client->name,
@@ -245,7 +252,7 @@ class InvoiceController extends Controller
         $invoice->update(['whatsapp_sent_at' => now()]);
 
         return redirect()->route('invoices.show', $invoice)
-            ->with('status', "Sent to {$invoice->client->name} on WhatsApp.");
+            ->with('status', "Sent to {$validated['phone']} on WhatsApp.");
     }
 
     public function discard(Invoice $invoice): RedirectResponse

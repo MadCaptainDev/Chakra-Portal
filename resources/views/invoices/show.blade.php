@@ -29,15 +29,6 @@
                     <a href="{{ route('invoices.pdf', $invoice) }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-brand-400 border border-transparent rounded-md font-semibold text-xs text-brand-900 uppercase tracking-widest hover:bg-brand-500">
                         Download PDF
                     </a>
-                    @if ($invoice->isSendableViaWhatsapp())
-                        <form method="POST" action="{{ route('invoices.send-whatsapp', $invoice) }}"
-                              onsubmit="return confirm('Send this invoice to {{ $invoice->client->name }} ({{ $invoice->client->phone }}) on WhatsApp?');">
-                            @csrf
-                            <button type="submit" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white/5 border border-white/15 rounded-md font-semibold text-xs text-brand-100/80 uppercase tracking-widest hover:bg-white/[0.09]">
-                                {{ $invoice->whatsapp_sent_at ? 'Resend via WhatsApp' : 'Send via WhatsApp' }}
-                            </button>
-                        </form>
-                    @endif
                     <a href="{{ route('invoices.edit', $invoice) }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-white/5 border border-white/15 rounded-md font-semibold text-xs text-brand-100/80 uppercase tracking-widest hover:bg-white/[0.09]">
                         Edit
                     </a>
@@ -73,8 +64,34 @@
             </div>
         @elseif ($invoice->whatsapp_sent_at)
             <div class="bg-emerald-400/10 border border-emerald-400/30 rounded-lg p-4 text-sm text-emerald-200">
-                Sent to {{ $invoice->client->name }} on WhatsApp, {{ $invoice->whatsapp_sent_at->format('d M Y, g:i A') }}.
+                Last sent on WhatsApp {{ $invoice->whatsapp_sent_at->format('d M Y, g:i A') }}.
             </div>
+        @endif
+
+        {{-- Any invoice, any number, any time -- not just the client's own
+             number on file, and not just right after approving. The number
+             is typed fresh on every send rather than remembered, since
+             there is no one "the" recipient to default to and get wrong. --}}
+        @if ($invoice->isSendableViaWhatsapp())
+            <x-card class="p-4 sm:p-6">
+                <details {{ $invoice->whatsapp_sent_at || $errors->has('phone') ? 'open' : '' }}>
+                    <summary class="cursor-pointer font-semibold text-white select-none">
+                        {{ $invoice->whatsapp_sent_at ? 'Send via WhatsApp again' : 'Send via WhatsApp' }}
+                    </summary>
+                    <form method="POST" action="{{ route('invoices.send-whatsapp', $invoice) }}"
+                          class="mt-4 flex flex-col sm:flex-row sm:items-start gap-3">
+                        @csrf
+                        <div class="flex-1">
+                            <x-input-label for="phone" value="WhatsApp number" />
+                            <x-text-input id="phone" name="phone" type="text" class="mt-1 w-full"
+                                value="{{ old('phone', $invoice->client->phone) }}"
+                                placeholder="e.g. 9876543210" required autofocus />
+                            <x-input-error :messages="$errors->get('phone')" class="mt-2" />
+                        </div>
+                        <x-primary-button class="mt-1 sm:mt-6">Send</x-primary-button>
+                    </form>
+                </details>
+            </x-card>
         @endif
 
         <x-card class="overflow-hidden p-2 sm:p-4">

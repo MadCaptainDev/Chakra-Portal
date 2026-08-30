@@ -2,9 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\Client;
 use App\Models\Invoice;
-use App\Models\RecurringInvoice;
 use App\Models\User;
 use App\Models\WhatsappSetting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -13,9 +11,10 @@ use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /**
- * "Send via WhatsApp" on an invoice: gated to approved, recurring-generated
- * invoices whose client has a phone number, sends the `invoice_ready`
- * template with a link to the no-login PDF, and records when it went out.
+ * "Send via WhatsApp" on an invoice: any approved invoice, to any number
+ * typed in (not just the client's own, not just recurring-generated), sends
+ * Invoice::WHATSAPP_TEMPLATE with a link to the no-login PDF, and records
+ * when it went out.
  */
 class InvoiceWhatsappSendTest extends TestCase
 {
@@ -34,66 +33,38 @@ class InvoiceWhatsappSendTest extends TestCase
         return $settings->fresh();
     }
 
-    private function recurringInvoice(array $attributes = []): Invoice
+    public function test_a_pending_approval_invoice_is_not_sendable_yet(): void
     {
-        $client = Client::factory()->create(['phone' => '9876543210']);
-        $recurring = RecurringInvoice::factory()->create(['client_id' => $client->id]);
+        $invoice = Invoice::factory()->pendingApproval()->create();
 
-        return Invoice::factory()->create(array_merge([
-            'client_id' => $client->id,
-            'recurring_invoice_id' => $recurring->id,
-        ], $attributes));
+        $this->assertFalse($invoice->isSendableViaWhatsapp());
     }
 
-    public function test_a_manually_created_invoice_is_not_sendable_via_whatsapp(): void
+    public function test_an_approved_invoice_is_sendable_even_if_manually_created(): void
     {
         $invoice = Invoice::factory()->create(); // no recurring_invoice_id
-
-        $this->assertFalse($invoice->isSendableViaWhatsapp());
-    }
-
-    public function test_a_recurring_invoice_without_a_client_phone_is_not_sendable(): void
-    {
-        $client = Client::factory()->create(['phone' => null]);
-        $recurring = RecurringInvoice::factory()->create(['client_id' => $client->id]);
-        $invoice = Invoice::factory()->create([
-            'client_id' => $client->id,
-            'recurring_invoice_id' => $recurring->id,
-        ]);
-
-        $this->assertFalse($invoice->isSendableViaWhatsapp());
-    }
-
-    public function test_a_pending_approval_recurring_invoice_is_not_sendable_yet(): void
-    {
-        $invoice = $this->recurringInvoice([
-            'status' => Invoice::STATUS_PENDING_APPROVAL,
-            'invoice_number' => null,
-        ]);
-
-        $this->assertFalse($invoice->isSendableViaWhatsapp());
-    }
-
-    public function test_an_approved_recurring_invoice_with_a_client_phone_is_sendable(): void
-    {
-        $invoice = $this->recurringInvoice();
 
         $this->assertTrue($invoice->isSendableViaWhatsapp());
     }
 
-    public function test_sending_posts_the_template_with_a_link_and_records_the_timestamp(): void
+    public function test_sending_posts_the_template_to_whatever_number_was_typed(): void
     {
         $this->configured();
         Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.123']]])]);
 
-        $invoice = $this->recurringInvoice(['total' => 12500]);
+        $invoice = Invoice::factory()->create(['total' => 12500]);
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user)->post(route('invoices.send-whatsapp', $invoice));
+        // A number that is not the invoice's own client's phone at all --
+        // the whole point of the widened feature is that any number typed
+        // in is honoured, not only the one on file.
+        $response = $this->actingAs($user)->post(route('invoices.send-whatsapp', $invoice), [
+            'phone' => '9999888877',
+        ]);
 
         $invoice->refresh();
         $response->assertRedirect(route('invoices.show', $invoice));
-        $response->assertSessionHas('status');
+        $response->assertSessionHas('status', fn (string $status) => str_contains($status, '9999888877'));
         $this->assertNotNull($invoice->whatsapp_sent_at);
         $this->assertNotNull($invoice->public_token);
 
@@ -102,6 +73,7 @@ class InvoiceWhatsappSendTest extends TestCase
 
             return $request->method() === 'POST'
                 && str_contains($request->url(), '123456789/messages')
+                && $body['to'] === '919999888877'
                 && $body['template']['name'] === Invoice::WHATSAPP_TEMPLATE
                 && $body['template']['components'][0]['parameters'][2]['text'] === '12,500.00'
                 && $body['template']['components'][1]['type'] === 'button'
@@ -109,9 +81,23 @@ class InvoiceWhatsappSendTest extends TestCase
         });
     }
 
+    public function test_a_blank_phone_is_rejected_before_meta_is_ever_called(): void
+    {
+        $this->configured();
+        Http::fake();
+
+        $invoice = Invoice::factory()->create();
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->post(route('invoices.send-whatsapp', $invoice), ['phone' => '']);
+
+        $response->assertSessionHasErrors('phone');
+        Http::assertNothingSent();
+    }
+
     public function test_the_public_link_serves_the_pdf_without_authentication(): void
     {
-        $invoice = $this->recurringInvoice();
+        $invoice = Invoice::factory()->create();
         $token = $invoice->ensurePublicToken();
 
         $response = $this->get(route('invoices.public-pdf', $token));
@@ -125,29 +111,31 @@ class InvoiceWhatsappSendTest extends TestCase
         $this->get(route('invoices.public-pdf', 'does-not-exist'))->assertNotFound();
     }
 
-    public function test_a_second_send_reuses_the_same_token(): void
+    public function test_repeated_sends_reuse_the_same_token(): void
     {
         $this->configured();
         Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.123']]])]);
 
-        $invoice = $this->recurringInvoice();
+        $invoice = Invoice::factory()->create();
         $user = User::factory()->create();
 
-        $this->actingAs($user)->post(route('invoices.send-whatsapp', $invoice));
+        $this->actingAs($user)->post(route('invoices.send-whatsapp', $invoice), ['phone' => '9876543210']);
         $firstToken = $invoice->refresh()->public_token;
 
-        $this->actingAs($user)->post(route('invoices.send-whatsapp', $invoice));
+        // A second send, to a different number entirely -- the token is the
+        // invoice's own PDF link, not tied to any one recipient.
+        $this->actingAs($user)->post(route('invoices.send-whatsapp', $invoice), ['phone' => '9111222333']);
         $secondToken = $invoice->refresh()->public_token;
 
         $this->assertSame($firstToken, $secondToken);
     }
 
-    public function test_sending_a_non_sendable_invoice_is_refused_with_an_error(): void
+    public function test_sending_a_pending_approval_invoice_is_refused_with_an_error(): void
     {
-        $invoice = Invoice::factory()->create(); // not recurring
+        $invoice = Invoice::factory()->pendingApproval()->create();
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user)->post(route('invoices.send-whatsapp', $invoice));
+        $response = $this->actingAs($user)->post(route('invoices.send-whatsapp', $invoice), ['phone' => '9876543210']);
 
         $response->assertSessionHas('error');
         $this->assertNull($invoice->refresh()->whatsapp_sent_at);
@@ -160,10 +148,10 @@ class InvoiceWhatsappSendTest extends TestCase
             'error' => ['message' => 'Template not approved yet.'],
         ], 400)]);
 
-        $invoice = $this->recurringInvoice();
+        $invoice = Invoice::factory()->create();
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user)->post(route('invoices.send-whatsapp', $invoice));
+        $response = $this->actingAs($user)->post(route('invoices.send-whatsapp', $invoice), ['phone' => '9876543210']);
 
         $response->assertSessionHas('error', 'Template not approved yet.');
         $this->assertNull($invoice->refresh()->whatsapp_sent_at);

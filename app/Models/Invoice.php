@@ -210,20 +210,17 @@ class Invoice extends Model
     }
 
     /**
-     * Whether the "Send via WhatsApp" button belongs on this invoice.
+     * Whether the "Send via WhatsApp" form belongs on this invoice.
      *
-     * Recurring-generated only, on purpose: a manually created invoice
-     * usually gets handed over some other way (in person, email, a client
-     * portal) that was already the plan before this feature existed, so
-     * offering the button there would be a second, uncoordinated channel for
-     * the same invoice rather than the one this was actually asked for --
-     * "once I approve a recurring invoice, I can send it to the client".
+     * Every approved invoice, not just recurring-generated ones -- "for
+     * every invoice, I can send to the number I type, any time" widened
+     * this past the original recurring-only, client-phone-only version.
+     * Pending-approval is still excluded: it has no invoice_number yet and
+     * its total can still change, so there is nothing final to send.
      */
     public function isSendableViaWhatsapp(): bool
     {
-        return ! $this->isPendingApproval()
-            && $this->recurring_invoice_id !== null
-            && filled($this->client?->phone);
+        return ! $this->isPendingApproval();
     }
 
     /**
