@@ -102,7 +102,7 @@ class InvoiceWhatsappSendTest extends TestCase
 
             return $request->method() === 'POST'
                 && str_contains($request->url(), '123456789/messages')
-                && $body['template']['name'] === 'invoice_ready'
+                && $body['template']['name'] === Invoice::WHATSAPP_TEMPLATE
                 && $body['template']['components'][0]['parameters'][2]['text'] === '12,500.00'
                 && $body['template']['components'][1]['type'] === 'button'
                 && str_contains($body['template']['components'][1]['parameters'][0]['text'], $invoice->public_token);

@@ -207,9 +207,9 @@ class InvoiceController extends Controller
      * A template rather than free text because this is very often the first
      * contact with that number -- outside the 24-hour reply window, only an
      * approved template can reach them at all (see WhatsappSender's own
-     * doc block). "invoice_ready" is the one this feature was built around;
-     * it must exist and be Meta-approved before this can send (see
-     * SeedInvoiceReadyTemplate).
+     * doc block). Invoice::WHATSAPP_TEMPLATE is the one this feature was
+     * built around; it must exist and be Meta-approved before this can send
+     * (see SeedInvoiceReadyTemplate).
      */
     public function sendWhatsapp(Invoice $invoice): RedirectResponse
     {
@@ -223,7 +223,7 @@ class InvoiceController extends Controller
         try {
             WhatsappSender::make()->sendTemplate(
                 to: $invoice->client->phone,
-                template: 'invoice_ready',
+                template: Invoice::WHATSAPP_TEMPLATE,
                 bodyParameters: [
                     $invoice->client->name,
                     $invoice->invoice_number,

@@ -21,6 +21,18 @@ class Invoice extends Model
     public const STATUS_PAID = 'paid';
 
     /**
+     * The Meta template InvoiceController::sendWhatsapp() sends.
+     *
+     * Named "_v2" because the original "invoice_ready" got stuck mid-delete
+     * on Meta's side (a REJECTED submission cleared to make its name
+     * resubmittable, but Meta's own docs "try again in under a minute"
+     * ran well past ten) -- Meta's own error suggests exactly this escape
+     * hatch ("consider creating a new message template"), so this is that,
+     * not a versioning convention to keep bumping.
+     */
+    public const WHATSAPP_TEMPLATE = 'invoice_ready_v2';
+
+    /**
      * The two things a Chakra App Studio invoice can be -- not every one is
      * AMC. A one-off build/dev-work invoice is App Studio income too, but
      * paying it must never extend a product's AMC term the way paying an
