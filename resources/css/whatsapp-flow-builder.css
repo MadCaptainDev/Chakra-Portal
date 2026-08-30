@@ -164,9 +164,11 @@
     color: #fff;
     font-size: 0.75rem;
     padding: 0.3rem 0.4rem;
-    /* Drawflow drags the node on mousedown unless the target is an input/
-       textarea/select -- nodrag stops that so a field can actually be
-       clicked into and typed in. */
+    /* Drawflow drags the node on mousedown by default, even when the
+       target is one of these fields -- whatsapp-flow-builder.js sets
+       `editor.draggable_inputs = false` once, editor-wide, so a field can
+       actually be clicked into and typed in instead of dragging the node
+       underneath it. Nothing in this stylesheet is what stops the drag. */
 }
 
 .flow-node__field textarea {

@@ -65,9 +65,15 @@
                         @endforeach
                     </x-select>
                     <x-input-error :messages="$errors->get('trigger_type')" class="mt-2" />
-                    @if ($selectedTrigger === 'label_applied')
-                        <p class="mt-1 text-xs text-amber-300">Not wired up yet -- a flow with this trigger will never start on its own.</p>
-                    @endif
+                    {{-- Rendered on every load (not just when selected) and
+                         toggled live by whatsapp-flow-builder.js's own
+                         trigger_type change listener, the same way
+                         #trigger-keyword-field is -- picking "Label
+                         applied" from the dropdown must show this
+                         immediately, not only after a save round-trip. --}}
+                    <p id="trigger-label-applied-warning" class="mt-1 text-xs text-amber-300 {{ $selectedTrigger === 'label_applied' ? '' : 'hidden' }}">
+                        Not wired up yet -- a flow with this trigger will never start on its own.
+                    </p>
                 </div>
                 <div id="trigger-keyword-field" class="{{ $selectedTrigger === 'keyword' ? '' : 'hidden' }}">
                     <x-input-label for="trigger_config_keyword" value="Keyword" />

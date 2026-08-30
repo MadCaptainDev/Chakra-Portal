@@ -38,6 +38,20 @@ use RuntimeException;
  * relies on any particular id shape being present. FlowEngine only ever
  * uses a node id as an opaque map key and a `next`/`next_true`/`next_false`
  * pointer value.
+ *
+ * One consequence worth flagging rather than guarding against: a `graph`
+ * whose node ids are NOT the plain small integers this UI's own save path
+ * always produces (a hand-authored graph, a fixture, a flow imported from
+ * elsewhere) can, after toDrawflowExport() round-trips it back into the
+ * editor, collide with Drawflow's own next-id counter -- `load()`
+ * (node_modules/drawflow/dist/drawflow.min.js) derives it as
+ * `max(parseInt(existing id)) + 1` across whatever ids are present, so a
+ * non-numeric id (e.g. "greet") contributes nothing to that max and a
+ * freshly-added node could then be assigned an id that collides with one
+ * already on the canvas. This is a pre-existing Drawflow behaviour, not
+ * something introduced here, and is unreachable through this UI's own
+ * save path (ids are always Drawflow-assigned integers); it only matters
+ * for a `graph` that arrived some other way.
  */
 class DrawflowGraphTranslator
 {
@@ -179,7 +193,45 @@ class DrawflowGraphTranslator
             $nodes[$id] = $cfg;
         }
 
+        self::assertNoDanglingPointers($nodes);
+
         return ['start_node_id' => $startNodeId, 'nodes' => $nodes];
+    }
+
+    /**
+     * A node whose type isn't in NODE_TYPES is dropped above (see this
+     * method's caller) -- fine on its own, but a *different* node's
+     * `next`/`next_true`/`next_false` may have pointed at exactly that now-
+     * missing id. Left unchecked, the flow "saves successfully" and then
+     * fails at runtime, deep inside FlowEngine, with "Flow graph has no
+     * node 'x'" -- a much worse place for an admin to discover it than a
+     * validation error on the save they just made. This runs as a second
+     * pass over the *final* $nodes map (not interleaved with the loop that
+     * builds it) precisely because a pointer can name a node the loop
+     * hasn't reached yet -- Drawflow's own `data` map has no guaranteed
+     * ordering to rely on.
+     *
+     * @param  array<string, array<string, mixed>>  $nodes
+     *
+     * @throws RuntimeException
+     */
+    private static function assertNoDanglingPointers(array $nodes): void
+    {
+        foreach ($nodes as $cfg) {
+            foreach (['next', 'next_true', 'next_false'] as $pointerKey) {
+                if (! array_key_exists($pointerKey, $cfg)) {
+                    continue;
+                }
+
+                $target = $cfg[$pointerKey];
+
+                if ($target !== null && ! array_key_exists($target, $nodes)) {
+                    throw new RuntimeException(
+                        "A \"{$cfg['type']}\" node connects to a node that can't be saved (it may be a node type this build of the editor doesn't recognise). Remove or reconnect that link before saving."
+                    );
+                }
+            }
+        }
     }
 
     /**
@@ -238,15 +290,30 @@ class DrawflowGraphTranslator
             // and so never actually saw this bug.
             $id = (string) $id;
 
+            // Drawflow's own addConnection() (node_modules/drawflow/dist/
+            // drawflow.min.js) pushes a DIFFERENT key name onto each side of
+            // a connection: the output side's connections carry `output`
+            // (which output slot on that end), the input side's carry
+            // `input` (which output slot on the OTHER end it came from) --
+            // confirmed against both addConnection() itself and the
+            // README's own "Export example", which shows
+            // `"input": "output_1"` inside an `inputs` block. This is the
+            // `inputs` side being built here, so the key must be `input`,
+            // not `output` -- addNodeImport() reads this exact key to build
+            // the connection's CSS class (`.node_out_node-X.<key value>`);
+            // the wrong key name renders a class of the literal string
+            // "undefined" and updateConnectionNodes() then throws trying to
+            // resolve a dot that was never given a real class, aborting
+            // editor.import() entirely for any flow with a saved connection.
             if (($cfg['type'] ?? null) === 'condition') {
                 if (filled($cfg['next_true'] ?? null) && isset($incoming[(string) $cfg['next_true']])) {
-                    $incoming[(string) $cfg['next_true']][] = ['node' => $id, 'output' => 'output_1'];
+                    $incoming[(string) $cfg['next_true']][] = ['node' => $id, 'input' => 'output_1'];
                 }
                 if (filled($cfg['next_false'] ?? null) && isset($incoming[(string) $cfg['next_false']])) {
-                    $incoming[(string) $cfg['next_false']][] = ['node' => $id, 'output' => 'output_2'];
+                    $incoming[(string) $cfg['next_false']][] = ['node' => $id, 'input' => 'output_2'];
                 }
             } elseif (filled($cfg['next'] ?? null) && isset($incoming[(string) $cfg['next']])) {
-                $incoming[(string) $cfg['next']][] = ['node' => $id, 'output' => 'output_1'];
+                $incoming[(string) $cfg['next']][] = ['node' => $id, 'input' => 'output_1'];
             }
         }
 

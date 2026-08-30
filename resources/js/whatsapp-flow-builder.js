@@ -299,9 +299,11 @@ function init() {
 
     const triggerType = document.getElementById('trigger_type');
     const keywordField = document.getElementById('trigger-keyword-field');
+    const labelAppliedWarning = document.getElementById('trigger-label-applied-warning');
 
     triggerType?.addEventListener('change', () => {
         keywordField?.classList.toggle('hidden', triggerType.value !== 'keyword');
+        labelAppliedWarning?.classList.toggle('hidden', triggerType.value !== 'label_applied');
     });
 
     form?.addEventListener('submit', (event) => {

@@ -71,7 +71,7 @@ class WhatsappFlowHttpTest extends TestCase
                             'class' => 'condition',
                             'html' => '<div class="flow-node">Condition</div>',
                             'typenode' => false,
-                            'inputs' => ['input_1' => ['connections' => [['node' => '1', 'output' => 'output_1']]]],
+                            'inputs' => ['input_1' => ['connections' => [['node' => '1', 'input' => 'output_1']]]],
                             'outputs' => [
                                 'output_1' => ['connections' => [['node' => '3', 'output' => 'input_1']]],
                                 'output_2' => ['connections' => [['node' => '4', 'output' => 'input_1']]],
@@ -86,7 +86,7 @@ class WhatsappFlowHttpTest extends TestCase
                             'class' => 'set_label',
                             'html' => '<div class="flow-node">Set Label</div>',
                             'typenode' => false,
-                            'inputs' => ['input_1' => ['connections' => [['node' => '2', 'output' => 'output_1']]]],
+                            'inputs' => ['input_1' => ['connections' => [['node' => '2', 'input' => 'output_1']]]],
                             'outputs' => ['output_1' => ['connections' => []]],
                             'pos_x' => 600,
                             'pos_y' => 40,
@@ -98,7 +98,7 @@ class WhatsappFlowHttpTest extends TestCase
                             'class' => 'agent_transfer',
                             'html' => '<div class="flow-node">Agent Transfer</div>',
                             'typenode' => false,
-                            'inputs' => ['input_1' => ['connections' => [['node' => '2', 'output' => 'output_2']]]],
+                            'inputs' => ['input_1' => ['connections' => [['node' => '2', 'input' => 'output_2']]]],
                             'outputs' => [],
                             'pos_x' => 600,
                             'pos_y' => 160,
@@ -248,6 +248,51 @@ class WhatsappFlowHttpTest extends TestCase
                     'inputs' => ['input_1' => ['connections' => []]],
                     'outputs' => ['output_1' => ['connections' => []]],
                     'pos_x' => 0,
+                    'pos_y' => 0,
+                ],
+            ]]],
+        ];
+
+        $this->actingAs($this->employee(['view', 'create']))
+            ->post(route('whatsapp-crm.flows.store'), $this->flowPayload(['graph' => json_encode($export)]))
+            ->assertSessionHasErrors('graph');
+
+        $this->assertSame(0, WhatsappFlow::count());
+    }
+
+    /**
+     * Node "2" in the fixture is an unknown-to-this-build node type, which
+     * DrawflowGraphTranslator drops silently on its own -- but node "1"'s
+     * `next` still points straight at it. That dangling pointer must fail
+     * the save with a clear `graph` error instead of storing a flow that
+     * looks fine and only breaks once FlowEngine actually walks it.
+     */
+    public function test_storing_a_flow_with_a_next_pointer_at_an_unknown_node_type_is_rejected(): void
+    {
+        $export = [
+            'drawflow' => ['Home' => ['data' => [
+                '1' => [
+                    'id' => 1,
+                    'name' => 'send_message',
+                    'data' => ['type' => 'send_message', 'is_start' => true, 'body' => 'Hello!'],
+                    'class' => 'send_message',
+                    'html' => '<div></div>',
+                    'typenode' => false,
+                    'inputs' => ['input_1' => ['connections' => []]],
+                    'outputs' => ['output_1' => ['connections' => [['node' => '2', 'output' => 'input_1']]]],
+                    'pos_x' => 0,
+                    'pos_y' => 0,
+                ],
+                '2' => [
+                    'id' => 2,
+                    'name' => 'some_future_node_type',
+                    'data' => ['type' => 'some_future_node_type'],
+                    'class' => 'some_future_node_type',
+                    'html' => '<div></div>',
+                    'typenode' => false,
+                    'inputs' => ['input_1' => ['connections' => [['node' => '1', 'input' => 'output_1']]]],
+                    'outputs' => [],
+                    'pos_x' => 100,
                     'pos_y' => 0,
                 ],
             ]]],

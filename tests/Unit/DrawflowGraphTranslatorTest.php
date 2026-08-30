@@ -134,6 +134,40 @@ class DrawflowGraphTranslatorTest extends TestCase
         $this->assertArrayNotHasKey('2', $graph['nodes']);
     }
 
+    /**
+     * The companion case to the previous test: node "2" is still skipped
+     * for being an unknown type, but this time node "1" actually points at
+     * it via `next` -- a dangling pointer that must be rejected at save
+     * time rather than silently saved and only discovered when FlowEngine
+     * hits "Flow graph has no node '2'" mid-run.
+     */
+    public function test_a_next_pointer_at_a_dropped_unknown_type_node_is_rejected(): void
+    {
+        $export = $this->export([
+            '1' => $this->node('1', 'send_message', ['is_start' => true, 'body' => 'hi'], ['output_1' => ['connections' => [['node' => '2', 'output' => 'input_1']]]]),
+            '2' => $this->node('2', 'some_future_node_type', [], []),
+        ]);
+
+        $this->expectException(RuntimeException::class);
+
+        DrawflowGraphTranslator::toEngineGraph($export);
+    }
+
+    public function test_a_condition_next_true_pointer_at_a_dropped_node_is_rejected(): void
+    {
+        $export = $this->export([
+            '1' => $this->node('1', 'condition', ['is_start' => true, 'variable' => 'x', 'operator' => 'exists', 'value' => ''], [
+                'output_1' => ['connections' => [['node' => '2', 'output' => 'input_1']]],
+                'output_2' => ['connections' => []],
+            ]),
+            '2' => $this->node('2', 'some_future_node_type', [], []),
+        ]);
+
+        $this->expectException(RuntimeException::class);
+
+        DrawflowGraphTranslator::toEngineGraph($export);
+    }
+
     public function test_start_node_id_is_null_when_no_node_is_marked_the_start(): void
     {
         $export = $this->export([
@@ -164,10 +198,23 @@ class DrawflowGraphTranslatorTest extends TestCase
 
         $drawflow = DrawflowGraphTranslator::toDrawflowExport($original, [['id' => 9, 'name' => 'Priya']]);
 
-        // Incoming connections were reconstructed correctly for node "2".
+        // Incoming connections were reconstructed correctly for node "2" --
+        // Drawflow's own addConnection() (node_modules/drawflow/dist/
+        // drawflow.min.js) pushes a DIFFERENT key name on each side of a
+        // connection: the *output* side's connections carry an `output`
+        // key, the *input* side's carry an `input` key -- confirmed against
+        // both addConnection() itself and the README's own "Export
+        // example". This is the `inputs` side, so the key must be `input`.
         $this->assertSame(
-            [['node' => '1', 'output' => 'output_1']],
+            [['node' => '1', 'input' => 'output_1']],
             $drawflow['drawflow']['Home']['data']['2']['inputs']['input_1']['connections']
+        );
+        // And the matching `outputs` side (node "1"'s own outgoing edge)
+        // carries the opposite key name, `output`, with the *target's*
+        // input slot as its value -- the two sides are not symmetric.
+        $this->assertSame(
+            [['node' => '2', 'output' => 'input_1']],
+            $drawflow['drawflow']['Home']['data']['1']['outputs']['output_1']['connections']
         );
         $this->assertTrue($drawflow['drawflow']['Home']['data']['1']['data']['is_start']);
         $this->assertFalse($drawflow['drawflow']['Home']['data']['2']['data']['is_start']);
