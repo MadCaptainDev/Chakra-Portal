@@ -18,11 +18,13 @@ class MonthlyReportNote extends Model
         'client_id',
         'month',
         'note',
+        'whatsapp_sent_at',
         'updated_by_id',
     ];
 
     protected $casts = [
         'month' => 'date',
+        'whatsapp_sent_at' => 'datetime',
     ];
 
     public function client(): BelongsTo

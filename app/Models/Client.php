@@ -15,6 +15,29 @@ class Client extends Model
 {
     use HasFactory;
 
+    /**
+     * Every optional block a monthly Instagram report can carry, in the
+     * order the report itself lays them out. Hero stats (followers, net
+     * growth, reach, engagement, pieces published) and the studio-written
+     * note are not on this list -- they are the report's headline, not a
+     * discretionary section, and every client gets them.
+     *
+     * The catalog lives here rather than on MonthlyReportData/
+     * MonthlyReportDocumentRenderer so the client settings screen, the
+     * report screen's checklist, and the PDF renderer all read one list
+     * instead of three that can drift apart.
+     */
+    public const REPORT_SECTIONS = [
+        'follower_growth' => 'Follower growth, day by day',
+        'engagement_breakdown' => 'Engagement breakdown',
+        'age_breakdown' => 'Age breakdown',
+        'gender_breakdown' => 'Gender breakdown',
+        'top_cities' => 'Top cities',
+        'top_posts' => 'The posts that worked hardest',
+        'formats_published' => 'What we published',
+        'shoots' => 'Shoots this month',
+    ];
+
     protected $fillable = [
         'name',
         'logo_path',
@@ -22,13 +45,41 @@ class Client extends Model
         'email',
         'phone',
         'whatsapp_portal_enabled',
+        'report_sections_disabled',
         'notion_venture',
         'industry_id',
     ];
 
     protected $casts = [
         'whatsapp_portal_enabled' => 'boolean',
+        'report_sections_disabled' => 'array',
     ];
+
+    /**
+     * Whether one report section is on for this client by default --
+     * unset/null (no preference ever saved) means every section, matching
+     * the report's original all-sections behaviour with nothing to
+     * backfill for a client that predates this setting.
+     */
+    public function reportSectionEnabled(string $key): bool
+    {
+        return ! in_array($key, $this->report_sections_disabled ?? [], true);
+    }
+
+    /**
+     * Every REPORT_SECTIONS key this client's reports include by default --
+     * what a fresh visit to the report screen (no query string yet)
+     * pre-ticks.
+     *
+     * @return list<string>
+     */
+    public function defaultReportSections(): array
+    {
+        return array_values(array_filter(
+            array_keys(self::REPORT_SECTIONS),
+            fn (string $key) => $this->reportSectionEnabled($key)
+        ));
+    }
 
     /**
      * A client whose WhatsApp number may use the self-service menu.

@@ -25,9 +25,10 @@ class MonthlyReportTest extends TestCase
 
     private static int $nextPlatformUserId = 17841470000000001;
 
-    private function client(string $name = 'Chakra Production'): Client
+    /** @param  array<string, mixed>  $attributes */
+    private function client(string $name = 'Chakra Production', array $attributes = []): Client
     {
-        return Client::create(['name' => $name]);
+        return Client::create(['name' => $name] + $attributes);
     }
 
     // Recently synced by default -- see the identical note in
@@ -439,5 +440,249 @@ class MonthlyReportTest extends TestCase
             ->get(route('instagram.report', ['client' => $client, 'month' => '2026-03']))
             ->assertOk()
             ->assertSee('March 2026');
+    }
+
+    // -- The follower-growth chart's data source ------------------------------
+
+    /**
+     * The bug this guards: the chart headed "Follower growth, day by day"
+     * was wired to the REACH trend, not follower_count -- so it plotted a
+     * completely different metric under a label that promised something
+     * else. trend() is metric-agnostic; this is fixing which metric it is
+     * asked for, not adding new plumbing.
+     */
+    public function test_the_follower_growth_chart_plots_follower_count_not_reach(): void
+    {
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+        $day = now()->subMonthNoOverflow()->startOfMonth()->addDays(5);
+
+        SocialInsight::record([
+            'social_account_id' => $account->id, 'metric' => 'reach', 'metric_type' => SocialInsight::TYPE_TIME_SERIES,
+            'value' => 50000, 'period' => 'day', 'period_start' => $day->toDateString(),
+        ]);
+        SocialInsight::record([
+            'social_account_id' => $account->id, 'metric' => 'follower_count', 'metric_type' => SocialInsight::TYPE_TIME_SERIES,
+            'value' => 42, 'period' => 'day', 'period_start' => $day->toDateString(),
+        ]);
+
+        $data = \App\Services\MonthlyReportData::forRange(
+            $client, $account,
+            ...\App\Services\MonthlyReportData::monthRange(now()->subMonthNoOverflow())
+        );
+
+        $byDate = collect($data['followerTrend'])->keyBy('date');
+        $this->assertSame(42, $byDate[$day->toDateString()]['value']);
+        // The old (wrong) wiring would have shown 50000 here.
+        $this->assertNotSame(50000, $byDate[$day->toDateString()]['value']);
+    }
+
+    // -- Report sections: per-client default -----------------------------------
+
+    public function test_a_client_with_no_saved_preference_gets_every_section(): void
+    {
+        $client = $this->client();
+
+        $this->assertSame(array_keys(Client::REPORT_SECTIONS), $client->defaultReportSections());
+        $this->assertTrue($client->reportSectionEnabled('top_cities'));
+    }
+
+    public function test_saving_section_defaults_persists_which_are_disabled(): void
+    {
+        $client = $this->client();
+        $this->connectedAccount($client);
+
+        $this->actingAs($this->staff(['view', 'edit']))->post(route('instagram.report.sections', $client), [
+            'month' => now()->format('Y-m'),
+            'sections' => ['engagement_breakdown', 'top_posts'],
+        ])->assertRedirect();
+
+        $client->refresh();
+        $this->assertFalse($client->reportSectionEnabled('top_cities'));
+        $this->assertTrue($client->reportSectionEnabled('engagement_breakdown'));
+        $this->assertSame(['engagement_breakdown', 'top_posts'], $client->defaultReportSections());
+    }
+
+    public function test_saving_section_defaults_needs_edit_not_just_view(): void
+    {
+        $client = $this->client();
+        $this->connectedAccount($client);
+
+        $this->actingAs($this->staff(['view']))
+            ->post(route('instagram.report.sections', $client), ['month' => now()->format('Y-m'), 'sections' => []])
+            ->assertForbidden();
+    }
+
+    public function test_ticking_nothing_disables_every_section(): void
+    {
+        $client = $this->client();
+        $this->connectedAccount($client);
+
+        $this->actingAs($this->staff(['view', 'edit']))->post(route('instagram.report.sections', $client), [
+            'month' => now()->format('Y-m'),
+            'sections' => [],
+        ]);
+
+        $this->assertSame([], $client->fresh()->defaultReportSections());
+    }
+
+    // -- Report sections: on-screen preview honours the current selection ------
+
+    public function test_the_report_screen_shows_the_clients_saved_default(): void
+    {
+        $client = $this->client('Chakra Production', ['report_sections_disabled' => ['top_cities']]);
+        $account = $this->connectedAccount($client);
+        // audienceSyncedAt (MonthlyReportData::forRange()) is read off the
+        // age/gender snapshot specifically, not the city one -- both are
+        // needed for the "Who is following" block to render at all rather
+        // than the not-synced empty state.
+        SocialAudienceSnapshot::create([
+            'social_account_id' => $account->id, 'dimension' => SocialAudienceSnapshot::DIMENSION_AGE_GENDER,
+            'data' => [['dimension_values' => ['25-34', 'F'], 'value' => 20]], 'fetched_at' => now(),
+        ]);
+        SocialAudienceSnapshot::create([
+            'social_account_id' => $account->id, 'dimension' => SocialAudienceSnapshot::DIMENSION_CITY,
+            'data' => [['dimension_values' => ['Kochi, Kerala'], 'value' => 51]], 'fetched_at' => now(),
+        ]);
+
+        // "Top cities" as a label still appears once, in the section
+        // checklist itself (every section is listed there, ticked or not,
+        // so staff can see what's off and re-enable it) -- the real proof
+        // the section is excluded is that its actual data is gone.
+        $this->actingAs($this->staff(['view']))
+            ->get(route('instagram.report', $client))
+            ->assertOk()
+            ->assertDontSee('Kochi, Kerala');
+    }
+
+    /**
+     * The per-send override: a section the client's own default disables
+     * can still be ticked back on for one particular report without
+     * touching the saved default at all.
+     */
+    public function test_a_query_string_selection_overrides_the_saved_default_without_changing_it(): void
+    {
+        $client = $this->client('Chakra Production', ['report_sections_disabled' => ['top_cities']]);
+        $account = $this->connectedAccount($client);
+        // audienceSyncedAt (MonthlyReportData::forRange()) is read off the
+        // age/gender snapshot specifically, not the city one -- both are
+        // needed for the "Who is following" block to render at all rather
+        // than the not-synced empty state.
+        SocialAudienceSnapshot::create([
+            'social_account_id' => $account->id, 'dimension' => SocialAudienceSnapshot::DIMENSION_AGE_GENDER,
+            'data' => [['dimension_values' => ['25-34', 'F'], 'value' => 20]], 'fetched_at' => now(),
+        ]);
+        SocialAudienceSnapshot::create([
+            'social_account_id' => $account->id, 'dimension' => SocialAudienceSnapshot::DIMENSION_CITY,
+            'data' => [['dimension_values' => ['Kochi, Kerala'], 'value' => 51]], 'fetched_at' => now(),
+        ]);
+
+        $this->actingAs($this->staff(['view']))
+            ->get(route('instagram.report', $client).'?sections_form=1&sections[]=top_cities')
+            ->assertOk()
+            ->assertSee('Kochi, Kerala');
+
+        // Untouched -- viewing with an overridden selection is not saving one.
+        $this->assertSame(['top_cities'], $client->fresh()->report_sections_disabled);
+    }
+
+    public function test_the_downloaded_pdf_respects_the_current_section_selection(): void
+    {
+        $client = $this->client();
+        $account = $this->connectedAccount($client);
+
+        $response = $this->actingAs($this->staff(['view']))
+            ->get(route('instagram.report.pdf', $client).'?sections_form=1');
+
+        $response->assertOk();
+        $this->assertSame('application/pdf', $response->headers->get('Content-Type'));
+    }
+
+    // -- Sending via WhatsApp ----------------------------------------------------
+
+    private function configuredWhatsapp(): void
+    {
+        \App\Models\WhatsappSetting::current()->update([
+            'access_token' => 'EAAG-test-token',
+            'phone_number_id' => '556677889900',
+        ]);
+    }
+
+    public function test_sending_the_report_uploads_the_pdf_and_sends_it_as_a_document(): void
+    {
+        $this->configuredWhatsapp();
+        $client = $this->client();
+        $this->connectedAccount($client);
+
+        Http::fake([
+            'graph.facebook.com/*/media' => Http::response(['id' => 'media-1']),
+            'graph.facebook.com/*/messages' => Http::response(['messages' => [['id' => 'wamid.R1']]]),
+        ]);
+
+        $response = $this->actingAs($this->staff(['view', 'edit']))->post(route('instagram.report.whatsapp', $client), [
+            'phone' => '9876543210',
+            'month' => now()->format('Y-m'),
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('status', fn (string $status) => str_contains($status, '9876543210'));
+
+        Http::assertSent(fn (\Illuminate\Http\Client\Request $request) => str_ends_with($request->url(), '/media'));
+        Http::assertSent(fn (\Illuminate\Http\Client\Request $request) => str_ends_with($request->url(), '/messages')
+            && $request->data()['type'] === 'document'
+            && $request->data()['document']['id'] === 'media-1');
+
+        $note = MonthlyReportNote::where('client_id', $client->id)->firstOrFail();
+        $this->assertNotNull($note->whatsapp_sent_at);
+    }
+
+    public function test_sending_needs_edit_not_just_view(): void
+    {
+        $client = $this->client();
+        $this->connectedAccount($client);
+
+        $this->actingAs($this->staff(['view']))
+            ->post(route('instagram.report.whatsapp', $client), ['phone' => '9876543210', 'month' => now()->format('Y-m')])
+            ->assertForbidden();
+    }
+
+    public function test_sending_without_a_connected_account_is_refused_with_an_error(): void
+    {
+        $client = $this->client();
+
+        $this->actingAs($this->staff(['view', 'edit']))
+            ->post(route('instagram.report.whatsapp', $client), ['phone' => '9876543210', 'month' => now()->format('Y-m')])
+            ->assertSessionHas('error');
+
+        $this->assertNull(MonthlyReportNote::where('client_id', $client->id)->first());
+    }
+
+    public function test_a_blank_phone_is_rejected_before_meta_is_ever_called(): void
+    {
+        $this->configuredWhatsapp();
+        $client = $this->client();
+        $this->connectedAccount($client);
+        Http::fake();
+
+        $this->actingAs($this->staff(['view', 'edit']))
+            ->post(route('instagram.report.whatsapp', $client), ['phone' => '', 'month' => now()->format('Y-m')])
+            ->assertSessionHasErrors('phone');
+
+        Http::assertNothingSent();
+    }
+
+    public function test_metas_own_failure_reason_is_surfaced_and_nothing_is_recorded(): void
+    {
+        $this->configuredWhatsapp();
+        $client = $this->client();
+        $this->connectedAccount($client);
+
+        Http::fake(['graph.facebook.com/*' => Http::response(['error' => ['message' => 'Message failed to send because more than 24 hours have passed.']], 400)]);
+
+        $this->actingAs($this->staff(['view', 'edit']))
+            ->post(route('instagram.report.whatsapp', $client), ['phone' => '9876543210', 'month' => now()->format('Y-m')])
+            ->assertSessionHas('error', 'Message failed to send because more than 24 hours have passed.');
+
+        $this->assertNull(MonthlyReportNote::where('client_id', $client->id)->first()?->whatsapp_sent_at);
     }
 }

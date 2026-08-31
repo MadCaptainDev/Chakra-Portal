@@ -8,12 +8,14 @@ use App\Models\SocialAccount;
 use App\Services\Instagram\InstagramSyncRunner;
 use App\Services\MonthlyReportData;
 use App\Services\MonthlyReportDocumentRenderer;
+use App\Services\WhatsappSender;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\View\View;
+use RuntimeException;
 
 /**
  * The monthly Instagram report for one client -- studio-only screen with a
@@ -37,6 +39,7 @@ class MonthlyReportController extends Controller
         $account = $this->instagramFor($client);
         $month = $this->resolveMonth($request);
         [$since, $until] = MonthlyReportData::monthRange($month);
+        $enabledSections = $this->resolveSections($request, $client);
 
         if (! $account) {
             return view('instagram.report', [
@@ -45,6 +48,7 @@ class MonthlyReportController extends Controller
                 'month' => $month,
                 'since' => $since,
                 'until' => $until,
+                'enabledSections' => $enabledSections,
             ]);
         }
 
@@ -63,6 +67,7 @@ class MonthlyReportController extends Controller
             'since' => $since,
             'until' => $until,
             'note' => MonthlyReportNote::forClientAndMonth($client, $month),
+            'enabledSections' => $enabledSections,
         ] + MonthlyReportData::forRange($client, $account, $since, $until));
     }
 
@@ -99,11 +104,86 @@ class MonthlyReportController extends Controller
         abort_unless($account, 404);
 
         $month = $this->resolveMonth($request);
+        $enabledSections = $this->resolveSections($request, $client);
 
-        $html = $renderer->render($client, $account, $month);
+        $html = $renderer->render($client, $account, $month, $enabledSections);
         $filename = $client->name.' — '.$month->format('F Y').' report.pdf';
 
         return Pdf::loadHTML($html)->setPaper('a4')->download($filename);
+    }
+
+    /**
+     * Persists the report screen's current section checklist as this
+     * client's new default (Client::report_sections_disabled) -- the
+     * "save as default" half of "per-client default, overridable per
+     * send". The checklist itself lives on the report screen and this
+     * only ever receives its own POST, so there is no month-specific data
+     * to touch here, only the client's standing preference.
+     */
+    public function updateSections(Request $request, Client $client): RedirectResponse
+    {
+        $selected = $this->validSectionKeys((array) $request->input('sections', []));
+        $disabled = array_values(array_diff(array_keys(Client::REPORT_SECTIONS), $selected));
+
+        $client->update(['report_sections_disabled' => $disabled]);
+
+        return redirect()->route('instagram.report', ['client' => $client, 'month' => $request->input('month')])
+            ->with('status', 'Default sections saved for '.$client->name.'.');
+    }
+
+    /**
+     * Renders the currently-selected sections into a PDF and sends it as a
+     * WhatsApp document -- to whatever number is typed in, not necessarily
+     * the client's own on file, same reasoning as InvoiceController::sendWhatsapp():
+     * there is no one "the" recipient to lock this to. Free-form (see
+     * WhatsappSender::sendDocument()'s own doc block), so this only ever
+     * reaches a number within 24 hours of it last messaging the studio.
+     */
+    public function sendWhatsapp(Request $request, Client $client, MonthlyReportDocumentRenderer $renderer): RedirectResponse
+    {
+        $account = $this->instagramFor($client);
+
+        if (! $account) {
+            return redirect()->route('instagram.report', ['client' => $client])
+                ->with('error', 'Connect Instagram for '.$client->name.' before sending a report.');
+        }
+
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'min:10', 'max:20', 'regex:/^[0-9+\-\s()]+$/'],
+            'month' => ['required', 'date_format:Y-m'],
+        ], [
+            'phone.regex' => 'That doesn\'t look like a phone number.',
+        ]);
+
+        $month = $this->parseMonth($validated['month']);
+        $enabledSections = $this->validSectionKeys((array) $request->input('sections', []));
+
+        $pdfContents = Pdf::loadHTML($renderer->render($client, $account, $month, $enabledSections))
+            ->setPaper('a4')
+            ->output();
+        $filename = $client->name.' — '.$month->format('F Y').' report.pdf';
+
+        try {
+            WhatsappSender::make()->sendDocument(
+                $validated['phone'],
+                $pdfContents,
+                $filename,
+                $client->name.'\'s '.$month->format('F Y').' Instagram report.',
+            );
+        } catch (RuntimeException $e) {
+            // Meta's own reason (outside the 24h window, number not
+            // reachable, ...) is the useful part -- surfaced as-is rather
+            // than a generic "failed to send".
+            return redirect()->route('instagram.report', ['client' => $client, 'month' => $validated['month']])
+                ->with('error', $e->getMessage());
+        }
+
+        MonthlyReportNote::forClientAndMonth($client, $month)
+            ->forceFill(['whatsapp_sent_at' => now()])
+            ->save();
+
+        return redirect()->route('instagram.report', ['client' => $client, 'month' => $validated['month']])
+            ->with('status', "Sent to {$validated['phone']} on WhatsApp.");
     }
 
     /**
@@ -148,5 +228,36 @@ class MonthlyReportController extends Controller
             ->forPlatform(SocialAccount::PLATFORM_INSTAGRAM)
             ->connected()
             ->first();
+    }
+
+    /**
+     * Which report sections this request is actually asking for.
+     *
+     * `sections_form` is a hidden marker the checklist form always
+     * submits alongside `sections[]` -- without it, there would be no way
+     * to tell "the form was submitted with every box unticked" (a real,
+     * intentional choice) apart from "no sections param was ever sent at
+     * all" (a fresh visit, no opinion yet), because an unchecked HTML
+     * checkbox is simply absent from what the browser submits. Only the
+     * second case falls back to the client's saved default.
+     *
+     * @return list<string>
+     */
+    private function resolveSections(Request $request, Client $client): array
+    {
+        if (! $request->has('sections_form')) {
+            return $client->defaultReportSections();
+        }
+
+        return $this->validSectionKeys((array) $request->input('sections', []));
+    }
+
+    /**
+     * @param  array<int, mixed>  $keys
+     * @return list<string>
+     */
+    private function validSectionKeys(array $keys): array
+    {
+        return array_values(array_intersect($keys, array_keys(Client::REPORT_SECTIONS)));
     }
 }

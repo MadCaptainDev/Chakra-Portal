@@ -40,14 +40,25 @@ class MonthlyReportDocumentRenderer
     /** The growth chart's fixed height, referenced by both the CSS and the PHP that computes each bar's own height against it. */
     private const CHART_HEIGHT_MM = 40;
 
-    public function render(Client $client, SocialAccount $account, Carbon $month): string
+    /**
+     * $enabledSections: which of Client::REPORT_SECTIONS to include, or
+     * null for the client's own saved default (Client::defaultReportSections()) --
+     * null is what every caller before this feature effectively meant, so
+     * an existing call site with no opinion keeps rendering exactly what it
+     * always did. Hero stats and the studio note are never optional --
+     * see Client::REPORT_SECTIONS' own doc block for why.
+     *
+     * @param  list<string>|null  $enabledSections
+     */
+    public function render(Client $client, SocialAccount $account, Carbon $month, ?array $enabledSections = null): string
     {
         [$since, $until] = MonthlyReportData::monthRange($month);
         $data = MonthlyReportData::forRange($client, $account, $since, $until);
+        $enabledSections ??= $client->defaultReportSections();
 
-        $page1 = $this->page1($client, $account, $month, $since, $until, $data);
-        $page2 = $this->page2($client, $data);
-        $page3 = $this->page3($client, $account, $since, $until, $data);
+        $page1 = $this->page1($client, $account, $month, $since, $until, $data, $enabledSections);
+        $page2 = $this->page2($client, $data, $enabledSections);
+        $page3 = $this->page3($client, $account, $since, $until, $data, $enabledSections);
 
         $title = e($client->name.' — '.$month->format('F Y').' report');
 
@@ -83,7 +94,8 @@ HTML;
 
     // -- Page 1: hero, headline numbers, follower growth --------------------
 
-    private function page1(Client $client, SocialAccount $account, Carbon $month, Carbon $since, Carbon $until, array $data): string
+    /** @param  list<string>  $enabledSections */
+    private function page1(Client $client, SocialAccount $account, Carbon $month, Carbon $since, Carbon $until, array $data, array $enabledSections): string
     {
         $logo = e(Assets::image('images/chakra-logo.png'));
         $clientName = e($client->name);
@@ -105,7 +117,6 @@ HTML;
                 .'<p class="hero-label">'.e($item['label']).'</p></td>';
         }
 
-        $bars = $this->growthBars($data['trend']);
         $notePara = $note
             ? '<p class="note-text">'.nl2br(e($note)).'</p>'
             : '<p class="note-text note-empty">No note written for this month yet.</p>';
@@ -116,9 +127,25 @@ HTML;
             'hero-top',
         );
 
-        $chartHead = $this->splitRow(
-            '<span class="h2">Follower growth, day by day</span>', '', 'chart-head',
-        );
+        $growthBlock = '';
+        if (in_array('follower_growth', $enabledSections, true)) {
+            $bars = $this->growthBars($data['followerTrend']);
+            $chartHead = $this->splitRow(
+                '<span class="h2">Follower growth, day by day</span>', '', 'chart-head',
+            );
+
+            $growthBlock = <<<HTML
+<div class="chart-block">
+    {$chartHead}
+    <table class="bars" width="100%" cellspacing="0" cellpadding="0"><tr>{$bars}</tr></table>
+    <table class="bars-axis" width="100%" cellspacing="0" cellpadding="0"><tr>
+        <td>{$since->format('j M')}</td>
+        <td class="axis-mid">{$since->copy()->addDays((int) round($since->diffInDays($until) / 2))->format('j M')}</td>
+        <td class="axis-end">{$until->format('j M')}</td>
+    </tr></table>
+</div>
+HTML;
+        }
 
         $footer = '<div class="footer-strip">'.$this->splitRow('Chakra Productions · '.$handle, 'Page 1 of 3').'</div>';
 
@@ -134,15 +161,7 @@ HTML;
     <div class="body">
         <p class="section-label">The month in one paragraph</p>
         {$notePara}
-        <div class="chart-block">
-            {$chartHead}
-            <table class="bars" width="100%" cellspacing="0" cellpadding="0"><tr>{$bars}</tr></table>
-            <table class="bars-axis" width="100%" cellspacing="0" cellpadding="0"><tr>
-                <td>{$since->format('j M')}</td>
-                <td class="axis-mid">{$since->copy()->addDays((int) round($since->diffInDays($until) / 2))->format('j M')}</td>
-                <td class="axis-end">{$until->format('j M')}</td>
-            </tr></table>
-        </div>
+        {$growthBlock}
     </div>
     {$footer}
 </div>
@@ -184,26 +203,34 @@ HTML;
 
     // -- Page 2: engagement breakdown, top posts -----------------------------
 
-    private function page2(Client $client, array $data): string
+    /** @param  list<string>  $enabledSections */
+    private function page2(Client $client, array $data, array $enabledSections): string
     {
         $clientName = e($client->name);
-        $breakdownHtml = $this->barList($data['breakdown']);
         $totalEngagement = number_format($data['overview']['engagement']);
 
-        $rows = '';
-        $rank = 1;
+        $breakdownBlock = '';
+        if (in_array('engagement_breakdown', $enabledSections, true)) {
+            $breakdownHead = $this->splitRow('<span class="h2">Engagement breakdown</span>', $totalEngagement.' interactions in total', 'chart-head');
+            $breakdownBlock = '<div class="chart-block">'.$breakdownHead.$this->barList($data['breakdown']).'</div>';
+        }
 
-        foreach ($data['content']->take(5) as $item) {
-            /** @var SocialMediaItem $item */
-            [$bg, $fg] = $this->typeColors($item);
-            $caption = e($this->stripEmoji($item->shortCaption(70)));
-            $date = e($item->posted_at?->format('j M Y') ?? '');
-            $reach = $item->metricValue('reach') !== null ? number_format($item->metricValue('reach')) : '—';
-            $views = $item->metricValue('views') !== null ? number_format($item->metricValue('views')) : '—';
-            $eng = $item->metricValue('total_interactions') !== null ? number_format($item->metricValue('total_interactions')) : '—';
-            $type = e($item->typeLabel());
+        $postsBlock = '';
+        if (in_array('top_posts', $enabledSections, true)) {
+            $rows = '';
+            $rank = 1;
 
-            $rows .= <<<HTML
+            foreach ($data['content']->take(5) as $item) {
+                /** @var SocialMediaItem $item */
+                [$bg, $fg] = $this->typeColors($item);
+                $caption = e($this->stripEmoji($item->shortCaption(70)));
+                $date = e($item->posted_at?->format('j M Y') ?? '');
+                $reach = $item->metricValue('reach') !== null ? number_format($item->metricValue('reach')) : '—';
+                $views = $item->metricValue('views') !== null ? number_format($item->metricValue('views')) : '—';
+                $eng = $item->metricValue('total_interactions') !== null ? number_format($item->metricValue('total_interactions')) : '—';
+                $type = e($item->typeLabel());
+
+                $rows .= <<<HTML
 <tr>
     <td class="post-cell">
         <span class="post-rank">{$rank}</span>
@@ -215,33 +242,38 @@ HTML;
     <td class="num">{$eng}</td>
 </tr>
 HTML;
-            $rank++;
+                $rank++;
+            }
+
+            if ($rows === '') {
+                $rows = '<tr><td colspan="5" class="empty-row">Nothing was posted in this range.</td></tr>';
+            }
+
+            $postsHead = $this->splitRow('<span class="h2">The posts that worked hardest</span>', 'Ranked by accounts reached', 'chart-head');
+            $postsBlock = <<<HTML
+<div class="chart-block">
+    {$postsHead}
+    <table class="posts-table" width="100%" cellspacing="0" cellpadding="0">
+        <thead><tr><th>Content</th><th>Type</th><th class="num">Reach</th><th class="num">Views</th><th class="num">Engagement</th></tr></thead>
+        <tbody>{$rows}</tbody>
+    </table>
+</div>
+HTML;
         }
 
-        if ($rows === '') {
-            $rows = '<tr><td colspan="5" class="empty-row">Nothing was posted in this range.</td></tr>';
+        $body = $breakdownBlock.$postsBlock;
+        if ($body === '') {
+            $body = '<p class="empty-row">Nothing selected for this page this month.</p>';
         }
 
         $pageHead = $this->splitRow($clientName, 'How the month performed', 'page-head');
-        $breakdownHead = $this->splitRow('<span class="h2">Engagement breakdown</span>', $totalEngagement.' interactions in total', 'chart-head');
-        $postsHead = $this->splitRow('<span class="h2">The posts that worked hardest</span>', 'Ranked by accounts reached', 'chart-head');
         $footer = '<div class="footer-strip">'.$this->splitRow('Chakra Productions · Digital Chaos', 'Page 2 of 3').'</div>';
 
         return <<<HTML
 <div class="page" id="p2">
     {$pageHead}
     <div class="body">
-        <div class="chart-block">
-            {$breakdownHead}
-            {$breakdownHtml}
-        </div>
-        <div class="chart-block">
-            {$postsHead}
-            <table class="posts-table" width="100%" cellspacing="0" cellpadding="0">
-                <thead><tr><th>Content</th><th>Type</th><th class="num">Reach</th><th class="num">Views</th><th class="num">Engagement</th></tr></thead>
-                <tbody>{$rows}</tbody>
-            </table>
-        </div>
+        {$body}
     </div>
     {$footer}
 </div>
@@ -250,52 +282,88 @@ HTML;
 
     // -- Page 3: audience, publishing, shoots --------------------------------
 
-    private function page3(Client $client, SocialAccount $account, Carbon $since, Carbon $until, array $data): string
+    /** @param  list<string>  $enabledSections */
+    private function page3(Client $client, SocialAccount $account, Carbon $since, Carbon $until, array $data, array $enabledSections): string
     {
         $clientName = e($client->name);
         $followers = number_format((int) $data['overview']['followers']);
 
-        if ($data['audienceSyncedAt']) {
-            $ageHtml = $this->barList($data['ageBreakdown'], suffix: '%');
-            $genderHtml = $this->barList($data['genderBreakdown'], suffix: '%');
-            $cityHtml = $this->barList($data['topCities']);
-            $audienceBlock = <<<HTML
-<table class="audience-grid" width="100%" cellspacing="0" cellpadding="0"><tr>
-    <td class="audience-col"><p class="mini-label">Age, %</p>{$ageHtml}</td>
-    <td class="audience-col"><p class="mini-label">Gender, %</p>{$genderHtml}</td>
-    <td class="audience-col audience-col-last"><p class="mini-label">Top cities</p>{$cityHtml}</td>
-</tr></table>
-HTML;
-        } else {
-            $audienceBlock = '<p class="empty-row">Audience demographics have not been synced for this account yet.</p>';
+        // Which of the three audience columns this client's report shows,
+        // built as a list rather than three fixed <td>s: the CSS's
+        // table-layout: fixed + a flat 33.33% per .audience-col means a
+        // hardcoded 3-cell markup would leave a blank third column if only
+        // two are enabled, rather than the remaining two expanding to fill
+        // it. Width is computed here instead and set inline per cell so it
+        // always divides evenly across however many are actually present.
+        $audienceColumns = [];
+        if (in_array('age_breakdown', $enabledSections, true)) {
+            $audienceColumns[] = ['label' => 'Age, %', 'html' => $this->barList($data['ageBreakdown'], suffix: '%')];
+        }
+        if (in_array('gender_breakdown', $enabledSections, true)) {
+            $audienceColumns[] = ['label' => 'Gender, %', 'html' => $this->barList($data['genderBreakdown'], suffix: '%')];
+        }
+        if (in_array('top_cities', $enabledSections, true)) {
+            $audienceColumns[] = ['label' => 'Top cities', 'html' => $this->barList($data['topCities'])];
         }
 
-        $formatsHtml = '';
-        foreach ($data['formats'] as $format) {
-            $formatsHtml .= '<td class="format-cell"><p class="format-count">'.e((string) $format['count']).'</p>'
-                .'<p class="format-label">'.e($format['label']).'s</p></td>';
-        }
-        if ($formatsHtml === '') {
-            $formatsHtml = '<td class="format-cell"><p class="empty-row">Nothing published this range.</p></td>';
+        $audienceBlock = '';
+        if ($audienceColumns !== []) {
+            $width = round(100 / count($audienceColumns), 2).'%';
+            $lastIndex = count($audienceColumns) - 1;
+
+            $cells = '';
+            foreach ($audienceColumns as $i => $column) {
+                $class = 'audience-col'.($i === $lastIndex ? ' audience-col-last' : '');
+                $cells .= '<td class="'.$class.'" style="width:'.$width.';"><p class="mini-label">'.e($column['label']).'</p>'.$column['html'].'</td>';
+            }
+
+            $audienceHead = $this->splitRow('<span class="h2">Who is following</span>', $followers.' followers at the close of the month.', 'chart-head');
+            $body = $data['audienceSyncedAt']
+                ? '<table class="audience-grid" width="100%" cellspacing="0" cellpadding="0"><tr>'.$cells.'</tr></table>'
+                : '<p class="empty-row">Audience demographics have not been synced for this account yet.</p>';
+
+            $audienceBlock = '<div class="chart-block">'.$audienceHead.$body.'</div>';
         }
 
-        $shootRows = '';
-        foreach ($data['shoots'] as $shoot) {
-            $date = e($shoot->starts_at?->format('j M') ?? '');
-            $title = e($shoot->title);
-            $meta = e(trim(($shoot->location ?? '').($shoot->location ? ' · ' : '').ucfirst($shoot->status)));
-            $shootRows .= <<<HTML
+        $formatsBlock = '';
+        if (in_array('formats_published', $enabledSections, true)) {
+            $formatsHtml = '';
+            foreach ($data['formats'] as $format) {
+                $formatsHtml .= '<td class="format-cell"><p class="format-count">'.e((string) $format['count']).'</p>'
+                    .'<p class="format-label">'.e($format['label']).'s</p></td>';
+            }
+            if ($formatsHtml === '') {
+                $formatsHtml = '<td class="format-cell"><p class="empty-row">Nothing published this range.</p></td>';
+            }
+
+            $formatsBlock = '<div class="chart-block"><h2 class="h2 h2-block">What we published</h2>'
+                .'<table class="formats-row" width="100%" cellspacing="0" cellpadding="0"><tr>'.$formatsHtml.'</tr></table></div>';
+        }
+
+        $shootsBlock = '';
+        if (in_array('shoots', $enabledSections, true)) {
+            $shootRows = '';
+            foreach ($data['shoots'] as $shoot) {
+                $date = e($shoot->starts_at?->format('j M') ?? '');
+                $title = e($shoot->title);
+                $meta = e(trim(($shoot->location ?? '').($shoot->location ? ' · ' : '').ucfirst($shoot->status)));
+                $shootRows .= <<<HTML
 <tr><td class="shoot-date">{$date}</td><td><p class="shoot-title">{$title}</p><p class="shoot-meta">{$meta}</p></td></tr>
 HTML;
+            }
+
+            $shootsBlock = $shootRows !== ''
+                ? '<div class="chart-block"><h2 class="h2 h2-block">Shoots this month</h2>'
+                    .'<table class="shoots-table" width="100%" cellspacing="0" cellpadding="0">'.$shootRows.'</table></div>'
+                : '';
         }
 
-        $shootsBlock = $shootRows !== ''
-            ? '<div class="chart-block"><h2 class="h2 h2-block">Shoots this month</h2>'
-                .'<table class="shoots-table" width="100%" cellspacing="0" cellpadding="0">'.$shootRows.'</table></div>'
-            : '';
+        $body = $audienceBlock.$formatsBlock.$shootsBlock;
+        if ($body === '') {
+            $body = '<p class="empty-row">Nothing selected for this page this month.</p>';
+        }
 
         $pageHead = $this->splitRow($clientName, 'Audience and production', 'page-head');
-        $audienceHead = $this->splitRow('<span class="h2">Who is following</span>', $followers.' followers at the close of the month.', 'chart-head');
         $footer = '<div class="footer-band">'.$this->splitRow(
             '<span class="footer-band-text">Anything on these three pages is a question for the studio — write to us and we will sort it out.</span>',
             'Page 3 of 3',
@@ -305,15 +373,7 @@ HTML;
 <div class="page" id="p3">
     {$pageHead}
     <div class="body">
-        <div class="chart-block">
-            {$audienceHead}
-            {$audienceBlock}
-        </div>
-        <div class="chart-block">
-            <h2 class="h2 h2-block">What we published</h2>
-            <table class="formats-row" width="100%" cellspacing="0" cellpadding="0"><tr>{$formatsHtml}</tr></table>
-        </div>
-        {$shootsBlock}
+        {$body}
     </div>
     {$footer}
 </div>
@@ -463,7 +523,11 @@ html, body { margin: 0; padding: 0; font-family: 'Poppins', Arial, sans-serif; c
 .empty-row { color: #9CA3AF; font-size: 9.5pt; padding: 4mm 0; }
 
 .audience-grid { table-layout: fixed; }
-.audience-col { vertical-align: top; width: 33.33%; padding-right: 6mm; }
+/* width is no longer fixed here -- page3() now sets it inline per cell
+   (100 / however many of age/gender/top-cities are actually enabled),
+   since a static 33.33% would leave a blank column instead of the
+   remaining ones expanding to fill it when one is toggled off. */
+.audience-col { vertical-align: top; padding-right: 6mm; }
 .audience-col-last { padding-right: 0; }
 .mini-label { margin: 0 0 3mm; font-size: 8pt; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #6B7280; }
 

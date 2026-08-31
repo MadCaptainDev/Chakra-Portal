@@ -40,7 +40,15 @@ class MonthlyReportData
 
         return [
             'overview' => InstagramReportData::overview($account, $since, $until),
-            'trend' => InstagramReportData::trend($account, 'reach', $since, $until),
+            // 'follower_count', not 'reach' -- this was previously wired to
+            // the reach trend while every consumer's own heading said
+            // "Follower growth, day by day" (see MonthlyReportDocumentRenderer's
+            // page1() and instagram/report.blade.php's x-charts.metric-trend).
+            // trend() is metric-agnostic (it already powers the real reach
+            // chart on the Insights screen), so this fixes the mismatch by
+            // asking it for the metric the label actually promises rather
+            // than adding new plumbing.
+            'followerTrend' => InstagramReportData::trend($account, 'follower_count', $since, $until),
             'breakdown' => InstagramReportData::engagementBreakdown($account, $since, $until),
             'content' => $content,
             'formats' => InstagramReportData::formatBreakdown($content),

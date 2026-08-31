@@ -152,6 +152,74 @@ class WhatsappSenderTest extends TestCase
         $this->assertSame('14155552671', WhatsappSender::normalise('+1 415 555 2671'));
     }
 
+    // -- sendDocument() -----------------------------------------------------
+
+    public function test_a_document_is_uploaded_then_sent_referencing_the_returned_media_id(): void
+    {
+        $this->configured();
+
+        Http::fake([
+            'graph.facebook.com/*/media' => Http::response(['id' => 'media-123']),
+            'graph.facebook.com/*/messages' => Http::response(['messages' => [['id' => 'wamid.DOC1']]]),
+        ]);
+
+        $result = WhatsappSender::make()->sendDocument('917094126823', '%PDF-1.4 fake bytes', 'Report.pdf', 'August report');
+
+        $this->assertSame('wamid.DOC1', $result['wamid']);
+
+        Http::assertSent(function (Request $request) {
+            if (! str_ends_with($request->url(), '/media')) {
+                return false;
+            }
+
+            // Multipart parts, not a flat array -- ->data() returns Guzzle's
+            // own [name, contents, filename?] list for a multipart request,
+            // so a plain field is found by name rather than array-accessed.
+            $field = fn (string $name) => collect($request->data())->firstWhere('name', $name)['contents'] ?? null;
+
+            return $request->hasFile('file', '%PDF-1.4 fake bytes', 'Report.pdf')
+                && $field('messaging_product') === 'whatsapp'
+                && $field('type') === 'application/pdf';
+        });
+
+        Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/messages')
+            && $request->data()['type'] === 'document'
+            && $request->data()['document'] === ['id' => 'media-123', 'filename' => 'Report.pdf', 'caption' => 'August report']);
+    }
+
+    public function test_sending_a_document_without_a_caption_omits_the_key(): void
+    {
+        $this->configured();
+
+        Http::fake([
+            'graph.facebook.com/*/media' => Http::response(['id' => 'media-456']),
+            'graph.facebook.com/*/messages' => Http::response(['messages' => [['id' => 'wamid.DOC2']]]),
+        ]);
+
+        WhatsappSender::make()->sendDocument('917094126823', '%PDF fake', 'Report.pdf');
+
+        Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/messages')
+            && ! array_key_exists('caption', $request->data()['document']));
+    }
+
+    public function test_a_media_upload_failure_is_reported_verbatim_and_no_message_is_sent(): void
+    {
+        $this->configured();
+
+        Http::fake([
+            'graph.facebook.com/*/media' => Http::response(['error' => ['message' => 'Unsupported file type']], 400),
+        ]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unsupported file type');
+
+        try {
+            WhatsappSender::make()->sendDocument('917094126823', 'not really a pdf', 'Report.pdf');
+        } finally {
+            Http::assertNotSent(fn (Request $request) => str_ends_with($request->url(), '/messages'));
+        }
+    }
+
     // -- sendInteractiveList() ---------------------------------------------
 
     public function test_a_list_message_is_sent_in_the_shape_meta_expects(): void

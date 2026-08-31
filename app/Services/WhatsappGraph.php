@@ -81,6 +81,47 @@ class WhatsappGraph
     }
 
     /**
+     * Uploads a file ahead of sending it as a WhatsApp document/image/etc --
+     * returns the media id a `document`/`image` message then references.
+     *
+     * Multipart, not JSON, so this bypasses send() entirely rather than
+     * trying to make one method do both shapes: Meta's media endpoint wants
+     * `messaging_product` and `type` as ordinary form fields alongside the
+     * attached file, and asJson() (send()'s own Content-Type) would be
+     * actively wrong here.
+     *
+     * @return string the media id
+     */
+    public function uploadMedia(string $path, string $contents, string $filename, string $mimeType): string
+    {
+        if (! $this->isConfigured()) {
+            throw new RuntimeException(
+                'WhatsApp is not configured: set the access token in Settings -> WhatsApp.'
+            );
+        }
+
+        $response = Http::withToken($this->settings->access_token)
+            ->timeout(self::TIMEOUT_SECONDS)
+            ->attach('file', $contents, $filename, ['Content-Type' => $mimeType])
+            ->post($this->url($path), [
+                'messaging_product' => 'whatsapp',
+                'type' => $mimeType,
+            ]);
+
+        if ($response->failed()) {
+            $this->throwFrom($response, $path);
+        }
+
+        $mediaId = $response->json('id');
+
+        if (blank($mediaId)) {
+            throw new RuntimeException('Meta accepted the media upload but returned no media id.');
+        }
+
+        return $mediaId;
+    }
+
+    /**
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */

@@ -213,6 +213,44 @@ class WhatsappSender
     }
 
     /**
+     * Sends a file (a monthly report PDF, so far the only caller) as a
+     * WhatsApp document message. Free-form, same 24-hour customer-service
+     * window as sendText()/sendInteractiveList() -- a `document` message is
+     * not a template and Meta applies the identical rule.
+     *
+     * Two Graph calls under one method on purpose: Meta requires the file
+     * uploaded to its media endpoint first (WhatsappGraph::uploadMedia())
+     * before a message can reference it by id -- there is no single-call
+     * "attach and send". A caller wanting to know is one method away from
+     * either half instead of two.
+     *
+     * @return array{wamid: string|null, response: array<string, mixed>}
+     */
+    public function sendDocument(string $to, string $contents, string $filename, ?string $caption = null): array
+    {
+        $graph = new WhatsappGraph($this->settings);
+        $mediaId = $graph->uploadMedia(
+            $this->settings->phone_number_id.'/media',
+            $contents,
+            $filename,
+            'application/pdf',
+        );
+
+        $document = ['id' => $mediaId, 'filename' => $filename];
+
+        if (filled($caption)) {
+            $document['caption'] = $caption;
+        }
+
+        return $this->send([
+            'messaging_product' => 'whatsapp',
+            'to' => self::normalise($to),
+            'type' => 'document',
+            'document' => $document,
+        ], summary: '[document: '.$filename.']'.(filled($caption) ? ' '.$caption : ''));
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      * @return array{wamid: string|null, response: array<string, mixed>}
      */

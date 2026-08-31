@@ -486,6 +486,13 @@ Route::middleware(['auth', 'module:clients,view'])->scopeBindings()->group(funct
         ->middleware('module:clients,edit')->name('instagram.report.note');
     Route::get('clients/{client}/instagram/report/pdf', [MonthlyReportController::class, 'pdf'])
         ->name('instagram.report.pdf');
+    // Persists the report screen's current section checklist as this
+    // client's new default -- an editorial decision about what this client
+    // sees, same ability as the note.
+    Route::post('clients/{client}/instagram/report/sections', [MonthlyReportController::class, 'updateSections'])
+        ->middleware('module:clients,edit')->name('instagram.report.sections');
+    Route::post('clients/{client}/instagram/report/whatsapp', [MonthlyReportController::class, 'sendWhatsapp'])
+        ->middleware(['module:clients,edit', 'throttle:10,1'])->name('instagram.report.whatsapp');
 
     // Stored logins. scopeBindings() means a credential belonging to another
     // client 404s on the binding, before the controller runs.

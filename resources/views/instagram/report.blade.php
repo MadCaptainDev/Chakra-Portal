@@ -1,4 +1,6 @@
 @php
+    use App\Models\Client;
+
     /*
      * The monthly Instagram report for one client -- read entirely from
      * local caches, see MonthlyReportController for why nothing here calls
@@ -7,9 +9,17 @@
      *
      * The Studio/Client toggle is an on-screen PREVIEW only (Alpine,
      * client-side, no reload, no new route) -- there is no client-facing
-     * link for this report. Delivery is the downloaded PDF.
+     * link for this report. Delivery is a downloaded PDF or, now, the same
+     * PDF sent as a WhatsApp document -- both built from exactly the
+     * sections currently ticked below, never more than what's on screen.
      */
     $monthParam = $month->format('Y-m');
+
+    // Carried on every link that should keep showing the same section
+    // selection after navigating (Download PDF, the month arrows) --
+    // sections_form is what tells the controller "this request has an
+    // opinion", see MonthlyReportController::resolveSections().
+    $sectionParams = ['sections_form' => 1, 'sections' => $enabledSections];
 @endphp
 
 <x-app-layout title="Monthly Report">
@@ -39,7 +49,7 @@
 
             {{-- Month switcher + Studio/Client preview + Print --}}
             <div class="flex flex-wrap items-center justify-between gap-4">
-                <x-month-nav route="instagram.report" :month="$month" :params="['client' => $client]" class="max-w-xs" />
+                <x-month-nav route="instagram.report" :month="$month" :params="['client' => $client] + $sectionParams" class="max-w-xs" />
 
                 <div class="flex flex-wrap items-center gap-2" data-chrome>
                     <div class="inline-flex items-center gap-1 p-1 rounded-xl bg-white/10 ring-1 ring-white/10">
@@ -54,7 +64,7 @@
                             Client preview
                         </button>
                     </div>
-                    <a href="{{ route('instagram.report.pdf', ['client' => $client, 'month' => $monthParam]) }}"
+                    <a href="{{ route('instagram.report.pdf', ['client' => $client, 'month' => $monthParam] + $sectionParams) }}"
                        class="inline-flex items-center gap-2 min-h-[44px] px-4 rounded-md bg-brand-500 text-white text-sm font-semibold shadow-sm hover:bg-brand-600">
                         <x-icon name="document" class="w-4 h-4" />
                         Print / PDF
@@ -98,6 +108,82 @@
                 </p>
             </x-card>
 
+            {{-- Sections + WhatsApp delivery: studio-only controls, not part of the report itself --}}
+            <x-card padding="md" data-chrome x-show="! isClient">
+                <details {{ $errors->has('phone') ? 'open' : '' }}>
+                    <summary class="cursor-pointer text-sm font-semibold text-white select-none">
+                        Report sections &amp; delivery
+                    </summary>
+
+                    <div class="mt-4 space-y-5">
+                        {{-- One checkbox set, two destinations: "Apply" reloads this
+                             page with the ticked sections (a one-off, this download/
+                             send only); "Save as default" persists the same ticks as
+                             this client's standing preference via formmethod/formaction
+                             overriding the form's own GET, so there is nothing to keep
+                             in sync between two separate forms. --}}
+                        <form method="GET" action="{{ route('instagram.report', $client) }}">
+                            @csrf
+                            <input type="hidden" name="month" value="{{ $monthParam }}">
+                            <input type="hidden" name="sections_form" value="1">
+
+                            <p class="text-xs font-semibold uppercase tracking-wider text-brand-100/60 mb-2">
+                                Include in this report
+                            </p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
+                                @foreach (Client::REPORT_SECTIONS as $key => $label)
+                                    <label class="flex items-center gap-2.5 rounded-md bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5 cursor-pointer hover:bg-white/[0.06]">
+                                        <input type="checkbox" name="sections[]" value="{{ $key }}"
+                                               @checked(in_array($key, $enabledSections, true))
+                                               class="rounded border-white/20 bg-white/5 text-brand-400 focus:ring-brand-400">
+                                        <span class="text-sm text-white">{{ $label }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-3">
+                                <x-secondary-button type="submit">Apply to this report</x-secondary-button>
+                                <button type="submit" formmethod="POST" formaction="{{ route('instagram.report.sections', $client) }}"
+                                        class="text-sm font-semibold text-brand-300 hover:text-brand-200">
+                                    Save as default for {{ $client->name }}
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="pt-4 border-t border-white/10">
+                            <p class="text-xs font-semibold uppercase tracking-wider text-brand-100/60 mb-2">
+                                Send via WhatsApp
+                            </p>
+                            @if ($note->whatsapp_sent_at)
+                                <p class="text-xs text-emerald-300 mb-2">
+                                    Last sent {{ $note->whatsapp_sent_at->format('d M Y, g:i A') }}.
+                                </p>
+                            @endif
+                            <form method="POST" action="{{ route('instagram.report.whatsapp', $client) }}"
+                                  class="flex flex-col sm:flex-row sm:items-start gap-3"
+                                  onsubmit="return confirm('Send the currently ticked sections as a PDF to this number on WhatsApp?');">
+                                @csrf
+                                <input type="hidden" name="month" value="{{ $monthParam }}">
+                                @foreach ($enabledSections as $key)
+                                    <input type="hidden" name="sections[]" value="{{ $key }}">
+                                @endforeach
+                                <div class="flex-1">
+                                    <x-input-label for="phone" value="WhatsApp number" />
+                                    <x-text-input id="phone" name="phone" type="text" class="mt-1 w-full"
+                                        value="{{ old('phone', $client->phone) }}"
+                                        placeholder="e.g. 9876543210" required />
+                                    <x-input-error :messages="$errors->get('phone')" class="mt-2" />
+                                    <p class="mt-1 text-[11px] text-brand-100/50">
+                                        Sends the ticked sections above as a PDF attachment. Only reaches a number that has messaged the studio in the last 24 hours.
+                                    </p>
+                                </div>
+                                <x-primary-button class="mt-1 sm:mt-6">Send</x-primary-button>
+                            </form>
+                        </div>
+                    </div>
+                </details>
+            </x-card>
+
             {{-- Note --}}
             <x-card padding="md" class="bg-white/5 ring-1 ring-brand-400/20" id="note">
                 <div class="flex items-baseline justify-between gap-3 mb-2">
@@ -133,7 +219,9 @@
                 </div>
             </x-card>
 
-            {{-- KPIs --}}
+            {{-- KPIs -- always shown, not a toggleable section: this is the report's
+                 headline, the same five numbers regardless of which detail
+                 sections below are switched on or off. --}}
             <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
                 <x-stat-card label="Followers" :value="number_format($overview['followers'])" icon="users" accent="gray">at {{ $until->format('j M') }}</x-stat-card>
                 <x-stat-card label="Follower growth"
@@ -145,125 +233,160 @@
                 <x-stat-card label="Published" :value="number_format($content->count())" icon="check-circle" accent="brand">posts and reels</x-stat-card>
             </div>
 
+            @php
+                $showGrowth = in_array('follower_growth', $enabledSections, true);
+                $showBreakdown = in_array('engagement_breakdown', $enabledSections, true);
+            @endphp
+
             {{-- Growth + engagement --}}
-            <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
-                <div class="lg:col-span-3">
-                    <x-charts.metric-trend :days="$trend" title="Follower growth, day by day"
-                        empty="No reach data cached for this month yet — press Sync now." />
+            @if ($showGrowth || $showBreakdown)
+                <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                    @if ($showGrowth)
+                        <div class="{{ $showBreakdown ? 'lg:col-span-3' : 'lg:col-span-5' }}">
+                            <x-charts.metric-trend :days="$followerTrend" title="Follower growth, day by day"
+                                empty="No follower data cached for this month yet — press Sync now." />
+                        </div>
+                    @endif
+                    @if ($showBreakdown)
+                        <x-card padding="md" class="{{ $showGrowth ? 'lg:col-span-2' : 'lg:col-span-5' }}">
+                            <x-section-heading title="Engagement breakdown"
+                                subtitle="What the {{ number_format($overview['engagement']) }} total interactions were made of." />
+                            <x-charts.bar-list :items="$breakdown" empty="No engagement data cached for this month yet." />
+                        </x-card>
+                    @endif
                 </div>
-                <x-card padding="md" class="lg:col-span-2">
-                    <x-section-heading title="Engagement breakdown"
-                        subtitle="What the {{ number_format($overview['engagement']) }} total interactions were made of." />
-                    <x-charts.bar-list :items="$breakdown" empty="No engagement data cached for this month yet." />
+            @endif
+
+            @php
+                $audienceColumns = [];
+                if (in_array('age_breakdown', $enabledSections, true)) {
+                    $audienceColumns['Age, %'] = ['items' => $ageBreakdown, 'decimals' => '0', 'note' => null];
+                }
+                if (in_array('gender_breakdown', $enabledSections, true)) {
+                    $audienceColumns['Gender, %'] = ['items' => $genderBreakdown, 'decimals' => '0', 'note' => 'Instagram reports gender only where a follower has set it.'];
+                }
+                if (in_array('top_cities', $enabledSections, true)) {
+                    // 0, matching bar-list's own default -- topCities never
+                    // passed a decimals prop before this, and city follower
+                    // counts are whole numbers anyway.
+                    $audienceColumns['Top cities'] = ['items' => $topCities, 'decimals' => 0, 'note' => null];
+                }
+            @endphp
+
+            {{-- Audience -- omitted entirely once nothing in it is switched on,
+                 not just an empty card with a heading and nothing under it. --}}
+            @if ($audienceColumns !== [])
+                <x-card padding="md">
+                    <x-section-heading title="Who is following"
+                        subtitle="{{ number_format($overview['followers']) }} followers, as of the last sync." />
+
+                    @if ($audienceSyncedAt)
+                        {{-- grid-template-columns is set inline rather than a
+                             Tailwind grid-cols-N class: the column count here is
+                             1-3 depending on which sections are ticked, and a
+                             dynamically interpolated class name would never be
+                             found by Tailwind's static file scan. --}}
+                        <div class="grid grid-cols-1 gap-6" style="grid-template-columns: repeat({{ count($audienceColumns) }}, minmax(0, 1fr))">
+                            @foreach ($audienceColumns as $label => $column)
+                                <div>
+                                    <p class="text-xs font-semibold uppercase tracking-wider text-brand-100/60 mb-2">{{ $label }}</p>
+                                    <x-charts.bar-list :items="$column['items']" :decimals="$column['decimals']" />
+                                    @if ($column['note'])
+                                        <p class="mt-3 text-[11px] text-brand-100/50">{{ $column['note'] }}</p>
+                                    @endif
+                                </div>
+                            @endforeach
+                        </div>
+                        <p class="mt-4 text-[11px] text-brand-100/50">Audience synced {{ $audienceSyncedAt->diffForHumans() }}.</p>
+                    @else
+                        <x-empty-state message="Audience demographics haven't been synced for this account yet — press Sync now." />
+                    @endif
                 </x-card>
-            </div>
-
-            {{-- Audience --}}
-            <x-card padding="md">
-                <x-section-heading title="Who is following"
-                    subtitle="{{ number_format($overview['followers']) }} followers, as of the last sync." />
-
-                @if ($audienceSyncedAt)
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                        <div>
-                            <p class="text-xs font-semibold uppercase tracking-wider text-brand-100/60 mb-2">Age, %</p>
-                            <x-charts.bar-list :items="$ageBreakdown" decimals="0" />
-                        </div>
-                        <div>
-                            <p class="text-xs font-semibold uppercase tracking-wider text-brand-100/60 mb-2">Gender, %</p>
-                            <x-charts.bar-list :items="$genderBreakdown" decimals="0" />
-                            <p class="mt-3 text-[11px] text-brand-100/50">Instagram reports gender only where a follower has set it.</p>
-                        </div>
-                        <div>
-                            <p class="text-xs font-semibold uppercase tracking-wider text-brand-100/60 mb-2">Top cities</p>
-                            <x-charts.bar-list :items="$topCities" />
-                        </div>
-                    </div>
-                    <p class="mt-4 text-[11px] text-brand-100/50">Audience synced {{ $audienceSyncedAt->diffForHumans() }}.</p>
-                @else
-                    <x-empty-state message="Audience demographics haven't been synced for this account yet — press Sync now." />
-                @endif
-            </x-card>
+            @endif
 
             {{-- Publishing summary --}}
-            <x-card padding="md">
-                <x-section-heading title="What we published" subtitle="{{ $content->count() }} piece(s) this month." />
-                @if ($formats)
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        @foreach ($formats as $format)
-                            <div class="rounded-lg bg-brand-900/40 ring-1 ring-white/10 px-4 py-3">
-                                <p class="text-2xl font-bold text-white tabular-nums">{{ $format['count'] }}</p>
-                                <p class="mt-1 text-[11px] font-semibold uppercase tracking-wider text-brand-100/60">{{ $format['label'] }}{{ $format['count'] === 1 ? '' : 's' }}</p>
-                            </div>
-                        @endforeach
-                    </div>
-                @else
-                    <x-empty-state message="Nothing was posted in this month." />
-                @endif
-            </x-card>
+            @if (in_array('formats_published', $enabledSections, true))
+                <x-card padding="md">
+                    <x-section-heading title="What we published" subtitle="{{ $content->count() }} piece(s) this month." />
+                    @if ($formats)
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            @foreach ($formats as $format)
+                                <div class="rounded-lg bg-brand-900/40 ring-1 ring-white/10 px-4 py-3">
+                                    <p class="text-2xl font-bold text-white tabular-nums">{{ $format['count'] }}</p>
+                                    <p class="mt-1 text-[11px] font-semibold uppercase tracking-wider text-brand-100/60">{{ $format['label'] }}{{ $format['count'] === 1 ? '' : 's' }}</p>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <x-empty-state message="Nothing was posted in this month." />
+                    @endif
+                </x-card>
+            @endif
 
             {{-- Top posts --}}
-            <x-card padding="none">
-                <div class="p-4 sm:p-5 pb-0">
-                    <x-section-heading title="The posts that worked hardest" subtitle="Ranked by accounts reached." />
-                </div>
+            @if (in_array('top_posts', $enabledSections, true))
+                <x-card padding="none">
+                    <div class="p-4 sm:p-5 pb-0">
+                        <x-section-heading title="The posts that worked hardest" subtitle="Ranked by accounts reached." />
+                    </div>
 
-                @if ($content->isEmpty())
-                    <div class="p-4 sm:p-5">
-                        <x-empty-state message="Nothing was posted in this month." />
-                    </div>
-                @else
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full text-sm">
-                            <thead>
-                                <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 border-b border-white/10">
-                                    <th class="px-4 sm:px-5 py-2.5">Content</th>
-                                    <th class="px-3 py-2.5">Type</th>
-                                    <th class="px-3 py-2.5 text-right">Reach</th>
-                                    <th class="px-3 py-2.5 text-right">Views</th>
-                                    <th class="px-3 py-2.5 text-right">Engagement</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-white/10">
-                                @foreach ($content->take(5) as $item)
-                                    <tr>
-                                        <td class="px-4 sm:px-5 py-2.5">
-                                            <div class="min-w-0">
-                                                @if ($item->permalink)
-                                                    <a href="{{ $item->permalink }}" target="_blank" rel="noopener"
-                                                       class="text-white font-medium hover:text-brand-300 truncate block max-w-xs">
-                                                        {{ $item->shortCaption() }}
-                                                    </a>
-                                                @else
-                                                    <span class="text-white font-medium truncate block max-w-xs">{{ $item->shortCaption() }}</span>
-                                                @endif
-                                                <span class="text-xs text-brand-100/50">{{ $item->posted_at?->format('j M Y') }}</span>
-                                            </div>
-                                        </td>
-                                        <td class="px-3 py-2.5 whitespace-nowrap">
-                                            <x-badge color="{{ $item->isReel() ? 'bg-purple-400/15 text-purple-200' : 'bg-white/10 text-brand-100/70' }}">
-                                                {{ $item->typeLabel() }}
-                                            </x-badge>
-                                        </td>
-                                        <td class="px-3 py-2.5 text-right tabular-nums text-white">
-                                            {{ $item->metricValue('reach') !== null ? number_format($item->metricValue('reach')) : '—' }}
-                                        </td>
-                                        <td class="px-3 py-2.5 text-right tabular-nums text-white">
-                                            {{ $item->metricValue('views') !== null ? number_format($item->metricValue('views')) : '—' }}
-                                        </td>
-                                        <td class="px-3 py-2.5 text-right tabular-nums text-white">
-                                            {{ $item->metricValue('total_interactions') !== null ? number_format($item->metricValue('total_interactions')) : '—' }}
-                                        </td>
+                    @if ($content->isEmpty())
+                        <div class="p-4 sm:p-5">
+                            <x-empty-state message="Nothing was posted in this month." />
+                        </div>
+                    @else
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full text-sm">
+                                <thead>
+                                    <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 border-b border-white/10">
+                                        <th class="px-4 sm:px-5 py-2.5">Content</th>
+                                        <th class="px-3 py-2.5">Type</th>
+                                        <th class="px-3 py-2.5 text-right">Reach</th>
+                                        <th class="px-3 py-2.5 text-right">Views</th>
+                                        <th class="px-3 py-2.5 text-right">Engagement</th>
                                     </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                @endif
-            </x-card>
+                                </thead>
+                                <tbody class="divide-y divide-white/10">
+                                    @foreach ($content->take(5) as $item)
+                                        <tr>
+                                            <td class="px-4 sm:px-5 py-2.5">
+                                                <div class="min-w-0">
+                                                    @if ($item->permalink)
+                                                        <a href="{{ $item->permalink }}" target="_blank" rel="noopener"
+                                                           class="text-white font-medium hover:text-brand-300 truncate block max-w-xs">
+                                                            {{ $item->shortCaption() }}
+                                                        </a>
+                                                    @else
+                                                        <span class="text-white font-medium truncate block max-w-xs">{{ $item->shortCaption() }}</span>
+                                                    @endif
+                                                    <span class="text-xs text-brand-100/50">{{ $item->posted_at?->format('j M Y') }}</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-3 py-2.5 whitespace-nowrap">
+                                                <x-badge color="{{ $item->isReel() ? 'bg-purple-400/15 text-purple-200' : 'bg-white/10 text-brand-100/70' }}">
+                                                    {{ $item->typeLabel() }}
+                                                </x-badge>
+                                            </td>
+                                            <td class="px-3 py-2.5 text-right tabular-nums text-white">
+                                                {{ $item->metricValue('reach') !== null ? number_format($item->metricValue('reach')) : '—' }}
+                                            </td>
+                                            <td class="px-3 py-2.5 text-right tabular-nums text-white">
+                                                {{ $item->metricValue('views') !== null ? number_format($item->metricValue('views')) : '—' }}
+                                            </td>
+                                            <td class="px-3 py-2.5 text-right tabular-nums text-white">
+                                                {{ $item->metricValue('total_interactions') !== null ? number_format($item->metricValue('total_interactions')) : '—' }}
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </x-card>
+            @endif
 
             {{-- Shoots --}}
-            @if ($shoots->isNotEmpty())
+            @if (in_array('shoots', $enabledSections, true) && $shoots->isNotEmpty())
                 <x-card padding="md" data-chrome x-show="! isClient">
                     <x-section-heading title="Shoots this month" />
                     <ul class="divide-y divide-white/10">
