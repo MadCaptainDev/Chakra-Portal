@@ -283,6 +283,44 @@ class ContentDashboardTest extends TestCase
             ->assertDontSee('Last month reel');
     }
 
+    /**
+     * The type filter row is the gap this pins: the drill-down already had
+     * a status filter (Published/In Progress/...), but nothing to narrow
+     * by content type, even though the per-type breakdown cards right
+     * above it already show the split.
+     */
+    public function test_a_type_filter_chip_appears_per_content_type_present_that_month(): void
+    {
+        $account = $this->account('Janet', 'Janet Hospitals', 'Janet', ['reel' => 5, 'post' => 3]);
+        $this->published('Janet', ContentItem::SOURCE_REEL, '2026-08-05', 'A reel');
+        $this->published('Janet', ContentItem::SOURCE_POST, '2026-08-06', 'A post');
+
+        $response = $this->actingAs($this->admin())
+            ->get(route('content-dashboard.show', [$account, 'month' => '2026-08']));
+
+        $response->assertOk()
+            ->assertSee('Insta Reel')
+            ->assertSee('Insta Post')
+            // Instagram's brand mark, confirming these chips reuse
+            // x-brand-icon rather than a generic glyph.
+            ->assertSee('ig-grad-', false);
+    }
+
+    /**
+     * A single-type account gets no type filter row at all -- a toggle
+     * with nothing to narrow down is noise, not a filter.
+     */
+    public function test_no_type_filter_row_when_only_one_content_type_is_present(): void
+    {
+        $account = $this->account('Janet', 'Janet Hospitals', 'Janet', ['reel' => 5]);
+        $this->published('Janet', ContentItem::SOURCE_REEL, '2026-08-05', 'Only a reel');
+
+        $response = $this->actingAs($this->admin())
+            ->get(route('content-dashboard.show', [$account, 'month' => '2026-08']));
+
+        $response->assertOk()->assertDontSee("types['reel']", false);
+    }
+
     public function test_an_invalid_month_falls_back_instead_of_erroring(): void
     {
         $this->account('Janet', 'Janet', 'Janet');

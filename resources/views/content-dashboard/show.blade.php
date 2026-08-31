@@ -37,7 +37,12 @@
             canceled: false
         },
         statusGroups: @js($statusGroups),
-        shouldShow(status) {
+        // One entry per content type actually present this month
+        // (@js($byType->keys())), all on by default -- a type with
+        // nothing planned gets no chip at all rather than a dead toggle.
+        types: Object.fromEntries(@js($byType->keys()->all()).map((t) => [t, true])),
+        shouldShow(status, source) {
+            if (this.types[source] === false) return false;
             if (!status) return true;
             for (const [group, statuses] of Object.entries(this.statusGroups)) {
                 if (statuses.includes(status) && this.filters[group]) return true;
@@ -117,11 +122,11 @@
         <x-card padding="none">
             <div class="p-4 sm:p-5 pb-3">
                 <x-section-heading title="Content this month"
-                                   subtitle="{{ $items->count() }} piece(s). Filter by status below." />
+                                   subtitle="{{ $items->count() }} piece(s). Filter by status or type below." />
             </div>
 
-            {{-- Filter chips --}}
-            <div class="px-4 sm:px-5 pb-4 flex flex-wrap gap-2">
+            {{-- Status filter chips --}}
+            <div class="px-4 sm:px-5 pb-3 flex flex-wrap gap-2">
                 <x-filter-chip
                     x-on:click="filters.published = !filters.published"
                     x-bind:class="filters.published ? 'bg-green-500 text-white' : 'bg-white/10 text-brand-100/70 hover:bg-white/[0.16]'"
@@ -150,6 +155,26 @@
                 @endif
             </div>
 
+            {{-- Type filter chips -- one per content type actually present
+                 this month; a type with nothing planned gets no chip. --}}
+            @if ($byType->keys()->count() > 1)
+                <div class="px-4 sm:px-5 pb-4 flex flex-wrap gap-2 border-t border-white/5 pt-3">
+                    @foreach ($byType as $source => $sourceItems)
+                        <x-filter-chip
+                            x-on:click="types['{{ $source }}'] = !types['{{ $source }}']"
+                            x-bind:class="types['{{ $source }}'] ? 'bg-white/20 text-white' : 'bg-white/10 text-brand-100/50 hover:bg-white/[0.16]'"
+                            :count="$sourceItems->count()">
+                            @if (in_array($source, [\App\Models\ContentItem::SOURCE_REEL, \App\Models\ContentItem::SOURCE_POST, \App\Models\ContentItem::SOURCE_STORY]))
+                                <x-brand-icon name="instagram" class="w-3.5 h-3.5 shrink-0" />
+                            @elseif ($source === \App\Models\ContentItem::SOURCE_YOUTUBE)
+                                <x-brand-icon name="youtube" class="w-3.5 h-3.5 shrink-0" />
+                            @endif
+                            {{ $labels[$source] ?? ucfirst($source) }}
+                        </x-filter-chip>
+                    @endforeach
+                </div>
+            @endif
+
             @if ($items->isEmpty())
                 <div class="p-4 sm:p-5">
                     <x-empty-state message="No content planned for this account in {{ $month->format('F Y') }}." />
@@ -172,7 +197,7 @@
                         <tbody class="divide-y divide-white/10">
                             @foreach ($items as $item)
                                 @php $media = $item->socialMediaItem; @endphp
-                                <tr x-show="shouldShow(@js($item->status))" x-cloak>
+                                <tr x-show="shouldShow(@js($item->status), @js($item->source))" x-cloak>
                                     <td class="px-4 sm:px-5 py-2.5">
                                         @if ($item->notion_url)
                                             <a href="{{ $item->notion_url }}" target="_blank" rel="noopener"
