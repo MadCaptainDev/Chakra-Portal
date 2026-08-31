@@ -234,6 +234,63 @@ class WhatsappFlowHttpTest extends TestCase
         $this->assertSame(0, WhatsappFlow::count());
     }
 
+    /** @return array<string, mixed> */
+    private function sendListNodeExport(string $rows, string $button = 'Select Option'): array
+    {
+        return [
+            'drawflow' => ['Home' => ['data' => [
+                '1' => [
+                    'id' => 1,
+                    'name' => 'send_list',
+                    'data' => ['type' => 'send_list', 'is_start' => true, 'body' => 'Pick one', 'rows' => $rows, 'button' => $button, 'header' => '', 'footer' => ''],
+                    'class' => 'send_list',
+                    'html' => '<div></div>',
+                    'typenode' => false,
+                    'inputs' => ['input_1' => ['connections' => []]],
+                    'outputs' => ['output_1' => ['connections' => []]],
+                    'pos_x' => 0,
+                    'pos_y' => 0,
+                ],
+            ]]],
+        ];
+    }
+
+    public function test_storing_a_flow_with_a_send_list_node_parses_its_options_into_the_graph(): void
+    {
+        $export = $this->sendListNodeExport("1|Invoices|Your bills\n2|Report");
+
+        $response = $this->actingAs($this->employee(['view', 'create']))
+            ->post(route('whatsapp-crm.flows.store'), $this->flowPayload(['graph' => json_encode($export)]));
+
+        $flow = WhatsappFlow::sole();
+        $response->assertRedirect(route('whatsapp-crm.flows.edit', $flow));
+
+        $graph = $flow->graph;
+        $this->assertSame('send_list', $graph['nodes']['1']['type']);
+        $this->assertSame([
+            ['id' => '1', 'title' => 'Invoices', 'description' => 'Your bills'],
+            ['id' => '2', 'title' => 'Report', 'description' => ''],
+        ], $graph['nodes']['1']['rows']);
+        $this->assertSame('Select Option', $graph['nodes']['1']['button']);
+        $this->assertNull($graph['nodes']['1']['next']);
+    }
+
+    public function test_storing_a_flow_whose_send_list_has_eleven_options_is_rejected(): void
+    {
+        $rows = collect(range(1, 11))->map(fn (int $i) => "{$i}|Option {$i}")->implode("\n");
+        $export = $this->sendListNodeExport($rows);
+
+        $response = $this->actingAs($this->employee(['view', 'create']))
+            ->post(route('whatsapp-crm.flows.store'), $this->flowPayload(['graph' => json_encode($export)]));
+
+        $response->assertSessionHasErrors('graph');
+        $this->assertStringContainsString(
+            'at most 10 options',
+            collect(session('errors')->get('graph'))->implode(' ')
+        );
+        $this->assertSame(0, WhatsappFlow::count());
+    }
+
     public function test_storing_a_flow_with_invalid_json_in_a_make_request_payload_is_rejected(): void
     {
         $export = [

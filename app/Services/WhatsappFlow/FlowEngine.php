@@ -13,6 +13,7 @@ use App\Services\WhatsappFlow\Nodes\ConditionNode;
 use App\Services\WhatsappFlow\Nodes\DelayNode;
 use App\Services\WhatsappFlow\Nodes\MakeRequestNode;
 use App\Services\WhatsappFlow\Nodes\NodeHandler;
+use App\Services\WhatsappFlow\Nodes\SendListNode;
 use App\Services\WhatsappFlow\Nodes\SendMessageNode;
 use App\Services\WhatsappFlow\Nodes\SendTemplateNode;
 use App\Services\WhatsappFlow\Nodes\SetLabelNode;
@@ -56,6 +57,7 @@ class FlowEngine
     private const HANDLERS = [
         'send_message' => SendMessageNode::class,
         'send_template' => SendTemplateNode::class,
+        'send_list' => SendListNode::class,
         'condition' => ConditionNode::class,
         'delay' => DelayNode::class,
         'set_label' => SetLabelNode::class,
@@ -163,11 +165,36 @@ class FlowEngine
     private function recordInboundMessage(WhatsappFlowSession $session, WhatsappWebhookEvent $event): void
     {
         $variables = $session->variables ?? [];
+        $normalized = mb_strtolower(trim((string) ($event->summary ?? '')));
+
+        // The stable id behind a tap, not its (user-visible, reworded-
+        // able) title -- interactive.*_reply.title is what describeMessage()
+        // already put in $event->summary, so `normalized` above is
+        // unaffected and every existing flow keeps its exact behaviour.
+        // button.payload covers a template's own quick-reply buttons, the
+        // same shape as an interactive button reply.
+        $payload = is_array($event->payload) ? $event->payload : [];
+        $replyId = data_get($payload, 'interactive.list_reply.id')
+            ?? data_get($payload, 'interactive.button_reply.id')
+            ?? data_get($payload, 'button.payload');
+
         $variables['message'] = [
             'text' => $event->summary,
-            'normalized' => mb_strtolower(trim((string) ($event->summary ?? ''))),
+            'normalized' => $normalized,
             'type' => $event->message_type,
+            // One key a condition can branch on regardless of how the
+            // answer arrived: the tapped row's id, or the typed text
+            // otherwise -- see SendListNode's own doc block.
+            'choice' => filled($replyId) ? mb_strtolower(trim((string) $replyId)) : $normalized,
         ];
+
+        // Set only when present, never to null: ConditionNode's `exists`
+        // operator (Arr::has()) is true for a present-but-null key, so a
+        // flow author relying on `message.reply_id exists` to tell a tap
+        // from typed text would otherwise see it "exist" on every message.
+        if (filled($replyId)) {
+            $variables['message']['reply_id'] = (string) $replyId;
+        }
 
         if ($client = Client::findForWhatsappPortal($event->wa_id)) {
             $variables['client'] = [

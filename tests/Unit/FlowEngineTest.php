@@ -58,17 +58,38 @@ class FlowEngineTest extends TestCase
      * WhatsappFlowIntegrationTest's job (tests/Feature); this file's job,
      * unchanged since Task 8, is the engine in isolation.
      */
-    private function inboundEvent(string $waId, string $summary = 'hello'): WhatsappWebhookEvent
+    /**
+     * @param  array<string, mixed>  $payload  the raw inbound message, as
+     *                                          FlowEngine::recordInboundMessage()
+     *                                          reads it off $event->payload --
+     *                                          blank for a typed message,
+     *                                          set for a tap (see
+     *                                          listReplyEvent()).
+     */
+    private function inboundEvent(string $waId, string $summary = 'hello', array $payload = [], string $messageType = 'text'): WhatsappWebhookEvent
     {
         return WhatsappWebhookEvent::withoutEvents(fn () => WhatsappWebhookEvent::create([
             'type' => WhatsappWebhookEvent::TYPE_MESSAGE,
             'dedupe_key' => 'test-'.$waId.'-'.uniqid('', true),
             'wa_id' => $waId,
-            'message_type' => 'text',
+            'message_type' => $messageType,
             'summary' => $summary,
-            'payload' => [],
+            'payload' => $payload,
             'received_at' => now(),
         ]));
+    }
+
+    /**
+     * The tap equivalent of inboundEvent() -- $summary is the row's title
+     * (what describeMessage() would have put there, same as production),
+     * $payload carries the id FlowEngine now lifts out separately.
+     */
+    private function listReplyEvent(string $waId, string $rowId, string $title): WhatsappWebhookEvent
+    {
+        return $this->inboundEvent($waId, $title, [
+            'type' => 'interactive',
+            'interactive' => ['type' => 'list_reply', 'list_reply' => ['id' => $rowId, 'title' => $title]],
+        ], messageType: 'interactive');
     }
 
     /**
@@ -564,5 +585,192 @@ class FlowEngineTest extends TestCase
         // still completes; this node's job was to deliver the graph's own
         // URL, not to chase whatever it redirects to.
         $this->assertSame('completed', $session->fresh()->status);
+    }
+
+    // -- SendListNode -----------------------------------------------------
+
+    public function test_send_list_node_sends_an_interactive_list_and_ends_the_flow(): void
+    {
+        $this->configuredSender();
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.20']]])]);
+
+        $flow = $this->flow([
+            'start_node_id' => 'menu',
+            'nodes' => [
+                'menu' => [
+                    'type' => 'send_list',
+                    'body' => 'Pick one',
+                    'rows' => [
+                        ['id' => '1', 'title' => 'Invoices', 'description' => 'Your bills'],
+                        ['id' => '2', 'title' => 'Report'],
+                    ],
+                    'button' => 'Select Option',
+                    'next' => null,
+                ],
+            ],
+        ]);
+        $session = $this->sessionAt($flow, '917000000020', 'menu');
+
+        (new FlowEngine)->handleInbound($this->inboundEvent('917000000020'));
+
+        Http::assertSent(function (Request $request) {
+            $data = $request->data();
+
+            return $data['type'] === 'interactive'
+                && $data['interactive']['type'] === 'list'
+                && $data['interactive']['body']['text'] === 'Pick one'
+                && $data['interactive']['action']['button'] === 'Select Option'
+                && $data['interactive']['action']['sections'][0]['rows'][0] === ['id' => '1', 'title' => 'Invoices', 'description' => 'Your bills']
+                && $data['interactive']['action']['sections'][0]['rows'][1] === ['id' => '2', 'title' => 'Report'];
+        });
+
+        $this->assertSame('completed', $session->fresh()->status);
+    }
+
+    /**
+     * The body and each row's title/description are interpolated; the id
+     * is not -- it is the branch key a Condition node matches on, and must
+     * survive exactly as configured regardless of what variables a session
+     * happens to be carrying.
+     */
+    public function test_send_list_interpolates_the_body_and_titles_but_never_the_row_id(): void
+    {
+        $this->configuredSender();
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.21']]])]);
+
+        $flow = $this->flow([
+            'start_node_id' => 'menu',
+            'nodes' => [
+                'menu' => [
+                    'type' => 'send_list',
+                    'body' => 'Hi {{client.name}}',
+                    'rows' => [['id' => '{{client.id}}', 'title' => 'For {{client.name}}']],
+                    'button' => 'Go',
+                    'next' => null,
+                ],
+            ],
+        ]);
+        $session = $this->sessionAt($flow, '917000000021', 'menu', [
+            'client' => ['id' => 5, 'name' => 'SVA Silks'],
+        ]);
+
+        (new FlowEngine)->handleInbound($this->inboundEvent('917000000021'));
+
+        Http::assertSent(function (Request $request) {
+            $data = $request->data();
+            $row = $data['interactive']['action']['sections'][0]['rows'][0];
+
+            return $data['interactive']['body']['text'] === 'Hi SVA Silks'
+                && $row['title'] === 'For SVA Silks'
+                && $row['id'] === '{{client.id}}';
+        });
+
+        $this->assertSame('completed', $session->fresh()->status);
+    }
+
+    // -- message.choice / message.reply_id seeding -------------------------
+
+    public function test_handle_inbound_seeds_reply_id_and_choice_from_a_tapped_list_row(): void
+    {
+        $this->configuredSender();
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.22']]])]);
+
+        $flow = $this->flow([
+            'start_node_id' => 'check',
+            'nodes' => [
+                'check' => [
+                    'type' => 'condition',
+                    'variable' => 'message.reply_id',
+                    'operator' => 'exists',
+                    'value' => null,
+                    'next_true' => 'tapped',
+                    'next_false' => 'typed',
+                ],
+                'tapped' => ['type' => 'send_message', 'body' => 'You tapped it.', 'next' => null],
+                'typed' => ['type' => 'send_message', 'body' => 'You typed it.', 'next' => null],
+            ],
+        ], triggerType: 'inbound_message');
+
+        (new FlowEngine)->handleInbound($this->listReplyEvent('917000000022', '1', 'Invoices'));
+
+        Http::assertSent(fn (Request $request) => $request->data()['text']['body'] === 'You tapped it.');
+
+        $session = WhatsappFlowSession::sole();
+        $this->assertSame('1', $session->variables['message']['reply_id']);
+        $this->assertSame('1', $session->variables['message']['choice']);
+        // The title, unaffected -- describeMessage() already put it in
+        // $event->summary, and this key's exact meaning does not change.
+        $this->assertSame('invoices', $session->variables['message']['normalized']);
+    }
+
+    /**
+     * ConditionNode's `exists` operator (Arr::has()) is true for a
+     * present-but-null key -- so message.reply_id must be left entirely
+     * unset for a typed message, not set to null, or "exists" could never
+     * tell a tap from typed text.
+     */
+    public function test_handle_inbound_leaves_reply_id_unset_for_a_typed_message(): void
+    {
+        $this->configuredSender();
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.23']]])]);
+
+        $flow = $this->flow([
+            'start_node_id' => 'check',
+            'nodes' => [
+                'check' => [
+                    'type' => 'condition',
+                    'variable' => 'message.reply_id',
+                    'operator' => 'exists',
+                    'value' => null,
+                    'next_true' => 'tapped',
+                    'next_false' => 'typed',
+                ],
+                'tapped' => ['type' => 'send_message', 'body' => 'You tapped it.', 'next' => null],
+                'typed' => ['type' => 'send_message', 'body' => 'You typed it.', 'next' => null],
+            ],
+        ], triggerType: 'inbound_message');
+
+        (new FlowEngine)->handleInbound($this->inboundEvent('917000000023', '1'));
+
+        Http::assertSent(fn (Request $request) => $request->data()['text']['body'] === 'You typed it.');
+
+        $session = WhatsappFlowSession::sole();
+        $this->assertArrayNotHasKey('reply_id', $session->variables['message']);
+        $this->assertSame('1', $session->variables['message']['choice']);
+    }
+
+    /**
+     * The single assertion that justifies giving list rows numeric ids in
+     * SeedClientPortalAutomation: one Condition node on message.choice
+     * matches both a tap on that row and someone who just types the same
+     * number.
+     */
+    public function test_a_condition_on_message_choice_matches_both_a_tap_and_the_typed_number(): void
+    {
+        $this->configuredSender();
+
+        $flow = $this->flow([
+            'start_node_id' => 'check',
+            'nodes' => [
+                'check' => [
+                    'type' => 'condition',
+                    'variable' => 'message.choice',
+                    'operator' => 'equals',
+                    'value' => '1',
+                    'next_true' => 'matched',
+                    'next_false' => 'missed',
+                ],
+                'matched' => ['type' => 'send_message', 'body' => 'Matched!', 'next' => null],
+                'missed' => ['type' => 'send_message', 'body' => 'No match.', 'next' => null],
+            ],
+        ], triggerType: 'inbound_message');
+
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.24a']]])]);
+        (new FlowEngine)->handleInbound($this->inboundEvent('917000000024', '1'));
+        Http::assertSent(fn (Request $request) => $request->data()['text']['body'] === 'Matched!');
+
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.24b']]])]);
+        (new FlowEngine)->handleInbound($this->listReplyEvent('917000000025', '1', 'Invoices'));
+        Http::assertSent(fn (Request $request) => $request->data()['text']['body'] === 'Matched!');
     }
 }

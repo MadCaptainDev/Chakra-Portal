@@ -87,6 +87,25 @@ class DrawflowGraphTranslator
                 ['key' => 'body_parameters', 'label' => 'Parameters (comma-separated)', 'type' => 'text', 'cast' => 'csv_array', 'placeholder' => '{{1}}, {{2}}, ...'],
             ],
         ],
+        /*
+         * Rows are one line per option in a single textarea --
+         * "id|Title|Description" -- rather than a repeatable field group,
+         * so this stays a plain string field like every other one here and
+         * needs no new widget type in fieldHtml() or in the JS's
+         * hand-mirrored copy. castListRows()/uncast('list_rows') own the
+         * parsing/formatting in both directions.
+         */
+        'send_list' => [
+            'label' => 'Send List',
+            'outputs' => 1,
+            'fields' => [
+                ['key' => 'body', 'label' => 'Message', 'type' => 'textarea', 'cast' => 'string', 'placeholder' => 'What can we help with?'],
+                ['key' => 'rows', 'label' => 'Options (one per line: id|Title|Description)', 'type' => 'textarea', 'cast' => 'list_rows', 'placeholder' => "1|Invoices|Your recent bills"],
+                ['key' => 'button', 'label' => 'Button label', 'type' => 'text', 'cast' => 'list_button', 'default' => 'Select Option', 'placeholder' => 'Select Option'],
+                ['key' => 'header', 'label' => 'Header (optional)', 'type' => 'text', 'cast' => 'string'],
+                ['key' => 'footer', 'label' => 'Footer (optional)', 'type' => 'text', 'cast' => 'string'],
+            ],
+        ],
         'condition' => [
             'label' => 'Condition',
             'outputs' => 2,
@@ -404,6 +423,7 @@ class DrawflowGraphTranslator
 
         $hint = match (true) {
             $type === 'condition' => '<p class="flow-node__hint">Top output = True, bottom output = False.</p>',
+            $type === 'send_list' => '<p class="flow-node__hint">Leave the output unconnected -- a tap starts a new message, routed by a Condition node on message.choice. Free-form send: only works within 24h of their last message.</p>',
             $def['outputs'] === 0 => '<p class="flow-node__hint">Ends the flow (hands off to a human).</p>',
             default => '',
         };
@@ -469,6 +489,8 @@ class DrawflowGraphTranslator
         return match ($type) {
             'csv_array' => collect(explode(',', (string) $value))->map(fn ($v) => trim($v))->filter(fn ($v) => $v !== '')->values()->all(),
             'json_object' => self::castJsonObject($value, $nodeLabel),
+            'list_rows' => self::castListRows($value, $nodeLabel),
+            'list_button' => self::castListButton($value, $nodeLabel),
             'int' => (int) $value,
             'nullable_int' => $value === '' || $value === null ? null : (int) $value,
             default => (string) ($value ?? ''),
@@ -495,11 +517,116 @@ class DrawflowGraphTranslator
         return $decoded;
     }
 
+    /**
+     * Parses the "Send List" node's rows textarea -- one option per line,
+     * "id|Title|Description" -- into the shape SendListNode and
+     * WhatsappSender::sendInteractiveList() expect. Meta's own limits are
+     * enforced here rather than left to fail at send time, because this is
+     * the one place an admin editing the flow can actually see and fix the
+     * problem (see WhatsappSender::sendInteractiveList()'s own doc block
+     * for why *length* overruns are handled the opposite way -- clamped at
+     * send, not rejected here).
+     *
+     * Already-array input (a re-posted `old('graph')`, or a hand-built
+     * fixture) is re-validated rather than blindly (string) cast, which
+     * would otherwise stringify to the literal word "Array".
+     *
+     * explode(..., 3) on '|' -- not unlimited -- so a description may
+     * itself contain a literal "|" without truncating; only the id and
+     * title must be pipe-free.
+     *
+     * @return array<int, array{id: string, title: string, description: string}>
+     *
+     * @throws RuntimeException
+     */
+    private static function castListRows(mixed $value, string $nodeLabel): array
+    {
+        if (is_array($value)) {
+            $lines = collect($value)->map(
+                fn ($row) => trim(($row['id'] ?? '').'|'.($row['title'] ?? '').(filled($row['description'] ?? null) ? '|'.$row['description'] : ''))
+            );
+        } else {
+            $lines = collect(preg_split('/\r\n|\r|\n/', (string) ($value ?? '')));
+        }
+
+        $rows = $lines
+            ->map(fn ($line) => trim((string) $line))
+            ->filter(fn (string $line) => $line !== '')
+            ->values();
+
+        if ($rows->isEmpty()) {
+            throw new RuntimeException("\"{$nodeLabel}\" node: add at least one option, one per line as id|Title|Description.");
+        }
+
+        if ($rows->count() > 10) {
+            throw new RuntimeException("\"{$nodeLabel}\" node: a list can have at most 10 options (found {$rows->count()}).");
+        }
+
+        $seenIds = [];
+
+        $parsed = $rows->values()->map(function (string $line, int $index) use ($nodeLabel, &$seenIds) {
+            $position = $index + 1;
+            $parts = explode('|', $line, 3);
+            $id = trim($parts[0] ?? '');
+            $title = trim($parts[1] ?? '');
+            $description = trim($parts[2] ?? '');
+
+            if ($id === '' || $title === '') {
+                throw new RuntimeException("\"{$nodeLabel}\" node: option {$position} needs both an id and a title -- write it as id|Title|Description.");
+            }
+
+            if (mb_strlen($id) > 200) {
+                throw new RuntimeException("\"{$nodeLabel}\" node: option ids must be 200 characters or fewer (option {$position}).");
+            }
+
+            if (mb_strlen($title) > 24) {
+                throw new RuntimeException("\"{$nodeLabel}\" node: option titles must be 24 characters or fewer (option {$position} is ".mb_strlen($title).').');
+            }
+
+            if (mb_strlen($description) > 72) {
+                throw new RuntimeException("\"{$nodeLabel}\" node: option descriptions must be 72 characters or fewer (option {$position}).");
+            }
+
+            $key = mb_strtolower($id);
+
+            if (isset($seenIds[$key])) {
+                throw new RuntimeException("\"{$nodeLabel}\" node: option ids must be unique -- \"{$id}\" is used twice.");
+            }
+
+            $seenIds[$key] = true;
+
+            return ['id' => $id, 'title' => $title, 'description' => $description];
+        });
+
+        return $parsed->all();
+    }
+
+    /**
+     * @throws RuntimeException
+     */
+    private static function castListButton(mixed $value, string $nodeLabel): string
+    {
+        $button = trim((string) ($value ?? ''));
+
+        if ($button === '') {
+            return 'Select Option';
+        }
+
+        if (mb_strlen($button) > 20) {
+            throw new RuntimeException("\"{$nodeLabel}\" node: the button label must be 20 characters or fewer (\"{$button}\" is ".mb_strlen($button).').');
+        }
+
+        return $button;
+    }
+
     private static function uncast(string $type, mixed $value): string
     {
         return match ($type) {
             'csv_array' => implode(', ', is_array($value) ? $value : []),
             'json_object' => (is_array($value) && $value !== []) ? json_encode($value) : '',
+            'list_rows' => collect(is_array($value) ? $value : [])
+                ->map(fn ($row) => trim(($row['id'] ?? '').'|'.($row['title'] ?? '').(filled($row['description'] ?? null) ? '|'.$row['description'] : '')))
+                ->implode("\n"),
             default => (string) ($value ?? ''),
         };
     }

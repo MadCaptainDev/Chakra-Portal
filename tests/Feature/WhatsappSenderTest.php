@@ -151,4 +151,130 @@ class WhatsappSenderTest extends TestCase
         // Already carries a country code that is not India -- left alone.
         $this->assertSame('14155552671', WhatsappSender::normalise('+1 415 555 2671'));
     }
+
+    // -- sendInteractiveList() ---------------------------------------------
+
+    public function test_a_list_message_is_sent_in_the_shape_meta_expects(): void
+    {
+        $this->configured();
+        $this->fakeMeta();
+
+        WhatsappSender::make()->sendInteractiveList(
+            '917094126823',
+            'Pick one',
+            [
+                ['id' => '1', 'title' => 'Invoices', 'description' => 'Your recent bills'],
+                ['id' => '2', 'title' => 'Report'],
+            ],
+            buttonLabel: 'Select Option',
+            header: 'Chakra Groups',
+            footer: 'Type menu anytime',
+        );
+
+        Http::assertSent(function (Request $request) {
+            $data = $request->data();
+
+            return $data['type'] === 'interactive'
+                && $data['interactive']['type'] === 'list'
+                && $data['interactive']['header'] === ['type' => 'text', 'text' => 'Chakra Groups']
+                && $data['interactive']['body'] === ['text' => 'Pick one']
+                && $data['interactive']['footer'] === ['text' => 'Type menu anytime']
+                && $data['interactive']['action']['button'] === 'Select Option'
+                && $data['interactive']['action']['sections'] === [[
+                    'rows' => [
+                        ['id' => '1', 'title' => 'Invoices', 'description' => 'Your recent bills'],
+                        ['id' => '2', 'title' => 'Report'],
+                    ],
+                ]];
+        });
+    }
+
+    public function test_a_list_omits_header_footer_and_description_keys_when_blank(): void
+    {
+        $this->configured();
+        $this->fakeMeta();
+
+        WhatsappSender::make()->sendInteractiveList('917094126823', 'Pick one', [
+            ['id' => '1', 'title' => 'Invoices'],
+        ]);
+
+        Http::assertSent(function (Request $request) {
+            $interactive = $request->data()['interactive'];
+
+            return ! array_key_exists('header', $interactive)
+                && ! array_key_exists('footer', $interactive)
+                && ! array_key_exists('description', $interactive['action']['sections'][0]['rows'][0])
+                && $interactive['action']['button'] === 'Select Option';
+        });
+    }
+
+    /**
+     * Body/title/description can carry {{variable}} interpolation resolved
+     * by the caller before this method ever sees them -- a client's own
+     * long name pushing a body past Meta's 1024-char limit is a per-send
+     * accident, not a configuration mistake, so that client still gets a
+     * working (if clipped) menu rather than nothing. Hard length checks
+     * belong at save time instead (DrawflowGraphTranslator::castListRows()).
+     */
+    public function test_a_list_body_longer_than_the_limit_is_clamped_rather_than_refused(): void
+    {
+        $this->configured();
+        $this->fakeMeta();
+
+        $longBody = str_repeat('a', 1200);
+
+        WhatsappSender::make()->sendInteractiveList('917094126823', $longBody, [['id' => '1', 'title' => 'Go']]);
+
+        Http::assertSent(fn (Request $request) => mb_strlen($request->data()['interactive']['body']['text']) === 1024);
+    }
+
+    public function test_a_list_with_more_than_ten_rows_is_refused_before_calling_meta(): void
+    {
+        $this->configured();
+        Http::fake();
+
+        $rows = collect(range(1, 11))->map(fn (int $i) => ['id' => (string) $i, 'title' => "Option {$i}"])->all();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('at most 10 options');
+
+        WhatsappSender::make()->sendInteractiveList('917094126823', 'Pick one', $rows);
+
+        Http::assertNothingSent();
+    }
+
+    public function test_a_list_with_no_rows_is_refused_before_calling_meta(): void
+    {
+        $this->configured();
+        Http::fake();
+
+        $this->expectException(RuntimeException::class);
+
+        WhatsappSender::make()->sendInteractiveList('917094126823', 'Pick one', []);
+
+        Http::assertNothingSent();
+    }
+
+    /**
+     * The staff-facing inbox thread (whatsapp-crm/inbox/show.blade.php)
+     * renders only message.summary -- without the option titles folded in
+     * there, an outgoing list would show as a bare prompt with no visible
+     * menu, the one thing that actually matters about it.
+     */
+    public function test_a_sent_list_is_filed_with_its_options_in_the_summary(): void
+    {
+        $this->configured();
+        $this->fakeMeta();
+
+        WhatsappSender::make()->sendInteractiveList('917094126823', 'Pick one', [
+            ['id' => '1', 'title' => 'Invoices'],
+            ['id' => '2', 'title' => 'Report'],
+        ]);
+
+        $event = WhatsappWebhookEvent::sole();
+
+        $this->assertSame(WhatsappWebhookEvent::TYPE_OUTGOING, $event->type);
+        $this->assertStringContainsString('Pick one', $event->summary);
+        $this->assertStringContainsString('Invoices, Report', $event->summary);
+    }
 }

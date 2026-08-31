@@ -242,4 +242,180 @@ class DrawflowGraphTranslatorTest extends TestCase
         $this->assertStringContainsString('value="42"', $html);
         $this->assertStringContainsString('Priya &lt;Lead&gt;', $html);
     }
+
+    public function test_send_list_rows_parse_one_option_per_line(): void
+    {
+        $export = $this->export([
+            '1' => $this->node('1', 'send_list', [
+                'is_start' => true,
+                'body' => 'Pick one',
+                'rows' => "1|Invoices|Your bills\n2|Report",
+                'button' => 'Go',
+            ], ['output_1' => ['connections' => []]]),
+        ]);
+
+        $graph = DrawflowGraphTranslator::toEngineGraph($export);
+
+        $this->assertSame([
+            ['id' => '1', 'title' => 'Invoices', 'description' => 'Your bills'],
+            ['id' => '2', 'title' => 'Report', 'description' => ''],
+        ], $graph['nodes']['1']['rows']);
+    }
+
+    /**
+     * explode(..., 3) on '|', not unlimited -- a description may itself
+     * contain a literal "|" without truncating; only the id and title
+     * must be pipe-free.
+     */
+    public function test_a_send_list_option_description_may_contain_a_pipe(): void
+    {
+        $export = $this->export([
+            '1' => $this->node('1', 'send_list', [
+                'is_start' => true, 'body' => 'x', 'rows' => '1|Invoices|Due 1 Aug | 2 Aug', 'button' => 'Go',
+            ], ['output_1' => ['connections' => []]]),
+        ]);
+
+        $graph = DrawflowGraphTranslator::toEngineGraph($export);
+
+        $this->assertSame('Due 1 Aug | 2 Aug', $graph['nodes']['1']['rows'][0]['description']);
+    }
+
+    public function test_send_list_blank_lines_are_dropped(): void
+    {
+        $export = $this->export([
+            '1' => $this->node('1', 'send_list', [
+                'is_start' => true, 'body' => 'x', 'rows' => "1|Invoices\n\n\n2|Report\n", 'button' => 'Go',
+            ], ['output_1' => ['connections' => []]]),
+        ]);
+
+        $graph = DrawflowGraphTranslator::toEngineGraph($export);
+
+        $this->assertCount(2, $graph['nodes']['1']['rows']);
+    }
+
+    public function test_send_list_rejects_no_options(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('add at least one option');
+
+        DrawflowGraphTranslator::toEngineGraph($this->export([
+            '1' => $this->node('1', 'send_list', ['is_start' => true, 'body' => 'x', 'rows' => '', 'button' => 'Go'], ['output_1' => ['connections' => []]]),
+        ]));
+    }
+
+    public function test_send_list_rejects_more_than_ten_options(): void
+    {
+        $lines = collect(range(1, 11))->map(fn (int $i) => "{$i}|Option {$i}")->implode("\n");
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('at most 10 options (found 11)');
+
+        DrawflowGraphTranslator::toEngineGraph($this->export([
+            '1' => $this->node('1', 'send_list', ['is_start' => true, 'body' => 'x', 'rows' => $lines, 'button' => 'Go'], ['output_1' => ['connections' => []]]),
+        ]));
+    }
+
+    public function test_send_list_rejects_a_row_missing_a_title(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('needs both an id and a title');
+
+        DrawflowGraphTranslator::toEngineGraph($this->export([
+            '1' => $this->node('1', 'send_list', ['is_start' => true, 'body' => 'x', 'rows' => '1', 'button' => 'Go'], ['output_1' => ['connections' => []]]),
+        ]));
+    }
+
+    public function test_send_list_rejects_an_option_title_over_24_characters(): void
+    {
+        $longTitle = str_repeat('a', 25);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('24 characters or fewer');
+
+        DrawflowGraphTranslator::toEngineGraph($this->export([
+            '1' => $this->node('1', 'send_list', ['is_start' => true, 'body' => 'x', 'rows' => "1|{$longTitle}", 'button' => 'Go'], ['output_1' => ['connections' => []]]),
+        ]));
+    }
+
+    public function test_send_list_rejects_an_option_description_over_72_characters(): void
+    {
+        $longDescription = str_repeat('a', 73);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('72 characters or fewer');
+
+        DrawflowGraphTranslator::toEngineGraph($this->export([
+            '1' => $this->node('1', 'send_list', ['is_start' => true, 'body' => 'x', 'rows' => "1|Title|{$longDescription}", 'button' => 'Go'], ['output_1' => ['connections' => []]]),
+        ]));
+    }
+
+    /**
+     * Duplicate ids silently route two options down one branch -- caught
+     * here rather than left to surface as confusing routing behaviour
+     * later.
+     */
+    public function test_send_list_rejects_duplicate_option_ids(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('option ids must be unique');
+
+        DrawflowGraphTranslator::toEngineGraph($this->export([
+            '1' => $this->node('1', 'send_list', ['is_start' => true, 'body' => 'x', 'rows' => "1|First\n1|Second", 'button' => 'Go'], ['output_1' => ['connections' => []]]),
+        ]));
+    }
+
+    public function test_send_list_rejects_a_button_label_over_20_characters(): void
+    {
+        $longButton = str_repeat('a', 21);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('20 characters or fewer');
+
+        DrawflowGraphTranslator::toEngineGraph($this->export([
+            '1' => $this->node('1', 'send_list', ['is_start' => true, 'body' => 'x', 'rows' => '1|Title', 'button' => $longButton], ['output_1' => ['connections' => []]]),
+        ]));
+    }
+
+    public function test_a_blank_send_list_button_label_defaults_to_select_option(): void
+    {
+        $graph = DrawflowGraphTranslator::toEngineGraph($this->export([
+            '1' => $this->node('1', 'send_list', ['is_start' => true, 'body' => 'x', 'rows' => '1|Title', 'button' => ''], ['output_1' => ['connections' => []]]),
+        ]));
+
+        $this->assertSame('Select Option', $graph['nodes']['1']['button']);
+    }
+
+    /**
+     * The reverse direction: a saved send_list node reopens with its
+     * textarea repopulated exactly as it would have been typed, id|Title|
+     * Description per line -- proves uncast('list_rows') is the true
+     * inverse of castListRows(), not just visually similar.
+     */
+    public function test_send_list_round_trips_through_to_drawflow_export(): void
+    {
+        $original = [
+            'start_node_id' => '1',
+            'nodes' => [
+                '1' => [
+                    'type' => 'send_list',
+                    'body' => 'Pick one',
+                    'rows' => [
+                        ['id' => '1', 'title' => 'Invoices', 'description' => 'Your bills'],
+                        ['id' => '2', 'title' => 'Report', 'description' => ''],
+                    ],
+                    'button' => 'Select Option',
+                    'header' => '',
+                    'footer' => '',
+                    'next' => null,
+                    '_pos' => ['x' => 5, 'y' => 6],
+                ],
+            ],
+        ];
+
+        $drawflow = DrawflowGraphTranslator::toDrawflowExport($original);
+        $roundTripped = DrawflowGraphTranslator::toEngineGraph($drawflow);
+
+        $this->assertSame($original['nodes']['1']['rows'], $roundTripped['nodes']['1']['rows']);
+        $this->assertSame('Select Option', $roundTripped['nodes']['1']['button']);
+    }
 }

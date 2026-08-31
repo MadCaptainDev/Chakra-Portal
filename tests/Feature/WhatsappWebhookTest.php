@@ -110,6 +110,58 @@ class WhatsappWebhookTest extends TestCase
         $this->assertNotNull(WhatsappSetting::current()->last_event_at);
     }
 
+    /**
+     * A tap on a Send List row: describeMessage() (App\Models\
+     * WhatsappWebhookEvent) already returns the row's *title* as the
+     * summary -- the id is never lifted into its own column, it only
+     * survives inside the raw `payload` JSON. FlowEngine::recordInboundMessage()
+     * depends on exactly this pairing to seed message.reply_id/message.choice,
+     * so this guards the contract between the two rather than re-testing
+     * either in isolation.
+     *
+     * @return array<string, mixed>
+     */
+    private function listReplyPayload(string $rowId, string $title): array
+    {
+        return [
+            'object' => 'whatsapp_business_account',
+            'entry' => [[
+                'id' => '102290129340398',
+                'changes' => [[
+                    'field' => 'messages',
+                    'value' => [
+                        'messaging_product' => 'whatsapp',
+                        'metadata' => ['display_phone_number' => '919876543210', 'phone_number_id' => '1234'],
+                        'contacts' => [['profile' => ['name' => 'Ravi'], 'wa_id' => '919812345678']],
+                        'messages' => [[
+                            'from' => '919812345678',
+                            'id' => 'wamid.LISTREPLY',
+                            'timestamp' => '1755259200',
+                            'type' => 'interactive',
+                            'interactive' => [
+                                'type' => 'list_reply',
+                                'list_reply' => ['id' => $rowId, 'title' => $title],
+                            ],
+                        ]],
+                    ],
+                ]],
+            ]],
+        ];
+    }
+
+    public function test_an_interactive_list_reply_is_ingested_with_its_title_as_the_summary_and_its_id_kept_in_the_payload(): void
+    {
+        $this->configured();
+
+        $this->postWebhook($this->listReplyPayload('1', 'Invoices'))->assertOk();
+
+        $event = WhatsappWebhookEvent::sole();
+
+        $this->assertSame('interactive', $event->message_type);
+        $this->assertSame('Invoices', $event->summary);
+        $this->assertSame('1', $event->payload['interactive']['list_reply']['id']);
+    }
+
     public function test_a_delivery_status_is_stored_separately_from_the_message(): void
     {
         $this->configured();

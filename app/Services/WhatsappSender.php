@@ -101,6 +101,118 @@ class WhatsappSender
     }
 
     /**
+     * Send an interactive list ("Select Option" green button opening a
+     * tappable menu of rows) -- free-form like sendText(), so the same
+     * 24-hour window applies: this only reaches someone who has messaged
+     * the studio recently, or is replying inside a flow that started that
+     * way (see SendListNode's own doc block for the flow-builder contract).
+     *
+     * Two different postures on bad input, deliberately:
+     * - Structural problems (no rows, too many, a blank id/title/button)
+     *   throw. Meta would refuse the call anyway, and a node handler
+     *   throwing is already handled cleanly (FlowEngine marks the session
+     *   failed with the reason intact) -- there is nothing to send instead.
+     * - Length overruns are clamped, not thrown. $body and each row's
+     *   title/description can carry {{variable}} interpolation resolved by
+     *   the caller *before* this method ever sees them, so one particular
+     *   client's long name pushing a body past 1024 chars is a per-send
+     *   accident, not a configuration mistake -- that client should still
+     *   get a working (if slightly clipped) menu rather than nothing.
+     *   Hard length validation belongs at save time instead, where an
+     *   admin editing the flow can actually see and fix it (see
+     *   DrawflowGraphTranslator::castListRows()).
+     *
+     * @param  array<int, array{id: string, title: string, description?: string}>  $rows
+     * @return array{wamid: string|null, response: array<string, mixed>}
+     */
+    public function sendInteractiveList(
+        string $to,
+        string $body,
+        array $rows,
+        string $buttonLabel = 'Select Option',
+        ?string $header = null,
+        ?string $footer = null,
+        ?string $sectionTitle = null,
+    ): array {
+        if ($rows === []) {
+            throw new RuntimeException('A list message needs at least one option.');
+        }
+
+        if (count($rows) > 10) {
+            throw new RuntimeException('A list message can offer at most 10 options (got '.count($rows).').');
+        }
+
+        $buttonLabel = trim($buttonLabel) ?: 'Select Option';
+
+        $formattedRows = array_map(function (array $row) {
+            $id = trim((string) ($row['id'] ?? ''));
+            $title = trim((string) ($row['title'] ?? ''));
+
+            if ($id === '' || $title === '') {
+                throw new RuntimeException('Every list option needs both an id and a title.');
+            }
+
+            $formatted = [
+                'id' => $id,
+                'title' => self::clamp($title, 24),
+            ];
+
+            $description = trim((string) ($row['description'] ?? ''));
+
+            if ($description !== '') {
+                $formatted['description'] = self::clamp($description, 72);
+            }
+
+            return $formatted;
+        }, $rows);
+
+        $section = ['rows' => $formattedRows];
+
+        if (filled($sectionTitle)) {
+            $section['title'] = self::clamp($sectionTitle, 24);
+        }
+
+        $interactive = [
+            'type' => 'list',
+            'body' => ['text' => self::clamp($body, 1024)],
+            'action' => [
+                'button' => self::clamp($buttonLabel, 20),
+                'sections' => [$section],
+            ],
+        ];
+
+        if (filled($header)) {
+            $interactive['header'] = ['type' => 'text', 'text' => self::clamp($header, 60)];
+        }
+
+        if (filled($footer)) {
+            $interactive['footer'] = ['text' => self::clamp($footer, 60)];
+        }
+
+        // The staff-facing inbox thread (whatsapp-crm/inbox/show.blade.php)
+        // renders only message.summary -- without the options folded in
+        // here, an outgoing list would show as a bare prompt with no visible
+        // menu, which is the one thing that actually matters about it.
+        $summary = $body."\n\n[List: ".implode(', ', array_column($formattedRows, 'title')).']';
+
+        return $this->send([
+            'messaging_product' => 'whatsapp',
+            'to' => self::normalise($to),
+            'type' => 'interactive',
+            'interactive' => $interactive,
+        ], summary: $summary);
+    }
+
+    /**
+     * Truncates to Meta's field limit rather than rejecting -- see
+     * sendInteractiveList()'s own doc block for why.
+     */
+    private static function clamp(string $value, int $max): string
+    {
+        return mb_substr($value, 0, $max);
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      * @return array{wamid: string|null, response: array<string, mixed>}
      */

@@ -27,19 +27,18 @@
     }
 @endphp
 
-<x-app-layout :title="$flow->exists ? $flow->name : 'New Automation'">
-    <x-slot name="header">
-        <x-page-header :title="$flow->exists ? $flow->name : 'New Automation'" eyebrow="WhatsApp CRM"
-                       subtitle="Drag nodes onto the canvas, connect them, then mark one node as the start.">
-            <x-slot name="actions">
-                <x-btn :href="route('whatsapp-crm.flows.index')" variant="secondary" size="sm">Back to automations</x-btn>
-            </x-slot>
-        </x-page-header>
-    </x-slot>
-
+{{--
+    Full-bleed editor (see EditorLayout's own doc block for why this is a
+    sibling layout rather than an <x-app-layout> option): the canvas is the
+    page, so the sidebar and the max-w-7xl document column that every other
+    screen gets both had to go. Everything that used to live in the header
+    slot and the card above the canvas now lives in one compact top bar.
+--}}
+<x-editor-layout :title="$flow->exists ? $flow->name : 'New Automation'">
     <form method="POST"
           action="{{ $flow->exists ? route('whatsapp-crm.flows.update', $flow) : route('whatsapp-crm.flows.store') }}"
-          id="flow-form" class="space-y-4">
+          id="flow-form" class="flex flex-col h-full min-h-0"
+          x-data="{ palette: window.innerWidth >= 1024 }">
         @csrf
         @if ($flow->exists)
             @method('PUT')
@@ -49,80 +48,108 @@
              it through DrawflowGraphTranslator before anything is stored. --}}
         <input type="hidden" name="graph" id="flow-graph-input" value="">
 
-        <x-card class="p-4 sm:p-6">
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                    <x-input-label for="name" value="Name" />
-                    <x-text-input id="name" name="name" type="text" class="mt-1" required autofocus
-                        value="{{ old('name', $flow->name ?? '') }}" placeholder="e.g. Welcome greeting" />
-                    <x-input-error :messages="$errors->get('name')" class="mt-2" />
-                </div>
-                <div>
-                    <x-input-label for="trigger_type" value="Trigger" />
-                    <x-select id="trigger_type" name="trigger_type" class="mt-1">
-                        @foreach ([
-                            'client_portal' => 'Activated client number (self-service menu)',
-                            'inbound_message' => 'Any inbound message (catch-all)',
-                            'keyword' => 'Keyword match',
-                            'label_applied' => 'Label applied',
-                        ] as $value => $label)
-                            <option value="{{ $value }}" @selected($selectedTrigger === $value)>{{ $label }}</option>
-                        @endforeach
-                    </x-select>
-                    <x-input-error :messages="$errors->get('trigger_type')" class="mt-2" />
-                    {{-- Rendered on every load (not just when selected) and
-                         toggled live by whatsapp-flow-builder.js's own
-                         trigger_type change listener, the same way
-                         #trigger-keyword-field is -- picking "Label
-                         applied" from the dropdown must show this
-                         immediately, not only after a save round-trip. --}}
-                    <p id="trigger-client-portal-hint" class="mt-1 text-xs text-brand-100/60 {{ $selectedTrigger === 'client_portal' ? '' : 'hidden' }}">
-                        Runs only for clients with <strong class="text-brand-200">WhatsApp self-service portal</strong> enabled on their phone number.
-                        Use <strong class="text-brand-200">Client Action</strong> nodes for invoices, reports and shoots. In Send Message, use <code class="text-brand-300">@{{client.name}}</code>.
-                    </p>
-                    <p id="trigger-label-applied-warning" class="mt-1 text-xs text-amber-300 {{ $selectedTrigger === 'label_applied' ? '' : 'hidden' }}">
-                        Not wired up yet -- a flow with this trigger will never start on its own.
-                    </p>
-                </div>
-                <div id="trigger-keyword-field" class="{{ $selectedTrigger === 'keyword' ? '' : 'hidden' }}">
-                    <x-input-label for="trigger_config_keyword" value="Keyword" />
-                    <x-text-input id="trigger_config_keyword" name="trigger_config[keyword]" type="text" class="mt-1"
-                        value="{{ old('trigger_config.keyword', $flow->trigger_config['keyword'] ?? '') }}" placeholder="e.g. price" />
-                    <x-input-error :messages="$errors->get('trigger_config.keyword')" class="mt-2" />
-                </div>
+        {{-- Top bar: everything that isn't the canvas, in one row so the
+             canvas keeps the rest of the viewport. --}}
+        <header class="shrink-0 flex flex-wrap items-center gap-3 h-auto min-h-14 px-3 py-2 border-b border-white/10 bg-brand-900">
+            <a href="{{ route('whatsapp-crm.flows.index') }}"
+               class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg text-brand-100/70 hover:bg-white/10 hover:text-white transition"
+               aria-label="Back to automations" title="Back to automations">
+                <x-icon name="chevron-left" class="w-5 h-5" />
+            </a>
+
+            <button type="button" @click="palette = ! palette"
+                    class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg text-brand-100/70 hover:bg-white/10 hover:text-white transition"
+                    :aria-pressed="palette" aria-label="Toggle node palette" title="Toggle node palette">
+                <x-icon name="grip" class="w-5 h-5" />
+            </button>
+
+            <div class="w-full sm:w-56 shrink-0">
+                <x-text-input id="name" name="name" type="text" class="!min-h-[38px] !bg-white/[0.03]" required autofocus
+                    value="{{ old('name', $flow->name ?? '') }}" placeholder="Automation name" />
             </div>
-        </x-card>
 
-        <x-input-error :messages="$errors->get('graph')" />
+            <div class="w-full sm:w-64 shrink-0">
+                <x-select id="trigger_type" name="trigger_type" class="!min-h-[38px] !bg-white/[0.03]">
+                    @foreach ([
+                        'client_portal' => 'Activated client number (self-service menu)',
+                        'inbound_message' => 'Any inbound message (catch-all)',
+                        'keyword' => 'Keyword match',
+                        'label_applied' => 'Label applied',
+                    ] as $value => $label)
+                        <option value="{{ $value }}" @selected($selectedTrigger === $value)>{{ $label }}</option>
+                    @endforeach
+                </x-select>
+            </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4">
-            <div>
-                <x-card class="p-3">
+            {{-- Rendered on every load (not just when selected) and toggled
+                 live by whatsapp-flow-builder.js's own trigger_type change
+                 listener -- ids preserved exactly for that listener to keep
+                 working unchanged. --}}
+            <div id="trigger-keyword-field" class="w-full sm:w-40 shrink-0 {{ $selectedTrigger === 'keyword' ? '' : 'hidden' }}">
+                <x-text-input id="trigger_config_keyword" name="trigger_config[keyword]" type="text" class="!min-h-[38px] !bg-white/[0.03]"
+                    value="{{ old('trigger_config.keyword', $flow->trigger_config['keyword'] ?? '') }}" placeholder="Keyword" />
+            </div>
+
+            <span class="flex-1"></span>
+
+            <div class="shrink-0 flex items-center gap-1">
+                <button type="button" id="flow-zoom-out" class="w-9 h-9 rounded-lg text-sm font-semibold text-brand-100/80 hover:bg-white/10 hover:text-white" title="Zoom out">−</button>
+                <button type="button" id="flow-zoom-in" class="w-9 h-9 rounded-lg text-sm font-semibold text-brand-100/80 hover:bg-white/10 hover:text-white" title="Zoom in">+</button>
+                <button type="button" id="flow-delete-node" class="px-3 h-9 rounded-lg text-sm text-red-300 hover:bg-red-400/10 hover:text-red-200" title="Delete selected node">Delete node</button>
+            </div>
+
+            <a href="{{ route('whatsapp-crm.flows.index') }}" class="shrink-0 text-sm text-brand-100/70 hover:text-white px-2">Cancel</a>
+            <x-primary-button type="submit" class="shrink-0 !py-2">Save</x-primary-button>
+        </header>
+
+        @if ($errors->has('name') || $errors->has('trigger_type') || $errors->has('trigger_config.keyword') || $errors->has('graph'))
+            <div class="shrink-0 px-4 py-2 bg-red-500/15 text-red-200 text-sm space-y-1">
+                @foreach ($errors->get('name') as $m) <p>{{ $m }}</p> @endforeach
+                @foreach ($errors->get('trigger_type') as $m) <p>{{ $m }}</p> @endforeach
+                @foreach ($errors->get('trigger_config.keyword') as $m) <p>{{ $m }}</p> @endforeach
+                @foreach ($errors->get('graph') as $m) <p>{{ $m }}</p> @endforeach
+            </div>
+        @endif
+
+        {{-- Client-portal / label-applied hints, kept out of the top bar
+             (there is no room there) but still id-addressed by the same JS
+             listener that used to toggle them next to the trigger select. --}}
+        <p id="trigger-client-portal-hint" class="shrink-0 px-4 py-1.5 text-xs text-brand-100/60 bg-brand-900/60 {{ $selectedTrigger === 'client_portal' ? '' : 'hidden' }}">
+            Runs only for clients with <strong class="text-brand-200">WhatsApp self-service portal</strong> enabled on their phone number.
+            Use <strong class="text-brand-200">Client Action</strong> nodes for invoices, reports and shoots. In Send Message/Send List, use <code class="text-brand-300">@{{client.name}}</code>.
+        </p>
+        <p id="trigger-label-applied-warning" class="shrink-0 px-4 py-1.5 text-xs text-amber-300 bg-brand-900/60 {{ $selectedTrigger === 'label_applied' ? '' : 'hidden' }}">
+            Not wired up yet -- a flow with this trigger will never start on its own.
+        </p>
+
+        <div class="flex-1 min-h-0 flex">
+            {{-- Palette panel: starts open on desktop, closed on a phone
+                 (see x-data above) -- Drawflow's own drag-and-drop is
+                 desktop-first, and the toggle button keeps it available
+                 without permanently costing canvas width on a small
+                 screen. --}}
+            <aside x-show="palette" x-cloak
+                   class="w-60 shrink-0 overflow-y-auto border-r border-white/10 bg-brand-900 p-3 space-y-4">
+                <div>
                     <p class="text-xs font-semibold uppercase tracking-wider text-brand-100/60 mb-2">Drag onto canvas</p>
                     {{-- Populated by whatsapp-flow-builder.js from its own
-                         NODE_TYPES list -- one source of truth for the 7
-                         node types, not a second copy here. --}}
+                         NODE_TYPES list -- one source of truth for the node
+                         palette, not a second copy here. --}}
                     <div id="flow-palette"></div>
-                </x-card>
-                <x-card class="p-3 mt-4 space-y-1">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-brand-100/60 mb-1">Canvas</p>
-                    <button type="button" id="flow-zoom-in" class="w-full text-sm text-left text-brand-100/80 hover:text-white py-1">Zoom in</button>
-                    <button type="button" id="flow-zoom-out" class="w-full text-sm text-left text-brand-100/80 hover:text-white py-1">Zoom out</button>
-                    <button type="button" id="flow-delete-node" class="w-full text-sm text-left text-red-300 hover:text-red-200 py-1">Delete selected node</button>
-                </x-card>
-                <p class="text-xs text-brand-100/50 mt-3 leading-snug">
+                </div>
+                <p class="text-xs text-brand-100/50 leading-snug">
                     Connect a node's right-edge dot to another node's left-edge dot to chain them. Every node carries a
                     "Set as start" link -- exactly one must be marked before this flow can be activated.
                 </p>
-            </div>
-            <div class="flow-canvas-shell">
+            </aside>
+
+            {{-- min-h-0 here and on the flex row above is load-bearing: a
+                 flex child otherwise refuses to shrink below its content,
+                 the canvas overflows the viewport, and page scroll comes
+                 back -- defeating the entire point of this layout. --}}
+            <div class="flow-canvas-shell flex-1 min-h-0">
                 <div id="flow-drawflow"></div>
             </div>
-        </div>
-
-        <div class="flex items-center gap-4">
-            <x-primary-button type="submit">Save Flow</x-primary-button>
-            <a href="{{ route('whatsapp-crm.flows.index') }}" class="text-sm text-brand-100/70 hover:text-white">Cancel</a>
         </div>
     </form>
 
@@ -137,4 +164,4 @@
     </script>
 
     @vite(['resources/js/whatsapp-flow-builder.js'])
-</x-app-layout>
+</x-editor-layout>

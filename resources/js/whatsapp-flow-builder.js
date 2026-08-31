@@ -43,6 +43,18 @@ const NODE_TYPES = {
             { key: 'body_parameters', label: 'Parameters (comma-separated)', type: 'text', placeholder: '{{1}}, {{2}}, ...', default: '' },
         ],
     },
+    send_list: {
+        label: 'Send List',
+        inputs: 1,
+        outputs: 1,
+        fields: [
+            { key: 'body', label: 'Message', type: 'textarea', placeholder: 'What can we help with?', default: '' },
+            { key: 'rows', label: 'Options (one per line: id|Title|Description)', type: 'textarea', placeholder: '1|Invoices|Your recent bills', default: '' },
+            { key: 'button', label: 'Button label', type: 'text', placeholder: 'Select Option', default: 'Select Option' },
+            { key: 'header', label: 'Header (optional)', type: 'text', default: '' },
+            { key: 'footer', label: 'Footer (optional)', type: 'text', default: '' },
+        ],
+    },
     condition: {
         label: 'Condition',
         inputs: 1,
@@ -149,7 +161,9 @@ function buildNodeHtml(typeKey, users) {
     const fields = def.fields.map((field) => fieldHtml(field, users)).join('');
     const hint = typeKey === 'condition'
         ? '<p class="flow-node__hint">Top output = True, bottom output = False.</p>'
-        : (def.outputs === 0 ? '<p class="flow-node__hint">Ends the flow (hands off to a human).</p>' : '');
+        : typeKey === 'send_list'
+            ? '<p class="flow-node__hint">Leave the output unconnected -- a tap starts a new message, routed by a Condition node on message.choice. Free-form send: only works within 24h of their last message.</p>'
+            : (def.outputs === 0 ? '<p class="flow-node__hint">Ends the flow (hands off to a human).</p>' : '');
 
     return `<div class="flow-node">`
         + `<div class="flow-node__header">`

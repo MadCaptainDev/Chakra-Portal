@@ -63,6 +63,7 @@
 .drawflow .drawflow-node.agent_transfer { border-left-color: #f87171; }
 .drawflow .drawflow-node.make_request { border-left-color: #f472b6; }
 .drawflow .drawflow-node.client_action { border-left-color: #2dd4bf; }
+.drawflow .drawflow-node.send_list { border-left-color: #4ade80; }
 
 .drawflow .drawflow-node .drawflow_content_node {
     width: 100%;
@@ -228,3 +229,4 @@
 .flow-palette-item.agent_transfer { border-left-color: #f87171; }
 .flow-palette-item.make_request { border-left-color: #f472b6; }
 .flow-palette-item.client_action { border-left-color: #2dd4bf; }
+.flow-palette-item.send_list { border-left-color: #4ade80; }
