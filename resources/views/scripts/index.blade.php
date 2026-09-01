@@ -9,6 +9,7 @@
                        subtitle="Everything being written, and who is writing it.">
             <x-slot name="actions">
                 @can('scripts.create')
+                    <x-btn :href="route('scripts.import-keep.create')" variant="secondary" icon="document">Import from Google Keep</x-btn>
                     <x-btn :href="route('scripts.create')" icon="plus">New script</x-btn>
                 @endcan
             </x-slot>

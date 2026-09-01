@@ -66,6 +66,7 @@ class Script extends Model
      */
     protected $fillable = [
         'client_id',
+        'content_item_id',
         'title',
         'status',
         'priority',
@@ -89,6 +90,16 @@ class Script extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
+    }
+
+    /**
+     * The Notion-synced video/reel/post this script was written for --
+     * set only by the Google Keep bulk importer (GoogleKeepImport),
+     * matched by title. A script created the ordinary way has none.
+     */
+    public function contentItem(): BelongsTo
+    {
+        return $this->belongsTo(ContentItem::class);
     }
 
     public function writer(): BelongsTo

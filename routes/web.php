@@ -58,6 +58,7 @@ use App\Http\Controllers\RoutineCheckingController;
 use App\Http\Controllers\RoutineController;
 use App\Http\Controllers\SaasProductController;
 use App\Http\Controllers\SalaryController;
+use App\Http\Controllers\GoogleKeepImportController;
 use App\Http\Controllers\ScriptController;
 use App\Http\Controllers\ScriptSectionController;
 use App\Http\Controllers\SettingsController;
@@ -312,11 +313,16 @@ Route::middleware('auth')->group(function () {
 Route::middleware(['auth', 'module:scripts,view'])->scopeBindings()->group(function () {
     Route::get('scripts', [ScriptController::class, 'index'])->name('scripts.index');
 
-    // Before the {script} route, or "create" binds as a script id.
+    // Before the {script} route, or "create"/"import-keep" bind as a script id.
     Route::get('scripts/create', [ScriptController::class, 'create'])
         ->middleware('module:scripts,create')->name('scripts.create');
     Route::post('scripts', [ScriptController::class, 'store'])
         ->middleware('module:scripts,create')->name('scripts.store');
+
+    Route::middleware('module:scripts,create')->group(function () {
+        Route::get('scripts-import-keep', [GoogleKeepImportController::class, 'create'])->name('scripts.import-keep.create');
+        Route::post('scripts-import-keep', [GoogleKeepImportController::class, 'store'])->name('scripts.import-keep.store');
+    });
 
     Route::get('scripts/{script}', [ScriptController::class, 'show'])->name('scripts.show');
 
