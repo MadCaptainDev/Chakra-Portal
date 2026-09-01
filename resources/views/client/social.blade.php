@@ -8,15 +8,17 @@
         </div>
 
         {{-- Same card the staff side shows on a client's page, in self-service
-             mode: this client's connect/disconnect routes, no {client} in
-             either, and no staff-only View Analytics / Monthly Report links.
-             See clients/_social.blade.php's own doc block for why one
-             partial serves both screens. --}}
+             mode: this client's own connect/disconnect/analytics/report
+             routes, none of them carrying a {client} segment. See
+             clients/_social.blade.php's own doc block for why one partial
+             serves both screens. --}}
         @include('clients._social', [
             'client' => $client,
             'selfService' => true,
             'connectRoute' => route('client.instagram.connect'),
             'disconnectRoute' => route('client.instagram.disconnect'),
+            'insightsRoute' => route('client.instagram.insights'),
+            'reportRoute' => route('client.instagram.report'),
         ])
     </div>
 </x-app-layout>

@@ -7,28 +7,49 @@
      * Instagram. "Sync now" is the Instagram Insights screen's own action,
      * reused here rather than duplicated.
      *
-     * The Studio/Client toggle is an on-screen PREVIEW only (Alpine,
-     * client-side, no reload, no new route) -- there is no client-facing
-     * link for this report. Delivery is a downloaded PDF or, now, the same
-     * PDF sent as a WhatsApp document -- both built from exactly the
-     * sections currently ticked below, never more than what's on screen.
+     * Two contexts share this view: staff
+     * (App\Http\Controllers\MonthlyReportController, every var below
+     * defaulted to that behaviour) and a client viewing their own report
+     * self-service (App\Http\Controllers\Client\MonthlyReportController,
+     * $selfService and the route names/URLs passed explicitly). The
+     * Studio/Client toggle further down is a STAFF-ONLY preview of what a
+     * client sees (Alpine, client-side, no reload); isClient starts (and,
+     * for self-service, stays) true either way, so the account strip's
+     * Sync button and every studio-only CARD (sections & WhatsApp
+     * delivery, the note's edit form, Shoots) share one x-show mechanism
+     * -- the difference is that for $selfService those blocks are also
+     * conditionally skipped, omitted from the page entirely rather than
+     * merely CSS-hidden, since unlike a quiet Sync button these are whole
+     * forms and a client's-own-shoots repeat that have no business
+     * reaching a client's page source at all. Section selection
+     * is also never a client's to change here: always
+     * Client::defaultReportSections(), the studio's own standing choice
+     * -- see Client\MonthlyReportController.
      */
     $monthParam = $month->format('Y-m');
+    $selfService ??= false;
+    $reportRouteName ??= 'instagram.report';
 
     // Carried on every link that should keep showing the same section
     // selection after navigating (Download PDF, the month arrows) --
     // sections_form is what tells the controller "this request has an
-    // opinion", see MonthlyReportController::resolveSections().
-    $sectionParams = ['sections_form' => 1, 'sections' => $enabledSections];
+    // opinion", see MonthlyReportController::resolveSections(). Never
+    // carried for a client: there is no override for them to preserve.
+    $sectionParams = $selfService ? [] : ['sections_form' => 1, 'sections' => $enabledSections];
+    $monthNavParams ??= $selfService ? [] : ['client' => $client] + $sectionParams;
+    $reportPdfUrl ??= $selfService
+        ? route('client.instagram.report.pdf', ['month' => $monthParam])
+        : route('instagram.report.pdf', ['client' => $client, 'month' => $monthParam] + $sectionParams);
+    $backUrl ??= $selfService ? route('client.social') : route('clients.show', $client).'#social';
 @endphp
 
 <x-app-layout title="Monthly Report">
     <x-slot name="header">
         <x-page-header :title="$client->name" eyebrow="Monthly Report">
             <x-slot name="actions">
-                <a href="{{ route('clients.show', $client) }}#social"
+                <a href="{{ $backUrl }}"
                    class="text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
-                    ← Back to client
+                    ← Back
                 </a>
             </x-slot>
         </x-page-header>
@@ -37,34 +58,40 @@
     @if (! $account)
         <x-card padding="md" class="max-w-lg">
             <p class="text-sm text-brand-100/70">
-                No Instagram account is connected for {{ $client->name }} yet.
+                @if ($selfService)
+                    No Instagram account is connected yet.
+                @else
+                    No Instagram account is connected for {{ $client->name }} yet.
+                @endif
             </p>
-            <a href="{{ route('clients.show', $client) }}#social"
+            <a href="{{ $backUrl }}"
                class="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
                 Connect Instagram
             </a>
         </x-card>
     @else
-        <div class="space-y-6" x-data="{ isClient: false }">
+        <div class="space-y-6" x-data="{ isClient: {{ $selfService ? 'true' : 'false' }} }">
 
-            {{-- Month switcher + Studio/Client preview + Print --}}
+            {{-- Month switcher + (staff-only) Studio/Client preview + Print --}}
             <div class="flex flex-wrap items-center justify-between gap-4">
-                <x-month-nav route="instagram.report" :month="$month" :params="['client' => $client] + $sectionParams" class="max-w-xs" />
+                <x-month-nav :route="$reportRouteName" :month="$month" :params="$monthNavParams" class="max-w-xs" />
 
                 <div class="flex flex-wrap items-center gap-2" data-chrome>
-                    <div class="inline-flex items-center gap-1 p-1 rounded-xl bg-white/10 ring-1 ring-white/10">
-                        <button type="button" @click="isClient = false"
-                                :class="! isClient ? 'bg-white/5 text-white shadow-sm' : 'text-brand-100/60'"
-                                class="min-h-[40px] px-3 rounded-lg text-sm font-semibold transition-colors">
-                            Studio view
-                        </button>
-                        <button type="button" @click="isClient = true"
-                                :class="isClient ? 'bg-white/5 text-white shadow-sm' : 'text-brand-100/60'"
-                                class="min-h-[40px] px-3 rounded-lg text-sm font-semibold transition-colors">
-                            Client preview
-                        </button>
-                    </div>
-                    <a href="{{ route('instagram.report.pdf', ['client' => $client, 'month' => $monthParam] + $sectionParams) }}"
+                    @if (! $selfService)
+                        <div class="inline-flex items-center gap-1 p-1 rounded-xl bg-white/10 ring-1 ring-white/10">
+                            <button type="button" @click="isClient = false"
+                                    :class="! isClient ? 'bg-white/5 text-white shadow-sm' : 'text-brand-100/60'"
+                                    class="min-h-[40px] px-3 rounded-lg text-sm font-semibold transition-colors">
+                                Studio view
+                            </button>
+                            <button type="button" @click="isClient = true"
+                                    :class="isClient ? 'bg-white/5 text-white shadow-sm' : 'text-brand-100/60'"
+                                    class="min-h-[40px] px-3 rounded-lg text-sm font-semibold transition-colors">
+                                Client preview
+                            </button>
+                        </div>
+                    @endif
+                    <a href="{{ $reportPdfUrl }}"
                        class="inline-flex items-center gap-2 min-h-[44px] px-4 rounded-md bg-brand-500 text-white text-sm font-semibold shadow-sm hover:bg-brand-600">
                         <x-icon name="document" class="w-4 h-4" />
                         Print / PDF
@@ -92,15 +119,17 @@
                             </p>
                         </div>
                     </div>
-                    <div class="flex items-center gap-3">
-                        <p class="text-xs text-brand-100/50">Instagram Graph API · cached</p>
-                        <form method="POST" action="{{ route('instagram.insights.sync', $client) }}">
-                            @csrf
-                            <x-secondary-button type="submit" :disabled="! $account->canSyncNow()">
-                                Sync now
-                            </x-secondary-button>
-                        </form>
-                    </div>
+                    @if (! $selfService)
+                        <div class="flex items-center gap-3">
+                            <p class="text-xs text-brand-100/50">Instagram Graph API · cached</p>
+                            <form method="POST" action="{{ route('instagram.insights.sync', $client) }}">
+                                @csrf
+                                <x-secondary-button type="submit" :disabled="! $account->canSyncNow()">
+                                    Sync now
+                                </x-secondary-button>
+                            </form>
+                        </div>
+                    @endif
                 </div>
                 <p class="mt-3 text-xs text-brand-100/60">
                     Showing <span class="font-medium text-brand-100/80">{{ $since->format('j M Y') }}</span>
@@ -108,7 +137,12 @@
                 </p>
             </x-card>
 
-            {{-- Sections + WhatsApp delivery: studio-only controls, not part of the report itself --}}
+            {{-- Sections + WhatsApp delivery: studio-only controls, not part of
+                 the report itself. Omitted entirely for a client, not merely
+                 hidden -- unlike the account strip's Sync button above, this
+                 one form is worth keeping out of the page source rather than
+                 just off screen. --}}
+            @if (! $selfService)
             <x-card padding="md" data-chrome x-show="! isClient">
                 <details {{ $errors->has('phone') ? 'open' : '' }}>
                     <summary class="cursor-pointer text-sm font-semibold text-white select-none">
@@ -183,32 +217,37 @@
                     </div>
                 </details>
             </x-card>
+            @endif
 
             {{-- Note --}}
             <x-card padding="md" class="bg-white/5 ring-1 ring-brand-400/20" id="note">
                 <div class="flex items-baseline justify-between gap-3 mb-2">
                     <h3 class="text-sm font-semibold text-white">The month in one paragraph</h3>
-                    <p class="text-[11px] text-brand-100/60" data-chrome x-show="! isClient">
-                        @if ($note->updated_at)
-                            Last edited {{ $note->updated_at->diffForHumans() }}
-                        @else
-                            Not written yet
-                        @endif
-                    </p>
+                    @if (! $selfService)
+                        <p class="text-[11px] text-brand-100/60" data-chrome x-show="! isClient">
+                            @if ($note->updated_at)
+                                Last edited {{ $note->updated_at->diffForHumans() }}
+                            @else
+                                Not written yet
+                            @endif
+                        </p>
+                    @endif
                 </div>
 
-                <div data-chrome x-show="! isClient">
-                    <form method="POST" action="{{ route('instagram.report.note', $client) }}">
-                        @csrf
-                        <input type="hidden" name="month" value="{{ $monthParam }}">
-                        <x-textarea name="note" rows="4"
-                                    placeholder="What carried the month, what's planned next -- this is what the client sees on the PDF."
-                                    class="w-full">{{ old('note', $note->note) }}</x-textarea>
-                        <div class="mt-2 flex justify-end">
-                            <x-secondary-button type="submit">Save note</x-secondary-button>
-                        </div>
-                    </form>
-                </div>
+                @if (! $selfService)
+                    <div data-chrome x-show="! isClient">
+                        <form method="POST" action="{{ route('instagram.report.note', $client) }}">
+                            @csrf
+                            <input type="hidden" name="month" value="{{ $monthParam }}">
+                            <x-textarea name="note" rows="4"
+                                        placeholder="What carried the month, what's planned next -- this is what the client sees on the PDF."
+                                        class="w-full">{{ old('note', $note->note) }}</x-textarea>
+                            <div class="mt-2 flex justify-end">
+                                <x-secondary-button type="submit">Save note</x-secondary-button>
+                            </div>
+                        </form>
+                    </div>
+                @endif
 
                 <div x-show="isClient" x-cloak>
                     @if ($note->note)
@@ -244,7 +283,7 @@
                     @if ($showGrowth)
                         <div class="{{ $showBreakdown ? 'lg:col-span-3' : 'lg:col-span-5' }}">
                             <x-charts.metric-trend :days="$followerTrend" title="Follower growth, day by day"
-                                empty="No follower data cached for this month yet — press Sync now." />
+                                :empty="$selfService ? 'No follower data for this month yet — check back after the next sync.' : 'No follower data cached for this month yet — press Sync now.'" />
                         </div>
                     @endif
                     @if ($showBreakdown)
@@ -299,7 +338,7 @@
                         </div>
                         <p class="mt-4 text-[11px] text-brand-100/50">Audience synced {{ $audienceSyncedAt->diffForHumans() }}.</p>
                     @else
-                        <x-empty-state message="Audience demographics haven't been synced for this account yet — press Sync now." />
+                        <x-empty-state :message="$selfService ? 'Audience demographics haven\'t been synced for this account yet.' : 'Audience demographics haven\'t been synced for this account yet — press Sync now.'" />
                     @endif
                 </x-card>
             @endif
@@ -385,8 +424,11 @@
                 </x-card>
             @endif
 
-            {{-- Shoots --}}
-            @if (in_array('shoots', $enabledSections, true) && $shoots->isNotEmpty())
+            {{-- Shoots: studio-only, same reasoning as the sections/WhatsApp
+                 card above -- a client sees their own shoots on the
+                 dedicated Shoots page already (client.shoots), so this
+                 would only repeat it. --}}
+            @if (! $selfService && in_array('shoots', $enabledSections, true) && $shoots->isNotEmpty())
                 <x-card padding="md" data-chrome x-show="! isClient">
                     <x-section-heading title="Shoots this month" />
                     <ul class="divide-y divide-white/10">

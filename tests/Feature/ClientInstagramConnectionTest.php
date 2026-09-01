@@ -198,7 +198,7 @@ class ClientInstagramConnectionTest extends TestCase
             ->assertDontSee('Monthly Report');
     }
 
-    public function test_the_social_screen_shows_connected_state_and_no_staff_only_links(): void
+    public function test_the_social_screen_shows_connected_state_and_links_to_your_own_analytics(): void
     {
         $client = $this->client();
         $login = $this->loginFor($client);
@@ -206,12 +206,17 @@ class ClientInstagramConnectionTest extends TestCase
         $state = $this->beginConnect($login);
         $this->actingAs($login)->get(route('instagram.callback', ['code' => self::CODE, 'state' => $state]));
 
-        $this->actingAs($login)
+        $response = $this->actingAs($login)
             ->get(route('client.social'))
             ->assertOk()
             ->assertSee('thillaipets')
             ->assertSee('Disconnect')
-            ->assertDontSee('View Analytics')
-            ->assertDontSee('Monthly Report');
+            ->assertSee('View Analytics')
+            ->assertSee('Monthly Report');
+
+        // Pointed at the client's own read-only routes, never the staff
+        // ones -- those take a {client} segment this role could not pass.
+        $response->assertSee(route('client.instagram.insights'), false);
+        $response->assertSee(route('client.instagram.report'), false);
     }
 }

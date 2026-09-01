@@ -6,23 +6,39 @@
      * $account is null when nothing is connected, in which case the page is
      * one sentence and a link back to Social Media rather than a wall of
      * empty stat cards.
+     *
+     * Two contexts share this view, same pattern as instagram/report.blade.php
+     * and clients/_social.blade.php: staff
+     * (App\Http\Controllers\InstagramInsightsController, every var below
+     * defaulted to that behaviour) and a client viewing their own analytics
+     * self-service (App\Http\Controllers\Client\InstagramInsightsController,
+     * $selfService and the route URLs passed explicitly). "Sync now" is
+     * hidden for $selfService -- it spends the account's own API quota, a
+     * studio decision (module:clients,edit on the route it posts to, which
+     * a client role never has). The portfolio add/remove actions need no
+     * such flag: they are already gated by @canany(['portfolio.create',
+     * 'portfolio.delete']), which a client role never passes either.
      */
-    $rangeQuery = fn (string $key) => route('instagram.insights', $client) . '?range=' . $key;
+    $selfService ??= false;
+    $insightsRoute ??= route('instagram.insights', $client);
+    $reportRoute ??= route('instagram.report', $client);
+    $backRoute ??= route('clients.show', $client).'#social';
+    $rangeQuery = fn (string $key) => $insightsRoute . '?range=' . $key;
 @endphp
 
 <x-app-layout title="Instagram Analytics">
     <x-slot name="header">
-        <x-page-header :title="$client->name" eyebrow="Instagram Analytics">
+        <x-page-header :title="$selfService ? 'Your analytics' : $client->name" eyebrow="Instagram Analytics">
             <x-slot name="actions">
                 @if ($account)
-                    <a href="{{ route('instagram.report', $client) }}"
+                    <a href="{{ $reportRoute }}"
                        class="text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
                         Monthly report
                     </a>
                 @endif
-                <a href="{{ route('clients.show', $client) }}#social"
+                <a href="{{ $backRoute }}"
                    class="text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
-                    ← Back to client
+                    ← Back
                 </a>
             </x-slot>
         </x-page-header>
@@ -31,9 +47,13 @@
     @if (! $account)
         <x-card padding="md" class="max-w-lg">
             <p class="text-sm text-brand-100/70">
-                No Instagram account is connected for {{ $client->name }} yet.
+                @if ($selfService)
+                    No Instagram account is connected yet.
+                @else
+                    No Instagram account is connected for {{ $client->name }} yet.
+                @endif
             </p>
-            <a href="{{ route('clients.show', $client) }}#social"
+            <a href="{{ $backRoute }}"
                class="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
                 Connect Instagram
             </a>
@@ -45,7 +65,7 @@
             // dates are on screen. Clicking the already-active column flips
             // direction; clicking a different one starts it at desc
             // (highest first is the more useful default for "what worked").
-            $sortLink = fn (string $key) => route('instagram.insights', $client) . '?' . http_build_query([
+            $sortLink = fn (string $key) => $insightsRoute . '?' . http_build_query([
                 'range' => $rangeKey,
                 'from' => $since->toDateString(),
                 'to' => $until->toDateString(),
@@ -81,30 +101,32 @@
                         </div>
                     </div>
 
-                    <div class="text-right">
-                        {{-- from/to are carried alongside range, not just
-                             range alone: on a custom range, resolveRange()
-                             needs them to reconstruct the exact window
-                             being viewed -- without them, a custom-range
-                             "Sync now" silently synced the last-30-days
-                             default instead of the dates actually on
-                             screen. Harmless extra params on a preset
-                             range, since those branches ignore from/to. --}}
-                        <form method="POST" action="{{ route('instagram.insights.sync', $client) }}?range={{ $rangeKey }}&from={{ $since->toDateString() }}&to={{ $until->toDateString() }}">
-                            @csrf
-                            <x-secondary-button type="submit" :disabled="! $account->canSyncNow()">
-                                Sync now
-                            </x-secondary-button>
-                        </form>
-                        {{-- Shown before the click, not just after a refused
-                             one: a disabled-looking button with no explanation
-                             reads as broken rather than as "already synced". --}}
-                        @unless ($account->canSyncNow())
-                            <p class="mt-1 text-[11px] text-brand-100/50">
-                                Again in {{ now()->diffForHumans($account->nextSyncAllowedAt(), true) }}
-                            </p>
-                        @endunless
-                    </div>
+                    @unless ($selfService)
+                        <div class="text-right">
+                            {{-- from/to are carried alongside range, not just
+                                 range alone: on a custom range, resolveRange()
+                                 needs them to reconstruct the exact window
+                                 being viewed -- without them, a custom-range
+                                 "Sync now" silently synced the last-30-days
+                                 default instead of the dates actually on
+                                 screen. Harmless extra params on a preset
+                                 range, since those branches ignore from/to. --}}
+                            <form method="POST" action="{{ route('instagram.insights.sync', $client) }}?range={{ $rangeKey }}&from={{ $since->toDateString() }}&to={{ $until->toDateString() }}">
+                                @csrf
+                                <x-secondary-button type="submit" :disabled="! $account->canSyncNow()">
+                                    Sync now
+                                </x-secondary-button>
+                            </form>
+                            {{-- Shown before the click, not just after a refused
+                                 one: a disabled-looking button with no explanation
+                                 reads as broken rather than as "already synced". --}}
+                            @unless ($account->canSyncNow())
+                                <p class="mt-1 text-[11px] text-brand-100/50">
+                                    Again in {{ now()->diffForHumans($account->nextSyncAllowedAt(), true) }}
+                                </p>
+                            @endunless
+                        </div>
+                    @endunless
                 </div>
 
                 {{-- The exact window every number below covers. Ranges like
@@ -143,7 +165,7 @@
                 {{-- Custom range, its own small form so it can carry two dates
                      without a JS date-range widget nothing else in the product
                      uses. --}}
-                <form method="GET" action="{{ route('instagram.insights', $client) }}"
+                <form method="GET" action="{{ $insightsRoute }}"
                       class="inline-flex items-center gap-1.5">
                     <input type="hidden" name="range" value="custom">
                     <input type="date" name="from" value="{{ $since->toDateString() }}"
@@ -193,7 +215,7 @@
                 {{-- Trend --}}
                 <div class="lg:col-span-3">
                     <x-charts.metric-trend :days="$trend" title="Reach, day by day"
-                        empty="No reach data cached for this range yet — press Sync now." />
+                        :empty="$selfService ? 'No reach data for this range yet — check back after the next sync.' : 'No reach data cached for this range yet — press Sync now.'" />
 
                     @php
                         $lastDay = end($trend);
@@ -259,7 +281,7 @@
                                  fix this one. --}}
                             <x-empty-state message="Nothing was posted in this date range. Try a wider range." />
                         @else
-                            <x-empty-state message="No media cached yet — press Sync now to pull recent posts." />
+                            <x-empty-state :message="$selfService ? 'No media cached yet — check back shortly.' : 'No media cached yet — press Sync now to pull recent posts.'" />
                         @endif
                     </div>
                 @else

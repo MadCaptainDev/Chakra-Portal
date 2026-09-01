@@ -18,9 +18,11 @@ use Illuminate\View\View;
 use RuntimeException;
 
 /**
- * The monthly Instagram report for one client -- studio-only screen with a
- * Studio/Client on-screen preview toggle, and a downloadable PDF built from
- * the same month's data.
+ * The monthly Instagram report for one client -- the studio's own screen,
+ * with a Studio/Client on-screen preview toggle and every editing control
+ * (sections, note, WhatsApp delivery), and a downloadable PDF built from
+ * the same month's data. A client's own read-only copy of this same report
+ * is App\Http\Controllers\Client\MonthlyReportController, not this class.
  *
  * Mostly reads local caches -- "Sync now" on the Instagram Insights screen
  * is the deliberate way to refresh them. show() also calls

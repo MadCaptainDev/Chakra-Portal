@@ -8,7 +8,9 @@ use App\Http\Controllers\CallSheetController;
 use App\Http\Controllers\Client\BriefController as ClientBriefController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\Client\InstagramConnectionController as ClientInstagramConnectionController;
+use App\Http\Controllers\Client\InstagramInsightsController as ClientInstagramInsightsController;
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
+use App\Http\Controllers\Client\MonthlyReportController as ClientMonthlyReportController;
 use App\Http\Controllers\Client\ShootController as ClientShootController;
 use App\Http\Controllers\Client\SocialController as ClientSocialController;
 use App\Http\Controllers\Client\WorkController as ClientWorkController;
@@ -369,6 +371,15 @@ Route::middleware(['auth', 'client'])->prefix('client')->name('client.')->group(
     Route::post('social/instagram/connect', [ClientInstagramConnectionController::class, 'connect'])->name('instagram.connect');
     Route::delete('social/instagram', [ClientInstagramConnectionController::class, 'destroy'])->name('instagram.disconnect');
 
+    // Read-only self-service versions of the staff Instagram Insights and
+    // Monthly Report screens -- see Client\InstagramInsightsController and
+    // Client\MonthlyReportController for exactly what's stripped out of
+    // each (Sync now, portfolio actions, the section checklist, the note
+    // editor, WhatsApp delivery) and why.
+    Route::get('instagram/insights', [ClientInstagramInsightsController::class, 'show'])->name('instagram.insights');
+    Route::get('instagram/report', [ClientMonthlyReportController::class, 'show'])->name('instagram.report');
+    Route::get('instagram/report/pdf', [ClientMonthlyReportController::class, 'pdf'])->name('instagram.report.pdf');
+
     /*
      * The brand brief. Static segments and no {client}, by design and for the
      * same reason as everything above it: the controller reads the signed-in
@@ -489,8 +500,10 @@ Route::middleware(['auth', 'module:clients,view'])->scopeBindings()->group(funct
     /*
      * Monthly report: the same cached data as Insights, reshaped for one
      * calendar month with an audience section and a downloadable PDF.
-     * Studio-only -- there is no client-facing route for this at all, the
-     * client's copy is whatever PDF the studio hands them.
+     * These editing routes (the section checklist, the note, sending it
+     * elsewhere over WhatsApp) stay studio-only -- a client's own read-only
+     * copy of this same screen is the client. group's instagram.report,
+     * not one of these.
      */
     Route::get('clients/{client}/instagram/report', [MonthlyReportController::class, 'show'])
         ->name('instagram.report');

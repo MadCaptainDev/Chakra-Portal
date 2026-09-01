@@ -98,17 +98,15 @@
 
         @if ($canManage)
             <div class="flex flex-wrap items-center gap-3">
-                @unless ($selfService)
-                    <a href="{{ $insightsRoute }}"
-                       class="inline-flex items-center gap-1.5 rounded-md bg-brand-400 px-3 py-2 text-xs font-semibold uppercase tracking-widest text-brand-900 hover:bg-brand-500">
-                        View Analytics
-                    </a>
+                <a href="{{ $insightsRoute }}"
+                   class="inline-flex items-center gap-1.5 rounded-md bg-brand-400 px-3 py-2 text-xs font-semibold uppercase tracking-widest text-brand-900 hover:bg-brand-500">
+                    View Analytics
+                </a>
 
-                    <a href="{{ $reportRoute }}"
-                       class="inline-flex items-center gap-1.5 rounded-md border border-brand-300 px-3 py-2 text-xs font-semibold uppercase tracking-widest text-brand-200 hover:bg-white/10">
-                        Monthly Report
-                    </a>
-                @endunless
+                <a href="{{ $reportRoute }}"
+                   class="inline-flex items-center gap-1.5 rounded-md border border-brand-300 px-3 py-2 text-xs font-semibold uppercase tracking-widest text-brand-200 hover:bg-white/10">
+                    Monthly Report
+                </a>
 
                 <form method="POST" action="{{ $disconnectRoute }}"
                       onsubmit="return confirm('Disconnect {{ $instagram->handle() }}? The stored access token is discarded and analytics stop updating. Anything already collected is kept, and you can reconnect the same account later.')">
