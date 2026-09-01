@@ -9,8 +9,14 @@ use InvalidArgumentException;
 
 /**
  * Quantity tokens for invoice line items — resolved from Notion-published
- * content for the invoice month. Recurring schedules store the token;
- * generated and manual invoices store the resolved number.
+ * content for the calendar month BEFORE the invoice's own month, not the
+ * invoice's own month. An invoice raised in September bills for what went
+ * out in August: content published in September is still being made while
+ * that invoice is generated (often on the 1st, before the month has
+ * produced anything at all), so counting September against a September
+ * invoice reads as "0 published" even on an account posting normally.
+ * Recurring schedules store the token; generated and manual invoices store
+ * the resolved number.
  */
 class InvoiceQuantityVariable
 {
@@ -81,7 +87,12 @@ class InvoiceQuantityVariable
         return is_numeric($value) && (float) $value >= 0.01;
     }
 
-    public static function resolve(mixed $value, Client $client, Carbon $month): float
+    /**
+     * @param  Carbon  $invoiceMonth  the invoice's own month -- counts are
+     *                                for the month BEFORE this one, see this
+     *                                class's own doc block for why.
+     */
+    public static function resolve(mixed $value, Client $client, Carbon $invoiceMonth): float
     {
         if (! self::isVariable($value)) {
             if (! is_numeric($value)) {
@@ -97,17 +108,19 @@ class InvoiceQuantityVariable
             throw new InvalidArgumentException("Unknown quantity variable: {$value}");
         }
 
-        return (float) self::countsFor($client, $month)[$key];
+        return (float) self::countsFor($client, $invoiceMonth)[$key];
     }
 
     /**
-     * Published counts for one client in one month, keyed for the UI and resolver.
+     * Published counts for one client for the calendar month BEFORE
+     * $invoiceMonth, keyed for the UI and resolver -- see this class's own
+     * doc block for why it's the prior month, not $invoiceMonth itself.
      *
      * @return array{published_reels: int, published_posts: int, published_shorts: int}
      */
-    public static function countsFor(Client $client, Carbon $month): array
+    public static function countsFor(Client $client, Carbon $invoiceMonth): array
     {
-        [$since, $until] = ContentDashboard::monthRange($month);
+        [$since, $until] = ContentDashboard::monthRange($invoiceMonth->copy()->subMonthNoOverflow());
 
         $base = $client->contentItems()
             ->where('status', 'Published')
