@@ -96,7 +96,21 @@ class WhatsappSenderTest extends TestCase
         $this->assertSame(WhatsappWebhookEvent::TYPE_OUTGOING, $event->type);
         $this->assertSame('wamid.OUT1', $event->external_id);
         $this->assertSame('917094126823', $event->wa_id);
-        $this->assertSame('[template: hello_world]', $event->summary);
+        // Humanized for the inbox, not the raw Meta slug -- see
+        // WhatsappSender::humanizeTemplateName()'s own doc block.
+        $this->assertSame('[template: Hello World]', $event->summary);
+    }
+
+    public function test_a_version_suffix_is_dropped_from_the_summary_but_not_the_sent_payload(): void
+    {
+        $this->configured();
+        $this->fakeMeta();
+
+        WhatsappSender::make()->sendTemplate('7094126823', 'invoice_ready_v2');
+
+        Http::assertSent(fn (Request $request) => $request->data()['template']['name'] === 'invoice_ready_v2');
+
+        $this->assertSame('[template: Invoice Ready]', WhatsappWebhookEvent::sole()->summary);
     }
 
     public function test_metas_error_is_reported_verbatim(): void

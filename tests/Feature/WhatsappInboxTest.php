@@ -119,7 +119,10 @@ class WhatsappInboxTest extends TestCase
         $this->actingAs($this->employee())
             ->get(route('whatsapp-crm.inbox.index'))
             ->assertOk()
-            ->assertSee('919812345678');
+            // The fixture's inbound message carries a WhatsApp profile name
+            // ("Ravi") -- see test_an_inbound_message_auto_names_the_contact()
+            // below for why that, not the raw number, is what shows here.
+            ->assertSee('Ravi');
     }
 
     // -- show -----------------------------------------------------------------
@@ -306,6 +309,86 @@ class WhatsappInboxTest extends TestCase
             ->assertRedirect(route('whatsapp-crm.inbox.show', $conversation));
 
         $this->assertNull($conversation->fresh()->assigned_to_id);
+    }
+
+    // -- contact ----------------------------------------------------------------
+
+    public function test_an_inbound_message_auto_names_the_contact_from_its_whatsapp_profile(): void
+    {
+        // messagePayload()'s fixture carries 'contacts' => [['profile' =>
+        // ['name' => 'Ravi'], ...]], exactly what a real webhook post does.
+        $conversation = $this->conversationWithOneMessage();
+
+        $contact = $conversation->fresh()->contact;
+
+        $this->assertNotNull($contact);
+        $this->assertSame('Ravi', $contact->name);
+        $this->assertSame('919812345678', $contact->phone);
+    }
+
+    public function test_a_second_message_never_overwrites_a_name_already_on_file(): void
+    {
+        $conversation = $this->conversationWithOneMessage();
+        $conversation->fresh()->contact->update(['name' => 'Ravi Kumar (renamed by staff)']);
+
+        $this->configuredWebhook();
+        $this->postWebhook($this->messagePayload('wamid.SECOND', 'Any update?'))->assertOk();
+
+        $this->assertSame('Ravi Kumar (renamed by staff)', $conversation->fresh()->contact->name);
+    }
+
+    public function test_updating_the_contact_name_requires_the_edit_ability(): void
+    {
+        $conversation = $this->conversationWithOneMessage();
+
+        $this->actingAs($this->employee())
+            ->post(route('whatsapp-crm.inbox.contact.update', $conversation), ['name' => 'Ravi Kumar'])
+            ->assertForbidden();
+    }
+
+    public function test_naming_a_conversation_with_no_contact_yet_creates_one(): void
+    {
+        $this->configuredWebhook();
+        // No 'contacts' key at all this time -- the number never carried a
+        // WhatsApp profile name, the exact gap this form exists to close.
+        $payload = $this->messagePayload();
+        unset($payload['entry'][0]['changes'][0]['value']['contacts']);
+        $this->postWebhook($payload)->assertOk();
+
+        $conversation = WhatsappConversation::sole();
+        $this->assertNull($conversation->contact_id);
+
+        $this->actingAs($this->employee(['view', 'edit']))
+            ->post(route('whatsapp-crm.inbox.contact.update', $conversation), ['name' => 'Ravi Kumar'])
+            ->assertRedirect(route('whatsapp-crm.inbox.show', $conversation));
+
+        $contact = $conversation->fresh()->contact;
+        $this->assertNotNull($contact);
+        $this->assertSame('Ravi Kumar', $contact->name);
+        $this->assertSame('919812345678', $contact->phone);
+    }
+
+    public function test_renaming_an_already_linked_contact_updates_it_in_place(): void
+    {
+        $conversation = $this->conversationWithOneMessage(); // auto-named "Ravi"
+        $originalContactId = $conversation->fresh()->contact->id;
+
+        $this->actingAs($this->employee(['view', 'edit']))
+            ->post(route('whatsapp-crm.inbox.contact.update', $conversation), ['name' => 'Ravi Shastri'])
+            ->assertRedirect(route('whatsapp-crm.inbox.show', $conversation));
+
+        $contact = $conversation->fresh()->contact;
+        $this->assertSame($originalContactId, $contact->id);
+        $this->assertSame('Ravi Shastri', $contact->name);
+    }
+
+    public function test_a_blank_name_is_rejected(): void
+    {
+        $conversation = $this->conversationWithOneMessage();
+
+        $this->actingAs($this->employee(['view', 'edit']))
+            ->post(route('whatsapp-crm.inbox.contact.update', $conversation), ['name' => ''])
+            ->assertSessionHasErrors('name');
     }
 
     // -- labels ---------------------------------------------------------------

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\WhatsappContact;
 use App\Models\WhatsappConversation;
 use App\Models\WhatsappLabel;
 use App\Models\WhatsappWebhookEvent;
@@ -163,6 +164,37 @@ class WhatsappInboxController extends Controller
 
         return redirect()->route('whatsapp-crm.inbox.show', $conversation)
             ->with('status', $name ? "Assigned to {$name}." : 'Unassigned.');
+    }
+
+    /**
+     * Names whoever this number belongs to -- a lot of threads start life
+     * as nothing but a phone number, and the inbox and every WhatsApp
+     * screen that shows this contact (campaigns, phonebooks) fall back to
+     * that number until someone puts a name to it here.
+     *
+     * find-or-create by phone rather than requiring a contact to already
+     * exist: the common case is exactly the one where it doesn't yet --
+     * this IS how most contacts in this table get their first name.
+     * WhatsappContact::setPhoneAttribute() normalises through the same
+     * WhatsappSender::normalise() the wa_id itself already is, so the two
+     * always agree on format.
+     */
+    public function updateContact(Request $request, WhatsappConversation $conversation): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+        ]);
+
+        $contact = $conversation->contact ?? WhatsappContact::firstOrNew(['phone' => $conversation->wa_id]);
+        $contact->name = $data['name'];
+        $contact->save();
+
+        if ($conversation->contact_id !== $contact->id) {
+            $conversation->update(['contact_id' => $contact->id]);
+        }
+
+        return redirect()->route('whatsapp-crm.inbox.show', $conversation)
+            ->with('status', "Saved as {$contact->name}.");
     }
 
     public function attachLabel(WhatsappConversation $conversation, WhatsappLabel $label): RedirectResponse

@@ -959,6 +959,8 @@ Route::middleware(['auth', 'module:whatsapp-crm,view'])->prefix('whatsapp-crm')-
     Route::post('inbox/{conversation}/read', [WhatsappInboxController::class, 'markRead'])->name('inbox.read');
     Route::post('inbox/{conversation}/assign', [WhatsappInboxController::class, 'assign'])
         ->middleware('module:whatsapp-crm,edit')->name('inbox.assign');
+    Route::post('inbox/{conversation}/contact', [WhatsappInboxController::class, 'updateContact'])
+        ->middleware('module:whatsapp-crm,edit')->name('inbox.contact.update');
     Route::post('inbox/{conversation}/notes', [WhatsappConversationNoteController::class, 'store'])
         ->middleware('module:whatsapp-crm,create')->name('inbox.notes.store');
     Route::delete('inbox/{conversation}/notes/{note}', [WhatsappConversationNoteController::class, 'destroy'])

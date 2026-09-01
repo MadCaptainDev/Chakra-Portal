@@ -70,6 +70,21 @@
         <div class="space-y-4">
             <x-card class="p-4 sm:p-6 space-y-4">
                 <div>
+                    <p class="text-[11px] font-semibold text-brand-100/60 uppercase tracking-wider">Contact</p>
+                    <p class="mt-1 text-xs text-brand-100/50">{{ $conversation->wa_id }}</p>
+                    @can('whatsapp-crm.edit')
+                        <form method="POST" action="{{ route('whatsapp-crm.inbox.contact.update', $conversation) }}" class="mt-2 flex gap-2">
+                            @csrf
+                            <x-text-input name="name" class="flex-1" placeholder="Add a name&hellip;"
+                                          value="{{ $conversation->contact?->name }}" required />
+                            <x-btn type="submit" variant="secondary" size="sm">Save</x-btn>
+                        </form>
+                    @endcan
+                </div>
+            </x-card>
+
+            <x-card class="p-4 sm:p-6 space-y-4">
+                <div>
                     <p class="text-[11px] font-semibold text-brand-100/60 uppercase tracking-wider">Assigned to</p>
                     @can('whatsapp-crm.edit')
                         <form method="POST" action="{{ route('whatsapp-crm.inbox.assign', $conversation) }}" class="mt-1">

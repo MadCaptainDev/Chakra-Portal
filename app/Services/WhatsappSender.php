@@ -82,7 +82,23 @@ class WhatsappSender
             $payload['template']['components'] = $components;
         }
 
-        return $this->send($payload, summary: sprintf('[template: %s]', $template));
+        return $this->send($payload, summary: sprintf('[template: %s]', self::humanizeTemplateName($template)));
+    }
+
+    /**
+     * The raw Meta template name, made fit for the inbox rather than the API
+     * call -- Meta's own naming rules force snake_case, and a name that was
+     * ever resubmitted after a rejection typically carries a "_v2"-style
+     * suffix nobody outside this app has any reason to see (see
+     * Invoice::WHATSAPP_TEMPLATE's own doc block for why invoice_ready
+     * became invoice_ready_v2). Display only -- the literal string sent to
+     * Meta is untouched; this never runs anywhere near the actual payload.
+     */
+    private static function humanizeTemplateName(string $template): string
+    {
+        $name = preg_replace('/_v\d+$/i', '', $template) ?? $template;
+
+        return str($name)->replace(['_', '-'], ' ')->title()->toString();
     }
 
     /**
