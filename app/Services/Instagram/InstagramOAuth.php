@@ -16,6 +16,18 @@ use Illuminate\Support\Str;
 class InstagramOAuth
 {
     /**
+     * Where the pending authorization attempt lives between the redirect and
+     * the callback. Shared by every controller that can start this flow --
+     * a staff member connecting on a client's behalf
+     * (App\Http\Controllers\InstagramConnectionController) and a client
+     * connecting their own account
+     * (App\Http\Controllers\Client\InstagramConnectionController) -- because
+     * Meta allows exactly one redirect URI per app, so both land on the same
+     * callback and it reads whichever one of them wrote this key.
+     */
+    public const SESSION_KEY = 'instagram.oauth';
+
+    /**
      * What we ask the client to grant.
      *
      * `instagram_business_manage_insights` is not used until Phase 3, and is

@@ -74,9 +74,10 @@
 
     <nav class="flex-1 px-3 py-3 overflow-y-auto">
     @if ($isClient)
-        {{-- Five links and no profile. A client has nothing to configure here,
-             and an "Account" section with one dead item in it is worse than
-             none. The middleware is what enforces this; the nav is cosmetic. --}}
+        {{-- Six links and no profile. A client has nothing to configure here
+             beyond their own social connection, and an "Account" section
+             with one dead item in it is worse than none. The middleware is
+             what enforces this; the nav is cosmetic. --}}
         <x-nav-section label="{{ $user?->client?->name ?? 'Your account' }}">
             <x-sidebar-link icon="home" :href="route('client.dashboard')" :active="request()->routeIs('client.dashboard')">
                 Overview
@@ -93,6 +94,9 @@
             </x-sidebar-link>
             <x-sidebar-link icon="camera" :href="route('client.shoots')" :active="request()->routeIs('client.shoots')">
                 Shoots
+            </x-sidebar-link>
+            <x-sidebar-link icon="globe" :href="route('client.social')" :active="request()->routeIs('client.social')">
+                Social
             </x-sidebar-link>
         </x-nav-section>
     @elseif (! $isAdmin)

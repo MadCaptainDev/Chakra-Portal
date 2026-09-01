@@ -7,8 +7,10 @@ use App\Http\Controllers\BrowserSessionController;
 use App\Http\Controllers\CallSheetController;
 use App\Http\Controllers\Client\BriefController as ClientBriefController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
+use App\Http\Controllers\Client\InstagramConnectionController as ClientInstagramConnectionController;
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\Client\ShootController as ClientShootController;
+use App\Http\Controllers\Client\SocialController as ClientSocialController;
 use App\Http\Controllers\Client\WorkController as ClientWorkController;
 use App\Http\Controllers\ClientBriefLinkController;
 use App\Http\Controllers\ClientController;
@@ -362,6 +364,10 @@ Route::middleware(['auth', 'client'])->prefix('client')->name('client.')->group(
     Route::get('invoices/{invoice}/pdf', [ClientInvoiceController::class, 'pdf'])->name('invoices.pdf');
     Route::get('work', [ClientWorkController::class, 'index'])->name('work');
     Route::get('shoots', [ClientShootController::class, 'index'])->name('shoots');
+
+    Route::get('social', [ClientSocialController::class, 'index'])->name('social');
+    Route::post('social/instagram/connect', [ClientInstagramConnectionController::class, 'connect'])->name('instagram.connect');
+    Route::delete('social/instagram', [ClientInstagramConnectionController::class, 'destroy'])->name('instagram.disconnect');
 
     /*
      * The brand brief. Static segments and no {client}, by design and for the

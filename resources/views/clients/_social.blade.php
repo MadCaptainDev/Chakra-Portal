@@ -6,15 +6,26 @@
      * whatever comes next, which is why this reads from the platform list
      * rather than naming Instagram in the markup twice.
      *
-     * Read-only for anyone without clients,manage: seeing that an account is
-     * connected is useful to a coordinator; connecting or disconnecting one is
-     * the same order of act as issuing a client login, and is gated the same.
+     * Two contexts share this one partial: a staff member managing a
+     * client's connection from clients/show.blade.php (bare
+     * @include('clients._social'), every var below defaulted to that
+     * behaviour), and a client connecting their own account self-service
+     * from client/social.blade.php, which passes every var explicitly.
+     * Read-only for staff without clients,manage: seeing that an account is
+     * connected is useful to a coordinator; connecting or disconnecting one
+     * is the same order of act as issuing a client login, and is gated the
+     * same. The client is always allowed to manage their own.
      */
     $instagram = $client->socialAccounts
         ->firstWhere('platform', SocialAccount::PLATFORM_INSTAGRAM);
 
     $configured = App\Models\InstagramSetting::current()->isConfigured();
-    $canManage = auth()->user()->can('clients.manage');
+    $selfService ??= false;
+    $canManage ??= $selfService || auth()->user()->can('clients.manage');
+    $connectRoute ??= route('instagram.connect', $client);
+    $disconnectRoute ??= route('instagram.disconnect', $client);
+    $insightsRoute ??= route('instagram.insights', $client);
+    $reportRoute ??= route('instagram.report', $client);
 @endphp
 
 <x-card class="p-4 sm:p-6 border border-white/10">
@@ -22,7 +33,11 @@
         <div class="min-w-0">
             <h3 class="font-semibold text-white">Instagram</h3>
             <p class="text-xs text-brand-100/60 mt-0.5">
-                Connects {{ $client->name }}'s account so the portal can read their analytics.
+                @if ($selfService)
+                    Connect your account so Chakra Groups can see your analytics.
+                @else
+                    Connects {{ $client->name }}'s account so the portal can read their analytics.
+                @endif
             </p>
         </div>
 
@@ -83,17 +98,19 @@
 
         @if ($canManage)
             <div class="flex flex-wrap items-center gap-3">
-                <a href="{{ route('instagram.insights', $client) }}"
-                   class="inline-flex items-center gap-1.5 rounded-md bg-brand-400 px-3 py-2 text-xs font-semibold uppercase tracking-widest text-brand-900 hover:bg-brand-500">
-                    View Analytics
-                </a>
+                @unless ($selfService)
+                    <a href="{{ $insightsRoute }}"
+                       class="inline-flex items-center gap-1.5 rounded-md bg-brand-400 px-3 py-2 text-xs font-semibold uppercase tracking-widest text-brand-900 hover:bg-brand-500">
+                        View Analytics
+                    </a>
 
-                <a href="{{ route('instagram.report', $client) }}"
-                   class="inline-flex items-center gap-1.5 rounded-md border border-brand-300 px-3 py-2 text-xs font-semibold uppercase tracking-widest text-brand-200 hover:bg-white/10">
-                    Monthly Report
-                </a>
+                    <a href="{{ $reportRoute }}"
+                       class="inline-flex items-center gap-1.5 rounded-md border border-brand-300 px-3 py-2 text-xs font-semibold uppercase tracking-widest text-brand-200 hover:bg-white/10">
+                        Monthly Report
+                    </a>
+                @endunless
 
-                <form method="POST" action="{{ route('instagram.disconnect', $client) }}"
+                <form method="POST" action="{{ $disconnectRoute }}"
                       onsubmit="return confirm('Disconnect {{ $instagram->handle() }}? The stored access token is discarded and analytics stop updating. Anything already collected is kept, and you can reconnect the same account later.')">
                     @csrf @method('DELETE')
                     <button type="submit"
@@ -105,7 +122,7 @@
                 {{-- Reconnect without disconnecting first: the usual reason is a
                      token that has gone stale, and forcing a disconnect to fix
                      it is a step that exists only to satisfy the UI. --}}
-                <form method="POST" action="{{ route('instagram.connect', $client) }}">
+                <form method="POST" action="{{ $connectRoute }}">
                     @csrf
                     <button type="submit"
                             class="text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-brand-200">
@@ -123,22 +140,31 @@
         @endif
 
         <p class="text-sm text-brand-100/70 mb-4">
-            The account must be a Professional one — Business or Creator. Instagram will ask
-            {{ $client->name }} to sign in and approve access; the portal never sees their password.
+            @if ($selfService)
+                The account must be a Professional one — Business or Creator. Instagram will ask
+                you to sign in and approve access; the portal never sees your password.
+            @else
+                The account must be a Professional one — Business or Creator. Instagram will ask
+                {{ $client->name }} to sign in and approve access; the portal never sees their password.
+            @endif
         </p>
 
         @if (! $configured)
             <p class="text-sm text-amber-200 bg-amber-400/10 ring-1 ring-amber-400/20 rounded-lg px-3 py-2">
-                Instagram is not set up yet.
-                @if (auth()->user()->isAdmin())
-                    Add the app ID and secret under <a href="{{ route('instagram-settings.edit') }}"
-                       class="font-semibold underline">Setup → Instagram</a> first.
+                @if ($selfService)
+                    Instagram connection is not set up yet. Contact Chakra Groups.
                 @else
-                    An admin needs to add the app credentials under Setup → Instagram first.
+                    Instagram is not set up yet.
+                    @if (auth()->user()->isAdmin())
+                        Add the app ID and secret under <a href="{{ route('instagram-settings.edit') }}"
+                           class="font-semibold underline">Setup → Instagram</a> first.
+                    @else
+                        An admin needs to add the app credentials under Setup → Instagram first.
+                    @endif
                 @endif
             </p>
         @elseif ($canManage)
-            <form method="POST" action="{{ route('instagram.connect', $client) }}">
+            <form method="POST" action="{{ $connectRoute }}">
                 @csrf
                 <button type="submit"
                         class="inline-flex items-center gap-2 rounded-md bg-brand-400 px-4 py-2.5 text-xs font-semibold uppercase tracking-widest text-brand-900 hover:bg-brand-500">

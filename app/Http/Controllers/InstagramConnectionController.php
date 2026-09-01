@@ -14,7 +14,11 @@ use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * Connecting a client's Instagram account, on their behalf.
+ * Connecting a client's Instagram account, on their behalf -- a staff member
+ * doing it for a client who hasn't got (or doesn't want) a portal login. A
+ * client with their own login connects it themselves instead, through the
+ * near-identical App\Http\Controllers\Client\InstagramConnectionController;
+ * both share this class's callback() below, see THE SECURITY DESIGN.
  *
  * THE SECURITY DESIGN, because it is the whole point of this class:
  *
@@ -27,17 +31,18 @@ use Throwable;
  * So the client id is written into the SESSION when the button is pressed and
  * read from the session on the way back. The browser carries only an opaque
  * `state` whose sole job is proving the callback belongs to the request that
- * started it. Nothing the browser sends decides whose account this becomes.
+ * started it. Nothing the browser sends decides whose account this becomes --
+ * true of both controllers that can write that session key: the staff one
+ * takes the client id from a route segment only clients,manage can reach, the
+ * client one takes it from the signed-in client's own row, never from
+ * anything the browser sends either.
  *
- * Connect and disconnect sit behind clients,manage -- the same bar as issuing
- * a client login, and for the same reason: both hand out access to something
- * that is not ours.
+ * Connect and disconnect here sit behind clients,manage -- the same bar as
+ * issuing a client login, and for the same reason: both hand out access to
+ * something that is not ours.
  */
 class InstagramConnectionController extends Controller
 {
-    /** Where the pending attempt lives between the redirect and the callback. */
-    private const SESSION_KEY = 'instagram.oauth';
-
     /**
      * Send the client off to Instagram to authorise.
      *
@@ -61,7 +66,7 @@ class InstagramConnectionController extends Controller
          * storing the pair together means the callback cannot be pointed at a
          * different client by editing a URL.
          */
-        $request->session()->put(self::SESSION_KEY, [
+        $request->session()->put(InstagramOAuth::SESSION_KEY, [
             'state' => $state,
             'client_id' => $client->id,
         ]);
@@ -76,24 +81,31 @@ class InstagramConnectionController extends Controller
     /**
      * Instagram sends the client back here.
      *
-     * Behind `auth` -- the staff member who started this is still signed in,
-     * and an unauthenticated hit on this route has no pending attempt to match
-     * anyway.
+     * Behind `auth` -- the person who started this (staff or, now, a client
+     * connecting their own account) is still signed in, and an
+     * unauthenticated hit on this route has no pending attempt to match
+     * anyway. One route, because Meta allows exactly one redirect URI --
+     * where it sends the browser back to depends on who is signed in, not on
+     * which controller happened to start the flow.
      */
     public function callback(Request $request): RedirectResponse
     {
-        $pending = $request->session()->pull(self::SESSION_KEY);
+        $pending = $request->session()->pull(InstagramOAuth::SESSION_KEY);
 
         // Consumed on use, whatever happens next: a state that survives its
         // callback is a state that can be replayed.
         $client = $this->resolvePendingClient($pending, $request);
 
+        $isClientUser = $request->user()->isClient();
+
         if (! $client) {
-            return redirect()->route('clients.index')->with('status',
-                'That Instagram link expired or did not match. Open the client and press Connect again.');
+            return redirect()->route($isClientUser ? 'client.social' : 'clients.index')->with('status',
+                'That Instagram link expired or did not match. Press Connect again.');
         }
 
-        $back = redirect()->route('clients.show', $client);
+        $back = $isClientUser
+            ? redirect()->route('client.social')
+            : redirect()->route('clients.show', $client);
 
         // The client said no on Instagram's screen, or closed it.
         if ($request->filled('error')) {
