@@ -6,6 +6,7 @@ use App\Http\Requests\ClientRequest;
 use App\Models\Client;
 use App\Models\CompetitorSetting;
 use App\Models\TaxonomyTerm;
+use App\Models\User;
 use App\Support\PublicUpload;
 use App\Support\TimesheetStats;
 use App\Support\TimesheetVenture;
@@ -115,9 +116,26 @@ class ClientController extends Controller
             ? CompetitorSetting::current()
             : null;
 
+        /*
+         * Who this client's own dashboard shows them as "Your team" -- same
+         * manage-only gate as the login panel above, and same reasoning: an
+         * @can in the view must not be what decides whether these rows (or
+         * the full staff list to pick from) were ever queried.
+         */
+        $teamMembers = $request->user()->can('clients.manage')
+            ? $client->teamMembers()->get()
+            : collect();
+
+        $assignableStaff = $request->user()->can('clients.manage')
+            ? User::whereIn('role', [User::ROLE_ADMIN, User::ROLE_EMPLOYEE])
+                ->whereNotIn('id', $teamMembers->pluck('id'))
+                ->orderBy('name')
+                ->get()
+            : collect();
+
         return view('clients.show', compact(
             'client', 'invoices', 'timesheet', 'ventureLabel', 'login', 'credentials',
-            'competitors', 'competitorSettings',
+            'competitors', 'competitorSettings', 'teamMembers', 'assignableStaff',
         ));
     }
 

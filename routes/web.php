@@ -6,18 +6,22 @@ use App\Http\Controllers\BriefQuestionController;
 use App\Http\Controllers\BrowserSessionController;
 use App\Http\Controllers\CallSheetController;
 use App\Http\Controllers\Client\BriefController as ClientBriefController;
+use App\Http\Controllers\Client\ContentCalendarController as ClientContentCalendarController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\Client\InstagramConnectionController as ClientInstagramConnectionController;
 use App\Http\Controllers\Client\InstagramInsightsController as ClientInstagramInsightsController;
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\Client\MonthlyReportController as ClientMonthlyReportController;
+use App\Http\Controllers\Client\PortfolioController as ClientPortfolioController;
 use App\Http\Controllers\Client\ShootController as ClientShootController;
+use App\Http\Controllers\Client\ShootRequestController as ClientShootRequestController;
 use App\Http\Controllers\Client\SocialController as ClientSocialController;
 use App\Http\Controllers\Client\WorkController as ClientWorkController;
 use App\Http\Controllers\ClientBriefLinkController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientCredentialController;
 use App\Http\Controllers\ClientLoginController;
+use App\Http\Controllers\ClientTeamMemberController;
 use App\Http\Controllers\CompetitorAccountController;
 use App\Http\Controllers\CompetitorSettingController;
 use App\Http\Controllers\ContentAccountController;
@@ -366,6 +370,10 @@ Route::middleware(['auth', 'client'])->prefix('client')->name('client.')->group(
     Route::get('invoices/{invoice}/pdf', [ClientInvoiceController::class, 'pdf'])->name('invoices.pdf');
     Route::get('work', [ClientWorkController::class, 'index'])->name('work');
     Route::get('shoots', [ClientShootController::class, 'index'])->name('shoots');
+    Route::post('shoots/request', [ClientShootRequestController::class, 'store'])->name('shoots.request');
+
+    Route::get('content-calendar', [ClientContentCalendarController::class, 'index'])->name('content-calendar');
+    Route::get('portfolio', [ClientPortfolioController::class, 'index'])->name('portfolio');
 
     Route::get('social', [ClientSocialController::class, 'index'])->name('social');
     Route::post('social/instagram/connect', [ClientInstagramConnectionController::class, 'connect'])->name('instagram.connect');
@@ -571,6 +579,24 @@ Route::middleware(['auth', 'module:clients,view'])->scopeBindings()->group(funct
         Route::post('clients/{client}/login', [ClientLoginController::class, 'store'])->name('clients.login.store');
         Route::put('clients/{client}/login', [ClientLoginController::class, 'updatePassword'])->name('clients.login.password');
         Route::delete('clients/{client}/login', [ClientLoginController::class, 'destroy'])->name('clients.login.destroy');
+    });
+
+    /*
+     * Who a client's own dashboard names as "Your team". Same manage-only
+     * bar as the login above -- both put something in front of a client
+     * that a coordinator merely keeping records tidy should not decide.
+     */
+    Route::middleware('module:clients,manage')->group(function () {
+        Route::post('clients/{client}/team', [ClientTeamMemberController::class, 'store'])->name('clients.team.store');
+        // {teamMember}, not {user} -- this group's scopeBindings() (see the
+        // surrounding module:clients,view group) resolves a second bound
+        // parameter by guessing $client->{plural of the segment name}(),
+        // so the segment is named to match Client::teamMembers() exactly.
+        // Named anything else, the guess (e.g. $client->users(), which does
+        // not exist) throws instead of resolving -- and as a real benefit,
+        // not just a naming trick: this also means a user id belonging to
+        // someone else's team 404s here rather than detaching the wrong row.
+        Route::delete('clients/{client}/team/{teamMember}', [ClientTeamMemberController::class, 'destroy'])->name('clients.team.destroy');
     });
 });
 

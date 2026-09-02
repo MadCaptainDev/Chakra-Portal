@@ -32,6 +32,9 @@
                             <div class="flex items-center gap-2 flex-wrap">
                                 <p class="font-semibold text-white">{{ $announcement->title }}</p>
                                 <x-badge :status="$announcement->is_active ? 'active' : 'inactive'" />
+                                @if ($announcement->visible_to_clients)
+                                    <x-badge color="bg-brand-400/15 text-brand-200">Visible to clients</x-badge>
+                                @endif
                             </div>
                             <p class="text-[11px] text-brand-100/60 mt-0.5">
                                 {{ $announcement->author?->name ?? 'Unknown' }} &middot; {{ $announcement->created_at->diffForHumans() }}

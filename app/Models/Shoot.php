@@ -45,11 +45,13 @@ class Shoot extends Model
         'notes',
         'created_by_id',
         'notion_shoot_id',
+        'requested_at',
     ];
 
     protected $casts = [
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
+        'requested_at' => 'datetime',
     ];
 
     public function client(): BelongsTo
@@ -74,6 +76,12 @@ class Shoot extends Model
     public function isFromNotion(): bool
     {
         return $this->notion_shoot_id !== null;
+    }
+
+    /** Came in through the client's own portal, not booked by staff. */
+    public function isRequestedByClient(): bool
+    {
+        return $this->requested_at !== null;
     }
 
     public function createdBy(): BelongsTo

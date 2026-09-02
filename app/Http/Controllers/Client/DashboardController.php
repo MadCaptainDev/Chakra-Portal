@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Client\Concerns\ResolvesClient;
 use App\Http\Controllers\Controller;
+use App\Models\Announcement;
 use App\Models\ContentItem;
 use App\Models\Invoice;
 use App\Models\Payment;
@@ -14,9 +15,15 @@ use Illuminate\View\View;
 /**
  * The client's first screen: what they owe, what went out, what is coming.
  *
- * Five figures and nothing else. A client opens this to answer one of three
- * questions and leave; a page that makes them read to find the balance has
- * failed at the only thing it is for.
+ * Five figures first, and nothing competes with them for attention -- a
+ * client opens this to answer one of three questions and leave, and a page
+ * that makes them read to find the balance has failed at the only thing it
+ * is for. Team/AMC/announcements below are the deliberate exception: each
+ * renders only when there is something real to say (a team actually
+ * assigned, a SaaS product actually theirs, an announcement actually opted
+ * in for clients -- see Announcement::scopeVisibleToClients()), so a client
+ * with none of those never scrolls past an empty section, and the five
+ * figures stay exactly what greets everyone else.
  */
 class DashboardController extends Controller
 {
@@ -54,6 +61,9 @@ class DashboardController extends Controller
                 ->count(),
             'publishedTotal' => $client->contentItems()->count(),
             'nextShoot' => Shoot::where('client_id', $client->id)->upcoming()->ordered()->first(),
+            'teamMembers' => $client->teamMembers()->get(),
+            'saasProducts' => $client->saasProducts()->get(),
+            'announcements' => Announcement::visibleToClients()->latest()->take(5)->get(),
         ]);
     }
 }

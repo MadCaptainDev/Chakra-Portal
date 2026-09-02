@@ -20,7 +20,7 @@
          reading it once on load is what makes that landing on the right tab
          instead of always Overview. --}}
     <div class="space-y-6" x-data="{ tab: 'overview' }"
-         x-init="if (['overview','brief','social','competitors','credentials','login'].includes(window.location.hash.slice(1))) tab = window.location.hash.slice(1)">
+         x-init="if (['overview','brief','social','competitors','credentials','login','team'].includes(window.location.hash.slice(1))) tab = window.location.hash.slice(1)">
         <div class="overflow-x-auto -mx-1 px-1 pb-1">
             <x-tab-nav model="tab" :tabs="array_filter([
                 'overview' => ['label' => 'Overview'],
@@ -36,6 +36,9 @@
                     ? ['label' => 'Logins We Hold', 'count' => $client->credentials()->count() ?: null]
                     : null,
                 'login' => auth()->user()->can('clients.manage') ? ['label' => 'Client Login'] : null,
+                'team' => auth()->user()->can('clients.manage')
+                    ? ['label' => 'Their Team', 'count' => $client->teamMembers()->count() ?: null]
+                    : null,
             ])" />
         </div>
 
@@ -327,7 +330,8 @@
                 <div>
                     <h3 class="font-semibold text-white">Client login</h3>
                     <p class="mt-1 text-sm text-brand-100/70">
-                        Lets {{ $client->name }} see their own invoices, published work and shoots — nothing else.
+                        Lets {{ $client->name }} sign into their own portal — invoices, shoots, published work,
+                        their content calendar and Instagram analytics — and nothing of anyone else's.
                     </p>
                 </div>
 
@@ -416,6 +420,12 @@
         </x-card>
         @endcan
 
+        </div>
+
+        <div x-show="tab === 'team'" x-cloak class="space-y-6">
+        @can('clients.manage')
+            @include('clients._team')
+        @endcan
         </div>
     </div>
 </x-app-layout>

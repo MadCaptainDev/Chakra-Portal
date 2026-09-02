@@ -138,6 +138,11 @@
                                             <div class="min-w-0 flex-1">
                                                 <div class="flex flex-wrap items-center gap-1.5">
                                                     <p class="font-semibold text-white text-sm leading-snug line-clamp-2">{{ $shoot->title }}</p>
+                                                    @if ($shoot->isRequestedByClient())
+                                                        <span title="Requested by the client, not yet triaged">
+                                                            <x-badge color="bg-brand-400/15 text-brand-200">Requested</x-badge>
+                                                        </span>
+                                                    @endif
                                                     @if ($shoot->hasKitProblems())
                                                         <x-badge status="overdue">Kit issue</x-badge>
                                                     @endif

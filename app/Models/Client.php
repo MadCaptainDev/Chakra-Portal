@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
@@ -197,6 +198,20 @@ class Client extends Model
     public function login(): HasOne
     {
         return $this->hasOne(User::class)->where('role', User::ROLE_CLIENT);
+    }
+
+    /**
+     * Whoever the studio wants this client to be able to put a name to --
+     * shown on their own dashboard as "Your team". role is a free-text
+     * label ("Editor", "Account Manager") chosen when the pairing is made,
+     * not this app's own permission vocabulary.
+     */
+    public function teamMembers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'client_team_members')
+            ->withPivot('role')
+            ->withTimestamps()
+            ->orderBy('client_team_members.created_at');
     }
 
     /**

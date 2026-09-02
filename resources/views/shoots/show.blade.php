@@ -55,6 +55,9 @@
 
         <div class="flex flex-wrap items-center gap-2">
             <x-badge :status="$shoot->status" />
+            @if ($shoot->isRequestedByClient())
+                <x-badge color="bg-brand-400/15 text-brand-200">Requested by client</x-badge>
+            @endif
             @if ($shoot->clientLabel())
                 <span class="text-sm text-brand-100/70">{{ $shoot->clientLabel() }}</span>
             @endif

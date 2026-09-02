@@ -73,6 +73,7 @@ class AnnouncementController extends Controller
         ]);
 
         $data['is_active'] = $request->boolean('is_active', true);
+        $data['visible_to_clients'] = $request->boolean('visible_to_clients', false);
 
         return $data;
     }

@@ -119,6 +119,70 @@
             </div>
         </div>
 
+        {{-- Team / AMC: each only renders when there is something real to
+             say -- see DashboardController's own doc block. Same two-tile
+             grid as Invoices/Last payment above, so a client with both
+             sees four peers, not two primary tiles and two afterthoughts. --}}
+        @if ($teamMembers->isNotEmpty() || $saasProducts->isNotEmpty())
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
+                @if ($teamMembers->isNotEmpty())
+                    <div class="rounded-xl bg-white/5 ring-1 ring-white/10 p-5 sm:p-6">
+                        <p class="{{ $tile }}">Your team</p>
+                        <ul class="mt-3 space-y-2.5">
+                            @foreach ($teamMembers as $member)
+                                <li class="flex items-center justify-between gap-3">
+                                    <span class="text-sm text-white truncate">{{ $member->name }}</span>
+                                    @if ($member->pivot->role)
+                                        <span class="text-xs text-brand-100/60 shrink-0">{{ $member->pivot->role }}</span>
+                                    @endif
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+
+                @if ($saasProducts->isNotEmpty())
+                    <div class="rounded-xl bg-white/5 ring-1 ring-white/10 p-5 sm:p-6">
+                        <p class="{{ $tile }}">{{ $saasProducts->count() > 1 ? 'Your products' : 'Your product' }}</p>
+                        <ul class="mt-3 space-y-3">
+                            @foreach ($saasProducts as $product)
+                                <li>
+                                    <div class="flex items-center justify-between gap-3">
+                                        <span class="text-sm text-white truncate">{{ $product->name }}</span>
+                                        <x-badge :status="$product->status()" />
+                                    </div>
+                                    <p class="mt-0.5 text-xs text-brand-100/60">
+                                        @if ($product->amc_paid_until)
+                                            {{ $product->status() === \App\Models\SaasProduct::STATUS_OVERDUE ? 'Renewal was due' : 'Renews' }}
+                                            {{ $product->amc_paid_until->format('j M Y') }}
+                                        @else
+                                            No renewal date on file
+                                        @endif
+                                    </p>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+            </div>
+        @endif
+
+        {{-- Announcements: opted in per-notice by staff, so an empty list
+             here is the common case, not a broken feature -- see
+             Announcement::scopeVisibleToClients(). --}}
+        @if ($announcements->isNotEmpty())
+            <div class="space-y-2.5">
+                <p class="{{ $tile }} px-1">From the studio</p>
+                @foreach ($announcements as $announcement)
+                    <div class="rounded-xl bg-white/5 ring-1 ring-white/10 p-4 sm:p-5">
+                        <p class="text-sm font-semibold text-white">{{ $announcement->title }}</p>
+                        <p class="mt-1 text-sm text-brand-100/70 whitespace-pre-line">{{ $announcement->body }}</p>
+                        <p class="mt-2 text-[11px] text-brand-100/45">{{ $announcement->created_at->diffForHumans() }}</p>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+
         {{-- Said here rather than left for a client to discover at 9pm. --}}
         <p class="text-xs text-brand-100/45">
             Something look wrong? Anything on this screen is a question for the studio — we will sort it out.
