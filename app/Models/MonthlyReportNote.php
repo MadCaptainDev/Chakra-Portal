@@ -14,17 +14,22 @@ use Illuminate\Support\Carbon;
  */
 class MonthlyReportNote extends Model
 {
+    /** Submitted by SeedMonthlyReportReadyTemplate, sent by NotifyReportsReady. */
+    public const WHATSAPP_TEMPLATE = 'monthly_report_ready';
+
     protected $fillable = [
         'client_id',
         'month',
         'note',
         'whatsapp_sent_at',
+        'ready_notified_at',
         'updated_by_id',
     ];
 
     protected $casts = [
         'month' => 'date',
         'whatsapp_sent_at' => 'datetime',
+        'ready_notified_at' => 'datetime',
     ];
 
     public function client(): BelongsTo

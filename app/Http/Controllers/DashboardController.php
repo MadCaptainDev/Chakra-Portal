@@ -235,6 +235,21 @@ class DashboardController extends Controller
 
         $upcoming = DashboardWidgets::upcomingShootsAll(5);
 
+        /*
+         * A deliberately simple heuristic, not a scheduling algorithm: the
+         * studio has no stored idea of how long editing actually takes per
+         * piece, so rather than pretend to compute one, every account
+         * behind pace this month gets the same suggestion -- shoot with at
+         * least EDIT_BUFFER_DAYS left before month end, so there is still
+         * time to turn it around. Null once that date has already passed
+         * (a month closing in three days with a five-day buffer has none
+         * left to suggest) -- the view reads that as "as soon as possible"
+         * rather than printing a date already in the past.
+         */
+        $editBufferDays = 5;
+        $latestSafeShootDate = $month->copy()->endOfMonth()->subDays($editBufferDays);
+        $suggestedShootBy = now()->greaterThan($latestSafeShootDate) ? null : $latestSafeShootDate;
+
         return [
             'types' => $board['typeTotals'],
             'total' => $board['grandTotal'],
@@ -245,6 +260,7 @@ class DashboardController extends Controller
                 ->filter(fn (array $row) => $row['target'] !== null && $row['total'] < $row['target'])
                 ->sortBy('pct')
                 ->take(5)
+                ->map(fn (array $row) => $row + ['suggestedShootBy' => $suggestedShootBy])
                 ->values(),
             'unmappedVentures' => $board['unmapped']->count(),
             'unmappedThisMonth' => $board['unmappedThisMonth'],

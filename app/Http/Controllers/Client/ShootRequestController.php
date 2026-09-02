@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Client;
 use App\Http\Controllers\Client\Concerns\ResolvesClient;
 use App\Http\Controllers\Controller;
 use App\Models\Shoot;
+use App\Models\User;
+use App\Notifications\ShootRequested;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
 
 /**
  * A client asking for a shoot, instead of a WhatsApp back-and-forth about a
@@ -33,7 +36,7 @@ class ShootRequestController extends Controller
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        Shoot::create([
+        $shoot = Shoot::create([
             'title' => $data['title'],
             'client_id' => $client->id,
             'starts_at' => $data['starts_at'],
@@ -43,6 +46,8 @@ class ShootRequestController extends Controller
             'created_by_id' => $request->user()->id,
             'requested_at' => now(),
         ]);
+
+        Notification::send(User::canSee('shoots')->get(), new ShootRequested($shoot));
 
         return redirect()->route('client.shoots')
             ->with('status', 'Request sent — the studio will confirm the date with you.');

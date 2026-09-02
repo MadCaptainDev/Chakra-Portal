@@ -300,8 +300,15 @@
                                 <span class="block text-sm text-white truncate group-hover:text-brand-200">{{ $row['account']->name }}</span>
                                 <span class="block text-[11px] text-brand-100/40 truncate">{{ $row['account']->client?->name }}</span>
                             </span>
-                            <span class="shrink-0 text-sm tabular-nums text-amber-300">
-                                {{ $row['total'] }} / {{ $row['target'] }}
+                            <span class="shrink-0 text-right">
+                                <span class="block text-sm tabular-nums text-amber-300">
+                                    {{ $row['total'] }} / {{ $row['target'] }}
+                                </span>
+                                {{-- A deliberately simple suggestion, not a real
+                                     schedule -- see DashboardController::contentPulse(). --}}
+                                <span class="block text-[10px] text-brand-100/40">
+                                    Shoot by {{ $row['suggestedShootBy']?->format('j M') ?? 'ASAP' }}
+                                </span>
                             </span>
                         </a>
                     @empty

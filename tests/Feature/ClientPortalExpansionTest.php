@@ -11,7 +11,9 @@ use App\Models\SaasProduct;
 use App\Models\Shoot;
 use App\Models\User;
 use App\Models\UserPermission;
+use App\Notifications\ShootRequested;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 /**
@@ -38,12 +40,12 @@ class ClientPortalExpansionTest extends TestCase
         return User::factory()->create(['role' => User::ROLE_CLIENT, 'client_id' => $client->id]);
     }
 
-    private function staff(array $abilities = ['view', 'manage']): User
+    private function staff(array $abilities = ['view', 'manage'], string $module = 'clients'): User
     {
         $user = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
 
         foreach ($abilities as $ability) {
-            UserPermission::create(['user_id' => $user->id, 'module' => 'clients', 'ability' => $ability]);
+            UserPermission::create(['user_id' => $user->id, 'module' => $module, 'ability' => $ability]);
         }
 
         return $user->refresh();
@@ -191,6 +193,23 @@ class ClientPortalExpansionTest extends TestCase
         $this->assertSame($login->id, $shoot->created_by_id);
         $this->assertNotNull($shoot->requested_at);
         $this->assertTrue($shoot->isRequestedByClient());
+    }
+
+    public function test_requesting_a_shoot_alerts_staff_who_can_see_shoots(): void
+    {
+        Notification::fake();
+
+        $client = $this->client();
+        $canTriage = $this->staff(['view'], 'shoots');
+        $cannotTriage = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
+
+        $this->actingAs($this->loginFor($client))->post(route('client.shoots.request'), [
+            'title' => 'Product shoot for new collection',
+            'starts_at' => today()->addWeek()->toDateString(),
+        ]);
+
+        Notification::assertSentTo($canTriage, ShootRequested::class);
+        Notification::assertNothingSentTo($cannotTriage);
     }
 
     public function test_a_shoot_request_needs_a_title_and_a_date(): void

@@ -61,3 +61,25 @@ Schedule::command('notion:sync-shoots')->everyThirtyMinutes();
 // even if two runs do overlap (a manual `artisan whatsapp:dispatch-campaigns`
 // bypasses this scheduler mutex entirely, for instance).
 Schedule::command('whatsapp:dispatch-campaigns')->everyMinute()->withoutOverlapping();
+
+// "Your report is ready" -- a nudge, not the PDF itself (see
+// NotifyReportsReady's own doc block). The 2nd of the month, not the 1st,
+// so the 01:00/02:00 Notion/Instagram syncs above have a full day's head
+// start against the month that just closed before this asks whether there
+// is anything worth telling anyone about.
+Schedule::command('reports:notify-ready')->monthlyOn(2, '09:00')->timezone(config('app.timezone'));
+
+// Tomorrow's call sheet, pushed to crew tonight -- see SendShootReminders's
+// own doc block for why crew only, not the client.
+Schedule::command('shoots:send-reminders')->dailyAt('18:00')->timezone(config('app.timezone'));
+
+// One push to admins each morning -- see SendDailyDigest's own doc block.
+Schedule::command('digest:send-daily')->dailyAt('08:30')->timezone(config('app.timezone'));
+
+// None of the three above have a page-view catch-up the way
+// invoices:generate-recurring/routines:generate/instagram:sync do (see
+// EnsureRecurringInvoicesGenerated and friends) -- there is no natural
+// page a staff member opens that implies "check whether today's digest
+// went out". All three depend entirely on schedule:run actually firing,
+// same as everything else in this file -- see the comment at the top and
+// the Hostinger PHP environment memory note on adding the real cron entry.

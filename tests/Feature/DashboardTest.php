@@ -190,4 +190,40 @@ class DashboardTest extends TestCase
         ]));
         $response->assertSee($expectedHref, false);
     }
+
+    public function test_an_account_behind_target_shows_a_suggested_shoot_by_date(): void
+    {
+        $client = Client::create(['name' => 'SVA Silks and Readymades']);
+        $account = \App\Models\ContentAccount::create([
+            'client_id' => $client->id, 'name' => 'Instagram', 'target_reel' => 10,
+        ]);
+        \App\Models\ContentAccountVenture::create([
+            'content_account_id' => $account->id, 'venture' => $client->name,
+        ]);
+
+        $response = $this->actingAs(User::factory()->create())->get(route('dashboard'));
+
+        $response->assertOk();
+        $response->assertSee('Shoot by');
+    }
+
+    public function test_no_suggestion_is_offered_once_the_edit_buffer_has_already_passed(): void
+    {
+        // The buffer is 5 days before month end -- travel to inside that
+        // window so the only honest answer left is "as soon as possible".
+        $this->travelTo(now()->endOfMonth()->subDays(2));
+
+        $client = Client::create(['name' => 'SVA Silks and Readymades']);
+        $account = \App\Models\ContentAccount::create([
+            'client_id' => $client->id, 'name' => 'Instagram', 'target_reel' => 10,
+        ]);
+        \App\Models\ContentAccountVenture::create([
+            'content_account_id' => $account->id, 'venture' => $client->name,
+        ]);
+
+        $response = $this->actingAs(User::factory()->create())->get(route('dashboard'));
+
+        $response->assertOk();
+        $response->assertSee('ASAP');
+    }
 }

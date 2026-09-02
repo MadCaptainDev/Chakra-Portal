@@ -46,12 +46,14 @@ class Shoot extends Model
         'created_by_id',
         'notion_shoot_id',
         'requested_at',
+        'reminder_sent_at',
     ];
 
     protected $casts = [
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
         'requested_at' => 'datetime',
+        'reminder_sent_at' => 'datetime',
     ];
 
     public function client(): BelongsTo
