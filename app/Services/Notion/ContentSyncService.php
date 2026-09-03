@@ -54,6 +54,32 @@ class ContentSyncService
     }
 
     /**
+     * Fill content_items.notion_shoot_id from notion_shoot_page_id, for
+     * every row where Notion supplied a related shoot but the local FK
+     * hasn't been resolved yet.
+     *
+     * A separate pass rather than resolving inline in upsertPage(): shoots
+     * and reels sync as two independent passes with no guaranteed order, so
+     * a reel synced before its shoot exists locally would otherwise never
+     * get linked. Running this after every source has synced means it
+     * always sees whichever shoot rows exist by the end of the run, and it
+     * self-heals older unlinked rows too -- one bulk update, not a query
+     * per row.
+     */
+    public function resolveShootLinks(): int
+    {
+        return ContentItem::query()
+            ->whereNotNull('notion_shoot_page_id')
+            ->whereNull('notion_shoot_id')
+            ->update([
+                'notion_shoot_id' => NotionShoot::query()
+                    ->whereColumn('notion_shoots.notion_page_id', 'content_items.notion_shoot_page_id')
+                    ->select('id')
+                    ->limit(1),
+            ]);
+    }
+
+    /**
      * Sync a single source into content_items.
      * Never throws: failures are logged and counted as zero.
      */
@@ -293,6 +319,8 @@ class ContentSyncService
     {
         $properties = $page['properties'] ?? [];
         $names = config('notion.properties', []);
+        $relations = config("notion.relations.{$source}", []);
+        $shootPageId = $this->relationIds($properties, $relations['shoot'] ?? [])[0] ?? null;
 
         ContentItem::updateOrCreate(
             ['notion_page_id' => $page['id']],
@@ -301,6 +329,15 @@ class ContentSyncService
                 'notion_url' => $page['url'] ?? null,
                 'title' => $this->extractTitle($properties),
                 'venture' => $this->value($properties, $names['venture'] ?? []),
+                'notion_shoot_page_id' => $shootPageId,
+                // If Notion no longer relates this reel to any shoot, drop
+                // the resolved link too -- otherwise a shoot removed in
+                // Notion would stay "linked" here forever. When a relation
+                // IS present, notion_shoot_id is left out of this array on
+                // purpose (see below): resolveShootLinks() fills it in bulk
+                // after every source has synced, rather than one lookup per
+                // row here.
+                ...($shootPageId === null ? ['notion_shoot_id' => null] : []),
                 'status' => $this->value($properties, $names['status'] ?? []),
                 'published_date' => $this->value($properties, $names['published_date'] ?? []),
                 'shoot_date' => $this->value($properties, $names['shoot_date'] ?? []),
@@ -418,6 +455,26 @@ class ContentSyncService
         $value = is_string($value) ? trim($value) : $value;
 
         return $value === '' ? null : $value;
+    }
+
+    /**
+     * A relation property's related-page ids, as Notion returns them --
+     * plain strings, no extra API call. Unlike value()'s 'relation' branch
+     * (which deliberately discards relations because nothing there reads a
+     * label), this is the one place a relation's ids are actually wanted.
+     *
+     * @param  array<int, string>  $candidates
+     * @return list<string>
+     */
+    private function relationIds(array $properties, array $candidates): array
+    {
+        $property = $this->findProperty($properties, $candidates);
+
+        if (! $property || ($property['type'] ?? null) !== 'relation') {
+            return [];
+        }
+
+        return collect($property['relation'] ?? [])->pluck('id')->filter()->values()->all();
     }
 
     /**

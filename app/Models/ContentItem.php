@@ -25,6 +25,8 @@ class ContentItem extends Model
         'social_media_item_id',
         'title',
         'venture',
+        'notion_shoot_page_id',
+        'notion_shoot_id',
         'status',
         'published_date',
         'shoot_date',
@@ -58,6 +60,18 @@ class ContentItem extends Model
     public function socialMediaItem(): BelongsTo
     {
         return $this->belongsTo(SocialMediaItem::class);
+    }
+
+    /**
+     * The shoot that produced this item, resolved from Notion's own
+     * Reel<->Shoot relation (see ContentSyncService::resolveShootLinks()).
+     * Null either means Notion has no relation set for this reel yet, or
+     * this content source doesn't carry the relation at all (only Reel
+     * does, as of this being added).
+     */
+    public function notionShoot(): BelongsTo
+    {
+        return $this->belongsTo(NotionShoot::class);
     }
 
     public function sourceLabel(): string

@@ -97,6 +97,20 @@ return [
     ],
 
     /*
+     * Notion relation properties, read for their linked-page ids only (no
+     * label is ever resolved -- see ContentSyncService::relationIds()).
+     * Keyed by content source; a source with no relation property in Notion
+     * simply has no entry here. Confirmed live: only the Reel Planner
+     * carries one -- "Shoot", pointing at the Shoots database, single-valued
+     * (0 or 1 related shoot per reel). YouTube/Post/Story have none.
+     */
+    'relations' => [
+        'reel' => [
+            'shoot' => ['Shoot'],
+        ],
+    ],
+
+    /*
      * Notion property names for the Shoots database -- a separate map from
      * `properties` above, which is also read for the 4 content sources
      * (youtube/reel/post/story). A shoot-only name like "Location" has no

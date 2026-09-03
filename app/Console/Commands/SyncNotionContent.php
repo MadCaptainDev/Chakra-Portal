@@ -49,6 +49,13 @@ class SyncNotionContent extends Command
             $this->info("shoot: {$result['imported']} imported, {$result['updated']} refreshed, {$result['skipped']} skipped (no date in Notion).");
         }
 
+        // After every source has synced, including shoots -- a reel synced
+        // before its shoot exists locally only gets linked here.
+        $linked = $service->resolveShootLinks();
+        if ($linked > 0) {
+            $this->info("shoot links: {$linked} reel(s) linked to a shoot.");
+        }
+
         $unreachable = array_keys(array_filter($available, fn ($ok) => ! $ok));
 
         if ($unreachable !== []) {

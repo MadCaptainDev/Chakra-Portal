@@ -6,6 +6,7 @@ use App\Support\TimesheetVenture;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
@@ -90,6 +91,42 @@ class NotionShoot extends Model
     public function shoot(): HasOne
     {
         return $this->hasOne(Shoot::class);
+    }
+
+    /**
+     * Content items Notion's own Reel<->Shoot relation says this shoot
+     * produced -- see ContentSyncService::resolveShootLinks(). Reels only;
+     * no other content source carries the relation.
+     */
+    public function contentItems(): HasMany
+    {
+        return $this->hasMany(ContentItem::class);
+    }
+
+    /**
+     * Best-effort read of `video_count`, a free-text Notion field that
+     * includes ranges ("5-6") as well as plain numbers -- takes the upper
+     * bound of a range, or the number itself. Null when nothing parses.
+     *
+     * Informational only: this is what the shoot was EXPECTED to produce
+     * per whoever filled in Notion, not a count anything here can rely on
+     * -- never use it in place of actually counting linked contentItems().
+     */
+    public function expectedOutputCount(): ?int
+    {
+        if (! $this->video_count) {
+            return null;
+        }
+
+        if (preg_match('/(\d+)\D+(\d+)/', $this->video_count, $m)) {
+            return (int) $m[2];
+        }
+
+        if (preg_match('/(\d+)/', $this->video_count, $m)) {
+            return (int) $m[1];
+        }
+
+        return null;
     }
 
     /**
