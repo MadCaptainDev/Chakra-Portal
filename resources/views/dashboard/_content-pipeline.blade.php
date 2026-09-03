@@ -108,6 +108,15 @@
                                              style="width: {{ min(100, $type['pct'] ?? 0) }}%"></div>
                                     </div>
                                 @endif
+
+                                @if (($type['upcoming'] ?? 0) > 0)
+                                    <p class="mt-1 text-[10px] text-brand-100/40">
+                                        Upcoming <span class="text-brand-100/70 tabular-nums">{{ $type['upcoming'] }}</span>
+                                        @if ($type['next_shoot_date'])
+                                            · Next shoot <span class="text-brand-100/70">{{ $type['next_shoot_date']->format('j M') }}</span>
+                                        @endif
+                                    </p>
+                                @endif
                             </div>
                         @endforeach
 

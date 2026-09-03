@@ -242,6 +242,52 @@ class ContentDashboard
     }
 
     /**
+     * Everything still in the pipeline — shot or being edited, or scheduled
+     * to post — regardless of month, plus the earliest future shoot_date
+     * behind each account/type. This is what "upcoming" means on a
+     * dashboard card: work already committed that hasn't gone out yet.
+     *
+     * Not month-scoped like the other counters here, deliberately: a piece
+     * shot this week for next month's calendar is still upcoming today.
+     *
+     * @return array{0: array<int, array<string, int>>, 1: array<string, Carbon>}
+     */
+    private static function upcomingByAccount(): array
+    {
+        $ventureToAccount = ContentAccountVenture::pluck('content_account_id', 'venture');
+        $statuses = array_merge(self::STATUS_GROUPS['scheduled'], self::STATUS_GROUPS['in_progress']);
+
+        $rows = ContentItem::query()
+            ->select(['venture', 'source', 'shoot_date'])
+            ->whereIn('status', $statuses)
+            ->whereNotNull('venture')
+            ->get();
+
+        $counts = [];
+        $nextShoot = [];
+
+        foreach ($rows as $row) {
+            $accountId = $ventureToAccount[$row->venture] ?? null;
+
+            if ($accountId === null) {
+                continue;
+            }
+
+            $counts[$accountId][$row->source] = ($counts[$accountId][$row->source] ?? 0) + 1;
+
+            if ($row->shoot_date !== null && $row->shoot_date->isFuture()) {
+                $key = $accountId.'|'.$row->source;
+
+                if (! isset($nextShoot[$key]) || $row->shoot_date->lt($nextShoot[$key])) {
+                    $nextShoot[$key] = $row->shoot_date;
+                }
+            }
+        }
+
+        return [$counts, $nextShoot];
+    }
+
+    /**
      * Real Instagram performance for the month's published items, for the
      * accounts where that is knowable.
      *
@@ -322,6 +368,7 @@ class ContentDashboard
         $previous = self::countsByAccount($month->copy()->subMonthNoOverflow());
         $performance = self::performanceByAccount($month);
         $topPerformers = self::topPerformerByAccount($month);
+        [$upcomingCounts, $nextShootDates] = self::upcomingByAccount();
 
         // Pace only means something while a month is still running. A
         // finished month is not "behind", it is simply what it was, and
@@ -331,14 +378,15 @@ class ContentDashboard
         $pace = $isCurrentMonth ? self::monthElapsedFraction($month) : null;
 
         return $accounts->map(function (ContentAccount $account) use (
-            $published, $planned, $previous, $performance, $topPerformers, $pace
+            $published, $planned, $previous, $performance, $topPerformers, $pace, $upcomingCounts, $nextShootDates
         ) {
             $publishedCounts = $published[$account->id] ?? [];
             $plannedCounts = $planned[$account->id] ?? [];
             $previousCounts = $previous[$account->id] ?? [];
+            $upcomingForAccount = $upcomingCounts[$account->id] ?? [];
 
             $types = collect(self::TARGETED)->map(function (string $label, string $source) use (
-                $account, $publishedCounts, $plannedCounts, $previousCounts, $pace
+                $account, $publishedCounts, $plannedCounts, $previousCounts, $pace, $upcomingForAccount, $nextShootDates
             ) {
                 $actual = $publishedCounts[$source] ?? 0;
                 $target = $account->targetFor($source);
@@ -353,6 +401,13 @@ class ContentDashboard
                     'delta' => $actual - $was,
                     'previous' => $was,
                     'pace' => self::paceVerdict($actual, $target, $pace),
+                    // Not-yet-published work already in the pipeline (shot
+                    // or being edited, or scheduled to post) and the
+                    // earliest future shoot_date behind it — an interim
+                    // reading from the content item's own date field until
+                    // a real shoot link exists (see notion_shoot_id).
+                    'upcoming' => $upcomingForAccount[$source] ?? 0,
+                    'next_shoot_date' => $nextShootDates[$account->id.'|'.$source] ?? null,
                 ];
             })->all();
 
