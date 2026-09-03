@@ -76,6 +76,12 @@ Schedule::command('shoots:send-reminders')->dailyAt('18:00')->timezone(config('a
 // One push to admins each morning -- see SendDailyDigest's own doc block.
 Schedule::command('digest:send-daily')->dailyAt('08:30')->timezone(config('app.timezone'));
 
+// Depletion forecast reads content_items and notion_shoots directly, so it
+// runs after both are fresh for the day: notion:sync-content (01:00, which
+// also resolves the Shoot<->Reel links this depends on) and notion:sync-shoots
+// (every 30 min, always current by 09:00). See SendDepletionAlerts.
+Schedule::command('content:send-depletion-alerts')->dailyAt('09:00')->timezone(config('app.timezone'));
+
 // None of the three above have a page-view catch-up the way
 // invoices:generate-recurring/routines:generate/instagram:sync do (see
 // EnsureRecurringInvoicesGenerated and friends) -- there is no natural

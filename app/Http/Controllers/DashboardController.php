@@ -12,6 +12,7 @@ use App\Models\Payment;
 use App\Services\ExpenseLedger;
 use App\Services\Notion\NotionSyncRunner;
 use App\Support\ContentDashboard;
+use App\Support\ContentForecast;
 use App\Support\ContributionGraph;
 use App\Support\DashboardWidgets;
 use App\Support\Metric;
@@ -148,10 +149,20 @@ class DashboardController extends Controller
         // for why a single link is the most this can ever offer.
         $portfolioSuggestion = PortfolioSuggestions::best();
 
+        // Same list SendDepletionAlerts pushes over -- the dashboard is the
+        // page someone opens without waiting for that push, so it should
+        // not have to.
+        $forecastCritical = ContentForecast::forAllClients()
+            ->where('status', ContentForecast::STATUS_CRITICAL);
+
         $actionItems = $this->actionItems([
             'unreadEnquiries' => $unreadEnquiries,
             'missedRoutinesCount' => $missedRoutinesCount,
             'portfolioSuggestion' => $portfolioSuggestion,
+            'forecastCriticalCount' => $forecastCritical->count(),
+            'forecastCriticalNames' => $forecastCritical->take(2)
+                ->map(fn (array $row) => $row['client']->name)
+                ->implode(' and '),
             'pendingReviews' => $pendingReviews,
             'behindCount' => $teamBehind->count(),
             'behindNames' => $teamBehind->take(2)
@@ -441,6 +452,24 @@ class DashboardController extends Controller
                 'detail' => 'Nobody has opened these yet. Leads go cold fast.',
                 'href' => route('enquiries.index'),
                 'cta' => 'Open',
+            ];
+        }
+
+        /*
+         * Same urgency tier as enquiries: a client running out of content
+         * with nothing booked is a relationship problem the moment they
+         * notice, not a metric to catch up on later. See ContentForecast.
+         */
+        if (($ctx['forecastCriticalCount'] ?? 0) > 0) {
+            $items[] = [
+                'tone' => 'red',
+                'domain' => 'Content',
+                'title' => $ctx['forecastCriticalCount'].' '.Str::plural('client', $ctx['forecastCriticalCount']).' running out of content',
+                'detail' => $ctx['forecastCriticalNames'] !== ''
+                    ? $ctx['forecastCriticalNames'].' — depleting soon with no shoot booked before then.'
+                    : 'Depleting soon with no shoot booked before then.',
+                'href' => route('forecast.index'),
+                'cta' => 'Open forecast',
             ];
         }
 

@@ -26,6 +26,7 @@ use App\Http\Controllers\CompetitorAccountController;
 use App\Http\Controllers\CompetitorSettingController;
 use App\Http\Controllers\ContentAccountController;
 use App\Http\Controllers\ContentDashboardController;
+use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardWidgetController;
 use App\Http\Controllers\DeveloperController;
@@ -458,6 +459,16 @@ Route::middleware(['auth', 'module:shoots,view'])->scopeBindings()->group(functi
     Route::post('shoots/{shoot}/kit/{kit}/undo', [ShootKitController::class, 'undoCheckOut'])->name('shoots.kit.undo');
     Route::post('shoots/{shoot}/kit/{kit}/check-in', [ShootKitController::class, 'checkIn'])->name('shoots.kit.check-in');
     Route::post('shoots/{shoot}/kit-bulk', [ShootKitController::class, 'bulk'])->name('shoots.kit.bulk');
+});
+
+/*
+ * Who is about to run out of content, and is a shoot booked in time --
+ * read-only over App\Support\ContentForecast, so `view` is the only
+ * ability the module has anything to grant.
+ */
+Route::middleware(['auth', 'module:forecast,view'])->group(function () {
+    Route::get('forecast', [ForecastController::class, 'index'])->name('forecast.index');
+    Route::get('forecast/{client}', [ForecastController::class, 'show'])->name('forecast.show');
 });
 
 /*

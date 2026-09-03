@@ -78,6 +78,19 @@ class Permission
             'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
         /*
+         * Per-client depletion forecast: how much unposted content is left
+         * and whether a shoot is booked before it runs out. Read-only --
+         * the numbers are computed from Shoots/ContentAccount/ContentItem,
+         * nothing is edited here -- so `view` is the only ability there is
+         * anything to grant.
+         */
+        'forecast' => [
+            'label' => 'Forecast',
+            'group' => 'Production',
+            'icon' => 'trending-up',
+            'abilities' => ['view'],
+        ],
+        /*
          * Client records, and the logins the studio holds on their behalf.
          *
          * "credentials" is a separate ability rather than part of view, because

@@ -55,6 +55,11 @@
         'approved' => 'bg-emerald-400/15 text-emerald-200',
         'rejected' => 'bg-red-400/15 text-red-200',
         'disabled' => 'bg-white/10 text-brand-100/70',
+        // ContentForecast::forClient()'s status verdict.
+        'critical' => 'bg-red-400/15 text-red-200',
+        'warning' => 'bg-amber-400/15 text-amber-200',
+        'ok' => 'bg-emerald-400/15 text-emerald-200',
+        'unknown' => 'bg-white/10 text-brand-100/70',
     ];
 
     $labels = [
@@ -98,6 +103,10 @@
         'approved' => 'Approved',
         'rejected' => 'Rejected',
         'disabled' => 'Disabled',
+        'critical' => 'Running out',
+        'warning' => 'Watch',
+        'ok' => 'Covered',
+        'unknown' => 'No target set',
     ];
 
     // Invoice/recurring statuses arrive as snake_case; Notion statuses arrive as

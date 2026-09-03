@@ -49,11 +49,15 @@ class Client extends Model
         'report_sections_disabled',
         'notion_venture',
         'industry_id',
+        'forecast_alert_depletion_date',
+        'forecast_alert_sent_at',
     ];
 
     protected $casts = [
         'whatsapp_portal_enabled' => 'boolean',
         'report_sections_disabled' => 'array',
+        'forecast_alert_depletion_date' => 'date',
+        'forecast_alert_sent_at' => 'datetime',
     ];
 
     /**
@@ -186,6 +190,25 @@ class Client extends Model
     public function shoots(): HasMany
     {
         return $this->hasMany(Shoot::class);
+    }
+
+    /**
+     * The Notion mirror's shoots for this client -- broader than shoots()
+     * above, which only has rows that were imported. A client is not
+     * "nothing booked" just because nobody has opened the import screen;
+     * see NotionShootImporter, which now runs on every sync so the two are
+     * usually in step, but Forecast reads this one directly since it wants
+     * whatever Notion currently says, not a snapshot of the last import.
+     */
+    public function notionShoots(): HasMany
+    {
+        return $this->hasMany(NotionShoot::class, 'client_id');
+    }
+
+    /** This client's own publishing targets, one row per account. */
+    public function contentAccounts(): HasMany
+    {
+        return $this->hasMany(ContentAccount::class);
     }
 
     /** Logins the studio holds for this client's own accounts. */
