@@ -74,6 +74,29 @@ class ContentItem extends Model
         return $this->belongsTo(NotionShoot::class);
     }
 
+    /**
+     * "Shot on 5 Sep" if the linked shoot has a date, otherwise just its
+     * title -- what a board card has room to show. Null, not an empty
+     * string, when there is nothing linked, so a view can `@if` on it
+     * rather than printing a blank line.
+     */
+    public function linkedShootLabel(): ?string
+    {
+        if (! $this->relationLoaded('notionShoot') && $this->notion_shoot_id === null) {
+            return null;
+        }
+
+        $shoot = $this->notionShoot;
+
+        if (! $shoot) {
+            return null;
+        }
+
+        return $shoot->shoot_date
+            ? 'Shot '.$shoot->shoot_date->format('j M')
+            : $shoot->title;
+    }
+
     public function sourceLabel(): string
     {
         return config("notion.databases.{$this->source}.label") ?? ucfirst((string) $this->source);

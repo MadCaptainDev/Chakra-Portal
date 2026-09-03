@@ -236,7 +236,18 @@
 
                 <dl class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3 text-sm">
                     @if ($ns->video_count)
-                        <div><dt class="text-xs text-brand-100/50">Videos planned</dt><dd class="text-white">{{ $ns->video_count }}</dd></div>
+                        <div>
+                            <dt class="text-xs text-brand-100/50">Videos planned</dt>
+                            <dd class="text-white">
+                                {{ $ns->video_count }}
+                                {{-- Informational only -- video_count is free text Notion
+                                     never enforces, so this is a cross-check, not a target. --}}
+                                @php $linked = $ns->contentItems()->count(); @endphp
+                                @if ($linked > 0)
+                                    <span class="text-brand-100/40 text-xs">({{ $linked }} linked)</span>
+                                @endif
+                            </dd>
+                        </div>
                     @endif
                     @if ($ns->duration)
                         <div><dt class="text-xs text-brand-100/50">Duration</dt><dd class="text-white">{{ $ns->duration }}h</dd></div>

@@ -211,6 +211,9 @@
                                             <a href="{{ $media->permalink }}" target="_blank" rel="noopener"
                                                class="text-[11px] text-brand-300 hover:text-brand-200">View on Instagram →</a>
                                         @endif
+                                        @if ($item->linkedShootLabel())
+                                            <span class="text-[11px] text-brand-100/40 block">{{ $item->linkedShootLabel() }}</span>
+                                        @endif
                                     </td>
                                     <td class="px-3 py-2.5 whitespace-nowrap">
                                         <x-badge :status="$item->status" />
