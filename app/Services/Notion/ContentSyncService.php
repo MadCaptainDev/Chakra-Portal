@@ -5,6 +5,8 @@ namespace App\Services\Notion;
 use App\Models\ContentItem;
 use App\Models\NotionSetting;
 use App\Models\NotionShoot;
+use App\Models\User;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -313,6 +315,76 @@ class ContentSyncService
         // successful-but-empty search is what proves a database is not
         // shared, and this was not that.
         return $databases === [] ? ($config['ids'] ?? []) : [];
+    }
+
+    /**
+     * Best-effort fill of ContentItem.assigned_user_id from the free-text
+     * `assigned_to` (falling back to `editor`) Notion already carries --
+     * ONLY for rows where a person hasn't set it, and only ever adds, never
+     * changes an existing value. Same matching rule as
+     * NotionShootImporter::matchUser() (exact folded name, then a
+     * first-name match but only when exactly one user's first name
+     * matches) -- duplicated rather than shared, since the two services
+     * have no other reason to depend on each other and this is five lines.
+     *
+     * @return int how many rows were newly assigned
+     */
+    public function resolveAssignments(): int
+    {
+        $users = User::all();
+
+        if ($users->isEmpty()) {
+            return 0;
+        }
+
+        $candidates = ContentItem::query()
+            ->whereNull('assigned_user_id')
+            ->where(fn ($q) => $q->whereNotNull('assigned_to')->orWhereNotNull('editor'))
+            ->get(['id', 'assigned_to', 'editor']);
+
+        $assigned = 0;
+
+        foreach ($candidates as $item) {
+            $user = $this->matchUser($item->assigned_to, $users) ?? $this->matchUser($item->editor, $users);
+
+            if (! $user) {
+                continue;
+            }
+
+            $item->forceFill(['assigned_user_id' => $user->id])->save();
+            $assigned++;
+        }
+
+        return $assigned;
+    }
+
+    /**
+     * @param  Collection<int, User>  $users
+     */
+    private function matchUser(?string $name, Collection $users): ?User
+    {
+        if (! $name) {
+            return null;
+        }
+
+        $folded = $this->fold($name);
+
+        $exact = $users->first(fn (User $user) => $this->fold($user->name) === $folded);
+
+        if ($exact) {
+            return $exact;
+        }
+
+        $firstNameMatches = $users->filter(
+            fn (User $user) => $this->fold(Str::before($user->name, ' ')) === $folded
+        );
+
+        return $firstNameMatches->count() === 1 ? $firstNameMatches->first() : null;
+    }
+
+    private function fold(?string $value): string
+    {
+        return Str::lower(trim(preg_replace('/\s+/u', ' ', (string) $value) ?? ''));
     }
 
     private function upsertPage(string $source, array $page): void

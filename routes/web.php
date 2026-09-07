@@ -26,7 +26,9 @@ use App\Http\Controllers\CompetitorAccountController;
 use App\Http\Controllers\CompetitorSettingController;
 use App\Http\Controllers\ContentAccountController;
 use App\Http\Controllers\ContentDashboardController;
+use App\Http\Controllers\ContentItemAssignmentController;
 use App\Http\Controllers\ForecastController;
+use App\Http\Controllers\WorkloadController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardWidgetController;
 use App\Http\Controllers\DeveloperController;
@@ -1137,6 +1139,14 @@ Route::middleware(['auth', 'admin', 'recurring.catchup', 'instagram.catchup'])->
     Route::get('content-dashboard', [ContentDashboardController::class, 'index'])->name('content-dashboard.index');
     Route::post('content-dashboard/refresh', [ContentDashboardController::class, 'refresh'])->name('content-dashboard.refresh');
     Route::get('content-dashboard/{contentAccount}', [ContentDashboardController::class, 'show'])->name('content-dashboard.show');
+    Route::patch('content-items/{contentItem}/assign', [ContentItemAssignmentController::class, 'update'])->name('content-items.assign');
+
+    /*
+     * Who has how much on their plate right now -- see WorkloadController's
+     * own doc block for why this sits admin-only alongside Editor Output
+     * rather than behind a permission module.
+     */
+    Route::get('workload', [WorkloadController::class, 'index'])->name('workload.index');
 
     Route::resource('users', UserController::class)->except(['show']);
     Route::put('users/{user}/password', [UserController::class, 'updatePassword'])->name('users.password');

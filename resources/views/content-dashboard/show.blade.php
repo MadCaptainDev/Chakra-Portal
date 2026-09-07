@@ -189,6 +189,7 @@
                                 <th class="px-3 py-2.5">Type</th>
                                 <th class="px-3 py-2.5">Date</th>
                                 <th class="px-3 py-2.5">Editor</th>
+                                <th class="px-3 py-2.5">Assigned</th>
                                 <th class="px-3 py-2.5 text-right">Reach</th>
                                 <th class="px-3 py-2.5 text-right">Views</th>
                                 <th class="px-3 py-2.5 text-right">Likes</th>
@@ -228,6 +229,23 @@
                                         @endif
                                     </td>
                                     <td class="px-3 py-2.5 whitespace-nowrap text-brand-100/60">{{ $item->editor ?: '—' }}</td>
+                                    <td class="px-3 py-2.5 whitespace-nowrap">
+                                        {{-- Portal-owned assignment, separate from the Editor column above
+                                             (Notion's own free text) -- see ContentItem::assignedUser(). --}}
+                                        <form method="POST" action="{{ route('content-items.assign', $item) }}">
+                                            @csrf
+                                            @method('PATCH')
+                                            <select name="assigned_user_id" onchange="this.form.submit()"
+                                                    class="rounded-md border-white/15 bg-transparent text-xs py-1 pr-7 text-brand-100/80">
+                                                <option value="">Unassigned</option>
+                                                @foreach ($staff as $person)
+                                                    <option value="{{ $person->id }}" @selected($item->assigned_user_id === $person->id)>
+                                                        {{ $person->name }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </form>
+                                    </td>
                                     @foreach (['reach', 'views', 'likes'] as $metric)
                                         <td class="px-3 py-2.5 text-right tabular-nums">
                                             @if ($media && $media->metricValue($metric) !== null)

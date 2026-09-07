@@ -35,6 +35,7 @@ class ContentItem extends Model
         'post_type',
         'ssd',
         'assigned_to',
+        'assigned_user_id',
         'effort_hours',
         'insta_csv_link',
         'yt_csv_link',
@@ -72,6 +73,18 @@ class ContentItem extends Model
     public function notionShoot(): BelongsTo
     {
         return $this->belongsTo(NotionShoot::class);
+    }
+
+    /**
+     * Who the portal says this is assigned to -- distinct from
+     * `assigned_to`, a free-text Notion field the sync overwrites every
+     * run. This column is portal-owned: a person sets it, and only
+     * ContentSyncService::resolveAssignments() ever fills it automatically,
+     * and only while it's still empty. See that method's doc block.
+     */
+    public function assignedUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_user_id');
     }
 
     /**

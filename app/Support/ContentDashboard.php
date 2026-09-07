@@ -570,7 +570,7 @@ class ContentDashboard
         [$since, $until] = self::monthRange($month);
 
         return ContentItem::query()
-            ->with(['socialMediaItem.insights', 'notionShoot'])
+            ->with(['socialMediaItem.insights', 'notionShoot', 'assignedUser'])
             ->whereIn('venture', $account->ventureNames() ?: ['__none__'])
             ->whereNotNull('published_date')
             ->whereBetween('published_date', [$since, $until])

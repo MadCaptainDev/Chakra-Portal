@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ContentAccount;
+use App\Models\User;
 use App\Services\Notion\NotionSyncRunner;
 use App\Support\ContentDashboard;
 use Illuminate\Http\RedirectResponse;
@@ -57,6 +58,7 @@ class ContentDashboardController extends Controller
             'targeted' => ContentDashboard::TARGETED,
             'activeStatuses' => $statuses,
             'statusGroups' => ContentDashboard::STATUS_GROUPS,
+            'staff' => User::staff()->orderBy('name')->get(),
         ]);
     }
 

@@ -56,6 +56,11 @@ class SyncNotionContent extends Command
             $this->info("shoot links: {$linked} reel(s) linked to a shoot.");
         }
 
+        $assigned = $service->resolveAssignments();
+        if ($assigned > 0) {
+            $this->info("assignments: {$assigned} item(s) auto-assigned from Notion's Assigned To/Editor.");
+        }
+
         $unreachable = array_keys(array_filter($available, fn ($ok) => ! $ok));
 
         if ($unreachable !== []) {
