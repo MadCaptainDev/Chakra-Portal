@@ -100,6 +100,43 @@
             @endif
             Created {{ $script->created_at->format('d M Y') }}@if ($script->createdBy) by {{ $script->createdBy->name }}@endif.
         </p>
+
+        {{-- "Check from each other" -- a flat review thread, not part of the
+             printed script itself. --}}
+        <div id="comments" class="print:hidden">
+            <x-card class="p-4 sm:p-5">
+                <x-section-label dark>Comments</x-section-label>
+
+                <div class="mt-3 space-y-3">
+                    @forelse ($script->comments as $comment)
+                        <div class="flex gap-2.5">
+                            <div class="w-7 h-7 shrink-0 rounded-full bg-brand-400/20 text-brand-200 text-xs font-semibold flex items-center justify-center">
+                                {{ Str::of($comment->user?->name ?? '?')->substr(0, 1) }}
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-xs text-brand-100/50">
+                                    <span class="text-white font-semibold">{{ $comment->user?->name ?? 'Someone' }}</span>
+                                    · {{ $comment->created_at->diffForHumans() }}
+                                </p>
+                                <p class="text-sm text-brand-100/90 whitespace-pre-wrap">{{ $comment->body }}</p>
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-sm text-brand-100/50">No comments yet.</p>
+                    @endforelse
+                </div>
+
+                @can('scripts.comment')
+                    <form method="POST" action="{{ route('scripts.comments.store', $script) }}" class="mt-4 pt-4 border-t border-white/10">
+                        @csrf
+                        <textarea name="body" rows="2" required maxlength="2000" placeholder="Leave a note for whoever's writing or editing this…"
+                                  class="w-full rounded-md border-white/15 bg-white/5 text-sm text-white placeholder:text-brand-100/40"></textarea>
+                        <x-input-error :messages="$errors->get('body')" class="mt-2" />
+                        <x-btn type="submit" size="sm" class="mt-2">Comment</x-btn>
+                    </form>
+                @endcan
+            </x-card>
+        </div>
     </div>
 
     @push('styles')

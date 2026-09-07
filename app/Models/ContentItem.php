@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ContentItem extends Model
 {
@@ -85,6 +86,19 @@ class ContentItem extends Model
     public function assignedUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_user_id');
+    }
+
+    /**
+     * The full, reviewable Script written for this reel -- distinct from
+     * `script`, the plain free-text field Notion's own "Script" property
+     * syncs into. Named to avoid exactly that collision: $item->script is
+     * already a string attribute, so a same-named relation would be
+     * unreachable through it. hasOne, not hasMany: nothing in this app
+     * creates a second Script against the same content item on purpose.
+     */
+    public function scriptRecord(): HasOne
+    {
+        return $this->hasOne(Script::class, 'content_item_id');
     }
 
     /**

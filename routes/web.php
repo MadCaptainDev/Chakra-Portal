@@ -28,6 +28,8 @@ use App\Http\Controllers\ContentAccountController;
 use App\Http\Controllers\ContentDashboardController;
 use App\Http\Controllers\ContentItemAssignmentController;
 use App\Http\Controllers\ForecastController;
+use App\Http\Controllers\ScriptCommentController;
+use App\Http\Controllers\ShootCalendarController;
 use App\Http\Controllers\WorkloadController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardWidgetController;
@@ -337,6 +339,9 @@ Route::middleware(['auth', 'module:scripts,view'])->scopeBindings()->group(funct
 
     Route::get('scripts/{script}', [ScriptController::class, 'show'])->name('scripts.show');
 
+    Route::post('scripts/{script}/comments', [ScriptCommentController::class, 'store'])
+        ->middleware('module:scripts,comment')->name('scripts.comments.store');
+
     Route::get('scripts/{script}/edit', [ScriptController::class, 'edit'])
         ->middleware('module:scripts,edit')->name('scripts.edit');
     Route::put('scripts/{script}', [ScriptController::class, 'update'])
@@ -420,6 +425,9 @@ Route::middleware(['auth', 'client'])->prefix('client')->name('client.')->group(
  */
 Route::middleware(['auth', 'module:shoots,view'])->scopeBindings()->group(function () {
     Route::get('shoots', [ShootController::class, 'index'])->name('shoots.index');
+
+    // Before {shoot}, or "calendar" binds as a shoot id.
+    Route::get('shoots/calendar', [ShootCalendarController::class, 'index'])->name('shoots.calendar');
 
     /*
      * "Sync from Notion" on the Shoots screen. One action: fetch Notion's

@@ -146,6 +146,12 @@ class Script extends Model
         return $this->hasMany(ScriptSection::class)->orderBy('position')->orderBy('id');
     }
 
+    /** "Check from each other" -- a flat review thread, oldest first. */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(ScriptComment::class)->with('user')->oldest();
+    }
+
     public function scopeOpen(Builder $query): void
     {
         $query->whereNotIn('status', self::CLOSED_STATUSES);

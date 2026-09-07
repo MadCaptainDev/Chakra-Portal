@@ -1,5 +1,11 @@
 @csrf
 
+{{-- Only present when this script was started from a specific reel on the
+     content board -- see ContentDashboardController. Hidden because
+     changing which reel a script belongs to is not a thing this form does;
+     it's set once, at creation, from the board. --}}
+<input type="hidden" name="content_item_id" value="{{ old('content_item_id', $script->content_item_id) }}">
+
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
     <div class="sm:col-span-2">
         <x-input-label for="title" value="Title" />
@@ -78,7 +84,7 @@
             <x-select :id="$field" :name="$field" class="mt-1">
                 <option value="">Not set</option>
                 @foreach ($options as $option)
-                    <option value="{{ $option['value'] }}" @selected(old($field, $script->{$field}) == $option['value'])>{{ $option['label'] }}</option>
+                    <option value="{{ $option->id }}" @selected(old($field, $script->{$field}) == $option->id)>{{ $option->name }}</option>
                 @endforeach
             </x-select>
             <x-input-error :messages="$errors->get($field)" class="mt-2" />

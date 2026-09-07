@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ScriptRequest;
 use App\Models\Client;
+use App\Models\ContentItem;
 use App\Models\Script;
 use App\Models\ScriptSection;
 use App\Models\TaxonomyTerm;
@@ -66,12 +67,30 @@ class ScriptController extends Controller
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
-        return view('scripts.create', $this->formData(new Script([
+        $attributes = [
             'status' => Script::STATUS_DRAFT,
             'priority' => Script::PRIORITY_NORMAL,
-        ])));
+        ];
+
+        // Arriving from a specific reel on the content board (see
+        // ContentDashboardController) -- pre-fill what the board already
+        // knows so writing a script for a reel doesn't mean re-typing its
+        // title and client by hand.
+        if ($contentItemId = $request->query('content_item_id')) {
+            $item = ContentItem::find($contentItemId);
+
+            if ($item) {
+                $attributes['content_item_id'] = $item->id;
+                $attributes['title'] = $item->title;
+                $attributes['client_id'] = $item->venture
+                    ? Client::whereHas('contentAccounts.ventures', fn ($q) => $q->where('venture', $item->venture))->value('id')
+                    : null;
+            }
+        }
+
+        return view('scripts.create', $this->formData(new Script($attributes)));
     }
 
     public function store(ScriptRequest $request): RedirectResponse
@@ -120,7 +139,7 @@ class ScriptController extends Controller
     /** The read-only render — what a view-only user gets, and what goes on set. */
     public function show(Script $script): View
     {
-        $script->load(['sections', 'client.brief.answers', 'writer', 'editor', 'lastEditedBy', 'platformTerm', 'scriptTypeTerm', 'languageTerm']);
+        $script->load(['sections', 'client.brief.answers', 'writer', 'editor', 'lastEditedBy', 'platformTerm', 'scriptTypeTerm', 'languageTerm', 'comments']);
 
         return view('scripts.show', ['script' => $script]);
     }

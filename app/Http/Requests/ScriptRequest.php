@@ -24,6 +24,12 @@ class ScriptRequest extends FormRequest
         return [
             'title' => ['required', 'string', 'max:255'],
             'client_id' => ['nullable', Rule::exists('clients', 'id')],
+
+            // Set only when a script is started from a specific reel on the
+            // content board (see ContentDashboardController/ContentItem::
+            // scriptRecord()) -- absent from the ordinary create form, which
+            // is why this is nullable rather than required.
+            'content_item_id' => ['nullable', Rule::exists('content_items', 'id')],
             'status' => ['required', Rule::in(array_keys(Script::STATUSES))],
             'priority' => ['required', Rule::in(array_keys(Script::PRIORITIES))],
 

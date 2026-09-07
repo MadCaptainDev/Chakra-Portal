@@ -190,6 +190,7 @@
                                 <th class="px-3 py-2.5">Date</th>
                                 <th class="px-3 py-2.5">Editor</th>
                                 <th class="px-3 py-2.5">Assigned</th>
+                                <th class="px-3 py-2.5">Script</th>
                                 <th class="px-3 py-2.5 text-right">Reach</th>
                                 <th class="px-3 py-2.5 text-right">Views</th>
                                 <th class="px-3 py-2.5 text-right">Likes</th>
@@ -245,6 +246,21 @@
                                                 @endforeach
                                             </select>
                                         </form>
+                                    </td>
+                                    <td class="px-3 py-2.5 whitespace-nowrap">
+                                        @if ($item->scriptRecord)
+                                            <a href="{{ route('scripts.show', $item->scriptRecord) }}"
+                                               class="inline-flex items-center gap-1.5 text-xs text-brand-300 hover:text-white">
+                                                <x-badge :status="$item->scriptRecord->status" />
+                                            </a>
+                                        @elseif ($item->source === \App\Models\ContentItem::SOURCE_REEL)
+                                            <a href="{{ route('scripts.create', ['content_item_id' => $item->id]) }}"
+                                               class="text-xs font-semibold text-brand-300 hover:text-white">
+                                                + Write script
+                                            </a>
+                                        @else
+                                            <span class="text-brand-100/30">—</span>
+                                        @endif
                                     </td>
                                     @foreach (['reach', 'views', 'likes'] as $metric)
                                         <td class="px-3 py-2.5 text-right tabular-nums">

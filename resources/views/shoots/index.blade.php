@@ -7,6 +7,7 @@
         <x-page-header title="Shoots" eyebrow="Production"
                        subtitle="What is coming up, who is on it, and whether the kit is packed.">
             <x-slot name="actions">
+                <x-btn :href="route('shoots.calendar')" variant="secondary" icon="calendar">Calendar</x-btn>
                 @can('shoots.create')
                     <form method="POST" action="{{ route('shoots.sync-notion') }}">
                         @csrf
