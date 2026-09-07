@@ -107,7 +107,21 @@ class ShootController extends Controller
 
     public function show(Shoot $shoot): View
     {
-        $shoot->load(['client', 'crew.user', 'kits.item.category', 'kits.checkedOutBy', 'scripts', 'createdBy', 'notionShoot']);
+        $shoot->load([
+            'client', 'crew.user', 'kits.item.category', 'kits.checkedOutBy', 'scripts', 'createdBy',
+            // Notion's own Shoot<->Reel relation, resolved -- see
+            // ContentSyncService::resolveShootLinks(). Ordered so the
+            // videos still waiting on something come first: a producer
+            // opening this page wants to see what's not done yet, not
+            // scroll past everything already published to find it.
+            'notionShoot.contentItems' => fn ($q) => $q->orderByRaw("
+                CASE status
+                    WHEN 'Published' THEN 2
+                    WHEN 'Canceled' THEN 3
+                    ELSE 1
+                END
+            ")->orderBy('published_date'),
+        ]);
 
         // One query for the whole picker, never one per row.
         $committed = KitAvailability::during($shoot);

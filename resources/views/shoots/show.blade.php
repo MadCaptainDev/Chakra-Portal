@@ -242,9 +242,8 @@
                                 {{ $ns->video_count }}
                                 {{-- Informational only -- video_count is free text Notion
                                      never enforces, so this is a cross-check, not a target. --}}
-                                @php $linked = $ns->contentItems()->count(); @endphp
-                                @if ($linked > 0)
-                                    <span class="text-brand-100/40 text-xs">({{ $linked }} linked)</span>
+                                @if ($ns->contentItems->isNotEmpty())
+                                    <span class="text-brand-100/40 text-xs">({{ $ns->contentItems->count() }} linked)</span>
                                 @endif
                             </dd>
                         </div>
@@ -278,6 +277,44 @@
                                     {{ $name }}
                                     @unless ($matched) <span title="No matching portal user — add them below">?</span> @endunless
                                 </span>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
+                @if ($ns->contentItems->isNotEmpty())
+                    <div class="mt-4 pt-4 border-t border-white/10">
+                        <p class="text-xs text-brand-100/50 mb-2">
+                            Videos from this shoot
+                            {{-- video_count is Notion's own estimate (free text, sometimes a
+                                 range like "5-6") and is never enforced -- a mismatch here
+                                 just means some pieces from this shoot aren't in a planner
+                                 yet, or were never linked. --}}
+                            @if ($ns->expectedOutputCount() && $ns->contentItems->count() < $ns->expectedOutputCount())
+                                <span class="text-amber-300">— {{ $ns->video_count }} planned, only {{ $ns->contentItems->count() }} linked</span>
+                            @endif
+                        </p>
+                        <div class="divide-y divide-white/5">
+                            @foreach ($ns->contentItems as $item)
+                                <div class="py-2 flex items-center justify-between gap-3">
+                                    <div class="min-w-0">
+                                        @if ($item->notion_url)
+                                            <a href="{{ $item->notion_url }}" target="_blank" rel="noopener"
+                                               class="text-sm text-white hover:text-brand-300 truncate block">
+                                                {{ $item->title ?: '(untitled)' }}
+                                            </a>
+                                        @else
+                                            <p class="text-sm text-white truncate">{{ $item->title ?: '(untitled)' }}</p>
+                                        @endif
+                                        <p class="text-[11px] text-brand-100/40">
+                                            {{ $item->sourceLabel() }}
+                                            @if ($item->published_date)
+                                                · {{ $item->published_date->isPast() ? 'published' : 'due' }} {{ $item->published_date->format('j M') }}
+                                            @endif
+                                        </p>
+                                    </div>
+                                    <x-badge :status="$item->status" />
+                                </div>
                             @endforeach
                         </div>
                     </div>
