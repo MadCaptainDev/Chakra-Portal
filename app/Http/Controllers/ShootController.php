@@ -27,7 +27,7 @@ class ShootController extends Controller
         ];
 
         $shoots = Shoot::query()
-            ->with(['client', 'crew.user', 'kits', 'notionShoot'])
+            ->with(['client', 'crew.user', 'kits', 'notionShoot.contentItems:id,notion_shoot_id'])
             ->when($filters['q'] !== '', fn ($query) => $query->where(
                 fn ($inner) => $inner
                     ->where('title', 'like', "%{$filters['q']}%")
@@ -83,6 +83,10 @@ class ShootController extends Controller
             'notionPending' => NotionShoot::whereDoesntHave('shoot')->whereNotNull('shoot_date')->count(),
             'notionUndated' => NotionShoot::whereDoesntHave('shoot')->whereNull('shoot_date')->count(),
             'notionUnmapped' => NotionShoot::whereNull('client_id')->whereNotNull('client')->count(),
+            // Independent of the board's own filters (which default to
+            // upcoming only, and a completed shoot is never upcoming) --
+            // see Shoot::scopeNeedsContentAdded().
+            'missingContentCount' => Shoot::needsContentAdded()->count(),
         ]);
     }
 

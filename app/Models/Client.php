@@ -39,6 +39,26 @@ class Client extends Model
         'shoots' => 'Shoots this month',
     ];
 
+    /**
+     * Regular: full social media management -- Instagram connected,
+     * targets set, Forecast tracks them, monthly reports go out. Occasion:
+     * a bounded job (shoot-only, edit-only, or a one-off event like a
+     * wedding) -- the studio hands the finished video back and the client
+     * posts it themselves, so none of the above applies. `service_note`
+     * (free text, occasion only) records the specific scope -- "Editing
+     * only", "Wedding, one-time" -- deliberately not a closed enum: real
+     * scopes vary more than a fixed list would hold, same reasoning as
+     * client_team_members.role staying free text.
+     */
+    public const CLIENT_TYPE_REGULAR = 'regular';
+
+    public const CLIENT_TYPE_OCCASION = 'occasion';
+
+    public const CLIENT_TYPES = [
+        self::CLIENT_TYPE_REGULAR => 'Regular',
+        self::CLIENT_TYPE_OCCASION => 'Occasion',
+    ];
+
     protected $fillable = [
         'name',
         'logo_path',
@@ -49,6 +69,8 @@ class Client extends Model
         'report_sections_disabled',
         'notion_venture',
         'industry_id',
+        'client_type',
+        'service_note',
         'forecast_alert_depletion_date',
         'forecast_alert_sent_at',
     ];
@@ -59,6 +81,27 @@ class Client extends Model
         'forecast_alert_depletion_date' => 'date',
         'forecast_alert_sent_at' => 'datetime',
     ];
+
+    public function isOccasion(): bool
+    {
+        return $this->client_type === self::CLIENT_TYPE_OCCASION;
+    }
+
+    public function isRegular(): bool
+    {
+        return ! $this->isOccasion();
+    }
+
+    /** Every screen built for full social-media management (targets, Forecast, reports) reads this. */
+    public function scopeRegular(Builder $query): Builder
+    {
+        return $query->where('client_type', self::CLIENT_TYPE_REGULAR);
+    }
+
+    public function scopeOccasion(Builder $query): Builder
+    {
+        return $query->where('client_type', self::CLIENT_TYPE_OCCASION);
+    }
 
     /**
      * Whether one report section is on for this client by default --
@@ -232,9 +275,42 @@ class Client extends Model
     public function teamMembers(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'client_team_members')
-            ->withPivot('role')
+            ->withPivot('role', 'is_account_manager')
             ->withTimestamps()
             ->orderBy('client_team_members.created_at');
+    }
+
+    /**
+     * Whoever owns this client internally -- a real flag on the same pivot
+     * teamMembers() reads, separate from `role` (which stays purely the
+     * client-facing label it always was; a client can be told someone is
+     * their "Account Manager" without that person being the one this app
+     * routes internal alerts to, and vice versa). Usually one person, but
+     * not enforced as exactly one: a client between account managers during
+     * a handover is a real state, not an error.
+     *
+     * @return \Illuminate\Support\Collection<int, User>
+     */
+    public function accountManagers(): \Illuminate\Support\Collection
+    {
+        return $this->teamMembers->filter(fn (User $user) => (bool) $user->pivot->is_account_manager)->values();
+    }
+
+    /**
+     * Who an internal alert about this client should actually reach: the
+     * account manager(s) if any are set, otherwise the broader fallback
+     * list a caller supplies (e.g. everyone who can see the Forecast
+     * module) -- so a client nobody's been explicitly assigned to still
+     * gets covered rather than silently alerting no one.
+     *
+     * @param  \Illuminate\Support\Collection<int, User>  $fallback
+     * @return \Illuminate\Support\Collection<int, User>
+     */
+    public function alertRecipients(\Illuminate\Support\Collection $fallback): \Illuminate\Support\Collection
+    {
+        $managers = $this->accountManagers();
+
+        return $managers->isNotEmpty() ? $managers : $fallback;
     }
 
     /**

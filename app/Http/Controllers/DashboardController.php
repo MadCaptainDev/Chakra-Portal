@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Enquiry;
 use App\Models\NotionShoot;
 use App\Models\RoutineOccurrence;
+use App\Models\Shoot;
 use App\Models\Expense;
 use App\Models\ExpensePayment;
 use App\Models\Invoice;
@@ -155,6 +156,10 @@ class DashboardController extends Controller
         $forecastCritical = ContentForecast::forAllClients()
             ->where('status', ContentForecast::STATUS_CRITICAL);
 
+        // Same list SendMissingContentAlerts pushes over -- see
+        // Shoot::scopeNeedsContentAdded().
+        $missingContentCount = Shoot::needsContentAdded()->count();
+
         $actionItems = $this->actionItems([
             'unreadEnquiries' => $unreadEnquiries,
             'missedRoutinesCount' => $missedRoutinesCount,
@@ -163,6 +168,7 @@ class DashboardController extends Controller
             'forecastCriticalNames' => $forecastCritical->take(2)
                 ->map(fn (array $row) => $row['client']->name)
                 ->implode(' and '),
+            'missingContentCount' => $missingContentCount,
             'pendingReviews' => $pendingReviews,
             'behindCount' => $teamBehind->count(),
             'behindNames' => $teamBehind->take(2)
@@ -266,10 +272,16 @@ class DashboardController extends Controller
             'total' => $board['grandTotal'],
             'target' => $board['grandTarget'],
             'previous' => $board['grandPrevious'],
+            // Reel-specific, not the blended total-vs-target across all three
+            // types: every video is a reel first (see ContentAccount::
+            // TARGETABLE) -- Post/YouTube are supplementary, and an account
+            // on-pace on posts while behind on reels was reading as "fine"
+            // here before. Reel is the account's own real deliverable.
             'behind' => collect($board['clients'])
                 ->flatMap(fn (array $group) => $group['rows'])
-                ->filter(fn (array $row) => $row['target'] !== null && $row['total'] < $row['target'])
-                ->sortBy('pct')
+                ->filter(fn (array $row) => $row['types']['reel']['target'] !== null
+                    && $row['types']['reel']['actual'] < $row['types']['reel']['target'])
+                ->sortBy(fn (array $row) => $row['types']['reel']['pct'])
                 ->take(5)
                 ->map(fn (array $row) => $row + ['suggestedShootBy' => $suggestedShootBy])
                 ->values(),
@@ -470,6 +482,22 @@ class DashboardController extends Controller
                     : 'Depleting soon with no shoot booked before then.',
                 'href' => route('forecast.index'),
                 'cta' => 'Open forecast',
+            ];
+        }
+
+        /*
+         * Footage exists but nobody's told the content pipeline yet -- the
+         * gap between "shot it" and "it's trackable". See Shoot::
+         * scopeNeedsContentAdded().
+         */
+        if (($ctx['missingContentCount'] ?? 0) > 0) {
+            $items[] = [
+                'tone' => 'amber',
+                'domain' => 'Content',
+                'title' => $ctx['missingContentCount'].' completed '.Str::plural('shoot', $ctx['missingContentCount']).' not in the Reel Planner yet',
+                'detail' => 'Footage was shot, but nothing has been added to Notion\'s content pipeline for it.',
+                'href' => route('shoots.index', ['past' => 1, 'status' => 'completed']),
+                'cta' => 'Review',
             ];
         }
 

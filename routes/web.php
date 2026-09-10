@@ -27,6 +27,7 @@ use App\Http\Controllers\CompetitorSettingController;
 use App\Http\Controllers\ContentAccountController;
 use App\Http\Controllers\ContentDashboardController;
 use App\Http\Controllers\ContentItemAssignmentController;
+use App\Http\Controllers\DeliveryController;
 use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\ScriptCommentController;
 use App\Http\Controllers\ShootCalendarController;
@@ -479,6 +480,14 @@ Route::middleware(['auth', 'module:shoots,view'])->scopeBindings()->group(functi
 Route::middleware(['auth', 'module:forecast,view'])->group(function () {
     Route::get('forecast', [ForecastController::class, 'index'])->name('forecast.index');
     Route::get('forecast/{client}', [ForecastController::class, 'show'])->name('forecast.show');
+});
+
+/*
+ * Occasion clients' jobs -- see DeliveryController's own doc block.
+ */
+Route::middleware(['auth', 'module:deliveries,view'])->group(function () {
+    Route::get('deliveries', [DeliveryController::class, 'index'])->name('deliveries.index');
+    Route::get('deliveries/{client}', [DeliveryController::class, 'show'])->name('deliveries.show');
 });
 
 /*

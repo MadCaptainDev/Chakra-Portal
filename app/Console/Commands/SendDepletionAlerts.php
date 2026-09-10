@@ -57,7 +57,10 @@ class SendDepletionAlerts extends Command
                 continue;
             }
 
-            Notification::send($recipients, new ContentDepletionWarning($client, $row));
+            // The client's own account manager first -- see Client::
+            // alertRecipients(); falls back to the broad Forecast-visible
+            // list only when nobody's been assigned to this client yet.
+            Notification::send($client->alertRecipients($recipients), new ContentDepletionWarning($client, $row));
 
             $client->forceFill([
                 'forecast_alert_depletion_date' => $depletionDate,

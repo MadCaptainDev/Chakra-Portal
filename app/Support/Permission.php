@@ -91,6 +91,18 @@ class Permission
             'abilities' => ['view'],
         ],
         /*
+         * Occasion clients' jobs (shoot-only/edit-only/one-off) -- read-only
+         * over the same content_items data Forecast and Content Dashboard
+         * use, just without the targets/pace framing that doesn't apply to
+         * a bounded job. See App\Models\Client::isOccasion().
+         */
+        'deliveries' => [
+            'label' => 'Deliveries',
+            'group' => 'Production',
+            'icon' => 'inbox',
+            'abilities' => ['view'],
+        ],
+        /*
          * Client records, and the logins the studio holds on their behalf.
          *
          * "credentials" is a separate ability rather than part of view, because

@@ -9,7 +9,7 @@
 
     <div class="space-y-5">
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <x-stat-card label="Remaining" :value="$forecast['remaining']" />
+            <x-stat-card label="Reels remaining" :value="$forecast['remaining']" />
             <x-stat-card label="Weekly cadence"
                          :value="$forecast['weekly_cadence'] !== null ? number_format($forecast['weekly_cadence'], 1) : '—'" />
             <x-stat-card label="Depletes" :value="$forecast['depletion_date']?->format('j M') ?? '—'" />
@@ -39,7 +39,7 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <x-card padding="md">
-                <x-section-label dark>Content still in the pipeline</x-section-label>
+                <x-section-label dark>Reels still in the pipeline</x-section-label>
                 <div class="mt-3 divide-y divide-white/5">
                     @forelse ($items as $item)
                         <div class="py-2.5 flex items-center justify-between gap-3">

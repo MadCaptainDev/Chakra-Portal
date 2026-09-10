@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Client;
 use App\Models\TaxonomyTerm;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -47,6 +48,9 @@ class ClientRequest extends FormRequest
             'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
             'remove_logo' => ['sometimes', 'boolean'],
             'whatsapp_portal_enabled' => ['sometimes', 'boolean'],
+
+            'client_type' => ['required', Rule::in(array_keys(Client::CLIENT_TYPES))],
+            'service_note' => ['nullable', 'string', 'max:255'],
         ];
     }
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\ContentItem;
 use App\Support\ContentDashboard;
 use App\Support\ContentForecast;
 use Illuminate\View\View;
@@ -34,7 +35,11 @@ class ForecastController extends Controller
             ContentDashboard::STATUS_GROUPS['in_progress'],
         );
 
+        // Reel only, matching ContentForecast::remainingFor() -- this list
+        // is the drill-down behind the "remaining" count, so it has to
+        // count the same things that number counts.
         $items = $client->contentItems()
+            ->where('source', ContentItem::SOURCE_REEL)
             ->whereIn('status', $statuses)
             ->with('notionShoot')
             ->orderByRaw('shoot_date is null, shoot_date')

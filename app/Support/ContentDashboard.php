@@ -65,7 +65,14 @@ class ContentDashboard
         $performance = self::performanceByAccount($month);
         $pipeline = self::pipelineForMonth($month);
 
-        $accounts = ContentAccount::with(['client', 'ventures'])->targeted()->get()
+        // Occasion clients (shoot-only/edit-only/one-off, hands the video
+        // back rather than posting it) have no business in a targets-and-
+        // pace screen -- see Client::isOccasion(). Belt and suspenders: an
+        // occasion client shouldn't have a ContentAccount at all, but this
+        // is what makes that a guarantee rather than a hope.
+        $accounts = ContentAccount::with(['client', 'ventures'])->targeted()
+            ->whereHas('client', fn ($q) => $q->regular())
+            ->get()
             ->sortBy(fn (ContentAccount $a) => [$a->client?->name ?? '', $a->name])
             ->values();
 

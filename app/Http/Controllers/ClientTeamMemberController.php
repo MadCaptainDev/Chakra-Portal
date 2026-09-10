@@ -20,12 +20,16 @@ class ClientTeamMemberController extends Controller
         $data = $request->validate([
             'user_id' => ['required', 'integer', 'exists:users,id'],
             'role' => ['nullable', 'string', 'max:255'],
+            'is_account_manager' => ['nullable', 'boolean'],
         ]);
 
         $user = User::whereIn('role', [User::ROLE_ADMIN, User::ROLE_EMPLOYEE])->findOrFail($data['user_id']);
 
         $client->teamMembers()->syncWithoutDetaching([
-            $user->id => ['role' => $data['role'] ?? null],
+            $user->id => [
+                'role' => $data['role'] ?? null,
+                'is_account_manager' => (bool) ($data['is_account_manager'] ?? false),
+            ],
         ]);
 
         return redirect()->route('clients.show', $client)->with('status', "{$user->name} added to {$client->name}'s team.");

@@ -101,10 +101,14 @@
                              icon="x-circle"
                              accent="red" />
             @else
-                <x-stat-card label="vs Target"
-                             :value="$grandTarget !== null ? $grandTotal.' / '.$grandTarget : '—'"
+                {{-- Reel specifically, not the blended total across every
+                     type: every video is a reel first, Post/YouTube are
+                     supplementary (see ContentAccount::TARGETABLE). --}}
+                @php($reelTotals = $typeTotals[\App\Models\ContentItem::SOURCE_REEL] ?? null)
+                <x-stat-card label="Reel vs Target"
+                             :value="$reelTotals && $reelTotals['target'] !== null ? $reelTotals['actual'].' / '.$reelTotals['target'] : '—'"
                              icon="trending-up"
-                             :accent="$grandTarget === null ? 'gray' : ($grandTotal >= $grandTarget ? 'green' : 'red')" />
+                             :accent="!$reelTotals || $reelTotals['target'] === null ? 'gray' : ($reelTotals['actual'] >= $reelTotals['target'] ? 'green' : 'red')" />
             @endif
         </div>
 

@@ -291,7 +291,7 @@
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-3.5 mt-3.5 items-start">
                 <x-card tone="dark" class="p-5 sm:p-6">
-                    <p class="text-sm font-semibold text-white mb-3">Behind target this month</p>
+                    <p class="text-sm font-semibold text-white mb-3">Behind on reels this month</p>
 
                     @forelse ($content['behind'] as $row)
                         <a href="{{ route('content-dashboard.show', [$row['account'], 'month' => $month->format('Y-m')]) }}"
@@ -301,8 +301,10 @@
                                 <span class="block text-[11px] text-brand-100/40 truncate">{{ $row['account']->client?->name }}</span>
                             </span>
                             <span class="shrink-0 text-right">
+                                {{-- Reel specifically, not the blended total across
+                                     every type -- see DashboardController::contentPulse(). --}}
                                 <span class="block text-sm tabular-nums text-amber-300">
-                                    {{ $row['total'] }} / {{ $row['target'] }}
+                                    {{ $row['types']['reel']['actual'] }} / {{ $row['types']['reel']['target'] }} reels
                                 </span>
                                 {{-- A deliberately simple suggestion, not a real
                                      schedule -- see DashboardController::contentPulse(). --}}
@@ -313,9 +315,9 @@
                         </a>
                     @empty
                         <p class="text-sm text-brand-100/50">
-                            {{ $content['target'] === null
-                                ? 'No targets set yet — nothing to measure against.'
-                                : 'Every account with a target is on or ahead of it.' }}
+                            {{ ($content['types']['reel']['target'] ?? null) === null
+                                ? 'No reel targets set yet — nothing to measure against.'
+                                : 'Every account with a reel target is on or ahead of it.' }}
                         </p>
                     @endforelse
 

@@ -92,7 +92,11 @@ class ContentForecast
     public static function forAllClients(): Collection
     {
         return Client::query()
+            ->regular()
             ->whereHas('contentAccounts')
+            // For Client::alertRecipients() -- SendDepletionAlerts reads
+            // this off each row's client without a query per client.
+            ->with('teamMembers')
             ->orderBy('name')
             ->get()
             ->map(fn (Client $client) => self::forClient($client))
@@ -107,6 +111,11 @@ class ContentForecast
      * venture-matched only, the studio's existing, admittedly imperfect
      * convention; see Client::contentItems()'s own doc block).
      *
+     * Reels only. Every video is a reel first (see ContentAccount::
+     * TARGETABLE) -- a client with posts queued but no reels shot would
+     * otherwise read as having a healthy runway on the strength of content
+     * nobody's actually depending on for their reel cadence.
+     *
      * @return array{0: int, 1: int, 2: int} [remaining, reliable, fuzzy]
      */
     private static function remainingFor(Client $client): array
@@ -117,6 +126,7 @@ class ContentForecast
         );
 
         $items = $client->contentItems()
+            ->where('source', ContentItem::SOURCE_REEL)
             ->whereIn('status', $statuses)
             ->select(['id', 'notion_shoot_id'])
             ->get();
@@ -138,18 +148,20 @@ class ContentForecast
     }
 
     /**
-     * Sum of this client's own published-per-week rate, from
-     * ContentAccount's monthly targets -- the cadence the user confirmed
-     * using rather than a new "posts per week" field. Null when the client
-     * has content accounts but none carries any target at all: there is
-     * nothing to divide by, and 0 would read as "already depleted" instead
-     * of "unknown".
+     * Sum of this client's own reel-published-per-week rate, from
+     * ContentAccount's monthly reel target -- the cadence the user
+     * confirmed using rather than a new "posts per week" field. Reel only,
+     * not totalTarget()'s sum across every type: Post/YouTube targets
+     * don't describe how fast the client's actual deliverable (reels) gets
+     * consumed. Null when the client has content accounts but none carries
+     * a reel target: there is nothing to divide by, and 0 would read as
+     * "already depleted" instead of "unknown".
      */
     private static function weeklyCadenceFor(Client $client): ?float
     {
         $monthly = $client->contentAccounts()
             ->get()
-            ->sum(fn ($account) => $account->totalTarget() ?? 0);
+            ->sum(fn ($account) => $account->targetFor(ContentItem::SOURCE_REEL) ?? 0);
 
         return $monthly > 0 ? $monthly / self::WEEKS_PER_MONTH : null;
     }

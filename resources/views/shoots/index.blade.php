@@ -39,14 +39,20 @@
             @endif
         @endcan
 
-        <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <x-stat-card label="Upcoming" :value="$upcomingCount" accent="brand" icon="camera" />
             <x-stat-card label="This week" :value="$thisWeek" accent="gray" icon="calendar" />
             <x-stat-card label="Kit still out" :value="$overdueKit"
                          :accent="$overdueKit > 0 ? 'red' : 'green'" icon="alert"
-                         :href="$overdueKit > 0 ? route('shoots.index', ['past' => 1]) : null"
-                         class="col-span-2 lg:col-span-1">
+                         :href="$overdueKit > 0 ? route('shoots.index', ['past' => 1]) : null">
                 {{ $overdueKit > 0 ? 'From shoots that have finished' : 'Everything is back' }}
+            </x-stat-card>
+            {{-- Shot, but nothing added to the Reel Planner yet -- see
+                 Shoot::scopeNeedsContentAdded(). --}}
+            <x-stat-card label="Missing content" :value="$missingContentCount"
+                         :accent="$missingContentCount > 0 ? 'red' : 'green'" icon="alert"
+                         :href="$missingContentCount > 0 ? route('shoots.index', ['past' => 1, 'status' => 'completed']) : null">
+                {{ $missingContentCount > 0 ? "Completed, nothing in Notion yet" : 'All caught up' }}
             </x-stat-card>
         </div>
 
@@ -146,6 +152,11 @@
                                                     @endif
                                                     @if ($shoot->hasKitProblems())
                                                         <x-badge status="overdue">Kit issue</x-badge>
+                                                    @endif
+                                                    @if ($shoot->isMissingContent())
+                                                        <span title="Completed, but nothing linked in the Reel Planner yet">
+                                                            <x-badge status="overdue">Add to Notion</x-badge>
+                                                        </span>
                                                     @endif
                                                     @if ($shoot->isFromNotion())
                                                         <span title="Synced from Notion" class="inline-flex text-brand-100/50">

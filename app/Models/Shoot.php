@@ -47,6 +47,7 @@ class Shoot extends Model
         'notion_shoot_id',
         'requested_at',
         'reminder_sent_at',
+        'content_missing_alert_sent_at',
     ];
 
     protected $casts = [
@@ -54,6 +55,7 @@ class Shoot extends Model
         'ends_at' => 'datetime',
         'requested_at' => 'datetime',
         'reminder_sent_at' => 'datetime',
+        'content_missing_alert_sent_at' => 'datetime',
     ];
 
     public function client(): BelongsTo
@@ -116,6 +118,38 @@ class Shoot extends Model
     public function scopeOrdered(Builder $query): void
     {
         $query->orderBy('starts_at');
+    }
+
+    /**
+     * Completed, but nothing shows up for it in the Reel Planner -- either
+     * this shoot has no Notion counterpart at all, or it does and that
+     * counterpart's Shoot<->Reel relation (see ContentSyncService::
+     * resolveShootLinks()) is empty. Either way: footage was shot, and
+     * nobody has entered it into the content pipeline yet.
+     */
+    public function scopeNeedsContentAdded(Builder $query): void
+    {
+        $query->where('status', self::STATUS_COMPLETED)
+            ->where(function (Builder $q) {
+                $q->whereDoesntHave('notionShoot')
+                    ->orWhereHas('notionShoot', fn (Builder $ns) => $ns->whereDoesntHave('contentItems'));
+            });
+    }
+
+    /**
+     * Same question as scopeNeedsContentAdded(), for one already-loaded
+     * shoot -- needs notionShoot.contentItems eager-loaded to avoid an
+     * extra query per row on a list.
+     *
+     * Named differently from the scope on purpose: Eloquent resolves a
+     * real instance method before its scope-forwarding magic, so a
+     * same-named instance method here would make every
+     * Shoot::needsContentAdded() static call in this codebase fatal.
+     */
+    public function isMissingContent(): bool
+    {
+        return $this->status === self::STATUS_COMPLETED
+            && ($this->notionShoot === null || $this->notionShoot->contentItems->isEmpty());
     }
 
     public function statusLabel(): string

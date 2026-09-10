@@ -83,6 +83,31 @@
     <x-input-error :messages="$errors->get('phone')" class="mt-2" />
 </div>
 
+{{-- Regular: full social media management -- targets, Forecast, monthly
+     reports all apply. Occasion: a bounded job (shoot-only, edit-only, a
+     one-off event) -- the studio hands the video back, the client posts it
+     themselves, and none of the above applies. See App\Models\Client. --}}
+<div class="mb-4" x-data="{ occasion: {{ old('client_type', $client->client_type ?? \App\Models\Client::CLIENT_TYPE_REGULAR) === \App\Models\Client::CLIENT_TYPE_OCCASION ? 'true' : 'false' }} }">
+    <x-input-label for="client_type" value="Client type" />
+    <x-select id="client_type" name="client_type" class="mt-1" @change="occasion = ($event.target.value === '{{ \App\Models\Client::CLIENT_TYPE_OCCASION }}')">
+        @foreach (\App\Models\Client::CLIENT_TYPES as $value => $label)
+            <option value="{{ $value }}" @selected(old('client_type', $client->client_type ?? \App\Models\Client::CLIENT_TYPE_REGULAR) === $value)>{{ $label }}</option>
+        @endforeach
+    </x-select>
+    <p class="mt-1 text-xs text-brand-100/60">
+        Occasion clients are left out of targets, Forecast and monthly Instagram reports -- none of that applies to a bounded job.
+    </p>
+    <x-input-error :messages="$errors->get('client_type')" class="mt-2" />
+
+    <div x-show="occasion" x-cloak class="mt-3">
+        <x-input-label for="service_note" value="Scope (optional)" />
+        <x-text-input id="service_note" name="service_note" type="text" class="mt-1 block w-full"
+                      value="{{ old('service_note', $client->service_note ?? '') }}"
+                      placeholder="e.g. Editing only, Wedding — one-time, Shooting only" />
+        <x-input-error :messages="$errors->get('service_note')" class="mt-2" />
+    </div>
+</div>
+
 <div class="mb-6">
     <label class="inline-flex items-start gap-2.5 text-sm text-brand-100/80">
         <input type="checkbox" name="whatsapp_portal_enabled" value="1"

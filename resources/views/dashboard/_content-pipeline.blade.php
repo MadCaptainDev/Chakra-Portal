@@ -69,74 +69,80 @@
                         </a>
                     </div>
 
-                    {{-- One row per content type. This is the split the old
-                         single "published" number hid: eight things published
-                         is a different month depending on whether it was
-                         eight reels or eight stories. --}}
-                    <div class="space-y-2.5">
-                        @foreach ($card['types'] as $source => $type)
-                            <div>
-                                <div class="flex items-baseline justify-between gap-2 mb-1">
-                                    <span class="text-xs text-brand-100/70">{{ $type['label'] }}</span>
-                                    <span class="flex items-baseline gap-2 shrink-0">
-                                        @if ($type['delta'] !== 0)
-                                            {{-- Against the same month last time, so a
-                                                 quiet month reads as quiet rather than
-                                                 as a number with no reference point. --}}
-                                            <span @class([
-                                                'text-[11px] tabular-nums',
-                                                'text-green-400' => $type['delta'] > 0,
-                                                'text-red-300' => $type['delta'] < 0,
-                                            ])>
-                                                {{ $type['delta'] > 0 ? '▲' : '▼' }}{{ abs($type['delta']) }}
-                                            </span>
-                                        @endif
-                                        <span class="text-sm font-semibold tabular-nums text-white">
-                                            {{ $type['actual'] }}@if ($type['target'])<span class="text-brand-100/40">/{{ $type['target'] }}</span>@endif
+                    {{-- Reel is the headline: every video is a reel first, and
+                         Post/YouTube are supplementary (see ContentAccount::
+                         TARGETABLE's own doc block). A blended "Total" across
+                         all three used to let an on-track post count hide a
+                         reel shortfall -- this card no longer computes one. --}}
+                    @php($reel = $card['types'][\App\Models\ContentItem::SOURCE_REEL] ?? null)
+                    @if ($reel)
+                        <div>
+                            <div class="flex items-baseline justify-between gap-2 mb-1.5">
+                                <span class="text-sm font-semibold text-white">{{ $reel['label'] }}</span>
+                                <span class="flex items-baseline gap-2 shrink-0">
+                                    @if ($reel['delta'] !== 0)
+                                        <span @class([
+                                            'text-xs tabular-nums',
+                                            'text-green-400' => $reel['delta'] > 0,
+                                            'text-red-300' => $reel['delta'] < 0,
+                                        ])>
+                                            {{ $reel['delta'] > 0 ? '▲' : '▼' }}{{ abs($reel['delta']) }}
                                         </span>
+                                    @endif
+                                    <span class="text-xl font-bold tabular-nums text-white">
+                                        {{ $reel['actual'] }}@if ($reel['target'])<span class="text-brand-100/40 text-base font-semibold">/{{ $reel['target'] }}</span>@endif
                                     </span>
+                                    @if ($reel['pace'])
+                                        <span @class([
+                                            'text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded',
+                                            'bg-green-400/15 text-green-300' => $reel['pace'] === 'on_track',
+                                            'bg-amber-400/15 text-amber-300' => $reel['pace'] === 'behind',
+                                        ])>{{ $reel['pace'] === 'on_track' ? 'On track' : 'Behind' }}</span>
+                                    @endif
+                                </span>
+                            </div>
+
+                            @if ($reel['target'])
+                                <div class="h-2 rounded-full bg-white/[0.07] overflow-hidden">
+                                    <div @class([
+                                            'h-full rounded-full',
+                                            'bg-green-400' => $reel['pace'] === 'on_track',
+                                            'bg-amber-400' => $reel['pace'] === 'behind',
+                                            'bg-brand-400' => $reel['pace'] === null,
+                                         ])
+                                         style="width: {{ min(100, $reel['pct'] ?? 0) }}%"></div>
                                 </div>
+                            @endif
 
-                                @if ($type['target'])
-                                    <div class="h-1.5 rounded-full bg-white/[0.07] overflow-hidden">
-                                        <div @class([
-                                                'h-full rounded-full',
-                                                'bg-green-400' => $type['pace'] === 'on_track',
-                                                'bg-amber-400' => $type['pace'] === 'behind',
-                                                'bg-brand-400' => $type['pace'] === null,
-                                             ])
-                                             style="width: {{ min(100, $type['pct'] ?? 0) }}%"></div>
-                                    </div>
-                                @endif
+                            @if (($reel['upcoming'] ?? 0) > 0)
+                                <p class="mt-1 text-[10px] text-brand-100/40">
+                                    Upcoming <span class="text-brand-100/70 tabular-nums">{{ $reel['upcoming'] }}</span>
+                                    @if ($reel['next_shoot_date'])
+                                        · Next shoot <span class="text-brand-100/70">{{ $reel['next_shoot_date']->format('j M') }}</span>
+                                    @endif
+                                </p>
+                            @endif
+                        </div>
+                    @endif
 
-                                @if (($type['upcoming'] ?? 0) > 0)
-                                    <p class="mt-1 text-[10px] text-brand-100/40">
-                                        Upcoming <span class="text-brand-100/70 tabular-nums">{{ $type['upcoming'] }}</span>
-                                        @if ($type['next_shoot_date'])
-                                            · Next shoot <span class="text-brand-100/70">{{ $type['next_shoot_date']->format('j M') }}</span>
-                                        @endif
-                                    </p>
-                                @endif
+                    {{-- Supplementary: shown for visibility, never summed
+                         with Reel into one combined figure. --}}
+                    <div class="space-y-2 pt-1 border-t border-white/5">
+                        @foreach ($card['types'] as $source => $type)
+                            @continue($source === \App\Models\ContentItem::SOURCE_REEL)
+                            <div class="flex items-baseline justify-between gap-2">
+                                <span class="text-xs text-brand-100/50">{{ $type['label'] }}</span>
+                                <span class="text-xs tabular-nums text-brand-100/70">
+                                    {{ $type['actual'] }}@if ($type['target'])<span class="text-brand-100/30">/{{ $type['target'] }}</span>@endif
+                                </span>
                             </div>
                         @endforeach
 
                         @if ($card['stories'] > 0)
-                            <div class="flex items-baseline justify-between gap-2 pt-1">
-                                <span class="text-xs text-brand-100/70">Stories</span>
-                                <span class="text-sm font-semibold tabular-nums text-white">{{ $card['stories'] }}</span>
+                            <div class="flex items-baseline justify-between gap-2">
+                                <span class="text-xs text-brand-100/50">Stories</span>
+                                <span class="text-xs tabular-nums text-brand-100/70">{{ $card['stories'] }}</span>
                             </div>
-                        @endif
-                    </div>
-
-                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 pt-3 border-t border-white/5 text-[11px]">
-                        <span class="text-brand-100/50">
-                            Total <span class="tabular-nums text-white font-semibold">{{ $card['total'] }}</span>@if ($card['target'])<span class="text-brand-100/40">/{{ $card['target'] }}</span>@endif
-                        </span>
-                        @php($behind = collect($card['types'])->where('pace', 'behind')->count())
-                        @if ($behind > 0)
-                            <span class="text-amber-300">{{ $behind }} behind pace</span>
-                        @elseif (collect($card['types'])->where('pace', 'on_track')->isNotEmpty())
-                            <span class="text-green-400">On track</span>
                         @endif
                     </div>
 

@@ -82,6 +82,10 @@ Schedule::command('digest:send-daily')->dailyAt('08:30')->timezone(config('app.t
 // (every 30 min, always current by 09:00). See SendDepletionAlerts.
 Schedule::command('content:send-depletion-alerts')->dailyAt('09:00')->timezone(config('app.timezone'));
 
+// Same ordering reason as the depletion alert above -- needs the day's
+// Shoot<->Reel links resolved first. See SendMissingContentAlerts.
+Schedule::command('shoots:send-missing-content-alerts')->dailyAt('09:00')->timezone(config('app.timezone'));
+
 // None of the three above have a page-view catch-up the way
 // invoices:generate-recurring/routines:generate/instagram:sync do (see
 // EnsureRecurringInvoicesGenerated and friends) -- there is no natural

@@ -16,7 +16,7 @@
                         <thead class="bg-white/[0.03]">
                             <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-brand-100/50">
                                 <th class="px-4 py-3">Client</th>
-                                <th class="px-4 py-3">Remaining</th>
+                                <th class="px-4 py-3">Reels remaining</th>
                                 <th class="px-4 py-3">Weekly cadence</th>
                                 <th class="px-4 py-3">Depletes</th>
                                 <th class="px-4 py-3">Next shoot</th>

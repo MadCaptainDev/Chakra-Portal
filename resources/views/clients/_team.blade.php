@@ -12,7 +12,13 @@
             @foreach ($teamMembers as $member)
                 <li class="flex items-center justify-between gap-3 py-2.5">
                     <div class="min-w-0">
-                        <p class="text-sm font-medium text-white truncate">{{ $member->name }}</p>
+                        <p class="text-sm font-medium text-white truncate flex items-center gap-1.5">
+                            {{ $member->name }}
+                            @if ($member->pivot->is_account_manager)
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-brand-400/20 text-brand-200"
+                                      title="Internal alerts (depletion, overdue content) route to this person first">Account manager</span>
+                            @endif
+                        </p>
                         @if ($member->pivot->role)
                             <p class="text-xs text-brand-100/60">{{ $member->pivot->role }}</p>
                         @endif
@@ -45,7 +51,15 @@
                 <x-input-label for="team_role" value="As" />
                 <x-text-input id="team_role" name="role" type="text" class="mt-1 w-full" placeholder="e.g. Editor, Account Manager" />
             </div>
+            <label class="flex items-center gap-2 text-xs text-brand-100/70 pb-2.5">
+                <input type="checkbox" name="is_account_manager" value="1"
+                       class="rounded border-white/20 bg-white/5 text-brand-400 focus:ring-brand-400">
+                Account manager
+            </label>
             <x-primary-button>Add</x-primary-button>
         </form>
+        <p class="mt-2 text-[11px] text-brand-100/40">
+            Already on the team? Add them again with the box ticked (or unticked) to update it.
+        </p>
     @endif
 </x-card>

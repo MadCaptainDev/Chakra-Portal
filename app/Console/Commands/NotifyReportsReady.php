@@ -49,6 +49,17 @@ class NotifyReportsReady extends Command
                 continue;
             }
 
+            // An occasion client (shoot-only/edit-only/one-off) has no
+            // studio-tracked Instagram strategy to report on -- see
+            // Client::isOccasion(). In practice they won't have a connected
+            // SocialAccount to begin with, but this makes that deliberate
+            // rather than incidental.
+            if ($client->isOccasion()) {
+                $skipped++;
+
+                continue;
+            }
+
             $note = MonthlyReportNote::forClientAndMonth($client, $month);
 
             // Already told them about this exact month -- a re-run (a
