@@ -64,6 +64,7 @@ class ContentDashboard
         $previous = self::countsByAccount($month->copy()->subMonthNoOverflow());
         $performance = self::performanceByAccount($month);
         $pipeline = self::pipelineForMonth($month);
+        [$upcomingCounts] = self::upcomingByAccount();
 
         // Occasion clients (shoot-only/edit-only/one-off, hands the video
         // back rather than posting it) have no business in a targets-and-
@@ -76,14 +77,16 @@ class ContentDashboard
             ->sortBy(fn (ContentAccount $a) => [$a->client?->name ?? '', $a->name])
             ->values();
 
-        $rows = $accounts->map(function (ContentAccount $account) use ($publishedCounts, $plannedCounts, $previous, $performance) {
+        $rows = $accounts->map(function (ContentAccount $account) use ($publishedCounts, $plannedCounts, $previous, $performance, $upcomingCounts, $month) {
             $published = $publishedCounts[$account->id] ?? [];
             $planned = $plannedCounts[$account->id] ?? [];
+            $upcoming = $upcomingCounts[$account->id] ?? [];
 
-            $types = collect(self::TARGETED)->map(function (string $label, string $source) use ($account, $published, $planned) {
+            $types = collect(self::TARGETED)->map(function (string $label, string $source) use ($account, $published, $planned, $upcoming, $month) {
                 $actualPublished = $published[$source] ?? 0;
                 $actualPlanned = $planned[$source] ?? 0;
                 $target = $account->targetFor($source);
+                $actualUpcoming = $upcoming[$source] ?? 0;
 
                 return [
                     'label' => $label,
@@ -93,6 +96,12 @@ class ContentDashboard
                     'variance' => $target === null ? null : $actualPublished - $target,
                     'pct' => $target ? (int) round($actualPublished / $target * 100) : null,
                     'planned_pct' => $actualPlanned > 0 ? (int) round($actualPublished / $actualPlanned * 100) : null,
+                    'upcoming' => $actualUpcoming,
+                    // Insta Reel only -- see reelPaceStatus(). Never blended
+                    // with Post or YouTube.
+                    'reel_status' => $source === ContentItem::SOURCE_REEL
+                        ? self::reelPaceStatus($actualPublished, $target, $actualUpcoming, $month)
+                        : null,
                 ];
             })->all();
 
@@ -113,6 +122,10 @@ class ContentDashboard
                 'previous' => collect(array_keys(self::TARGETED))
                     ->sum(fn (string $s) => $previous[$account->id][$s] ?? 0),
                 'performance' => $performance[$account->id] ?? null,
+                // Handy for the view: the same reel_status that lives on
+                // $types[SOURCE_REEL], surfaced at the row level so the
+                // card header can read it without knowing the source key.
+                'reelStatus' => $types[ContentItem::SOURCE_REEL]['reel_status'] ?? null,
             ];
         });
 
@@ -136,12 +149,24 @@ class ContentDashboard
             'grandTarget' => $rows->whereNotNull('target')->sum('target') ?: null,
             'pipeline' => $pipeline,
             'typeTotals' => collect(self::TARGETED)
-                ->map(fn (string $label, string $source) => [
-                    'label' => $label,
-                    'actual' => $rows->sum(fn (array $r) => $r['types'][$source]['actual']),
-                    'planned' => $rows->sum(fn (array $r) => $r['types'][$source]['planned']),
-                    'target' => $rows->sum(fn (array $r) => $r['types'][$source]['target'] ?? 0) ?: null,
-                ])->all(),
+                ->map(function (string $label, string $source) use ($rows, $month) {
+                    $actual = $rows->sum(fn (array $r) => $r['types'][$source]['actual']);
+                    $target = $rows->sum(fn (array $r) => $r['types'][$source]['target'] ?? 0) ?: null;
+                    $upcoming = $rows->sum(fn (array $r) => $r['types'][$source]['upcoming'] ?? 0);
+
+                    return [
+                        'label' => $label,
+                        'actual' => $actual,
+                        'planned' => $rows->sum(fn (array $r) => $r['types'][$source]['planned']),
+                        'target' => $target,
+                        'upcoming' => $upcoming,
+                        // Insta Reel only, across every targeted account --
+                        // the studio-wide traffic light the top stat card shows.
+                        'reel_status' => $source === ContentItem::SOURCE_REEL
+                            ? self::reelPaceStatus($actual, $target, $upcoming, $month)
+                            : null,
+                    ];
+                })->all(),
             'unmapped' => ContentAccount::unmappedVentures(),
             'unmappedThisMonth' => self::unmappedCountForMonth($month),
             'untargetedAccounts' => ContentAccount::query()->whereNotIn('id', $accounts->pluck('id'))->count(),
@@ -385,7 +410,7 @@ class ContentDashboard
         $pace = $isCurrentMonth ? self::monthElapsedFraction($month) : null;
 
         return $accounts->map(function (ContentAccount $account) use (
-            $published, $planned, $previous, $performance, $topPerformers, $pace, $upcomingCounts, $nextShootDates
+            $published, $planned, $previous, $performance, $topPerformers, $pace, $upcomingCounts, $nextShootDates, $month
         ) {
             $publishedCounts = $published[$account->id] ?? [];
             $plannedCounts = $planned[$account->id] ?? [];
@@ -393,11 +418,12 @@ class ContentDashboard
             $upcomingForAccount = $upcomingCounts[$account->id] ?? [];
 
             $types = collect(self::TARGETED)->map(function (string $label, string $source) use (
-                $account, $publishedCounts, $plannedCounts, $previousCounts, $pace, $upcomingForAccount, $nextShootDates
+                $account, $publishedCounts, $plannedCounts, $previousCounts, $pace, $upcomingForAccount, $nextShootDates, $month
             ) {
                 $actual = $publishedCounts[$source] ?? 0;
                 $target = $account->targetFor($source);
                 $was = $previousCounts[$source] ?? 0;
+                $upcoming = $upcomingForAccount[$source] ?? 0;
 
                 return [
                     'label' => $label,
@@ -408,12 +434,17 @@ class ContentDashboard
                     'delta' => $actual - $was,
                     'previous' => $was,
                     'pace' => self::paceVerdict($actual, $target, $pace),
+                    // Insta Reel only -- see reelPaceStatus(). Post/YouTube
+                    // never get one; their numbers stand on their own.
+                    'reel_status' => $source === ContentItem::SOURCE_REEL
+                        ? self::reelPaceStatus($actual, $target, $upcoming, $month)
+                        : null,
                     // Not-yet-published work already in the pipeline (shot
                     // or being edited, or scheduled to post) and the
                     // earliest future shoot_date behind it — an interim
                     // reading from the content item's own date field until
                     // a real shoot link exists (see notion_shoot_id).
-                    'upcoming' => $upcomingForAccount[$source] ?? 0,
+                    'upcoming' => $upcoming,
                     'next_shoot_date' => $nextShootDates[$account->id.'|'.$source] ?? null,
                 ];
             })->all();
@@ -460,6 +491,49 @@ class ContentDashboard
         }
 
         return $actual >= $target * $elapsed ? 'on_track' : 'behind';
+    }
+
+    /**
+     * Reel-only traffic light: not "is today's count on pace" but "is there
+     * enough already lined up to still make the month" -- what a studio
+     * actually acts on is whether the next shoot got booked, not whether
+     * this morning's tally looks good on paper.
+     *
+     * $upcoming is whatever is scheduled or being edited/shot, regardless of
+     * month -- see upcomingByAccount(). $expected is how many should be
+     * published by today at an even pace (target 15, the 11th of a 30-day
+     * month -> floor(15 * 11 / 30) = 5): a whole-video count, not a
+     * percentage, because nobody posts half a reel.
+     *
+     * green: enough is already lined up to cover the rest of the pace, so
+     *        today's count doesn't matter yet.
+     * orange: something is scheduled, but not enough of it -- plan the next
+     *         shoot.
+     * red: nothing at all is scheduled, and today's count is already behind
+     *      pace -- the studio is both behind and has nothing coming.
+     * null: no target set, or this isn't the month currently running (a
+     *       closed or future month has nothing to chase).
+     *
+     * Deliberately Insta Reel only -- never blended with Post or YouTube,
+     * which get their own numbers shown separately, never summed in.
+     *
+     * @return array{status: string, expected: int, upcoming: int}|null
+     */
+    public static function reelPaceStatus(int $actual, ?int $target, int $upcoming, Carbon $month): ?array
+    {
+        if ($target === null || $target <= 0 || ! $month->isSameMonth(now())) {
+            return null;
+        }
+
+        $expected = (int) floor($target * now()->day / $month->daysInMonth);
+
+        $status = match (true) {
+            $upcoming >= $expected => 'green',
+            $upcoming === 0 && $actual < $expected => 'red',
+            default => 'orange',
+        };
+
+        return ['status' => $status, 'expected' => $expected, 'upcoming' => $upcoming];
     }
 
     /**

@@ -114,12 +114,23 @@
             @else
                 {{-- Reel specifically, not the blended total across every
                      type: every video is a reel first, Post/YouTube are
-                     supplementary (see ContentAccount::TARGETABLE). --}}
+                     supplementary (see ContentAccount::TARGETABLE). Accent
+                     follows the same green/orange/red traffic light as the
+                     per-account cards below, driven by what's scheduled
+                     ahead -- not just today's raw count -- see
+                     ContentDashboard::reelPaceStatus(). --}}
                 @php($reelTotals = $typeTotals[\App\Models\ContentItem::SOURCE_REEL] ?? null)
+                @php($reelTotalsStatus = $reelTotals['reel_status']['status'] ?? null)
                 <x-stat-card label="Reel vs Target"
                              :value="$reelTotals && $reelTotals['target'] !== null ? $reelTotals['actual'].' / '.$reelTotals['target'] : '—'"
                              icon="trending-up"
-                             :accent="!$reelTotals || $reelTotals['target'] === null ? 'gray' : ($reelTotals['actual'] >= $reelTotals['target'] ? 'green' : 'red')" />
+                             :accent="match(true) {
+                                 !$reelTotals || $reelTotals['target'] === null => 'gray',
+                                 $reelTotalsStatus === 'orange' => 'amber',
+                                 $reelTotalsStatus === 'red' => 'red',
+                                 $reelTotalsStatus === 'green' => 'green',
+                                 default => $reelTotals['actual'] >= $reelTotals['target'] ? 'green' : 'red',
+                             }" />
             @endif
         </div>
 
@@ -208,67 +219,99 @@
                                         @endif
                                     </div>
 
-                                    {{-- One row per platform: the split this whole
-                                         redesign exists for. A bare "8 published"
-                                         used to hide whether that was eight reels
-                                         or eight stories. --}}
-                                    <div class="space-y-3">
+                                    {{-- Insta Reel leads, and carries the
+                                         green/orange/red pace verdict --
+                                         every video is a reel first, and
+                                         mainline content is Instagram (see
+                                         ContentAccount::TARGETABLE and
+                                         ContentDashboard::reelPaceStatus).
+                                         Post/YouTube follow below as their
+                                         own numbers, never folded into this
+                                         one or into a blended total. --}}
+                                    @php
+                                        $reel = $row['types'][\App\Models\ContentItem::SOURCE_REEL];
+                                        $reelStatus = $reel['reel_status'];
+                                    @endphp
+                                    <div>
+                                        <div class="flex items-center gap-3">
+                                            <x-brand-icon name="instagram" class="w-6 h-6 shrink-0" />
+                                            <div class="flex-1 min-w-0">
+                                                <div class="flex items-baseline justify-between gap-2">
+                                                    <span class="text-xs text-brand-100/70">{{ $reel['label'] }}</span>
+                                                    <span class="flex items-baseline gap-2">
+                                                        <span class="text-sm font-semibold tabular-nums text-white">
+                                                            {{ $reel['actual'] }}@if ($reel['target'] !== null)<span class="text-brand-100/40">/{{ $reel['target'] }}</span>@endif
+                                                        </span>
+                                                        @if ($reelStatus)
+                                                            <span @class([
+                                                                'text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0',
+                                                                'bg-green-400/15 text-green-300' => $reelStatus['status'] === 'green',
+                                                                'bg-amber-400/15 text-amber-300' => $reelStatus['status'] === 'orange',
+                                                                'bg-red-400/15 text-red-300' => $reelStatus['status'] === 'red',
+                                                            ])>{{ ['green' => 'On track', 'orange' => 'Plan next shoot', 'red' => 'Behind, nothing scheduled'][$reelStatus['status']] }}</span>
+                                                        @endif
+                                                    </span>
+                                                </div>
+                                                @if ($reel['target'] !== null)
+                                                    <div class="h-1.5 rounded-full bg-white/[0.07] overflow-hidden mt-1">
+                                                        <div @class([
+                                                            'h-full rounded-full',
+                                                            'bg-green-400' => $reelStatus['status'] === 'green',
+                                                            'bg-amber-400' => $reelStatus['status'] === 'orange',
+                                                            'bg-red-400' => $reelStatus['status'] === 'red',
+                                                            'bg-brand-400' => $reelStatus === null,
+                                                        ]) style="width: {{ min(100, $reel['pct'] ?? 0) }}%"></div>
+                                                    </div>
+                                                @endif
+                                                @if ($reelStatus)
+                                                    <p class="mt-1 text-[10px] text-brand-100/40">
+                                                        By today, expect <span class="text-brand-100/70 tabular-nums">{{ $reelStatus['expected'] }}</span> posted ·
+                                                        Upcoming <span class="text-brand-100/70 tabular-nums">{{ $reelStatus['upcoming'] }}</span>
+                                                    </p>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {{-- Supplementary: shown for visibility,
+                                         never summed with Reel or with each
+                                         other into one combined figure. --}}
+                                    <div class="space-y-2 pt-3 border-t border-white/5">
                                         @foreach ($targeted as $source => $label)
+                                            @continue($source === \App\Models\ContentItem::SOURCE_REEL)
                                             @php
                                                 $t = $row['types'][$source];
                                                 $v = $verdict($t['actual'], $t['target']);
                                             @endphp
                                             <div class="flex items-center gap-3">
-                                                <x-brand-icon :name="$platformIcon[$source]" class="w-6 h-6 shrink-0" />
-                                                <div class="flex-1 min-w-0">
-                                                    <div class="flex items-baseline justify-between gap-2">
-                                                        <span class="text-xs text-brand-100/70">{{ $label }}</span>
-                                                        <span @class([
-                                                            'text-sm font-semibold tabular-nums',
-                                                            'text-green-300' => $v === 'hit',
-                                                            'text-amber-300' => $v === 'close',
-                                                            'text-red-300' => $v === 'behind',
-                                                            'text-white' => $v === null,
-                                                        ])>
-                                                            {{ $t['actual'] }}@if ($t['target'] !== null)<span class="text-brand-100/40">/{{ $t['target'] }}</span>@endif
-                                                            @if ($t['planned'] > $t['actual'])
-                                                                <span class="text-brand-100/40 font-normal">(+{{ $t['planned'] - $t['actual'] }} pending)</span>
-                                                            @endif
-                                                        </span>
-                                                    </div>
-                                                    @if ($t['target'] !== null)
-                                                        <div class="h-1.5 rounded-full bg-white/[0.07] overflow-hidden mt-1">
-                                                            <div @class([
-                                                                'h-full rounded-full',
-                                                                'bg-green-400' => $v === 'hit',
-                                                                'bg-amber-400' => $v === 'close',
-                                                                'bg-red-400' => $v === 'behind',
-                                                            ]) style="width: {{ min(100, $t['pct'] ?? 0) }}%"></div>
-                                                        </div>
-                                                    @endif
+                                                <x-brand-icon :name="$platformIcon[$source]" class="w-5 h-5 shrink-0 opacity-70" />
+                                                <div class="flex-1 flex items-baseline justify-between gap-2">
+                                                    <span class="text-xs text-brand-100/50">{{ $label }}</span>
+                                                    <span @class([
+                                                        'text-xs tabular-nums',
+                                                        'text-green-300' => $v === 'hit',
+                                                        'text-amber-300' => $v === 'close',
+                                                        'text-red-300' => $v === 'behind',
+                                                        'text-brand-100/70' => $v === null,
+                                                    ])>
+                                                        {{ $t['actual'] }}@if ($t['target'] !== null)<span class="text-brand-100/30">/{{ $t['target'] }}</span>@endif
+                                                        @if ($t['planned'] > $t['actual'])
+                                                            <span class="text-brand-100/30 font-normal">(+{{ $t['planned'] - $t['actual'] }} pending)</span>
+                                                        @endif
+                                                    </span>
                                                 </div>
                                             </div>
                                         @endforeach
 
                                         @if ($row['stories'] > 0)
-                                            <div class="flex items-center gap-3 pt-1">
-                                                <x-brand-icon name="instagram" class="w-6 h-6 shrink-0 opacity-60" />
+                                            <div class="flex items-center gap-3">
+                                                <x-brand-icon name="instagram" class="w-5 h-5 shrink-0 opacity-40" />
                                                 <div class="flex-1 flex items-baseline justify-between gap-2">
-                                                    <span class="text-xs text-brand-100/70">Stories</span>
-                                                    <span class="text-sm font-semibold tabular-nums text-white">{{ $row['stories'] }}</span>
+                                                    <span class="text-xs text-brand-100/50">Stories</span>
+                                                    <span class="text-xs tabular-nums text-brand-100/70">{{ $row['stories'] }}</span>
                                                 </div>
                                             </div>
                                         @endif
-                                    </div>
-
-                                    <div class="flex items-baseline justify-between gap-2 pt-3 border-t border-white/5 text-xs">
-                                        <span class="text-brand-100/50">Total</span>
-                                        <span class="font-semibold tabular-nums text-white">
-                                            {{ $row['total'] }}
-                                            @if ($row['target'])
-                                                <span class="text-brand-100/40 font-normal">/ {{ $row['target'] }}</span>
-                                            @endif
-                                        </span>
                                     </div>
                                 </x-card>
                             @endforeach

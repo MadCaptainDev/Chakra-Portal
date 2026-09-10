@@ -75,6 +75,7 @@
                          all three used to let an on-track post count hide a
                          reel shortfall -- this card no longer computes one. --}}
                     @php($reel = $card['types'][\App\Models\ContentItem::SOURCE_REEL] ?? null)
+                    @php($reelStatus = $reel['reel_status'] ?? null)
                     @if ($reel)
                         <div>
                             <div class="flex items-baseline justify-between gap-2 mb-1.5">
@@ -92,12 +93,13 @@
                                     <span class="text-xl font-bold tabular-nums text-white">
                                         {{ $reel['actual'] }}@if ($reel['target'])<span class="text-brand-100/40 text-base font-semibold">/{{ $reel['target'] }}</span>@endif
                                     </span>
-                                    @if ($reel['pace'])
+                                    @if ($reelStatus)
                                         <span @class([
                                             'text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded',
-                                            'bg-green-400/15 text-green-300' => $reel['pace'] === 'on_track',
-                                            'bg-amber-400/15 text-amber-300' => $reel['pace'] === 'behind',
-                                        ])>{{ $reel['pace'] === 'on_track' ? 'On track' : 'Behind' }}</span>
+                                            'bg-green-400/15 text-green-300' => $reelStatus['status'] === 'green',
+                                            'bg-amber-400/15 text-amber-300' => $reelStatus['status'] === 'orange',
+                                            'bg-red-400/15 text-red-300' => $reelStatus['status'] === 'red',
+                                        ])>{{ ['green' => 'On track', 'orange' => 'Plan next shoot', 'red' => 'Behind, nothing scheduled'][$reelStatus['status']] }}</span>
                                     @endif
                                 </span>
                             </div>
@@ -106,15 +108,24 @@
                                 <div class="h-2 rounded-full bg-white/[0.07] overflow-hidden">
                                     <div @class([
                                             'h-full rounded-full',
-                                            'bg-green-400' => $reel['pace'] === 'on_track',
-                                            'bg-amber-400' => $reel['pace'] === 'behind',
-                                            'bg-brand-400' => $reel['pace'] === null,
+                                            'bg-green-400' => $reelStatus['status'] === 'green',
+                                            'bg-amber-400' => $reelStatus['status'] === 'orange',
+                                            'bg-red-400' => $reelStatus['status'] === 'red',
+                                            'bg-brand-400' => $reelStatus === null,
                                          ])
                                          style="width: {{ min(100, $reel['pct'] ?? 0) }}%"></div>
                                 </div>
                             @endif
 
-                            @if (($reel['upcoming'] ?? 0) > 0)
+                            @if ($reelStatus)
+                                <p class="mt-1 text-[10px] text-brand-100/40">
+                                    By today, expect <span class="text-brand-100/70 tabular-nums">{{ $reelStatus['expected'] }}</span> posted ·
+                                    Upcoming <span class="text-brand-100/70 tabular-nums">{{ $reelStatus['upcoming'] }}</span>
+                                    @if ($reel['next_shoot_date'])
+                                        · Next shoot <span class="text-brand-100/70">{{ $reel['next_shoot_date']->format('j M') }}</span>
+                                    @endif
+                                </p>
+                            @elseif (($reel['upcoming'] ?? 0) > 0)
                                 <p class="mt-1 text-[10px] text-brand-100/40">
                                     Upcoming <span class="text-brand-100/70 tabular-nums">{{ $reel['upcoming'] }}</span>
                                     @if ($reel['next_shoot_date'])
