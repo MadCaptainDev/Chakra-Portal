@@ -88,6 +88,11 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            // Not in $fillable -- set only via DashboardLayoutController,
+            // never through the generic profile form. See the migration's
+            // own doc block for why these are two arrays, not a table.
+            'dashboard_widgets_disabled' => 'array',
+            'dashboard_widgets_order' => 'array',
         ];
     }
 

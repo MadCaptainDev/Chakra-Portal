@@ -15,6 +15,7 @@ use App\Services\Notion\NotionSyncRunner;
 use App\Support\ContentDashboard;
 use App\Support\ContentForecast;
 use App\Support\ContributionGraph;
+use App\Support\DashboardLayout;
 use App\Support\DashboardWidgets;
 use App\Support\Metric;
 use App\Support\PortfolioSuggestions;
@@ -240,6 +241,13 @@ class DashboardController extends Controller
             'contentCards' => DashboardWidgets::contentCards($request->user(), $month),
             'pinnedAccountIds' => DashboardWidgets::pinnedAccountsFor($request->user())->pluck('id'),
             'hasPinnedAccounts' => DashboardWidgets::hasPinned($request->user()),
+
+            // —— Layout ——
+            // This person's own widget order and show/hide, resolved once
+            // here rather than in the view -- see DashboardLayout's own
+            // doc block for how a stale or partial saved preference is
+            // reconciled against the real widget set.
+            'dashboardWidgets' => DashboardLayout::resolveFor($request->user()),
         ]);
     }
 

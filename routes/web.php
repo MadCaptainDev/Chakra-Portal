@@ -33,6 +33,7 @@ use App\Http\Controllers\ScriptCommentController;
 use App\Http\Controllers\ShootCalendarController;
 use App\Http\Controllers\WorkloadController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardLayoutController;
 use App\Http\Controllers\DashboardWidgetController;
 use App\Http\Controllers\DeveloperController;
 use App\Http\Controllers\EditorOutputController;
@@ -193,6 +194,12 @@ Route::middleware('auth')->group(function () {
      * there is no one else's dashboard to reach and nothing to grant.
      */
     Route::put('/dashboard/widgets', [DashboardWidgetController::class, 'update'])->name('dashboard.widgets.update');
+
+    // Which Dashboard sections show, and in what order -- same "scoped to
+    // the signed-in user, nothing to grant" reasoning as the pins above.
+    Route::put('/dashboard/layout', [DashboardLayoutController::class, 'update'])->name('dashboard.layout.update');
+    Route::delete('/dashboard/layout', [DashboardLayoutController::class, 'reset'])->name('dashboard.layout.reset');
+
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     /*
