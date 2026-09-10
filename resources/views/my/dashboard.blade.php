@@ -119,7 +119,7 @@
             'shoots' => $myShoots,
             'title' => 'My upcoming shoots',
             'empty' => 'You are not on any shoot crew yet.',
-            'allHref' => auth()->user()->can('shoots.view') ? route('shoots.index') : null,
+            'allHref' => auth()->user()->can('shoots.view') ? route('shoots.calendar') : null,
         ])
 
         {{-- Today's plan, as counts and a way in. The list itself lives on the

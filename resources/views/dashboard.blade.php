@@ -333,7 +333,7 @@
                 <x-card tone="dark" class="p-5 sm:p-6">
                     <div class="flex items-baseline justify-between gap-3 mb-3">
                         <p class="text-sm font-semibold text-white">Next shoots</p>
-                        <a href="{{ route('shoots.index') }}"
+                        <a href="{{ route('shoots.calendar') }}"
                            class="text-[11px] font-semibold uppercase tracking-widest text-brand-300 hover:text-white">All shoots →</a>
                     </div>
 

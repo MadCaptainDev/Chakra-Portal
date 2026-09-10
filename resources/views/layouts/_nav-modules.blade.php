@@ -56,9 +56,15 @@
 
                 // Routines leads with "who still owes what", not the list of
                 // definitions -- checking is the daily job, editing is rare.
-                $href = $module === 'routines' && Route::has('routines.checking')
-                    ? route('routines.checking')
-                    : route($module.'.index');
+                // Shoots leads with the month calendar for the same reason:
+                // "what's happening, and when" is the question someone opens
+                // this for; the filterable list (shoots.index) is still one
+                // click away from there.
+                $href = match (true) {
+                    $module === 'routines' && Route::has('routines.checking') => route('routines.checking'),
+                    $module === 'shoots' && Route::has('shoots.calendar') => route('shoots.calendar'),
+                    default => route($module.'.index'),
+                };
             @endphp
             <x-sidebar-link :icon="$config['icon'] ?? 'document'"
                             :href="$href"
