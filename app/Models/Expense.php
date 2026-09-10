@@ -74,6 +74,15 @@ class Expense extends Model
     }
 
     /**
+     * Salary raise/cut history. Only meaningful for type = salary -- see
+     * SalaryHike's own doc block.
+     */
+    public function hikes(): HasMany
+    {
+        return $this->hasMany(SalaryHike::class)->orderByDesc('effective_on')->orderByDesc('id');
+    }
+
+    /**
      * The login belonging to this employee, when one has been issued.
      * Only meaningful for type = salary.
      */

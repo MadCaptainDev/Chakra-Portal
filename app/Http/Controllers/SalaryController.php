@@ -2,14 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CompanySetting;
 use App\Models\Expense;
+use App\Models\SalaryHike;
 use App\Services\ExpenseLedger;
 use App\Support\LocksExpenseAmount;
 use App\Support\ManagesAvatars;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class SalaryController extends Controller
@@ -53,7 +59,83 @@ class SalaryController extends Controller
             'employee' => $salary,
             'history' => $history,
             'totalPaid' => (float) $history->sum('amount_paid'),
+            'hikes' => $salary->hikes()->with('createdBy')->get(),
         ]);
+    }
+
+    /**
+     * Give (or cut) a raise. Unlike the locked-amount edit form, this is the
+     * purposeful path: it always leaves a SalaryHike row behind, so "what
+     * did this person earn before March" stays answerable.
+     */
+    public function hike(Request $request, Expense $salary): RedirectResponse
+    {
+        abort_unless($salary->type === Expense::TYPE_SALARY, 404);
+
+        $validated = $request->validateWithBag('hike', [
+            'new_amount' => ['required', 'numeric', 'min:0'],
+            'effective_on' => ['nullable', 'date'],
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $previous = (float) $salary->amount;
+        $new = (float) $validated['new_amount'];
+
+        if (abs($new - $previous) < 0.01) {
+            return redirect()->route('salaries.show', $salary)
+                ->with('status', 'No change — that\'s already this salary.');
+        }
+
+        $effectiveOn = $validated['effective_on'] ?? now()->toDateString();
+
+        DB::transaction(function () use ($salary, $previous, $new, $effectiveOn, $validated, $request) {
+            SalaryHike::create([
+                'expense_id' => $salary->id,
+                'previous_amount' => $previous,
+                'new_amount' => $new,
+                'effective_on' => $effectiveOn,
+                'reason' => $validated['reason'] ?? null,
+                'created_by' => $request->user()->id,
+            ]);
+
+            $salary->update(['amount' => $new]);
+        });
+
+        $verb = $new > $previous ? 'Raised' : 'Reduced';
+
+        return redirect()->route('salaries.show', $salary)->with(
+            'status',
+            "{$verb} {$salary->name}'s salary from ".number_format($previous, 2).' to '.number_format($new, 2).'.'
+        );
+    }
+
+    /**
+     * Download one month's payslip as a PDF. $period is "Y-m" -- same shape
+     * the payroll month picker already uses everywhere else.
+     */
+    public function payslip(Expense $salary, string $period): Response
+    {
+        abort_unless($salary->type === Expense::TYPE_SALARY, 404);
+
+        try {
+            $month = Carbon::createFromFormat('Y-m', $period)->startOfMonth();
+        } catch (\Throwable) {
+            abort(404);
+        }
+
+        $salary->loadMissing('user');
+        $payment = $salary->payments()->whereDate('period', $month->toDateString())->first();
+
+        $html = view('salaries.payslip', [
+            'employee' => $salary,
+            'month' => $month,
+            'payment' => $payment,
+            'settings' => CompanySetting::current(),
+        ])->render();
+
+        $pdf = Pdf::loadHTML($html)->setPaper('a4');
+
+        return $pdf->download(Str::slug($salary->name).'-payslip-'.$month->format('Y-m').'.pdf');
     }
 
     public function pay(Request $request, Expense $salary): RedirectResponse

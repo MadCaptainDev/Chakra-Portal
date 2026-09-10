@@ -192,4 +192,50 @@ class SalaryModuleTest extends TestCase
 
         $this->assertSame(15000.0, (float) $employee->fresh()->amount);
     }
+
+    public function test_a_hike_raises_the_salary_and_leaves_a_history_row(): void
+    {
+        $employee = $this->employee(['amount' => 5000]);
+        $admin = User::factory()->create();
+
+        $this->actingAs($admin)
+            ->post(route('salaries.hike', $employee), [
+                'new_amount' => 7000,
+                'effective_on' => '2026-09-01',
+                'reason' => 'Annual review',
+            ])
+            ->assertRedirect(route('salaries.show', $employee));
+
+        $this->assertSame(7000.0, (float) $employee->fresh()->amount);
+        $this->assertDatabaseHas('salary_hikes', [
+            'expense_id' => $employee->id,
+            'previous_amount' => 5000.00,
+            'new_amount' => 7000.00,
+            'reason' => 'Annual review',
+            'created_by' => $admin->id,
+        ]);
+    }
+
+    public function test_a_hike_matching_the_current_amount_changes_nothing(): void
+    {
+        $employee = $this->employee(['amount' => 5000]);
+
+        $this->actingAs(User::factory()->create())
+            ->post(route('salaries.hike', $employee), ['new_amount' => 5000]);
+
+        $this->assertDatabaseCount('salary_hikes', 0);
+        $this->assertSame(5000.0, (float) $employee->fresh()->amount);
+    }
+
+    public function test_a_pay_slip_downloads_as_a_pdf(): void
+    {
+        $employee = $this->employee(['amount' => 8000]);
+        ExpensePayment::create(['expense_id' => $employee->id, 'period' => '2026-09-01', 'amount_paid' => 8000, 'paid_on' => '2026-09-05']);
+
+        $response = $this->actingAs(User::factory()->create())
+            ->get(route('salaries.payslip', [$employee, '2026-09']));
+
+        $response->assertOk();
+        $response->assertHeader('content-type', 'application/pdf');
+    }
 }

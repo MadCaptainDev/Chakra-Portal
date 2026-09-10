@@ -890,6 +890,7 @@ Route::middleware(['auth', 'module:expenses,view'])->group(function () {
 Route::middleware(['auth', 'module:salaries,view'])->group(function () {
     Route::get('salaries', [SalaryController::class, 'index'])->name('salaries.index');
     Route::get('salaries/{salary}', [SalaryController::class, 'show'])->name('salaries.show');
+    Route::get('salaries/{salary}/payslip/{period}', [SalaryController::class, 'payslip'])->name('salaries.payslip');
 
     Route::post('salaries', [SalaryController::class, 'store'])
         ->middleware('module:salaries,create')->name('salaries.store');
@@ -898,6 +899,7 @@ Route::middleware(['auth', 'module:salaries,view'])->group(function () {
         Route::post('salaries/pay-all', [SalaryController::class, 'payAll'])->name('salaries.pay-all');
         Route::post('salaries/{salary}/pay', [SalaryController::class, 'pay'])->name('salaries.pay');
         Route::put('salaries/{salary}', [SalaryController::class, 'update'])->name('salaries.update');
+        Route::post('salaries/{salary}/hike', [SalaryController::class, 'hike'])->name('salaries.hike');
     });
 
     Route::delete('salaries/{salary}', [SalaryController::class, 'destroy'])
