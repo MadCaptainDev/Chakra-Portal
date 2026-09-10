@@ -45,9 +45,16 @@ class ContentDashboardController extends Controller
      * fetches this on open rather than paying for it on every dashboard
      * load, and it is meant to work standalone against "right now" even
      * when the page around it was rendered a while ago.
+     *
+     * Live: refreshes the local Notion cache first, same as index() does,
+     * so opening this widget is the one place on the whole Dashboard that
+     * is never stale by more than however long NotionSyncRunner's own
+     * staleness window allows.
      */
     public function todayReelBoard(): JsonResponse
     {
+        NotionSyncRunner::ensureFresh();
+
         return response()->json(ContentDashboard::todayReelBoard());
     }
 

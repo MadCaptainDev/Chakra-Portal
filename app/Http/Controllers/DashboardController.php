@@ -156,9 +156,17 @@ class DashboardController extends Controller
         $forecastCritical = ContentForecast::forAllClients()
             ->where('status', ContentForecast::STATUS_CRITICAL);
 
-        // Same list SendMissingContentAlerts pushes over -- see
-        // Shoot::scopeNeedsContentAdded().
-        $missingContentCount = Shoot::needsContentAdded()->count();
+        // Same query SendMissingContentAlerts uses (see
+        // Shoot::scopeNeedsContentAdded()), but scoped to this month here --
+        // that command alerts once ever per shoot (content_missing_alert_
+        // sent_at), which is right for a one-time nudge and wrong for a
+        // glance widget: a shoot from eight months ago that nobody will
+        // ever add a reel for now was inflating this count indefinitely
+        // (63 all-time vs 2 this month, live). "Needs attention today"
+        // means this month's shoots, not the studio's entire backlog.
+        $missingContentCount = Shoot::needsContentAdded()
+            ->whereBetween('starts_at', [$month, $monthEnd])
+            ->count();
 
         $actionItems = $this->actionItems([
             'unreadEnquiries' => $unreadEnquiries,
@@ -250,7 +258,13 @@ class DashboardController extends Controller
     {
         $board = ContentDashboard::forMonth($month);
 
+        // upcomingShootsAll(5) is already limited to 5 rows for the list
+        // below -- count()ing that same collection was quietly capping the
+        // "Upcoming shoots" stat tile at 5 too, the moment there were more
+        // than 5 (real bug: silently wrong the day a 6th one gets booked).
+        // The real total is its own query.
         $upcoming = DashboardWidgets::upcomingShootsAll(5);
+        $upcomingCount = Shoot::query()->upcoming()->count();
 
         /*
          * A deliberately simple heuristic, not a scheduling algorithm: the
@@ -288,6 +302,7 @@ class DashboardController extends Controller
             'unmappedVentures' => $board['unmapped']->count(),
             'unmappedThisMonth' => $board['unmappedThisMonth'],
             'upcomingShoots' => $upcoming,
+            'upcomingShootCount' => $upcomingCount,
             'shootsToImport' => NotionShoot::whereDoesntHave('shoot')->whereNotNull('shoot_date')->count(),
             'lastSynced' => NotionSyncRunner::lastSyncedAt(),
         ];

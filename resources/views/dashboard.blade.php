@@ -40,6 +40,11 @@
 <x-app-layout title="Dashboard" dark>
     <div class="space-y-10">
 
+        {{-- Reel Planner — Today, first thing on the page: it's the one
+             number that changes by the hour, and everything below it is
+             fine to load a minute later. --}}
+        @include('dashboard._reel-today')
+
         {{-- ——— Header ——— --}}
         <div class="animate-rise-in flex flex-wrap items-end justify-between gap-5">
             <div>
@@ -64,39 +69,52 @@
              were stacked when four domains had a section each. --}}
         <div class="grid grid-cols-1 xl:grid-cols-[1.7fr_1fr] gap-6 xl:gap-8">
 
-        {{-- ——— Needs attention. Every domain feeds this one list. ——— --}}
-        <section>
-            <div class="flex items-baseline justify-between gap-4 mb-4">
-                <x-section-label dark>Needs attention</x-section-label>
-                <p class="text-xs text-brand-100/60">Worst first</p>
-            </div>
+        {{-- ——— Needs attention. Every domain feeds this one list. Open by
+             default -- this is the one list somebody opens the dashboard
+             for -- but shrinkable like everything else, for a day it's
+             already been cleared. ——— --}}
+        <section x-data="{ open: true }">
+            <details open @toggle="open = $event.target.open">
+                <summary class="list-none cursor-pointer flex items-baseline justify-between gap-4 mb-4">
+                    <span class="flex items-center gap-2">
+                        <x-icon name="chevron-right" class="w-4 h-4 text-brand-100/50 transition-transform shrink-0" x-bind:class="{ 'rotate-90': open }" />
+                        <x-section-label dark>Needs attention</x-section-label>
+                        @if (count($actionItems) > 0)
+                            <span class="text-[10px] font-semibold text-brand-100/60 tabular-nums">({{ count($actionItems) }})</span>
+                        @endif
+                    </span>
+                    <p class="text-xs text-brand-100/60 shrink-0">Worst first</p>
+                </summary>
 
-            <div class="space-y-2.5">
-                @foreach ($actionItems as $item)
-                    @php $tone = $tones[$item['tone']] ?? $tones['brand']; @endphp
-                    <a href="{{ $item['href'] }}"
-                       class="group flex items-center gap-4 rounded-xl p-4 sm:px-5 ring-1 transition-colors
-                              {{ $tone['bg'] }} {{ $tone['ring'] }} hover:bg-white/[0.09]">
-                        <span class="shrink-0 w-2 h-9 rounded-full {{ $tone['bar'] }}"></span>
+                <div class="space-y-2.5">
+                    @forelse ($actionItems as $item)
+                        @php $tone = $tones[$item['tone']] ?? $tones['brand']; @endphp
+                        <a href="{{ $item['href'] }}"
+                           class="group flex flex-wrap items-center gap-4 rounded-xl p-4 sm:px-5 ring-1 transition-colors
+                                  {{ $tone['bg'] }} {{ $tone['ring'] }} hover:bg-white/[0.09]">
+                            <span class="shrink-0 w-2 h-9 rounded-full {{ $tone['bar'] }}"></span>
 
-                        <div class="min-w-0 flex-1">
-                            <div class="flex flex-wrap items-center gap-2.5">
-                                <p class="font-semibold">{{ $item['title'] }}</p>
-                                <span class="text-[9px] font-semibold uppercase tracking-[0.14em] text-brand-100/60
-                                             border border-white/15 rounded-full px-2 py-0.5">
-                                    {{ $item['domain'] ?? 'Money' }}
-                                </span>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-center gap-2.5">
+                                    <p class="font-semibold">{{ $item['title'] }}</p>
+                                    <span class="text-[9px] font-semibold uppercase tracking-[0.14em] text-brand-100/60
+                                                 border border-white/15 rounded-full px-2 py-0.5">
+                                        {{ $item['domain'] ?? 'Money' }}
+                                    </span>
+                                </div>
+                                <p class="mt-1 text-sm text-brand-100/70">{{ $item['detail'] }}</p>
                             </div>
-                            <p class="mt-1 text-sm text-brand-100/70">{{ $item['detail'] }}</p>
-                        </div>
 
-                        <span class="shrink-0 inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-widest text-brand-200">
-                            {{ $item['cta'] }}
-                            <x-icon name="chevron-right" class="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                        </span>
-                    </a>
-                @endforeach
-            </div>
+                            <span class="shrink-0 inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-widest text-brand-200 ml-auto sm:ml-0">
+                                {{ $item['cta'] }}
+                                <x-icon name="chevron-right" class="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                            </span>
+                        </a>
+                    @empty
+                        <p class="text-sm text-brand-100/50">Nothing needs you right now.</p>
+                    @endforelse
+                </div>
+            </details>
         </section>
 
         {{-- ——— The month at a glance ——— --}}
@@ -257,8 +275,6 @@
              missed, and the first anyone hears of that is the client
              asking. --}}
         <section class="space-y-6">
-            @include('dashboard._reel-today')
-
             @include('dashboard._content-pipeline', [
                 'month' => $month,
                 'contentAccounts' => $contentAccounts,
@@ -287,7 +303,7 @@
                 @endforeach
                 <x-card tone="dark" class="p-4">
                     <p class="text-[11px] font-semibold uppercase tracking-wider text-brand-100/50">Upcoming shoots</p>
-                    <p class="mt-1 text-2xl font-bold tabular-nums text-white">{{ $content['upcomingShoots']->count() }}</p>
+                    <p class="mt-1 text-2xl font-bold tabular-nums text-white">{{ $content['upcomingShootCount'] }}</p>
                 </x-card>
             </div>
 
@@ -369,37 +385,55 @@
         <section>
             <div class="flex items-baseline justify-between gap-4 mb-4">
                 <x-section-label dark>Money</x-section-label>
-                {{-- Echoed rather than written as literal markup so the
-                     apostrophe is escaped, which DashboardTest pins. --}}
-                <p class="text-xs text-brand-100/60">{{ "This Month's Outflow — ".$month->format('F Y') }}</p>
             </div>
 
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-                @php
-                    $outflowTiles = [
-                        ['label' => 'Total due', 'value' => $money($outflowDue), 'note' => null, 'accent' => false],
-                        ['label' => 'Paid', 'value' => $money($outflowPaid), 'accent' => false,
-                         'note' => $outflowDue > 0 ? round($outflowPaid / $outflowDue * 100).'% settled' : null],
-                        ['label' => 'Still pending', 'value' => $money($outflowPending), 'accent' => $outflowPending > 0,
-                         'note' => $outflowPending > 0 ? 'Clear before month end' : 'All settled'],
-                        ['label' => 'EMI portion', 'value' => $money($emiThisMonth), 'accent' => false,
-                         'note' => $outflowDue > 0 ? round($emiThisMonth / $outflowDue * 100).'% of the total' : null],
-                    ];
-                @endphp
+            {{-- Shrinkable: open by default (this is the number the section
+                 exists for), collapsible for anyone who's already checked
+                 it today. "More detail" goes straight to this month's real
+                 ledger rather than repeating them here. --}}
+            <div x-data="{ open: true }">
+                <details open @toggle="open = $event.target.open">
+                    <summary class="list-none cursor-pointer flex items-baseline justify-between gap-4 mb-4">
+                        <span class="flex items-center gap-2">
+                            <x-icon name="chevron-right" class="w-4 h-4 text-brand-100/50 transition-transform shrink-0" x-bind:class="{ 'rotate-90': open }" />
+                            {{-- Echoed rather than written as literal markup so the
+                                 apostrophe is escaped, which DashboardTest pins. --}}
+                            <span class="text-xs text-brand-100/60">{{ "This Month's Outflow — ".$month->format('F Y') }}</span>
+                        </span>
+                        <a href="{{ route('expenses.index', ['month' => $month->format('Y-m')]) }}"
+                           class="shrink-0 text-xs font-semibold uppercase tracking-widest text-brand-300 hover:text-white">
+                            More detail →
+                        </a>
+                    </summary>
 
-                @foreach ($outflowTiles as $tile)
-                    <div @class([
-                        'rounded-xl p-5 ring-1',
-                        'bg-gradient-to-br from-amber-400/20 to-white/5 ring-amber-400/40' => $tile['accent'],
-                        'bg-white/5 ring-white/10' => ! $tile['accent'],
-                    ])>
-                        <p @class(['text-[10px] font-semibold uppercase tracking-[0.16em]', 'text-amber-100' => $tile['accent'], 'text-brand-100/70' => ! $tile['accent']])>{{ $tile['label'] }}</p>
-                        <p class="mt-3 text-xl sm:text-2xl font-extrabold leading-none tabular-nums tracking-tight">{{ $tile['value'] }}</p>
-                        @if ($tile['note'])
-                            <p class="mt-2 text-xs text-brand-100/60">{{ $tile['note'] }}</p>
-                        @endif
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+                        @php
+                            $outflowTiles = [
+                                ['label' => 'Total due', 'value' => $money($outflowDue), 'note' => null, 'accent' => false],
+                                ['label' => 'Paid', 'value' => $money($outflowPaid), 'accent' => false,
+                                 'note' => $outflowDue > 0 ? round($outflowPaid / $outflowDue * 100).'% settled' : null],
+                                ['label' => 'Still pending', 'value' => $money($outflowPending), 'accent' => $outflowPending > 0,
+                                 'note' => $outflowPending > 0 ? 'Clear before month end' : 'All settled'],
+                                ['label' => 'EMI portion', 'value' => $money($emiThisMonth), 'accent' => false,
+                                 'note' => $outflowDue > 0 ? round($emiThisMonth / $outflowDue * 100).'% of the total' : null],
+                            ];
+                        @endphp
+
+                        @foreach ($outflowTiles as $tile)
+                            <div @class([
+                                'rounded-xl p-5 ring-1',
+                                'bg-gradient-to-br from-amber-400/20 to-white/5 ring-amber-400/40' => $tile['accent'],
+                                'bg-white/5 ring-white/10' => ! $tile['accent'],
+                            ])>
+                                <p @class(['text-[10px] font-semibold uppercase tracking-[0.16em]', 'text-amber-100' => $tile['accent'], 'text-brand-100/70' => ! $tile['accent']])>{{ $tile['label'] }}</p>
+                                <p class="mt-3 text-xl sm:text-2xl font-extrabold leading-none tabular-nums tracking-tight">{{ $tile['value'] }}</p>
+                                @if ($tile['note'])
+                                    <p class="mt-2 text-xs text-brand-100/60">{{ $tile['note'] }}</p>
+                                @endif
+                            </div>
+                        @endforeach
                     </div>
-                @endforeach
+                </details>
             </div>
 
             {{-- The two lists you act on: what is owed to the studio, and what

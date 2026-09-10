@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Client;
 use App\Models\Invoice;
+use App\Models\Shoot;
 use App\Models\SocialAccount;
 use App\Models\SocialInsight;
 use App\Models\SocialMediaItem;
@@ -225,5 +226,52 @@ class DashboardTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('ASAP');
+    }
+
+    /**
+     * "Needs attention" used to count every completed shoot missing content
+     * ever, all-time -- a shoot from eight months ago that will never get a
+     * reel now was inflating this indefinitely. Only this month's should
+     * show up on a glance widget.
+     */
+    public function test_a_completed_shoot_missing_content_only_counts_toward_this_months_total(): void
+    {
+        Shoot::create([
+            'title' => 'This month, no reel yet',
+            'starts_at' => now()->startOfMonth()->addDays(2),
+            'status' => Shoot::STATUS_COMPLETED,
+        ]);
+        Shoot::create([
+            'title' => 'Ancient, never getting one',
+            'starts_at' => now()->subMonthsNoOverflow(8),
+            'status' => Shoot::STATUS_COMPLETED,
+        ]);
+
+        $response = $this->actingAs(User::factory()->create())->get(route('dashboard'));
+
+        $response->assertOk();
+        $response->assertSee('1 completed shoot not in the Reel Planner yet');
+    }
+
+    /**
+     * The "Upcoming shoots" stat tile used to count() the same collection
+     * the list below it renders -- which is capped at 5 for the list's own
+     * sake -- so the tile silently stopped climbing past 5 the moment there
+     * really were more.
+     */
+    public function test_upcoming_shoots_tile_is_not_capped_at_the_lists_own_limit(): void
+    {
+        for ($i = 1; $i <= 7; $i++) {
+            Shoot::create([
+                'title' => "Shoot {$i}",
+                'starts_at' => now()->addDays($i),
+                'status' => Shoot::STATUS_CONFIRMED,
+            ]);
+        }
+
+        $response = $this->actingAs(User::factory()->create())->get(route('dashboard'));
+
+        $response->assertOk();
+        $response->assertViewHas('content', fn (array $content) => $content['upcomingShootCount'] === 7);
     }
 }

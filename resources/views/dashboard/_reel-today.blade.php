@@ -54,7 +54,7 @@
             <p class="text-sm text-red-300" x-show="error" x-cloak>Couldn't load today's board. Try reopening this tab.</p>
 
             <div x-show="loaded" x-cloak class="space-y-4">
-                <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                     <div class="rounded-xl bg-white/5 ring-1 ring-white/10 p-4">
                         <p class="text-[10px] font-semibold uppercase tracking-wider text-brand-100/60">Total Posting</p>
                         <p class="mt-1 text-xl font-bold text-white tabular-nums" x-text="data.total_posting"></p>
