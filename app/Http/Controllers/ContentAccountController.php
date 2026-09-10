@@ -31,18 +31,46 @@ class ContentAccountController extends Controller
 {
     public function edit(): View
     {
+        $unmapped = ContentAccount::unmappedVentures();
+
+        $accounts = ContentAccount::with(['client', 'ventures'])->get()
+            // Active clients first, then alphabetical within each group --
+            // an inactive client's accounts are still here to fix a mapping
+            // against, just not first in line while scanning.
+            ->sortBy(fn (ContentAccount $a) => [
+                $a->client && ! $a->client->is_active ? 1 : 0,
+                $a->client?->name ?? '',
+                $a->name,
+            ])
+            ->values();
+
+        // Which source(s) (reel/post/youtube/story) each distinct venture
+        // string actually has content under -- a venture is often not one
+        // platform. "Thillai Pets Clinic" is Reels; its YouTube uploads are
+        // filed under the differently-spelled "Thillai pets", a separate
+        // row here with its own badge -- see ContentAccountVenture's own
+        // doc block for why that is never guessed at, only shown.
+        $ventureSources = ContentItem::query()
+            ->selectRaw('venture, source')
+            ->whereNotNull('venture')->where('venture', '!=', '')
+            ->distinct()
+            ->get()
+            ->groupBy('venture')
+            ->map(fn ($rows) => $rows->pluck('source')->unique()->values()->all());
+
         return view('content-accounts.edit', [
-            'clients' => Client::orderBy('name')->get(),
-            'accounts' => ContentAccount::with(['client', 'ventures'])->get()
-                ->sortBy(fn (ContentAccount $a) => [$a->client?->name ?? '', $a->name])
+            'clients' => Client::orderBy('name')->get()
+                ->sortBy(fn (Client $c) => [$c->is_active ? 0 : 1, $c->name])
                 ->values(),
-            'unmapped' => ContentAccount::unmappedVentures(),
+            'accounts' => $accounts,
+            'unmapped' => $unmapped,
             // Item counts per venture, so a person deciding where "PR" goes
             // can see it is 60 videos rather than a stray typo.
             'ventureCounts' => ContentItem::query()
                 ->selectRaw('venture, count(*) as items')
                 ->whereNotNull('venture')->where('venture', '!=', '')
                 ->groupBy('venture')->pluck('items', 'venture'),
+            'ventureSources' => $ventureSources,
             'targetable' => ContentAccount::TARGETABLE,
             // Distinct Notion shoot client spellings, with how many shoots
             // each covers and whichever portal client it is mapped to.

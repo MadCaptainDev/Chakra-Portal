@@ -9,14 +9,43 @@
     </x-slot>
 
     <div class="space-y-4">
+        {{-- Server-rendered, not the Alpine x-tab-nav switch: the list
+             underneath is paginated per status, so a tab here is a real
+             navigation, not a client-side toggle over data already on the
+             page. --}}
+        <div class="inline-flex items-center gap-1 p-1 rounded-xl bg-white/[0.04] ring-1 ring-white/10">
+            @foreach ([
+                'active' => ['label' => 'Active', 'count' => $activeCount],
+                'inactive' => ['label' => 'Inactive', 'count' => $inactiveCount],
+                'all' => ['label' => 'All', 'count' => $activeCount + $inactiveCount],
+            ] as $key => $tab)
+                <a href="{{ route('clients.index', ['status' => $key]) }}"
+                   @class([
+                       'inline-flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-lg text-sm font-semibold transition duration-150',
+                       'bg-white/[0.14] text-white ring-1 ring-white/15' => $status === $key,
+                       'text-brand-100/60 hover:text-white' => $status !== $key,
+                   ])>
+                    {{ $tab['label'] }}
+                    <span @class([
+                        'inline-flex items-center justify-center min-w-[20px] px-1 h-5 rounded-full text-[11px] font-bold tabular-nums',
+                        'bg-brand-400/20 text-brand-200' => $status === $key,
+                        'bg-white/10 text-brand-100/60' => $status !== $key,
+                    ])>{{ $tab['count'] }}</span>
+                </a>
+            @endforeach
+        </div>
+
         @if ($clients->isEmpty())
-            <x-empty-state message="No clients yet.">
+            <x-empty-state :message="$status === 'inactive' ? 'No inactive clients.' : 'No clients yet.'">
                 <x-btn :href="route('clients.create')" icon="plus" size="sm">Add your first client</x-btn>
             </x-empty-state>
         @else
             <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 @foreach ($clients as $client)
-                    <article class="group bg-white/5 rounded-xl ring-1 ring-white/10 hover:ring-brand-300 hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col">
+                    <article @class([
+                        'group bg-white/5 rounded-xl ring-1 ring-white/10 hover:ring-brand-300 hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col',
+                        'opacity-60 hover:opacity-100' => ! $client->is_active,
+                    ])>
                         <a href="{{ route('clients.show', $client) }}" class="flex-1 p-5 min-h-[44px] block focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-inset">
                             <div class="flex items-start gap-4">
                                 <div class="w-14 h-14 shrink-0 rounded-xl bg-white/5 ring-1 ring-white/10 flex items-center justify-center overflow-hidden">
@@ -35,11 +64,16 @@
                                         <h2 class="font-semibold text-white group-hover:text-brand-200 truncate leading-snug">
                                             {{ $client->name }}
                                         </h2>
-                                        @if ($client->brief?->isSubmitted())
-                                            <x-badge color="bg-green-400/15 text-green-200">Done</x-badge>
-                                        @elseif ($client->brief)
-                                            <x-badge color="bg-amber-400/15 text-amber-200">{{ $client->brief->requiredAnswered() }}/{{ $client->brief->requiredTotal() }}</x-badge>
-                                        @endif
+                                        <span class="flex items-center gap-1.5 shrink-0">
+                                            @unless ($client->is_active)
+                                                <x-badge status="inactive">Inactive</x-badge>
+                                            @endunless
+                                            @if ($client->brief?->isSubmitted())
+                                                <x-badge color="bg-green-400/15 text-green-200">Done</x-badge>
+                                            @elseif ($client->brief)
+                                                <x-badge color="bg-amber-400/15 text-amber-200">{{ $client->brief->requiredAnswered() }}/{{ $client->brief->requiredTotal() }}</x-badge>
+                                            @endif
+                                        </span>
                                     </div>
 
                                     @if ($client->address)

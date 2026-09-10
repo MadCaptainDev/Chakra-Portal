@@ -18,13 +18,30 @@ use Illuminate\View\View;
 
 class ClientController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
+        // Active by default -- a client list a person opens to find who to
+        // call should not be half churned-out names. "inactive" and "all"
+        // are one tap away, not a query string somebody has to know exists.
+        $status = in_array($request->query('status'), ['active', 'inactive', 'all'], true)
+            ? $request->query('status')
+            : 'active';
+
         // The brief comes along so the list can show who still owes one
         // without a query per row.
-        $clients = Client::with('brief.answers')->orderBy('name')->paginate(20);
+        $clients = Client::with('brief.answers')
+            ->when($status === 'active', fn ($q) => $q->active())
+            ->when($status === 'inactive', fn ($q) => $q->inactive())
+            ->orderBy('name')
+            ->paginate(20)
+            ->withQueryString();
 
-        return view('clients.index', compact('clients'));
+        return view('clients.index', [
+            'clients' => $clients,
+            'status' => $status,
+            'activeCount' => Client::active()->count(),
+            'inactiveCount' => Client::inactive()->count(),
+        ]);
     }
 
     public function create(): View

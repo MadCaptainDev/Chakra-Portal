@@ -49,15 +49,43 @@ class ClientRequest extends FormRequest
             'remove_logo' => ['sometimes', 'boolean'],
             'whatsapp_portal_enabled' => ['sometimes', 'boolean'],
 
-            'client_type' => ['required', Rule::in(array_keys(Client::CLIENT_TYPES))],
+            // sometimes, not required: quickStore()/quickUpdate() (the
+            // invoice modal's lightweight client picker) never offer this
+            // field at all -- see prepareForValidation() for what an
+            // absent value resolves to on each of the four entry points.
+            'client_type' => ['sometimes', Rule::in(array_keys(Client::CLIENT_TYPES))],
             'service_note' => ['nullable', 'string', 'max:255'],
+            'is_active' => ['sometimes', 'boolean'],
         ];
     }
 
     protected function prepareForValidation(): void
     {
+        // The real form always sends is_active and client_type (is_active
+        // via a hidden 0 ahead of the checkbox, same pattern as
+        // salaries/_form.blade.php; client_type via its own required
+        // <select>) -- both are genuinely present on every submission from
+        // clients/_form.blade.php, ticked/selected or not.
+        //
+        // quickStore()/quickUpdate() (the invoice modal's lightweight
+        // client picker) never render either field, so they are genuinely
+        // absent there. Falling back to a fixed default unconditionally
+        // would silently reactivate an inactive client, or reset their
+        // type to Regular, the moment their name gets a quick edit from
+        // that modal -- falling back to the bound client's own current
+        // value instead makes an absent field a no-op on update, and the
+        // sensible default only for a brand-new client (no bound client to
+        // read from).
+        $client = $this->route('client');
+
         $this->merge([
             'whatsapp_portal_enabled' => $this->boolean('whatsapp_portal_enabled'),
+            'is_active' => $this->has('is_active')
+                ? $this->boolean('is_active')
+                : ($client?->is_active ?? true),
+            'client_type' => $this->filled('client_type')
+                ? $this->input('client_type')
+                : ($client?->client_type ?? Client::CLIENT_TYPE_REGULAR),
         ]);
     }
 }

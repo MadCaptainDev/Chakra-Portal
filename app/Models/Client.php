@@ -71,6 +71,7 @@ class Client extends Model
         'industry_id',
         'client_type',
         'service_note',
+        'is_active',
         'forecast_alert_depletion_date',
         'forecast_alert_sent_at',
     ];
@@ -78,6 +79,7 @@ class Client extends Model
     protected $casts = [
         'whatsapp_portal_enabled' => 'boolean',
         'report_sections_disabled' => 'array',
+        'is_active' => 'boolean',
         'forecast_alert_depletion_date' => 'date',
         'forecast_alert_sent_at' => 'datetime',
     ];
@@ -101,6 +103,21 @@ class Client extends Model
     public function scopeOccasion(Builder $query): Builder
     {
         return $query->where('client_type', self::CLIENT_TYPE_OCCASION);
+    }
+
+    /**
+     * Currently active vs paused/stopped -- a separate axis from
+     * client_type (see is_active's own migration doc block for why the two
+     * are not conflated).
+     */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('is_active', true);
+    }
+
+    public function scopeInactive(Builder $query): Builder
+    {
+        return $query->where('is_active', false);
     }
 
     /**

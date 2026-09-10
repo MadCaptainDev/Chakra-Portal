@@ -110,6 +110,22 @@
 
 <div class="mb-6">
     <label class="inline-flex items-start gap-2.5 text-sm text-brand-100/80">
+        <input type="hidden" name="is_active" value="0">
+        <input type="checkbox" name="is_active" value="1"
+               @checked(old('is_active', $client->is_active ?? true))
+               class="mt-0.5 rounded bg-white/10 border-white/25 text-brand-400 focus:ring-brand-400">
+        <span>
+            <span class="font-semibold text-white">Active</span>
+            <span class="block mt-0.5 text-xs text-brand-100/60">
+                Off for a client the studio has stopped or paused work for. Nothing is deleted -- an inactive client stays on record and can be turned back on any time.
+            </span>
+        </span>
+    </label>
+    <x-input-error :messages="$errors->get('is_active')" class="mt-2" />
+</div>
+
+<div class="mb-6">
+    <label class="inline-flex items-start gap-2.5 text-sm text-brand-100/80">
         <input type="checkbox" name="whatsapp_portal_enabled" value="1"
                @checked(old('whatsapp_portal_enabled', $client->whatsapp_portal_enabled ?? false))
                class="mt-0.5 rounded bg-white/10 border-white/25 text-brand-400 focus:ring-brand-400">

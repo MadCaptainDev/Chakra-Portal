@@ -169,4 +169,42 @@ class ContentAccountTest extends TestCase
             ->assertSee('PR')
             ->assertSee('Unmapped ventures');
     }
+
+    /**
+     * "Mention Insta or YouTube properly": a venture's own platform badge,
+     * both when it is still unmapped and once it has an account -- the
+     * same venture string can carry Reel and Post content at once (see
+     * ContentAccountController::edit()'s own doc block).
+     */
+    public function test_unmapped_and_mapped_ventures_both_show_their_platform(): void
+    {
+        ContentItem::factory()->create(['venture' => 'Amar Dental', 'source' => ContentItem::SOURCE_REEL, 'status' => 'Published']);
+        ContentItem::factory()->create(['venture' => 'Amar Dental', 'source' => ContentItem::SOURCE_POST, 'status' => 'Published']);
+
+        $account = ContentAccount::create(['client_id' => $this->client()->id, 'name' => 'Thillai Pets']);
+        ContentAccountVenture::create(['content_account_id' => $account->id, 'venture' => 'Thillai pets']);
+        ContentItem::factory()->create(['venture' => 'Thillai pets', 'source' => ContentItem::SOURCE_YOUTUBE, 'status' => 'Published']);
+
+        $response = $this->actingAs($this->admin())->get(route('content-accounts.edit'));
+
+        $response->assertOk();
+        $response->assertSee('Amar Dental');
+        $response->assertSee($targetable = \App\Models\ContentAccount::TARGETABLE);
+        $response->assertSeeInOrder(['Amar Dental', $targetable['reel']], false);
+        $response->assertSeeInOrder(['Amar Dental', $targetable['post']], false);
+        $response->assertSeeInOrder(['Thillai pets', $targetable['youtube']], false);
+    }
+
+    public function test_an_account_under_an_inactive_client_is_flagged_in_the_optgroup(): void
+    {
+        $client = $this->client('Retired Co');
+        $client->update(['is_active' => false]);
+        ContentAccount::create(['client_id' => $client->id, 'name' => 'Retired Account']);
+        ContentItem::factory()->create(['venture' => 'Retired venture', 'status' => 'Published']);
+
+        $this->actingAs($this->admin())
+            ->get(route('content-accounts.edit'))
+            ->assertOk()
+            ->assertSee('Retired Co (Inactive)', false);
+    }
 }
