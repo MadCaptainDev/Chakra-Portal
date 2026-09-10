@@ -1155,6 +1155,8 @@ Route::middleware(['auth', 'admin', 'recurring.catchup', 'instagram.catchup'])->
      */
     Route::get('content-dashboard', [ContentDashboardController::class, 'index'])->name('content-dashboard.index');
     Route::post('content-dashboard/refresh', [ContentDashboardController::class, 'refresh'])->name('content-dashboard.refresh');
+    // Before {contentAccount}, or "duplicates" binds as an account id.
+    Route::get('content-dashboard/duplicates', [ContentDashboardController::class, 'duplicates'])->name('content-dashboard.duplicates');
     Route::get('content-dashboard/{contentAccount}', [ContentDashboardController::class, 'show'])->name('content-dashboard.show');
     Route::patch('content-items/{contentItem}/assign', [ContentItemAssignmentController::class, 'update'])->name('content-items.assign');
 

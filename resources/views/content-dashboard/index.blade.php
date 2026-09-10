@@ -77,6 +77,17 @@
             </div>
         @endif
 
+        @if ($duplicateGroups > 0)
+            <div class="rounded-lg bg-red-400/10 ring-1 ring-red-400/20 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                <p class="text-sm text-red-200">
+                    <span class="font-semibold">{{ $duplicateGroups }} possible {{ Str::plural('duplicate', $duplicateGroups) }}</span>
+                    in the Reel/Post/YouTube planners — usually a page duplicated in Notion rather than the original edited in place.
+                </p>
+                <a href="{{ route('content-dashboard.duplicates') }}"
+                   class="shrink-0 text-xs font-semibold uppercase tracking-widest text-red-200 hover:text-white">Review →</a>
+            </div>
+        @endif
+
         {{-- Pipeline overview cards --}}
         <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
             <x-stat-card label="Published"

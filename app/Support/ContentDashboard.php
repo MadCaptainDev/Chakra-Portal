@@ -157,7 +157,7 @@ class ContentDashboard
     {
         [$since, $until] = self::monthRange($month);
 
-        $rows = ContentItem::query()
+        $rows = ContentItem::query()->visible()
             ->selectRaw('status, count(*) as c')
             ->whereNotNull('published_date')
             ->whereBetween('published_date', [$since, $until])
@@ -189,7 +189,7 @@ class ContentDashboard
 
         $ventureToAccount = ContentAccountVenture::pluck('content_account_id', 'venture');
 
-        $rows = ContentItem::query()
+        $rows = ContentItem::query()->visible()
             ->selectRaw('venture, source, count(*) as c')
             ->where('status', 'Published')
             ->whereNotNull('published_date')
@@ -224,7 +224,7 @@ class ContentDashboard
 
         $ventureToAccount = ContentAccountVenture::pluck('content_account_id', 'venture');
 
-        $rows = ContentItem::query()
+        $rows = ContentItem::query()->visible()
             ->selectRaw('venture, source, count(*) as c')
             ->whereNotNull('published_date')
             ->whereBetween('published_date', [$since, $until])
@@ -264,7 +264,7 @@ class ContentDashboard
         $ventureToAccount = ContentAccountVenture::pluck('content_account_id', 'venture');
         $statuses = array_merge(self::STATUS_GROUPS['scheduled'], self::STATUS_GROUPS['in_progress']);
 
-        $rows = ContentItem::query()
+        $rows = ContentItem::query()->visible()
             ->select(['venture', 'source', 'shoot_date'])
             ->whereIn('status', $statuses)
             ->whereNotNull('venture')
@@ -311,7 +311,7 @@ class ContentDashboard
 
         $ventureToAccount = ContentAccountVenture::pluck('content_account_id', 'venture');
 
-        $linked = ContentItem::query()
+        $linked = ContentItem::query()->visible()
             ->select(['venture', 'social_media_item_id'])
             ->whereNotNull('social_media_item_id')
             ->where('status', 'Published')
@@ -479,7 +479,7 @@ class ContentDashboard
 
         $ventureToAccount = ContentAccountVenture::pluck('content_account_id', 'venture');
 
-        $linked = ContentItem::query()
+        $linked = ContentItem::query()->visible()
             ->whereNotNull('social_media_item_id')
             ->where('status', 'Published')
             ->whereNotNull('published_date')
@@ -529,7 +529,7 @@ class ContentDashboard
         [$since, $until] = self::monthRange($month);
         $mapped = ContentAccountVenture::pluck('venture')->all();
 
-        return ContentItem::query()
+        return ContentItem::query()->visible()
             ->where('status', 'Published')
             ->whereNotNull('published_date')
             ->whereBetween('published_date', [$since, $until])
@@ -576,7 +576,7 @@ class ContentDashboard
     {
         [$since, $until] = self::monthRange($month);
 
-        return ContentItem::query()
+        return ContentItem::query()->visible()
             ->with(['socialMediaItem.insights', 'notionShoot', 'assignedUser', 'scriptRecord'])
             ->whereIn('venture', $account->ventureNames() ?: ['__none__'])
             ->whereNotNull('published_date')
@@ -597,7 +597,7 @@ class ContentDashboard
     {
         [$since, $until] = self::monthRange($month);
 
-        $rows = ContentItem::query()
+        $rows = ContentItem::query()->visible()
             ->selectRaw('status, count(*) as c')
             ->whereIn('venture', $account->ventureNames() ?: ['__none__'])
             ->whereNotNull('published_date')
@@ -613,5 +613,47 @@ class ContentDashboard
         $pipeline['total'] = $pipeline['published'] + $pipeline['scheduled'] + $pipeline['in_progress'] + $pipeline['idea'];
 
         return $pipeline;
+    }
+
+    /**
+     * Same title, same planner (source), more than one row -- almost always
+     * a page duplicated in Notion (the "Duplicate" button, or a fresh page
+     * created for a reschedule instead of editing the original's date in
+     * place) rather than the sync creating a second row on its own; see
+     * ContentSyncService's own doc block for how that was confirmed.
+     *
+     * venture is deliberately NOT part of the grouping key, despite being
+     * the thing that should tell two rows apart otherwise -- found live on
+     * this exact data: three rows of the same reel carried venture "Zira",
+     * "zira" and null (the original, cancelled row had lost its venture
+     * entirely). A studio's own account naming is not reliable enough to
+     * gate a duplicate check on; title-within-the-same-planner is. The
+     * trade-off is accepted: a title that's genuinely reused across two
+     * different clients in the same planner would false-positive here, but
+     * this is a read-only advisory list a person reviews, not something
+     * that silently merges data, so that costs a glance, not a mistake.
+     *
+     * Excludes rows already flagged missing (their own problem, surfaced
+     * separately) so this list stays exactly "things to go resolve in
+     * Notion", not noise from pages already known to be gone. Done in PHP,
+     * not a SQL GROUP BY -- content_items is small enough that reading
+     * every titled row once is cheaper than a query per normalisation rule
+     * the database would need taught to it.
+     *
+     * @return Collection<int, Collection<int, ContentItem>>
+     */
+    public static function possibleDuplicates(): Collection
+    {
+        $key = fn (ContentItem $item) => trim((string) $item->title).'|'.$item->source;
+
+        return ContentItem::query()->visible()
+            ->with('notionShoot')
+            ->whereNotNull('title')
+            ->where('title', '!=', '')
+            ->orderByDesc('created_at')
+            ->get()
+            ->groupBy($key)
+            ->filter(fn (Collection $group) => $group->count() > 1)
+            ->sortByDesc(fn (Collection $group) => $group->count());
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -51,6 +52,11 @@ class ContentItem extends Model
         'shoot_date' => 'date',
         'notion_created_at' => 'datetime',
         'synced_at' => 'datetime',
+        // Stamped by ContentSyncService::markMissing() only -- deliberately
+        // absent from $fillable, same reason reminder_sent_at/
+        // forecast_alert_sent_at are on their own models: a form post must
+        // never be able to claim a row vanished from Notion.
+        'notion_missing_since' => 'datetime',
     ];
 
     /**
@@ -127,6 +133,23 @@ class ContentItem extends Model
     public function sourceLabel(): string
     {
         return config("notion.databases.{$this->source}.label") ?? ucfirst((string) $this->source);
+    }
+
+    /**
+     * Excludes rows flagged by ContentSyncService::markMissing() -- a page
+     * that no longer appears in Notion, so it shouldn't appear as live work
+     * on a dashboard either. Not the same as Canceled: that's an editorial
+     * decision made in Notion; this is "we can no longer confirm this
+     * still exists there".
+     */
+    public function scopeVisible(Builder $query): void
+    {
+        $query->whereNull('notion_missing_since');
+    }
+
+    public function isMissingFromNotion(): bool
+    {
+        return $this->notion_missing_since !== null;
     }
 
     public function sourceIcon(): string

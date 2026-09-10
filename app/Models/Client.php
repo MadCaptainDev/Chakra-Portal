@@ -223,6 +223,7 @@ class Client extends Model
         $ventures = TimesheetVenture::rawVenturesFor($this);
 
         return ContentItem::query()
+            ->visible()
             // No spellings means no work, not every client's work. An empty
             // whereIn is a no-op in some drivers, so the impossible value is
             // what keeps "nothing" meaning nothing.

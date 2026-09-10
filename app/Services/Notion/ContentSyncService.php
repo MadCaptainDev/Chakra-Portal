@@ -102,6 +102,8 @@ class ContentSyncService
         }
 
         $synced = 0;
+        $seenPageIds = [];
+        $everyDatabaseSucceeded = true;
 
         // One source can span several databases -- see config/notion.php.
         // Each is wrapped separately so one unreachable database costs only
@@ -125,17 +127,61 @@ class ContentSyncService
                         $source === NotionShoot::SOURCE
                             ? $this->upsertShootPage($page)
                             : $this->upsertPage($source, $page);
+                        $seenPageIds[] = $page['id'];
                         $synced++;
                     }
 
                     $cursor = ($body['has_more'] ?? false) ? ($body['next_cursor'] ?? null) : null;
                 } while ($cursor);
             } catch (Throwable $e) {
+                $everyDatabaseSucceeded = false;
                 Log::warning("Notion sync failed for source [{$source}] database [{$databaseId}]: {$e->getMessage()}");
             }
         }
 
+        // Only content sources (not shoots -- NotionShoot has its own
+        // lifecycle via NotionShootImporter) and only when every configured
+        // database for this source was actually read: a partial failure
+        // above must not be read as "the rest genuinely disappeared", or
+        // one unreachable database would wrongly flag everything else in
+        // this source as missing.
+        if ($source !== NotionShoot::SOURCE && $everyDatabaseSucceeded) {
+            $this->markMissing($source, $seenPageIds);
+        }
+
         return $synced;
+    }
+
+    /**
+     * A page that used to sync here and no longer appears in Notion's query
+     * results -- deleted, moved to trash, or (per the real cause found in
+     * production) a duplicate that was superseded by a fresh page rather
+     * than the original being edited in place. Never deleted here: a
+     * missing page is flagged (notion_missing_since), not removed, so
+     * whatever pointed at it (a Script, a linked Shoot) doesn't silently
+     * lose its target, and the flag clears itself if the page reappears
+     * (unarchived, or the database it lives in becomes reachable again).
+     *
+     * @param  list<string>  $seenPageIds
+     */
+    private function markMissing(string $source, array $seenPageIds): void
+    {
+        // whereNotIn with an empty list matches every row, which is exactly
+        // right here too: if a source's query genuinely returned nothing,
+        // everything that used to be there really is gone from Notion now.
+        ContentItem::query()
+            ->where('source', $source)
+            ->whereNull('notion_missing_since')
+            ->whereNotIn('notion_page_id', $seenPageIds)
+            ->update(['notion_missing_since' => now()]);
+
+        if ($seenPageIds !== []) {
+            ContentItem::query()
+                ->where('source', $source)
+                ->whereNotNull('notion_missing_since')
+                ->whereIn('notion_page_id', $seenPageIds)
+                ->update(['notion_missing_since' => null]);
+        }
     }
 
     /**

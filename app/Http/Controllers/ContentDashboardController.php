@@ -33,6 +33,20 @@ class ContentDashboardController extends Controller
             'months' => ContentDashboard::availableMonths(),
             'lastSynced' => NotionSyncRunner::lastSyncedAt(),
             'targeted' => ContentDashboard::TARGETED,
+            'duplicateGroups' => ContentDashboard::possibleDuplicates()->count(),
+        ]);
+    }
+
+    /**
+     * Same title/source/venture, more than one row -- almost always a page
+     * duplicated in Notion (or a fresh page created for a reschedule
+     * instead of editing the original's date) rather than the sync itself
+     * creating a second row. See ContentDashboard::possibleDuplicates().
+     */
+    public function duplicates(): View
+    {
+        return view('content-dashboard.duplicates', [
+            'groups' => ContentDashboard::possibleDuplicates(),
         ]);
     }
 
