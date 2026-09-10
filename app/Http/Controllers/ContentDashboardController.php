@@ -34,6 +34,7 @@ class ContentDashboardController extends Controller
             'lastSynced' => NotionSyncRunner::lastSyncedAt(),
             'targeted' => ContentDashboard::TARGETED,
             'duplicateGroups' => ContentDashboard::possibleDuplicates()->count(),
+            'plannerBoxes' => ContentDashboard::plannerBoxes($month),
         ]);
     }
 

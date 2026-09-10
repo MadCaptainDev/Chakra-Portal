@@ -200,6 +200,59 @@ class ContentDashboard
     }
 
     /**
+     * The Reel and YouTube planners' own boxes: what's due out today, what
+     * went out, what's still being worked, what's sitting waiting on an
+     * editor -- the four things somebody running a planner day to day
+     * actually watches, rather than reading the whole item list.
+     *
+     * "Posting today" is always today, whichever month the page is showing
+     * -- there is no "today" for last month, so it does not follow the
+     * month scope the other three do.
+     *
+     * "In progress" is STATUS_GROUPS['in_progress'] minus 'To Be Edited',
+     * which gets its own box here -- everything on that shelf still counts
+     * once, just split so "needs an editor" doesn't hide inside "being
+     * worked on".
+     *
+     * @return array<string, array{posting_today: int, posted: int, in_progress: int, to_be_edited: int}>
+     *         keyed by ContentItem source ('reel' / 'youtube')
+     */
+    public static function plannerBoxes(Carbon $month): array
+    {
+        [$since, $until] = self::monthRange($month);
+        $today = now()->toDateString();
+
+        $inProgressStatuses = array_values(array_diff(self::STATUS_GROUPS['in_progress'], ['To Be Edited']));
+
+        $boxes = [];
+
+        foreach ([ContentItem::SOURCE_REEL, ContentItem::SOURCE_YOUTUBE] as $source) {
+            $statusCounts = ContentItem::query()->visible()
+                ->where('source', $source)
+                ->selectRaw('status, count(*) as c')
+                ->whereNotNull('published_date')
+                ->whereBetween('published_date', [$since, $until])
+                ->groupBy('status')
+                ->pluck('c', 'status');
+
+            $postingToday = ContentItem::query()->visible()
+                ->where('source', $source)
+                ->where('status', 'Scheduled')
+                ->whereDate('published_date', $today)
+                ->count();
+
+            $boxes[$source] = [
+                'posting_today' => $postingToday,
+                'posted' => (int) $statusCounts->only(self::STATUS_GROUPS['published'])->sum(),
+                'in_progress' => (int) $statusCounts->only($inProgressStatuses)->sum(),
+                'to_be_edited' => (int) $statusCounts->only(['To Be Edited'])->sum(),
+            ];
+        }
+
+        return $boxes;
+    }
+
+    /**
      * Published counts for one month, keyed account id => [source => count].
      *
      * One query for the whole board: grouped by venture and source, then

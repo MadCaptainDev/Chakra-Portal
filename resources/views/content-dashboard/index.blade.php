@@ -119,8 +119,10 @@
                      per-account cards below, driven by what's scheduled
                      ahead -- not just today's raw count -- see
                      ContentDashboard::reelPaceStatus(). --}}
-                @php($reelTotals = $typeTotals[\App\Models\ContentItem::SOURCE_REEL] ?? null)
-                @php($reelTotalsStatus = $reelTotals['reel_status']['status'] ?? null)
+                @php
+                    $reelTotals = $typeTotals[\App\Models\ContentItem::SOURCE_REEL] ?? null;
+                    $reelTotalsStatus = $reelTotals['reel_status']['status'] ?? null;
+                @endphp
                 <x-stat-card label="Reel vs Target"
                              :value="$reelTotals && $reelTotals['target'] !== null ? $reelTotals['actual'].' / '.$reelTotals['target'] : '—'"
                              icon="trending-up"
@@ -166,6 +168,39 @@
                 </div>
             </div>
         @endif
+
+        {{-- Reel and YouTube planners, each in their own row of boxes --
+             never blended into one set of numbers, same rule as everywhere
+             else on this page (see ContentDashboard::plannerBoxes). --}}
+        @foreach ([
+            \App\Models\ContentItem::SOURCE_REEL => 'Reel Planner',
+            \App\Models\ContentItem::SOURCE_YOUTUBE => 'YouTube Planner',
+        ] as $plannerSource => $plannerLabel)
+            @php
+                $box = $plannerBoxes[$plannerSource];
+            @endphp
+            <div>
+                <x-section-label class="mb-3">{{ $plannerLabel }}</x-section-label>
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <x-stat-card label="Posting Today"
+                                 :value="(string) $box['posting_today']"
+                                 icon="clock"
+                                 :accent="$box['posting_today'] > 0 ? 'blue' : 'gray'" />
+                    <x-stat-card label="Posted"
+                                 :value="(string) $box['posted']"
+                                 icon="check-circle"
+                                 accent="green" />
+                    <x-stat-card label="In Progress"
+                                 :value="(string) $box['in_progress']"
+                                 icon="refresh"
+                                 accent="amber" />
+                    <x-stat-card label="To Be Edited"
+                                 :value="(string) $box['to_be_edited']"
+                                 icon="collection"
+                                 :accent="$box['to_be_edited'] > 0 ? 'red' : 'gray'" />
+                </div>
+            </div>
+        @endforeach
 
         <div class="flex flex-wrap items-start justify-between gap-3">
             <x-section-heading title="{{ $month->format('F Y') }}"
@@ -256,9 +291,9 @@
                                                     <div class="h-1.5 rounded-full bg-white/[0.07] overflow-hidden mt-1">
                                                         <div @class([
                                                             'h-full rounded-full',
-                                                            'bg-green-400' => $reelStatus['status'] === 'green',
-                                                            'bg-amber-400' => $reelStatus['status'] === 'orange',
-                                                            'bg-red-400' => $reelStatus['status'] === 'red',
+                                                            'bg-green-400' => ($reelStatus['status'] ?? null) === 'green',
+                                                            'bg-amber-400' => ($reelStatus['status'] ?? null) === 'orange',
+                                                            'bg-red-400' => ($reelStatus['status'] ?? null) === 'red',
                                                             'bg-brand-400' => $reelStatus === null,
                                                         ]) style="width: {{ min(100, $reel['pct'] ?? 0) }}%"></div>
                                                     </div>

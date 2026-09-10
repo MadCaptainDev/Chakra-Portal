@@ -108,9 +108,9 @@
                                 <div class="h-2 rounded-full bg-white/[0.07] overflow-hidden">
                                     <div @class([
                                             'h-full rounded-full',
-                                            'bg-green-400' => $reelStatus['status'] === 'green',
-                                            'bg-amber-400' => $reelStatus['status'] === 'orange',
-                                            'bg-red-400' => $reelStatus['status'] === 'red',
+                                            'bg-green-400' => ($reelStatus['status'] ?? null) === 'green',
+                                            'bg-amber-400' => ($reelStatus['status'] ?? null) === 'orange',
+                                            'bg-red-400' => ($reelStatus['status'] ?? null) === 'red',
                                             'bg-brand-400' => $reelStatus === null,
                                          ])
                                          style="width: {{ min(100, $reel['pct'] ?? 0) }}%"></div>

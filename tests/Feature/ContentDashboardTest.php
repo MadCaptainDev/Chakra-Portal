@@ -348,4 +348,85 @@ class ContentDashboardTest extends TestCase
             ->get(route('content-dashboard.index'))
             ->assertOk();
     }
+
+    /**
+     * Pins a real bug: a targeted account's Reel row renders fine for a
+     * month other than the one running now, where reelPaceStatus() is
+     * null (the pace verdict only means something for the current month --
+     * see its own doc block) but the target itself is still set. The badge
+     * markup used to read $reelStatus['status'] without checking $reelStatus
+     * was non-null first, which 500'd the whole page for any account with a
+     * target the moment the month picker left "this month".
+     */
+    public function test_a_past_month_with_a_target_renders_without_a_pace_verdict(): void
+    {
+        Carbon::setTestNow(Carbon::create(2026, 9, 10));
+
+        $this->account('Janet', 'Janet', 'Janet', ['reel' => 15]);
+        $this->published('Janet', ContentItem::SOURCE_REEL, '2026-08-05');
+
+        $this->actingAs($this->admin())
+            ->get(route('content-dashboard.index').'?month=2026-08')
+            ->assertOk()
+            ->assertSee('Janet');
+
+        Carbon::setTestNow();
+    }
+
+    public function test_planner_boxes_split_reel_and_youtube_by_status(): void
+    {
+        Carbon::setTestNow(Carbon::create(2026, 9, 10));
+
+        ContentItem::factory()->create([
+            'source' => ContentItem::SOURCE_REEL,
+            'status' => 'Scheduled',
+            'published_date' => '2026-09-10',
+        ]);
+        ContentItem::factory()->create([
+            'source' => ContentItem::SOURCE_REEL,
+            'status' => 'Published',
+            'published_date' => '2026-09-08',
+        ]);
+        ContentItem::factory()->create([
+            'source' => ContentItem::SOURCE_REEL,
+            'status' => 'Edit in Progress',
+            'published_date' => '2026-09-12',
+        ]);
+        ContentItem::factory()->count(2)->create([
+            'source' => ContentItem::SOURCE_REEL,
+            'status' => 'To Be Edited',
+            'published_date' => '2026-09-14',
+        ]);
+
+        ContentItem::factory()->create([
+            'source' => ContentItem::SOURCE_YOUTUBE,
+            'status' => 'Scheduled',
+            'published_date' => '2026-09-10',
+        ]);
+
+        $response = $this->actingAs($this->admin())
+            ->get(route('content-dashboard.index').'?month=2026-09');
+
+        $response->assertOk();
+        $response->assertViewHas('plannerBoxes', function (array $boxes) {
+            return $boxes[ContentItem::SOURCE_REEL] === [
+                'posting_today' => 1,
+                'posted' => 1,
+                'in_progress' => 1,
+                'to_be_edited' => 2,
+            ] && $boxes[ContentItem::SOURCE_YOUTUBE] === [
+                'posting_today' => 1,
+                'posted' => 0,
+                'in_progress' => 0,
+                'to_be_edited' => 0,
+            ];
+        });
+
+        $response->assertSee('Reel Planner');
+        $response->assertSee('YouTube Planner');
+        $response->assertSee('Posting Today');
+        $response->assertSee('To Be Edited');
+
+        Carbon::setTestNow();
+    }
 }
