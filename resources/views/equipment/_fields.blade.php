@@ -34,6 +34,24 @@
                       :value="old('identifier', $item?->identifier)" placeholder="FX3-01" />
     </div>
 
+    <div class="grid grid-cols-2 gap-3" x-data="{ status: '{{ old('status', $item?->status ?? \App\Models\EquipmentItem::STATUS_AVAILABLE) }}' }">
+        <div>
+            <x-input-label :for="'status-'.($item?->id ?? 'new')" value="Condition" />
+            <x-select :id="'status-'.($item?->id ?? 'new')" name="status" class="mt-1" x-model="status">
+                @foreach (\App\Models\EquipmentItem::STATUSES as $value => $label)
+                    <option value="{{ $value }}" @selected(old('status', $item?->status ?? \App\Models\EquipmentItem::STATUS_AVAILABLE) === $value)>{{ $label }}</option>
+                @endforeach
+            </x-select>
+            <x-input-error :messages="$errors->get('status')" class="mt-2" />
+        </div>
+
+        <div x-show="status !== '{{ \App\Models\EquipmentItem::STATUS_AVAILABLE }}'" x-cloak>
+            <x-input-label :for="'status_note-'.($item?->id ?? 'new')" value="Detail (optional)" />
+            <x-text-input :id="'status_note-'.($item?->id ?? 'new')" name="status_note" type="text" class="mt-1"
+                          :value="old('status_note', $item?->status_note)" placeholder="Sent to Sony service centre, back ~20th" />
+        </div>
+    </div>
+
     <div>
         <x-input-label :for="'notes-'.($item?->id ?? 'new')" value="Notes (optional)" />
         <x-textarea :id="'notes-'.($item?->id ?? 'new')" name="notes" rows="2" class="mt-1"

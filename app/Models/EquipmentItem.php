@@ -15,12 +15,34 @@ class EquipmentItem extends Model
 {
     use HasFactory;
 
+    /**
+     * Operational condition -- distinct from `is_active`, which means
+     * "retired: no longer owned, or never will be again". This is
+     * "owned, but is it actually fit to take on a shoot right now".
+     */
+    public const STATUS_AVAILABLE = 'available';
+
+    public const STATUS_IN_REPAIR = 'in_repair';
+
+    public const STATUS_DAMAGED = 'damaged';
+
+    public const STATUS_LOST = 'lost';
+
+    public const STATUSES = [
+        self::STATUS_AVAILABLE => 'Available',
+        self::STATUS_IN_REPAIR => 'In Repair',
+        self::STATUS_DAMAGED => 'Damaged',
+        self::STATUS_LOST => 'Lost',
+    ];
+
     protected $fillable = [
         'name',
         'category_id',
         'identifier',
         'quantity',
         'is_active',
+        'status',
+        'status_note',
         'notes',
     ];
 
@@ -52,6 +74,16 @@ class EquipmentItem extends Model
     public function categoryLabel(): string
     {
         return $this->category?->name ?? 'Uncategorised';
+    }
+
+    public function statusLabel(): string
+    {
+        return self::STATUSES[$this->status] ?? ucfirst(str_replace('_', ' ', (string) $this->status));
+    }
+
+    public function isAvailable(): bool
+    {
+        return $this->status === self::STATUS_AVAILABLE;
     }
 
     /** "Gimbal" or "NP-F970 battery ×12", for a list that has to scan fast. */

@@ -60,6 +60,11 @@
         'warning' => 'bg-amber-400/15 text-amber-200',
         'ok' => 'bg-emerald-400/15 text-emerald-200',
         'unknown' => 'bg-white/10 text-brand-100/70',
+        // EquipmentItem::STATUSES.
+        'available' => 'bg-emerald-400/15 text-emerald-200',
+        'in_repair' => 'bg-amber-400/15 text-amber-200',
+        'damaged' => 'bg-red-400/15 text-red-200',
+        'lost' => 'bg-red-400/15 text-red-200',
     ];
 
     $labels = [
@@ -107,6 +112,10 @@
         'warning' => 'Watch',
         'ok' => 'Covered',
         'unknown' => 'No target set',
+        'available' => 'Available',
+        'in_repair' => 'In Repair',
+        'damaged' => 'Damaged',
+        'lost' => 'Lost',
     ];
 
     // Invoice/recurring statuses arrive as snake_case; Notion statuses arrive as

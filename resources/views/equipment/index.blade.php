@@ -11,13 +11,16 @@
     </x-slot>
 
     <div class="space-y-4">
-        <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <x-stat-card label="Items owned" :value="$total" accent="brand" icon="briefcase" />
             <x-stat-card label="Categories" :value="$groups->count()" accent="gray" icon="template" />
             <x-stat-card label="Unaccounted for" :value="$missing"
-                         :accent="$missing > 0 ? 'red' : 'green'" icon="alert"
-                         class="col-span-2 lg:col-span-1">
+                         :accent="$missing > 0 ? 'red' : 'green'" icon="alert">
                 {{ $missing > 0 ? 'Went out and never came back' : 'Everything is accounted for' }}
+            </x-stat-card>
+            <x-stat-card label="Needs attention" :value="$needsAttention"
+                         :accent="$needsAttention > 0 ? 'red' : 'green'" icon="alert">
+                {{ $needsAttention > 0 ? 'In repair, damaged or lost' : 'Everything is in working order' }}
             </x-stat-card>
         </div>
 
@@ -27,6 +30,16 @@
                     <x-input-label for="q" value="Search" />
                     <x-text-input id="q" name="q" type="search" class="mt-1" :value="$filters['q']"
                                   placeholder="Name or asset tag" />
+                </div>
+
+                <div class="min-w-[160px]">
+                    <x-input-label for="status" value="Condition" />
+                    <x-select id="status" name="status" class="mt-1">
+                        <option value="">Any condition</option>
+                        @foreach (\App\Models\EquipmentItem::STATUSES as $value => $label)
+                            <option value="{{ $value }}" @selected($filters['status'] === $value)>{{ $label }}</option>
+                        @endforeach
+                    </x-select>
                 </div>
 
                 <label for="retired" class="inline-flex items-center gap-2 min-h-[44px] text-sm text-brand-100/80 cursor-pointer">
@@ -56,12 +69,18 @@
 
                             <div class="p-4 flex items-start justify-between gap-3">
                                 <div class="min-w-0">
-                                    <p class="font-semibold text-white truncate">
+                                    <p class="font-semibold text-white truncate flex items-center gap-1.5">
                                         {{ $item->name }}
                                         @unless ($item->is_active)
-                                            <span class="ml-1 text-xs font-normal text-brand-100/50">(retired)</span>
+                                            <span class="text-xs font-normal text-brand-100/50">(retired)</span>
+                                        @endunless
+                                        @unless ($item->isAvailable())
+                                            <x-badge :status="$item->status" />
                                         @endunless
                                     </p>
+                                    @if ($item->status_note && ! $item->isAvailable())
+                                        <p class="text-xs text-amber-200/80 mt-0.5">{{ $item->status_note }}</p>
+                                    @endif
                                     <p class="text-xs text-brand-100/60 mt-0.5">
                                         {{ $item->quantity }} owned
                                         @if ($item->identifier) &middot; {{ $item->identifier }} @endif

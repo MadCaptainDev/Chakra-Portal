@@ -156,6 +156,11 @@
                                         @elseif ($item->quantity > 1)
                                             — {{ $free }} of {{ $stock }} free
                                         @endif
+                                        {{-- Not a gate, same as the shortfall warnings above -- the
+                                             crew asked for a heads-up, not to be blocked. --}}
+                                        @unless ($item->isAvailable())
+                                            — {{ $item->statusLabel() }}
+                                        @endunless
                                     </option>
                                 @endforeach
                             </x-select>

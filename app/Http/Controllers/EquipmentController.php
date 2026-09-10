@@ -19,10 +19,12 @@ class EquipmentController extends Controller
     {
         $search = trim($request->string('q')->toString());
         $showRetired = $request->boolean('retired');
+        $status = $request->string('status')->toString();
 
         $items = EquipmentItem::query()
             ->with('category')
             ->when(! $showRetired, fn ($query) => $query->active())
+            ->when($status !== '' && array_key_exists($status, EquipmentItem::STATUSES), fn ($query) => $query->where('status', $status))
             ->when($search !== '', fn ($query) => $query->where(
                 fn ($inner) => $inner
                     ->where('name', 'like', "%{$search}%")
@@ -41,10 +43,11 @@ class EquipmentController extends Controller
         return view('equipment.index', [
             'groups' => $items->groupBy(fn (EquipmentItem $item) => $item->categoryLabel()),
             'shortfalls' => $shortfalls,
-            'filters' => ['q' => $search, 'retired' => $showRetired],
+            'filters' => ['q' => $search, 'retired' => $showRetired, 'status' => $status],
             'categories' => TaxonomyTerm::options(TaxonomyTerm::TYPE_EQUIPMENT_CATEGORY),
             'total' => $items->sum('quantity'),
             'missing' => $shortfalls->sum(),
+            'needsAttention' => EquipmentItem::active()->where('status', '!=', EquipmentItem::STATUS_AVAILABLE)->count(),
         ]);
     }
 
@@ -100,6 +103,8 @@ class EquipmentController extends Controller
             'identifier' => ['nullable', 'string', 'max:120'],
             'quantity' => ['required', 'integer', 'min:1', 'max:999'],
             'is_active' => ['sometimes', 'boolean'],
+            'status' => ['sometimes', Rule::in(array_keys(EquipmentItem::STATUSES))],
+            'status_note' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
     }
