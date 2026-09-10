@@ -257,6 +257,8 @@
              missed, and the first anyone hears of that is the client
              asking. --}}
         <section class="space-y-6">
+            @include('dashboard._reel-today')
+
             @include('dashboard._content-pipeline', [
                 'month' => $month,
                 'contentAccounts' => $contentAccounts,

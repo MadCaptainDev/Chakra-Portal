@@ -373,60 +373,92 @@ class ContentDashboardTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_planner_boxes_split_reel_and_youtube_by_status(): void
+    /**
+     * The Reel Planner "Today" board -- its own endpoint (see
+     * ContentDashboardController::todayReelBoard()), Reel only, always
+     * today regardless of any month a caller might otherwise be looking
+     * at, with the item list itself (title + editor) alongside the counts.
+     */
+    public function test_todays_reel_board_counts_by_stage_and_lists_the_items(): void
     {
-        Carbon::setTestNow(Carbon::create(2026, 9, 10));
+        Carbon::setTestNow(Carbon::create(2026, 9, 11, 9, 0));
 
         ContentItem::factory()->create([
             'source' => ContentItem::SOURCE_REEL,
-            'status' => 'Scheduled',
-            'published_date' => '2026-09-10',
-        ]);
-        ContentItem::factory()->create([
-            'source' => ContentItem::SOURCE_REEL,
-            'status' => 'Published',
-            'published_date' => '2026-09-08',
+            'status' => 'To Be Edited',
+            'published_date' => '2026-09-11',
+            'title' => 'Diwali Sale Teaser',
+            'editor' => 'Priya',
         ]);
         ContentItem::factory()->create([
             'source' => ContentItem::SOURCE_REEL,
             'status' => 'Edit in Progress',
-            'published_date' => '2026-09-12',
+            'published_date' => '2026-09-11',
+            'title' => 'Behind the Scenes',
+            'editor' => 'Arjun',
         ]);
         ContentItem::factory()->count(2)->create([
             'source' => ContentItem::SOURCE_REEL,
-            'status' => 'To Be Edited',
-            'published_date' => '2026-09-14',
+            'status' => 'Under Review',
+            'published_date' => '2026-09-11',
         ]);
-
+        ContentItem::factory()->create([
+            'source' => ContentItem::SOURCE_REEL,
+            'status' => 'Published',
+            'published_date' => '2026-09-11',
+        ]);
+        // Due today but not one of the four stages the boxes call out --
+        // still counted in the total, just not in any individual box.
+        ContentItem::factory()->create([
+            'source' => ContentItem::SOURCE_REEL,
+            'status' => 'Scheduled',
+            'published_date' => '2026-09-11',
+        ]);
+        // Canceled today -- excluded entirely.
+        ContentItem::factory()->create([
+            'source' => ContentItem::SOURCE_REEL,
+            'status' => 'Canceled',
+            'published_date' => '2026-09-11',
+        ]);
+        // Different day and different source -- neither counted.
+        ContentItem::factory()->create([
+            'source' => ContentItem::SOURCE_REEL,
+            'status' => 'To Be Edited',
+            'published_date' => '2026-09-12',
+        ]);
         ContentItem::factory()->create([
             'source' => ContentItem::SOURCE_YOUTUBE,
-            'status' => 'Scheduled',
-            'published_date' => '2026-09-10',
+            'status' => 'To Be Edited',
+            'published_date' => '2026-09-11',
         ]);
 
         $response = $this->actingAs($this->admin())
-            ->get(route('content-dashboard.index').'?month=2026-09');
+            ->getJson(route('content-dashboard.reel-today'));
 
-        $response->assertOk();
-        $response->assertViewHas('plannerBoxes', function (array $boxes) {
-            return $boxes[ContentItem::SOURCE_REEL] === [
-                'posting_today' => 1,
+        $response->assertOk()->assertJson([
+            'date' => '2026-09-11',
+            'total_posting' => 6,
+            'counts' => [
+                'to_be_edited' => 1,
+                'edit_in_progress' => 1,
+                'under_review' => 2,
                 'posted' => 1,
-                'in_progress' => 1,
-                'to_be_edited' => 2,
-            ] && $boxes[ContentItem::SOURCE_YOUTUBE] === [
-                'posting_today' => 1,
-                'posted' => 0,
-                'in_progress' => 0,
-                'to_be_edited' => 0,
-            ];
-        });
+            ],
+        ]);
 
-        $response->assertSee('Reel Planner');
-        $response->assertSee('YouTube Planner');
-        $response->assertSee('Posting Today');
-        $response->assertSee('To Be Edited');
+        $response->assertJsonFragment(['title' => 'Diwali Sale Teaser', 'editor' => 'Priya']);
+        $response->assertJsonFragment(['title' => 'Behind the Scenes', 'editor' => 'Arjun']);
+        $this->assertCount(6, $response->json('items'));
 
         Carbon::setTestNow();
+    }
+
+    public function test_a_guest_and_an_employee_cannot_reach_todays_reel_board(): void
+    {
+        $this->getJson(route('content-dashboard.reel-today'))->assertUnauthorized();
+
+        $this->actingAs(User::factory()->create(['role' => User::ROLE_EMPLOYEE]))
+            ->getJson(route('content-dashboard.reel-today'))
+            ->assertForbidden();
     }
 }

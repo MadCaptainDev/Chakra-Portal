@@ -6,6 +6,7 @@ use App\Models\ContentAccount;
 use App\Models\User;
 use App\Services\Notion\NotionSyncRunner;
 use App\Support\ContentDashboard;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -34,8 +35,20 @@ class ContentDashboardController extends Controller
             'lastSynced' => NotionSyncRunner::lastSyncedAt(),
             'targeted' => ContentDashboard::TARGETED,
             'duplicateGroups' => ContentDashboard::possibleDuplicates()->count(),
-            'plannerBoxes' => ContentDashboard::plannerBoxes($month),
         ]);
+    }
+
+    /**
+     * Today's Reel board -- its own endpoint, not folded into index() or
+     * cached with it. It backs the shrinkable widget on the studio
+     * Dashboard (resources/views/dashboard/_reel-today.blade.php), which
+     * fetches this on open rather than paying for it on every dashboard
+     * load, and it is meant to work standalone against "right now" even
+     * when the page around it was rendered a while ago.
+     */
+    public function todayReelBoard(): JsonResponse
+    {
+        return response()->json(ContentDashboard::todayReelBoard());
     }
 
     /**

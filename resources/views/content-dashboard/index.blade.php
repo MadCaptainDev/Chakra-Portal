@@ -169,39 +169,6 @@
             </div>
         @endif
 
-        {{-- Reel and YouTube planners, each in their own row of boxes --
-             never blended into one set of numbers, same rule as everywhere
-             else on this page (see ContentDashboard::plannerBoxes). --}}
-        @foreach ([
-            \App\Models\ContentItem::SOURCE_REEL => 'Reel Planner',
-            \App\Models\ContentItem::SOURCE_YOUTUBE => 'YouTube Planner',
-        ] as $plannerSource => $plannerLabel)
-            @php
-                $box = $plannerBoxes[$plannerSource];
-            @endphp
-            <div>
-                <x-section-label class="mb-3">{{ $plannerLabel }}</x-section-label>
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    <x-stat-card label="Posting Today"
-                                 :value="(string) $box['posting_today']"
-                                 icon="clock"
-                                 :accent="$box['posting_today'] > 0 ? 'blue' : 'gray'" />
-                    <x-stat-card label="Posted"
-                                 :value="(string) $box['posted']"
-                                 icon="check-circle"
-                                 accent="green" />
-                    <x-stat-card label="In Progress"
-                                 :value="(string) $box['in_progress']"
-                                 icon="refresh"
-                                 accent="amber" />
-                    <x-stat-card label="To Be Edited"
-                                 :value="(string) $box['to_be_edited']"
-                                 icon="collection"
-                                 :accent="$box['to_be_edited'] > 0 ? 'red' : 'gray'" />
-                </div>
-            </div>
-        @endforeach
-
         <div class="flex flex-wrap items-start justify-between gap-3">
             <x-section-heading title="{{ $month->format('F Y') }}"
                                subtitle="Published against target per account, split by platform. Open an account for item-level detail." />

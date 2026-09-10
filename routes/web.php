@@ -1163,6 +1163,9 @@ Route::middleware(['auth', 'admin', 'recurring.catchup', 'instagram.catchup'])->
      */
     Route::get('content-dashboard', [ContentDashboardController::class, 'index'])->name('content-dashboard.index');
     Route::post('content-dashboard/refresh', [ContentDashboardController::class, 'refresh'])->name('content-dashboard.refresh');
+    // Backs the shrinkable "Reel Planner — Today" widget on the studio
+    // Dashboard -- its own fetch() call, not baked into DashboardController::index().
+    Route::get('content-dashboard/reel-today', [ContentDashboardController::class, 'todayReelBoard'])->name('content-dashboard.reel-today');
     // Before {contentAccount}, or "duplicates" binds as an account id.
     Route::get('content-dashboard/duplicates', [ContentDashboardController::class, 'duplicates'])->name('content-dashboard.duplicates');
     Route::get('content-dashboard/{contentAccount}', [ContentDashboardController::class, 'show'])->name('content-dashboard.show');

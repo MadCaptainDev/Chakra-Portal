@@ -200,56 +200,54 @@ class ContentDashboard
     }
 
     /**
-     * The Reel and YouTube planners' own boxes: what's due out today, what
-     * went out, what's still being worked, what's sitting waiting on an
-     * editor -- the four things somebody running a planner day to day
-     * actually watches, rather than reading the whole item list.
+     * The Reel planner's own board for today alone -- what's due to post
+     * today, broken down by stage, plus the items themselves (title,
+     * editor) rather than only counts. Reel only -- YouTube copies here
+     * are not what this board is for.
      *
-     * "Posting today" is always today, whichever month the page is showing
-     * -- there is no "today" for last month, so it does not follow the
-     * month scope the other three do.
+     * Deliberately not month-scoped like the rest of this class, and
+     * deliberately its own method behind its own endpoint (see
+     * ContentDashboardController::todayReelBoard()) rather than folded
+     * into forMonth(): "today" changes independently of whatever month
+     * somebody has the dashboard open to, and a widget that only ever
+     * needs today's slice should not pay for -- or wait on -- a month's
+     * worth of query the rest of the page needs and this does not.
      *
-     * "In progress" is STATUS_GROUPS['in_progress'] minus 'To Be Edited',
-     * which gets its own box here -- everything on that shelf still counts
-     * once, just split so "needs an editor" doesn't hide inside "being
-     * worked on".
+     * total_posting counts every non-canceled Reel item due today,
+     * whatever its status; counts below are specific stages inside that
+     * total, not a full partition of it -- an item still sitting as
+     * Scheduled or Video Ready today counts in the total and in none of
+     * the four.
      *
-     * @return array<string, array{posting_today: int, posted: int, in_progress: int, to_be_edited: int}>
-     *         keyed by ContentItem source ('reel' / 'youtube')
+     * @return array{date: string, total_posting: int, counts: array{to_be_edited: int, edit_in_progress: int, under_review: int, posted: int}, items: list<array{title: string, editor: string, status: string}>}
      */
-    public static function plannerBoxes(Carbon $month): array
+    public static function todayReelBoard(): array
     {
-        [$since, $until] = self::monthRange($month);
-        $today = now()->toDateString();
+        $today = now();
 
-        $inProgressStatuses = array_values(array_diff(self::STATUS_GROUPS['in_progress'], ['To Be Edited']));
+        $items = ContentItem::query()->visible()
+            ->where('source', ContentItem::SOURCE_REEL)
+            ->whereDate('published_date', $today->toDateString())
+            ->where('status', '!=', 'Canceled')
+            ->orderBy('status')
+            ->orderBy('title')
+            ->get(['title', 'editor', 'status']);
 
-        $boxes = [];
-
-        foreach ([ContentItem::SOURCE_REEL, ContentItem::SOURCE_YOUTUBE] as $source) {
-            $statusCounts = ContentItem::query()->visible()
-                ->where('source', $source)
-                ->selectRaw('status, count(*) as c')
-                ->whereNotNull('published_date')
-                ->whereBetween('published_date', [$since, $until])
-                ->groupBy('status')
-                ->pluck('c', 'status');
-
-            $postingToday = ContentItem::query()->visible()
-                ->where('source', $source)
-                ->where('status', 'Scheduled')
-                ->whereDate('published_date', $today)
-                ->count();
-
-            $boxes[$source] = [
-                'posting_today' => $postingToday,
-                'posted' => (int) $statusCounts->only(self::STATUS_GROUPS['published'])->sum(),
-                'in_progress' => (int) $statusCounts->only($inProgressStatuses)->sum(),
-                'to_be_edited' => (int) $statusCounts->only(['To Be Edited'])->sum(),
-            ];
-        }
-
-        return $boxes;
+        return [
+            'date' => $today->toDateString(),
+            'total_posting' => $items->count(),
+            'counts' => [
+                'to_be_edited' => $items->where('status', 'To Be Edited')->count(),
+                'edit_in_progress' => $items->where('status', 'Edit in Progress')->count(),
+                'under_review' => $items->where('status', 'Under Review')->count(),
+                'posted' => $items->where('status', 'Published')->count(),
+            ],
+            'items' => $items->map(fn (ContentItem $item) => [
+                'title' => $item->title ?: 'Untitled',
+                'editor' => $item->editor ?: '—',
+                'status' => $item->status ?: '—',
+            ])->values()->all(),
+        ];
     }
 
     /**
