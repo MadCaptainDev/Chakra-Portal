@@ -51,6 +51,7 @@ use App\Http\Controllers\MonthlyReportController;
 use App\Http\Controllers\My\CalendarController as MyCalendarController;
 use App\Http\Controllers\My\DashboardController as MyDashboardController;
 use App\Http\Controllers\My\RoutineController as MyRoutineController;
+use App\Http\Controllers\My\SalaryController as MySalaryController;
 use App\Http\Controllers\My\TeamController as MyTeamController;
 use App\Http\Controllers\My\TimesheetController as MyTimesheetController;
 use App\Http\Controllers\My\TodoController as MyTodoController;
@@ -237,6 +238,11 @@ Route::middleware('auth')->get('oauth/instagram/callback', [InstagramConnectionC
 Route::middleware(['auth', 'logs-work'])->prefix('my')->name('my.')->group(function () {
     Route::get('dashboard', [MyDashboardController::class, 'index'])->name('dashboard');
     Route::get('calendar', [MyCalendarController::class, 'index'])->name('calendar');
+
+    // Own salary + raise history, read only -- no salaries.* module
+    // permission required, since it's scoped to the signed-in user and
+    // never anyone else's. See My\SalaryController's own doc block.
+    Route::get('salary', [MySalaryController::class, 'index'])->name('salary');
 
     Route::get('timesheet', [MyTimesheetController::class, 'index'])->name('timesheet');
     Route::post('timesheet', [MyTimesheetController::class, 'store'])->name('timesheet.store');

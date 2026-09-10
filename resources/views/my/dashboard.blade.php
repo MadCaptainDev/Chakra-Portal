@@ -271,7 +271,12 @@
             <section>
                 <div class="flex items-baseline justify-between gap-4 mb-3.5">
                     <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-300">Your profile</p>
-                    <a href="{{ route('profile.edit') }}" class="text-xs font-semibold text-brand-300 hover:text-brand-200 transition-colors">Edit</a>
+                    <div class="flex items-center gap-3">
+                        @if ($employee)
+                            <a href="{{ route('my.salary') }}" class="text-xs font-semibold text-brand-300 hover:text-brand-200 transition-colors">Salary</a>
+                        @endif
+                        <a href="{{ route('profile.edit') }}" class="text-xs font-semibold text-brand-300 hover:text-brand-200 transition-colors">Edit</a>
+                    </div>
                 </div>
 
                 <div class="rounded-xl bg-white/5 ring-1 ring-white/10 p-5 sm:p-6">
