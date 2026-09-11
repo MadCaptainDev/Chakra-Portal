@@ -433,4 +433,46 @@ class SaasProductAdminTest extends TestCase
             ->assertOk()
             ->assertSee('12,000.00');
     }
+
+    /**
+     * The self-contained prompt handed to an AI coding agent working in the
+     * product's OWN codebase -- real name and endpoint URLs, a placeholder
+     * where the token would be (it is only ever known here on the one
+     * request right after issue/reissue, which this test doesn't trigger).
+     */
+    public function test_the_show_page_offers_an_ai_setup_guide_with_the_real_endpoints(): void
+    {
+        $product = $this->product(['name' => 'DJ Thangamaaligai ERP']);
+
+        $response = $this->actingAs($this->admin())->get(route('saas-products.show', $product));
+
+        $response->assertOk();
+        $response->assertSee('AI setup guide');
+        $response->assertSee('DJ Thangamaaligai ERP');
+        $response->assertSee(route('api.saas.backups.store'), false);
+        $response->assertSee(route('api.saas.license'), false);
+        $response->assertSee('YOUR_TOKEN');
+    }
+
+    public function test_the_ai_setup_guide_carries_a_freshly_issued_token(): void
+    {
+        $client = Client::create(['name' => 'Acme']);
+
+        $this->actingAs($this->admin())->post(route('saas-products.store'), [
+            'client_id' => $client->id,
+            'name' => 'Acme App',
+        ]);
+
+        $product = SaasProduct::sole();
+
+        // The token is flashed to session by the redirect above; a fresh GET
+        // (as the same session) is what the reissue-token confirm flow
+        // actually shows the person immediately afterward.
+        $response = $this->actingAs($this->admin())->from(route('saas-products.show', $product))
+            ->withSession(['saas_token_plain' => 'saas_test-plain-token'])
+            ->get(route('saas-products.show', $product));
+
+        $response->assertOk();
+        $response->assertSee('Bearer saas_test-plain-token', false);
+    }
 }

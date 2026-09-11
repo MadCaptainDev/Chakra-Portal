@@ -120,6 +120,16 @@
                 </x-sidebar-link>
             @endif
 
+            {{-- Activity: what actually went out today, across campaigns and
+                 every automated alert -- the daily-schedule overview, not
+                 the raw webhook log under Settings -> WhatsApp. Sits right
+                 after Inbox: Inbox is what came in, this is what went out. --}}
+            @if ($module === 'whatsapp-crm' && Route::has('whatsapp-crm.activity.index'))
+                <x-sidebar-link icon="calendar" :href="route('whatsapp-crm.activity.index')" :active="request()->routeIs('whatsapp-crm.activity.*')">
+                    Activity
+                </x-sidebar-link>
+            @endif
+
             {{-- Campaigns, nested under WhatsApp CRM the same way as Contacts
                  below: the module's landing page (WhatsappCrmDashboardController
                  redirects here), so it reads first in this list even though it

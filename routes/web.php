@@ -90,6 +90,7 @@ use App\Http\Controllers\TimesheetDayController;
 use App\Http\Controllers\TodoReviewController;
 use App\Http\Controllers\TodoTrackerController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WhatsappActivityController;
 use App\Http\Controllers\WhatsappCampaignController;
 use App\Http\Controllers\WhatsappContactController;
 use App\Http\Controllers\WhatsappConversationNoteController;
@@ -1018,6 +1019,11 @@ Route::middleware(['auth', 'module:saas-products,view'])->group(function () {
  */
 Route::middleware(['auth', 'module:whatsapp-crm,view'])->prefix('whatsapp-crm')->name('whatsapp-crm.')->group(function () {
     Route::get('/', [WhatsappCrmDashboardController::class, 'index'])->name('index');
+
+    // What actually went out today, across campaigns and every automated
+    // alert -- see App\Support\WhatsappActivity's own doc block for why
+    // this is separate from the raw webhook log under Settings -> WhatsApp.
+    Route::get('activity', [WhatsappActivityController::class, 'index'])->name('activity.index');
 
     Route::resource('phonebooks', WhatsappPhonebookController::class)->except('show')
         ->middlewareFor('store', 'module:whatsapp-crm,create')

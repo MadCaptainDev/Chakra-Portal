@@ -202,6 +202,86 @@
                     </p>
                 @endif
             </x-card>
+
+            {{-- A self-contained prompt for an AI coding agent working in
+                 THIS product's own codebase, not Chakra Portal's -- it has
+                 no access to this app's docs/ folder or a logged-in session
+                 to fetch the Swagger JSON from, so everything it needs to
+                 implement the integration has to travel in the one paste.
+                 Real name, base URL and (fresh) token substituted in; the
+                 rest is the same shape as docs/SAAS_INTEGRATION.md,
+                 condensed into an imperative task list rather than prose. --}}
+            @php
+                // Plain PHP, not Blade mustaches -- this whole block is a
+                // heredoc, which Blade never re-scans once it's assigned to
+                // a string, so every dynamic value has to be a real PHP
+                // variable interpolated by PHP itself, computed up front.
+                $storeUrl = route('api.saas.backups.store');
+                $indexUrl = route('api.saas.backups.index');
+                $licenseUrl = route('api.saas.license');
+                $configUrl = route('api.saas.config');
+                $baseUrl = rtrim((string) config('app.url'), '/');
+                $productName = $product->name;
+
+                $aiGuide = <<<GUIDE
+                    You're adding backup + license-check integration to "{$productName}" so Chakra Portal
+                    (the studio maintaining this software) can track backups and enforce AMC billing status.
+
+                    Base URL: {$baseUrl}
+                    Auth: every request needs `Authorization: Bearer {$tokenPlaceholder}` -- no session, no cookie, no CSRF.
+                    Rate limit: 20 requests/minute per token (generous for scheduled backups + hourly license checks).
+
+                    Implement all three of these:
+
+                    1. Backup upload (cron, twice a day or whatever fits this software's own backup cycle)
+                       POST {$storeUrl}
+                       multipart/form-data: `file` (the backup itself, any name, up to 1 GB), `taken_at` (optional
+                       ISO 8601, defaults to now -- send when the backup actually started if it takes a while).
+                       Returns 201 with {id, taken_at, size_bytes, checksum} -- checksum is SHA-256 of the exact
+                       bytes received; compare it locally if you want to confirm nothing got mangled in transit.
+                       Retention is automatic server-side -- nothing to call to prune old backups.
+
+                    2. License check (on startup, then on a timer -- hourly is plenty, this is not per-request)
+                       GET {$licenseUrl}
+                       Returns {status, message, amc_paid_until}. status is one of:
+                         - "active"    -> run normally
+                         - "overdue"   -> keep running, but show `message` somewhere visible in this software's own UI
+                         - "suspended" -> Chakra Portal can only ever answer truthfully; it cannot reach into this
+                                          server and stop anything itself. YOU decide what "suspended" does here --
+                                          typically a hard block screen or refusing writes. This is the one status
+                                          that needs a real product decision, not just wiring.
+                       Show `message` verbatim rather than writing your own copy for overdue/suspended -- it already
+                       says the right thing and changes if Chakra's wording changes.
+                       Cache the last known answer so a momentary network blip doesn't read as a suspension.
+
+                    3. Restore support (list + download, for whenever this is actually needed)
+                       GET {$indexUrl} -> {"data": [{id, taken_at, size_bytes, checksum}, ...]}, newest first
+                       GET {$indexUrl}/{id}/download -> the raw file, streamed
+
+                    Optional: GET {$configUrl} returns {name, backup_retention_count, amc_frequency}
+                    if this software wants to read its own retention/billing config rather than hardcoding it.
+
+                    If the token above still says <YOUR_TOKEN>, stop and ask a Chakra Portal admin to issue one from
+                    this product's own page (SaaS Products -> {$productName}) -- it's shown once, on screen,
+                    right after creation or a reissue, and cannot be retrieved again after that.
+                    GUIDE;
+            @endphp
+            <x-card padding="md" x-data="{ copied: false }">
+                <x-section-heading title="AI setup guide"
+                                   subtitle="A self-contained prompt for Claude (or any coding agent) working in this product's own codebase -- paste it as the first message." />
+
+                <div class="mt-3">
+                    <pre class="whitespace-pre-wrap overflow-x-auto rounded-md bg-brand-900/40 px-3 py-2.5 text-xs text-white ring-1 ring-white/10 max-h-96 overflow-y-auto">{{ $aiGuide }}</pre>
+                    <button type="button"
+                            @click="navigator.clipboard.writeText($el.previousElementSibling.textContent.trim());
+                                    copied = true; setTimeout(() => copied = false, 2000)"
+                            class="mt-2 inline-flex items-center min-h-[36px] px-3 rounded-md bg-brand-400 text-brand-900
+                                   text-[11px] font-semibold uppercase tracking-wider hover:bg-brand-500 transition-colors">
+                        <span x-show="! copied">Copy AI setup prompt</span>
+                        <span x-show="copied" x-cloak>Copied</span>
+                    </button>
+                </div>
+            </x-card>
         @endcan
 
         @can('saas-products.delete')
