@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -118,6 +119,15 @@ class Invoice extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    /**
+     * Every "Send via WhatsApp" attempt against this invoice, latest first --
+     * see WhatsappSendLog's own doc block.
+     */
+    public function whatsappLogs(): MorphMany
+    {
+        return $this->morphMany(WhatsappSendLog::class, 'loggable')->latest();
     }
 
     public function scopePendingApproval(Builder $query): void

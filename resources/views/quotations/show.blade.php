@@ -52,7 +52,9 @@
         </div>
     </x-slot>
 
-    <div class="space-y-6">
+    {{-- Defaults to whichever tab a failed submit's errors belong to, so a
+         validation error never lands silently on a tab that isn't showing. --}}
+    <div class="space-y-6" x-data="{ tab: '{{ $errors->has('phone') ? 'whatsapp' : 'preview' }}' }">
         @if ($quotation->isConverted())
             <div class="bg-brand-400/10 border border-brand-400/30 rounded-lg p-4 text-sm text-brand-100">
                 Converted to invoice
@@ -74,27 +76,46 @@
             </div>
         @endif
 
-        <x-card class="overflow-hidden p-2 sm:p-4">
-            <div
-                x-data="{
-                    scale: 1,
-                    resize() { this.scale = Math.min(this.$el.clientWidth / 794, 1); }
-                }"
-                x-init="resize(); window.addEventListener('resize', () => resize())"
-                class="w-full"
-            >
-                <div
-                    class="overflow-hidden mx-auto rounded-md ring-1 ring-white/10 shadow-sm bg-white"
-                    :style="{ width: (794 * scale) + 'px', height: (1123 * scale) + 'px' }"
-                >
-                    <iframe
-                        src="{{ route('quotations.preview', $quotation) }}"
-                        title="Quotation preview"
-                        style="width: 794px; height: 1123px; border: 0; display: block;"
-                        :style="{ transform: 'scale(' + scale + ')', transformOrigin: 'top left' }"
-                    ></iframe>
-                </div>
-            </div>
-        </x-card>
+        <div class="overflow-x-auto -mx-1 px-1 pb-1">
+            <x-tab-nav model="tab" :tabs="[
+                'preview' => ['label' => 'Preview'],
+                'whatsapp' => ['label' => 'WhatsApp', 'count' => $quotation->whatsappLogs->count() ?: null],
+            ]" />
+        </div>
+
+        <div x-show="tab === 'preview'" x-cloak class="space-y-6">
+            <x-card class="overflow-hidden p-2 sm:p-4">
+                <x-document-preview :src="route('quotations.preview', $quotation)" title="Quotation preview" />
+            </x-card>
+        </div>
+
+        <div x-show="tab === 'whatsapp'" x-cloak class="space-y-6">
+            <x-card class="p-4 sm:p-6">
+                <h3 class="font-semibold text-white mb-4">
+                    {{ $quotation->whatsapp_sent_at ? 'Send again' : 'Send via WhatsApp' }}
+                </h3>
+                {{-- Any number, any time -- not just the client's own number
+                     on file. Typed fresh on every send rather than
+                     remembered, since there is no one "the" recipient to
+                     default to and get wrong. --}}
+                <form method="POST" action="{{ route('quotations.send-whatsapp', $quotation) }}"
+                      class="flex flex-col sm:flex-row sm:items-start gap-3">
+                    @csrf
+                    <div class="flex-1">
+                        <x-input-label for="phone" value="WhatsApp number" />
+                        <x-text-input id="phone" name="phone" type="text" class="mt-1 w-full"
+                            value="{{ old('phone', $quotation->client->phone) }}"
+                            placeholder="e.g. 9876543210" required autofocus />
+                        <x-input-error :messages="$errors->get('phone')" class="mt-2" />
+                    </div>
+                    <x-primary-button class="mt-1 sm:mt-6">Send</x-primary-button>
+                </form>
+            </x-card>
+
+            <x-card class="p-4 sm:p-6">
+                <h3 class="font-semibold text-white mb-4">Send history</h3>
+                <x-whatsapp-log-table :logs="$quotation->whatsappLogs" />
+            </x-card>
+        </div>
     </div>
 </x-app-layout>

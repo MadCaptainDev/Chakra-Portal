@@ -127,6 +127,30 @@ class QuotationTest extends TestCase
         $response->assertSee('Payment Terms: 40% Advance | 30% Development | 20% Testing | 10% Deployment', false);
     }
 
+    public function test_is_app_studio_is_a_plain_label_with_no_product_picker(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::factory()->create();
+
+        $this->actingAs($user)->post(route('quotations.store'), [
+            'client_id' => $client->id,
+            'is_app_studio' => 1,
+            'quotation_date' => now()->format('Y-m-d'),
+            'items' => [
+                ['description' => 'App build', 'quantity' => 1, 'unit_price' => 50000],
+            ],
+        ]);
+
+        $quotation = Quotation::first();
+        $this->assertTrue($quotation->is_app_studio);
+
+        // Converting still creates a plain (Production) invoice -- there is
+        // no SaasProduct behind the label yet, see Quotation::convertToInvoice().
+        $quotation->accept();
+        $invoice = $quotation->convertToInvoice($user->id);
+        $this->assertNull($invoice->saas_product_id);
+    }
+
     public function test_a_converted_quotation_cannot_be_deleted(): void
     {
         $user = User::factory()->create();

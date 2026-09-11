@@ -30,6 +30,28 @@
         <x-input-error :messages="$errors->get('client_id')" class="mt-2" />
     </div>
 
+    @php $studioChecked = old('is_app_studio', $quotation->is_app_studio ?? false) ? 'true' : 'false'; @endphp
+    <div class="mb-6" x-data="{ studio: {{ $studioChecked }} }">
+        <x-input-label value="Which side of Chakra is this for?" />
+
+        {{-- Just the label -- no product picker here. Which SaasProduct
+             this becomes is only chosen once (if) this is converted to an
+             Invoice, see Quotation::convertToInvoice(). --}}
+        <div class="mt-1 inline-flex items-center rounded-lg bg-white/10 p-1">
+            <button type="button" @click="studio = false"
+                    :class="! studio ? 'bg-white/5 text-white shadow-sm' : 'text-brand-100/60 hover:text-brand-100/80'"
+                    class="px-4 min-h-[40px] rounded-md text-sm font-semibold transition-colors">
+                Production
+            </button>
+            <button type="button" @click="studio = true"
+                    :class="studio ? 'bg-white/5 text-white shadow-sm' : 'text-brand-100/60 hover:text-brand-100/80'"
+                    class="px-4 min-h-[40px] rounded-md text-sm font-semibold transition-colors">
+                App Studio
+            </button>
+        </div>
+        <input type="hidden" name="is_app_studio" :value="studio ? 1 : 0">
+    </div>
+
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div>
             <x-input-label for="quotation_date" value="Quotation Date" />

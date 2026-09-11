@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\Routine;
 use App\Models\User;
+use App\Models\WhatsappSendLog;
 use App\Support\Permission;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -26,8 +27,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Short morph aliases for routine subjects (stored on occurrences).
-        Relation::enforceMorphMap(Routine::SUBJECT_MORPH_MAP);
+        // Short morph aliases for routine subjects (stored on occurrences)
+        // and WhatsApp send log targets (stored on whatsapp_send_logs).
+        Relation::enforceMorphMap(array_merge(
+            Routine::SUBJECT_MORPH_MAP,
+            WhatsappSendLog::LOGGABLE_MORPH_MAP,
+        ));
 
         /*
          * Admins pass everything. Returning null rather than false on the

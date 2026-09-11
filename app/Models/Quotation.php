@@ -7,14 +7,18 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * A quotation sent to a prospective or existing client before any work is
- * booked -- internal-only for now, no public/client-facing link (see
- * QuotationController). Accepted quotations can be turned into a real
- * Invoice with convertToInvoice(), carrying the line items across so
- * nothing is retyped.
+ * booked. Accepted quotations can be turned into a real Invoice with
+ * convertToInvoice(), carrying the line items across so nothing is
+ * retyped -- that is also the one place a SaaS product actually gets
+ * picked (see Invoice::saas_product_id): is_app_studio here is just a
+ * label for which side of Chakra the quote is for, not a link to a real
+ * product yet.
  */
 class Quotation extends Model
 {
@@ -26,9 +30,19 @@ class Quotation extends Model
 
     public const STATUS_REJECTED = 'rejected';
 
+    /**
+     * The Meta template QuotationController::sendWhatsapp() sends. See
+     * Invoice::WHATSAPP_TEMPLATE's own doc block for the "_v1"/"_v2"
+     * naming convention -- must exist and be Meta-approved before the
+     * "Send via WhatsApp" button on a quotation's show page can send
+     * (run `app:seed-quotation-ready-template` once to submit it).
+     */
+    public const WHATSAPP_TEMPLATE = 'quotation_ready_v1';
+
     protected $fillable = [
         'quotation_number',
         'client_id',
+        'is_app_studio',
         'quotation_date',
         'valid_until',
         'intro_text',
@@ -41,14 +55,17 @@ class Quotation extends Model
         'accepted_at',
         'rejected_at',
         'converted_invoice_id',
+        'whatsapp_sent_at',
         'created_by',
     ];
 
     protected $casts = [
+        'is_app_studio' => 'boolean',
         'quotation_date' => 'date',
         'valid_until' => 'date',
         'accepted_at' => 'datetime',
         'rejected_at' => 'datetime',
+        'whatsapp_sent_at' => 'datetime',
         'discount_amount' => 'decimal:2',
         'subtotal' => 'decimal:2',
         'total' => 'decimal:2',
@@ -72,6 +89,15 @@ class Quotation extends Model
     public function convertedInvoice(): BelongsTo
     {
         return $this->belongsTo(Invoice::class, 'converted_invoice_id');
+    }
+
+    /**
+     * Every "Send via WhatsApp" attempt against this quotation, latest
+     * first -- see WhatsappSendLog's own doc block.
+     */
+    public function whatsappLogs(): MorphMany
+    {
+        return $this->morphMany(WhatsappSendLog::class, 'loggable')->latest();
     }
 
     public function scopeDraft(Builder $query): void
@@ -124,6 +150,35 @@ class Quotation extends Model
     public function canConvert(): bool
     {
         return $this->status === self::STATUS_ACCEPTED && ! $this->isConverted();
+    }
+
+    /**
+     * A quotation can be sent (or re-sent) over WhatsApp at any time, unlike
+     * an invoice, which withholds it until approved -- a quotation has no
+     * pending-approval state and its number is assigned the moment it is
+     * created, so there is nothing left to finalize first.
+     */
+    public function isSendableViaWhatsapp(): bool
+    {
+        return true;
+    }
+
+    /**
+     * The token this quotation's no-login PDF link is reached by, minting
+     * one on first use. Same convention as Invoice::ensurePublicToken().
+     */
+    public function ensurePublicToken(): string
+    {
+        if ($this->public_token === null) {
+            $this->forceFill(['public_token' => Str::random(48)])->save();
+        }
+
+        return $this->public_token;
+    }
+
+    public function publicUrl(): string
+    {
+        return route('quotations.public-pdf', $this->ensurePublicToken());
     }
 
     /**

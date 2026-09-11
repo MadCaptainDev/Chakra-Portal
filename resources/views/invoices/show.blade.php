@@ -56,142 +56,143 @@
         </div>
     </x-slot>
 
-    <div class="space-y-6">
+    {{-- Tabbed rather than one long scroll -- Preview/WhatsApp/Payments are
+         three different jobs (check how it looks, chase it over WhatsApp,
+         reconcile what's been paid), and stacking them meant the payment
+         ledger sat two screens below the thing everyone opens this page
+         for. Every panel is rendered and Alpine only switches which is
+         visible, so switching costs nothing. --}}
+    {{-- Defaults to whichever tab a failed submit's errors belong to, so a
+         validation error never lands silently on a tab that isn't showing. --}}
+    <div class="space-y-6" x-data="{ tab: '{{ $errors->has('phone') ? 'whatsapp' : ($errors->hasAny(['amount', 'paid_on', 'method', 'note']) ? 'payments' : 'preview') }}' }">
         @if ($invoice->isPendingApproval())
             <div class="bg-amber-400/10 border border-amber-400/30 rounded-lg p-4 text-sm text-amber-200">
                 This invoice was generated automatically by a recurring schedule and hasn't been sent anywhere yet.
                 Review the details below, then Approve to assign it an invoice number, or Discard to skip this occurrence.
             </div>
-        @elseif ($invoice->whatsapp_sent_at)
-            <div class="bg-emerald-400/10 border border-emerald-400/30 rounded-lg p-4 text-sm text-emerald-200">
-                Last sent on WhatsApp {{ $invoice->whatsapp_sent_at->format('d M Y, g:i A') }}.
-            </div>
         @endif
 
-        {{-- Any invoice, any number, any time -- not just the client's own
-             number on file, and not just right after approving. The number
-             is typed fresh on every send rather than remembered, since
-             there is no one "the" recipient to default to and get wrong. --}}
-        @if ($invoice->isSendableViaWhatsapp())
-            <x-card class="p-4 sm:p-6">
-                <details {{ $invoice->whatsapp_sent_at || $errors->has('phone') ? 'open' : '' }}>
-                    <summary class="cursor-pointer font-semibold text-white select-none">
-                        {{ $invoice->whatsapp_sent_at ? 'Send via WhatsApp again' : 'Send via WhatsApp' }}
-                    </summary>
-                    <form method="POST" action="{{ route('invoices.send-whatsapp', $invoice) }}"
-                          class="mt-4 flex flex-col sm:flex-row sm:items-start gap-3">
-                        @csrf
-                        <div class="flex-1">
-                            <x-input-label for="phone" value="WhatsApp number" />
-                            <x-text-input id="phone" name="phone" type="text" class="mt-1 w-full"
-                                value="{{ old('phone', $invoice->client->phone) }}"
-                                placeholder="e.g. 9876543210" required autofocus />
-                            <x-input-error :messages="$errors->get('phone')" class="mt-2" />
-                        </div>
-                        <x-primary-button class="mt-1 sm:mt-6">Send</x-primary-button>
-                    </form>
-                </details>
+        <div class="overflow-x-auto -mx-1 px-1 pb-1">
+            <x-tab-nav model="tab" :tabs="array_filter([
+                'preview' => ['label' => 'Preview'],
+                'whatsapp' => $invoice->isSendableViaWhatsapp() || $invoice->whatsappLogs->isNotEmpty()
+                    ? ['label' => 'WhatsApp', 'count' => $invoice->whatsappLogs->count() ?: null]
+                    : null,
+                'payments' => ! $invoice->isPendingApproval()
+                    ? ['label' => 'Payments', 'count' => $invoice->payments->count() ?: null]
+                    : null,
+            ])" />
+        </div>
+
+        <div x-show="tab === 'preview'" x-cloak class="space-y-6">
+            <x-card class="overflow-hidden p-2 sm:p-4">
+                <x-document-preview :src="route('invoices.preview', $invoice)" title="Invoice preview" />
             </x-card>
-        @endif
+        </div>
 
-        <x-card class="overflow-hidden p-2 sm:p-4">
-            {{-- Outer div is the measuring reference and is never resized by us --
-                 scaling the same element we measure would feed its own width back
-                 into the calculation and shrink the preview on every resize. --}}
-            <div
-                x-data="{
-                    scale: 1,
-                    resize() { this.scale = Math.min(this.$el.clientWidth / 794, 1); }
-                }"
-                x-init="resize(); window.addEventListener('resize', () => resize())"
-                class="w-full"
-            >
-                {{-- Sized to the scaled page so mx-auto actually centres it; the
-                     iframe itself stays 794x1123 (A4 at 96dpi) and is scaled down. --}}
-                <div
-                    class="overflow-hidden mx-auto rounded-md ring-1 ring-white/10 shadow-sm bg-white"
-                    :style="{ width: (794 * scale) + 'px', height: (1123 * scale) + 'px' }"
-                >
-                    <iframe
-                        src="{{ route('invoices.preview', $invoice) }}"
-                        title="Invoice preview"
-                        style="width: 794px; height: 1123px; border: 0; display: block;"
-                        :style="{ transform: 'scale(' + scale + ')', transformOrigin: 'top left' }"
-                    ></iframe>
-                </div>
-            </div>
-        </x-card>
-
-        @unless ($invoice->isPendingApproval())
-            <x-card class="p-4 sm:p-6">
-                <h3 class="font-semibold text-white mb-4">Payments</h3>
-
-                <div class="grid grid-cols-3 gap-4 mb-6 text-center sm:text-left">
-                    <div>
-                        <p class="text-xs text-brand-100/60 uppercase">Total</p>
-                        <p class="font-semibold text-white">{{ number_format($invoice->total, 2) }}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs text-brand-100/60 uppercase">Paid</p>
-                        <p class="font-semibold text-green-300">{{ number_format($invoice->paidTotal(), 2) }}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs text-brand-100/60 uppercase">Balance</p>
-                        <p class="font-semibold text-red-300">{{ number_format($invoice->balanceDue(), 2) }}</p>
-                    </div>
-                </div>
-
-                @if ($invoice->payments->isNotEmpty())
-                    <div class="divide-y divide-white/10 border-t border-b mb-6">
-                        @foreach ($invoice->payments as $payment)
-                            <div class="py-3 flex items-center justify-between gap-2">
-                                <div>
-                                    <p class="text-sm font-medium text-white">{{ number_format($payment->amount, 2) }}
-                                        <span class="text-brand-100/60 font-normal">on {{ $payment->paid_on->format('d/m/Y') }}</span>
-                                    </p>
-                                    @if ($payment->method || $payment->note)
-                                        <p class="text-xs text-brand-100/60">{{ collect([$payment->method, $payment->note])->filter()->implode(' — ') }}</p>
-                                    @endif
-                                </div>
-                                <form method="POST" action="{{ route('payments.destroy', $payment) }}" onsubmit="return confirm('Remove this payment?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="text-red-300 text-sm font-semibold min-h-[44px]">Remove</button>
-                                </form>
+        @if ($invoice->isSendableViaWhatsapp() || $invoice->whatsappLogs->isNotEmpty())
+            <div x-show="tab === 'whatsapp'" x-cloak class="space-y-6">
+                @if ($invoice->isSendableViaWhatsapp())
+                    <x-card class="p-4 sm:p-6">
+                        <h3 class="font-semibold text-white mb-4">
+                            {{ $invoice->whatsapp_sent_at ? 'Send again' : 'Send via WhatsApp' }}
+                        </h3>
+                        {{-- Any invoice, any number, any time -- not just the client's
+                             own number on file. The number is typed fresh on every
+                             send rather than remembered, since there is no one "the"
+                             recipient to default to and get wrong. --}}
+                        <form method="POST" action="{{ route('invoices.send-whatsapp', $invoice) }}"
+                              class="flex flex-col sm:flex-row sm:items-start gap-3">
+                            @csrf
+                            <div class="flex-1">
+                                <x-input-label for="phone" value="WhatsApp number" />
+                                <x-text-input id="phone" name="phone" type="text" class="mt-1 w-full"
+                                    value="{{ old('phone', $invoice->client->phone) }}"
+                                    placeholder="e.g. 9876543210" required autofocus />
+                                <x-input-error :messages="$errors->get('phone')" class="mt-2" />
                             </div>
-                        @endforeach
-                    </div>
+                            <x-primary-button class="mt-1 sm:mt-6">Send</x-primary-button>
+                        </form>
+                    </x-card>
                 @endif
 
-                <form method="POST" action="{{ route('payments.store', $invoice) }}" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    @csrf
-                    <div>
-                        <x-input-label for="amount" value="Amount" />
-                        <x-text-input id="amount" name="amount" type="number" step="0.01" min="0.01" class="mt-1" required
-                            value="{{ old('amount') }}" placeholder="{{ number_format($invoice->balanceDue(), 2) }}" />
-                        <x-input-error :messages="$errors->get('amount')" class="mt-2" />
+                <x-card class="p-4 sm:p-6">
+                    <h3 class="font-semibold text-white mb-4">Send history</h3>
+                    <x-whatsapp-log-table :logs="$invoice->whatsappLogs" />
+                </x-card>
+            </div>
+        @endif
+
+        @unless ($invoice->isPendingApproval())
+            <div x-show="tab === 'payments'" x-cloak class="space-y-6">
+                <x-card class="p-4 sm:p-6">
+                    <div class="grid grid-cols-3 gap-4 mb-6 text-center sm:text-left">
+                        <div>
+                            <p class="text-xs text-brand-100/60 uppercase">Total</p>
+                            <p class="font-semibold text-white">{{ number_format($invoice->total, 2) }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-brand-100/60 uppercase">Paid</p>
+                            <p class="font-semibold text-green-300">{{ number_format($invoice->paidTotal(), 2) }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-brand-100/60 uppercase">Balance</p>
+                            <p class="font-semibold text-red-300">{{ number_format($invoice->balanceDue(), 2) }}</p>
+                        </div>
                     </div>
-                    <div>
-                        <x-input-label for="paid_on" value="Date Paid" />
-                        <x-text-input id="paid_on" name="paid_on" type="date" class="mt-1" required
-                            value="{{ old('paid_on', now()->format('Y-m-d')) }}" />
-                        <x-input-error :messages="$errors->get('paid_on')" class="mt-2" />
-                    </div>
-                    <div>
-                        <x-input-label for="method" value="Method (optional)" />
-                        <x-text-input id="method" name="method" type="text" class="mt-1" value="{{ old('method') }}" placeholder="e.g. Bank Transfer" />
-                        <x-input-error :messages="$errors->get('method')" class="mt-2" />
-                    </div>
-                    <div>
-                        <x-input-label for="note" value="Note (optional)" />
-                        <x-text-input id="note" name="note" type="text" class="mt-1" value="{{ old('note') }}" />
-                        <x-input-error :messages="$errors->get('note')" class="mt-2" />
-                    </div>
-                    <div class="sm:col-span-2">
-                        <x-primary-button>Record Payment</x-primary-button>
-                    </div>
-                </form>
-            </x-card>
+
+                    @if ($invoice->payments->isNotEmpty())
+                        <div class="divide-y divide-white/10 border-t border-b mb-6">
+                            @foreach ($invoice->payments as $payment)
+                                <div class="py-3 flex items-center justify-between gap-2">
+                                    <div>
+                                        <p class="text-sm font-medium text-white">{{ number_format($payment->amount, 2) }}
+                                            <span class="text-brand-100/60 font-normal">on {{ $payment->paid_on->format('d/m/Y') }}</span>
+                                        </p>
+                                        @if ($payment->method || $payment->note)
+                                            <p class="text-xs text-brand-100/60">{{ collect([$payment->method, $payment->note])->filter()->implode(' — ') }}</p>
+                                        @endif
+                                    </div>
+                                    <form method="POST" action="{{ route('payments.destroy', $payment) }}" onsubmit="return confirm('Remove this payment?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="text-red-300 text-sm font-semibold min-h-[44px]">Remove</button>
+                                    </form>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    <form method="POST" action="{{ route('payments.store', $invoice) }}" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        @csrf
+                        <div>
+                            <x-input-label for="amount" value="Amount" />
+                            <x-text-input id="amount" name="amount" type="number" step="0.01" min="0.01" class="mt-1" required
+                                value="{{ old('amount') }}" placeholder="{{ number_format($invoice->balanceDue(), 2) }}" />
+                            <x-input-error :messages="$errors->get('amount')" class="mt-2" />
+                        </div>
+                        <div>
+                            <x-input-label for="paid_on" value="Date Paid" />
+                            <x-text-input id="paid_on" name="paid_on" type="date" class="mt-1" required
+                                value="{{ old('paid_on', now()->format('Y-m-d')) }}" />
+                            <x-input-error :messages="$errors->get('paid_on')" class="mt-2" />
+                        </div>
+                        <div>
+                            <x-input-label for="method" value="Method (optional)" />
+                            <x-text-input id="method" name="method" type="text" class="mt-1" value="{{ old('method') }}" placeholder="e.g. Bank Transfer" />
+                            <x-input-error :messages="$errors->get('method')" class="mt-2" />
+                        </div>
+                        <div>
+                            <x-input-label for="note" value="Note (optional)" />
+                            <x-text-input id="note" name="note" type="text" class="mt-1" value="{{ old('note') }}" />
+                            <x-input-error :messages="$errors->get('note')" class="mt-2" />
+                        </div>
+                        <div class="sm:col-span-2">
+                            <x-primary-button>Record Payment</x-primary-button>
+                        </div>
+                    </form>
+                </x-card>
+            </div>
         @endunless
     </div>
 </x-app-layout>

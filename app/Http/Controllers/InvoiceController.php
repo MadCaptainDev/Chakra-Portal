@@ -7,8 +7,8 @@ use App\Models\Client;
 use App\Models\CompanySetting;
 use App\Models\Invoice;
 use App\Models\SaasProduct;
+use App\Services\DocumentWhatsappNotifier;
 use App\Services\InvoiceDocumentRenderer;
-use App\Services\WhatsappSender;
 use App\Support\InvoiceQuantityVariable;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -139,7 +139,7 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice): View
     {
-        $invoice->load('client', 'items', 'payments.recordedBy');
+        $invoice->load('client', 'items', 'payments.recordedBy', 'whatsappLogs.sentBy');
         $settings = CompanySetting::current();
 
         return view('invoices.show', compact('invoice', 'settings'));
@@ -220,7 +220,7 @@ class InvoiceController extends Controller
      * built around; it must exist and be Meta-approved before this can send
      * (see SeedInvoiceReadyTemplate).
      */
-    public function sendWhatsapp(Request $request, Invoice $invoice): RedirectResponse
+    public function sendWhatsapp(Request $request, Invoice $invoice, DocumentWhatsappNotifier $notifier): RedirectResponse
     {
         $invoice->loadMissing('client');
 
@@ -236,8 +236,9 @@ class InvoiceController extends Controller
         ]);
 
         try {
-            WhatsappSender::make()->sendTemplate(
-                to: $validated['phone'],
+            $notifier->send(
+                document: $invoice,
+                phone: $validated['phone'],
                 template: Invoice::WHATSAPP_TEMPLATE,
                 bodyParameters: [
                     $invoice->client->name,
@@ -249,11 +250,14 @@ class InvoiceController extends Controller
                 // SeedInvoiceReadyTemplate), so this must not be the full
                 // invoice->publicUrl().
                 buttonUrlParameter: $invoice->ensurePublicToken(),
+                sentByUserId: $request->user()->id,
             );
         } catch (RuntimeException $e) {
             // Meta's own reason (template not approved yet, number not
             // reachable, ...) is the useful part -- surfaced as-is rather
-            // than a generic "failed to send".
+            // than a generic "failed to send". The attempt is already
+            // logged (see DocumentWhatsappNotifier) even though this send
+            // itself failed.
             return redirect()->route('invoices.show', $invoice)->with('error', $e->getMessage());
         }
 

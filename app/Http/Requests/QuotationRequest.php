@@ -18,6 +18,11 @@ class QuotationRequest extends FormRequest
     {
         return [
             'client_id' => ['required', 'exists:clients,id'],
+            // Which side of Chakra this is for -- just a label, no product
+            // picker (that only happens once this becomes an invoice); read
+            // via $request->boolean() in the controller so an unchecked box
+            // (absent from the payload) is not a validation failure.
+            'is_app_studio' => ['sometimes', 'boolean'],
             'quotation_date' => ['required', 'date'],
             'valid_until' => ['nullable', 'date', 'after_or_equal:quotation_date'],
             'intro_text' => ['nullable', 'string'],

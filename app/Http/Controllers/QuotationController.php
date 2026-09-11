@@ -6,6 +6,7 @@ use App\Http\Requests\QuotationRequest;
 use App\Models\Client;
 use App\Models\CompanySetting;
 use App\Models\Quotation;
+use App\Services\DocumentWhatsappNotifier;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,6 +14,7 @@ use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -22,6 +24,7 @@ class QuotationController extends Controller
     {
         $search = $request->string('search')->toString();
         $status = $request->string('status')->toString();
+        $type = $request->string('type')->toString();
         $month = $this->resolveMonth($request->query('month'));
 
         $listed = Quotation::query()
@@ -41,7 +44,12 @@ class QuotationController extends Controller
             ->when($status === 'converted', fn ($query) => $query->whereNotNull('converted_invoice_id'))
             // "expired" and "converted" are both derived, never stored.
             ->when($status && ! in_array($status, ['expired', 'converted'], true),
-                fn ($query) => $query->where('status', $status));
+                fn ($query) => $query->where('status', $status))
+            // Chakra Production vs Chakra App Studio -- just the label,
+            // no AMC/development split, since a quotation carries no real
+            // SaasProduct yet (see Quotation::is_app_studio).
+            ->when($type === 'studio', fn ($query) => $query->where('is_app_studio', true))
+            ->when($type === 'production', fn ($query) => $query->where('is_app_studio', false));
 
         $monthTotal = (float) (clone $listed)->sum('total');
 
@@ -51,7 +59,7 @@ class QuotationController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        return view('quotations.index', compact('quotations', 'search', 'status', 'month', 'monthTotal'));
+        return view('quotations.index', compact('quotations', 'search', 'status', 'type', 'month', 'monthTotal'));
     }
 
     private function resolveMonth(?string $value): Carbon
@@ -82,6 +90,7 @@ class QuotationController extends Controller
             $quotation = Quotation::create([
                 'quotation_number' => Quotation::nextQuotationNumber($settings->quotation_prefix),
                 'client_id' => $request->validated('client_id'),
+                'is_app_studio' => $request->boolean('is_app_studio'),
                 'quotation_date' => $request->validated('quotation_date'),
                 'valid_until' => $request->validated('valid_until'),
                 'intro_text' => $request->validated('intro_text'),
@@ -106,7 +115,7 @@ class QuotationController extends Controller
 
     public function show(Quotation $quotation): View
     {
-        $quotation->load('client', 'items', 'convertedInvoice');
+        $quotation->load('client', 'items', 'convertedInvoice', 'whatsappLogs.sentBy');
         $settings = CompanySetting::current();
 
         return view('quotations.show', compact('quotation', 'settings'));
@@ -125,6 +134,7 @@ class QuotationController extends Controller
         DB::transaction(function () use ($request, $quotation) {
             $quotation->update([
                 'client_id' => $request->validated('client_id'),
+                'is_app_studio' => $request->boolean('is_app_studio'),
                 'quotation_date' => $request->validated('quotation_date'),
                 'valid_until' => $request->validated('valid_until'),
                 'intro_text' => $request->validated('intro_text'),
@@ -188,6 +198,46 @@ class QuotationController extends Controller
         $invoice = $quotation->convertToInvoice($request->user()->id);
 
         return redirect()->route('invoices.show', $invoice)->with('status', "Converted to invoice {$invoice->invoice_number}.");
+    }
+
+    /**
+     * Hand this quotation to whatever WhatsApp number is typed in -- same
+     * shape as InvoiceController::sendWhatsapp(), a template message whose
+     * button links to a no-login PDF. Quotation::WHATSAPP_TEMPLATE must
+     * exist and be Meta-approved before this can send (see
+     * `app:seed-quotation-ready-template`).
+     */
+    public function sendWhatsapp(Request $request, Quotation $quotation, DocumentWhatsappNotifier $notifier): RedirectResponse
+    {
+        $quotation->loadMissing('client');
+
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'min:10', 'max:20', 'regex:/^[0-9+\-\s()]+$/'],
+        ], [
+            'phone.regex' => 'That doesn\'t look like a phone number.',
+        ]);
+
+        try {
+            $notifier->send(
+                document: $quotation,
+                phone: $validated['phone'],
+                template: Quotation::WHATSAPP_TEMPLATE,
+                bodyParameters: [
+                    $quotation->client->name,
+                    $quotation->quotation_number ?? '',
+                    number_format((float) $quotation->total, 2),
+                ],
+                buttonUrlParameter: $quotation->ensurePublicToken(),
+                sentByUserId: $request->user()->id,
+            );
+        } catch (RuntimeException $e) {
+            return redirect()->route('quotations.show', $quotation)->with('error', $e->getMessage());
+        }
+
+        $quotation->update(['whatsapp_sent_at' => now()]);
+
+        return redirect()->route('quotations.show', $quotation)
+            ->with('status', "Sent to {$validated['phone']} on WhatsApp.");
     }
 
     public function pdf(Quotation $quotation): Response

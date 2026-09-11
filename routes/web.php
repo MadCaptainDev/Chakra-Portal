@@ -66,6 +66,7 @@ use App\Http\Controllers\PortfolioItemController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicBriefController;
 use App\Http\Controllers\PublicInvoiceController;
+use App\Http\Controllers\PublicQuotationController;
 use App\Http\Controllers\PublicPortfolioController;
 use App\Http\Controllers\PushSettingController;
 use App\Http\Controllers\PushTokenController;
@@ -180,6 +181,10 @@ Route::post('/enquiry', [EnquiryController::class, 'store'])
  * string, so the token itself -- not a signature -- is the credential.
  */
 Route::get('i/{token}', [PublicInvoiceController::class, 'pdf'])->name('invoices.public-pdf');
+
+// Same convention as i/{token} above, for the "Send via WhatsApp" link on a
+// quotation's show page (see QuotationController::sendWhatsapp()).
+Route::get('q/{token}', [PublicQuotationController::class, 'pdf'])->name('quotations.public-pdf');
 
 /*
  * Shared account area — admins and employees both manage their own profile.
@@ -899,6 +904,11 @@ Route::middleware(['auth', 'module:quotations,view'])->group(function () {
         Route::post('quotations/{quotation}/accept', [QuotationController::class, 'accept'])->name('quotations.accept');
         Route::post('quotations/{quotation}/reject', [QuotationController::class, 'reject'])->name('quotations.reject');
         Route::post('quotations/{quotation}/convert', [QuotationController::class, 'convert'])->name('quotations.convert');
+
+        // Same ability as accept/reject/convert -- handing a quotation to
+        // the client is part of deciding its fate, not drafting it.
+        Route::post('quotations/{quotation}/send-whatsapp', [QuotationController::class, 'sendWhatsapp'])
+            ->name('quotations.send-whatsapp');
     });
 
     Route::delete('quotations/{quotation}', [QuotationController::class, 'destroy'])

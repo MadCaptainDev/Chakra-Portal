@@ -274,11 +274,20 @@
     <img class="watermark" src="{{ \App\Support\Assets::image('images/chakra-watermark.png') }}" alt="">
 
     <div class="page-content">
+    @php
+        // App Studio's own mark for an App Studio quotation, falling back
+        // to the ordinary logo if that one has never been uploaded -- same
+        // fallback as CompanySetting::logoDataUriFor(Invoice), just without
+        // a saas_product_id to key off (a quotation carries none yet).
+        $logo = ($quotation->is_app_studio && $settings->app_studio_logo_data_uri)
+            ? $settings->app_studio_logo_data_uri
+            : $settings->logo_data_uri;
+    @endphp
     <table class="header">
         <tr>
             <td class="logo">
-                @if ($settings->logo_data_uri)
-                    <img src="{{ $settings->logo_data_uri }}" alt="{{ $settings->company_name }}">
+                @if ($logo)
+                    <img src="{{ $logo }}" alt="{{ $settings->company_name }}">
                 @else
                     <strong>{{ $settings->company_name }}</strong>
                 @endif
