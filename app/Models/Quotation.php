@@ -29,6 +29,8 @@ class Quotation extends Model
     protected $fillable = [
         'quotation_number',
         'client_id',
+        'saas_product_id',
+        'saas_invoice_type',
         'quotation_date',
         'valid_until',
         'intro_text',
@@ -56,6 +58,16 @@ class Quotation extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
+    }
+
+    /**
+     * The SaasProduct this quotation is pricing App Studio work for -- AMC
+     * or a one-off development quote, see saas_invoice_type -- or null for
+     * an ordinary Chakra Production quotation. Same split as Invoice.
+     */
+    public function saasProduct(): BelongsTo
+    {
+        return $this->belongsTo(SaasProduct::class);
     }
 
     public function createdBy(): BelongsTo
@@ -201,6 +213,8 @@ class Quotation extends Model
             $invoice = Invoice::create([
                 'invoice_number' => Invoice::nextInvoiceNumber($settings->invoice_prefix),
                 'client_id' => $this->client_id,
+                'saas_product_id' => $this->saas_product_id,
+                'saas_invoice_type' => $this->saas_invoice_type,
                 'invoice_date' => now()->format('Y-m-d'),
                 'intro_text' => $this->intro_text,
                 'discount_label' => $this->discount_label,

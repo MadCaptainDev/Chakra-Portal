@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Http\Requests\QuotationRequest;
 use App\Models\Client;
 use App\Models\CompanySetting;
+use App\Models\Invoice;
 use App\Models\Quotation;
+use App\Models\SaasProduct;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,6 +24,7 @@ class QuotationController extends Controller
     {
         $search = $request->string('search')->toString();
         $status = $request->string('status')->toString();
+        $type = $request->string('type')->toString();
         $month = $this->resolveMonth($request->query('month'));
 
         $listed = Quotation::query()
@@ -41,17 +44,24 @@ class QuotationController extends Controller
             ->when($status === 'converted', fn ($query) => $query->whereNotNull('converted_invoice_id'))
             // "expired" and "converted" are both derived, never stored.
             ->when($status && ! in_array($status, ['expired', 'converted'], true),
-                fn ($query) => $query->where('status', $status));
+                fn ($query) => $query->where('status', $status))
+            // Same Production/App Studio split as InvoiceController -- and
+            // the same amc/development narrowing, since not every App
+            // Studio quotation is AMC.
+            ->when($type === 'studio', fn ($query) => $query->whereNotNull('saas_product_id'))
+            ->when($type === 'production', fn ($query) => $query->whereNull('saas_product_id'))
+            ->when($type === 'amc', fn ($query) => $query->where('saas_invoice_type', Invoice::STUDIO_TYPE_AMC))
+            ->when($type === 'development', fn ($query) => $query->where('saas_invoice_type', Invoice::STUDIO_TYPE_DEVELOPMENT));
 
         $monthTotal = (float) (clone $listed)->sum('total');
 
         $quotations = $listed
-            ->with(['client', 'convertedInvoice'])
+            ->with(['client', 'saasProduct', 'convertedInvoice'])
             ->latest('quotation_date')
             ->paginate(20)
             ->withQueryString();
 
-        return view('quotations.index', compact('quotations', 'search', 'status', 'month', 'monthTotal'));
+        return view('quotations.index', compact('quotations', 'search', 'status', 'type', 'month', 'monthTotal'));
     }
 
     private function resolveMonth(?string $value): Carbon
@@ -70,8 +80,9 @@ class QuotationController extends Controller
     public function create(): View
     {
         $clients = Client::orderBy('name')->get();
+        $saasProducts = SaasProduct::with('client')->orderBy('name')->get();
 
-        return view('quotations.create', compact('clients'));
+        return view('quotations.create', compact('clients', 'saasProducts'));
     }
 
     public function store(QuotationRequest $request): RedirectResponse
@@ -82,6 +93,8 @@ class QuotationController extends Controller
             $quotation = Quotation::create([
                 'quotation_number' => Quotation::nextQuotationNumber($settings->quotation_prefix),
                 'client_id' => $request->validated('client_id'),
+                'saas_product_id' => $request->validated('saas_product_id'),
+                'saas_invoice_type' => $request->validated('saas_product_id') ? $request->validated('saas_invoice_type') : null,
                 'quotation_date' => $request->validated('quotation_date'),
                 'valid_until' => $request->validated('valid_until'),
                 'intro_text' => $request->validated('intro_text'),
@@ -105,7 +118,7 @@ class QuotationController extends Controller
 
     public function show(Quotation $quotation): View
     {
-        $quotation->load('client', 'items', 'convertedInvoice');
+        $quotation->load('client', 'items', 'saasProduct', 'convertedInvoice');
         $settings = CompanySetting::current();
 
         return view('quotations.show', compact('quotation', 'settings'));
@@ -115,8 +128,9 @@ class QuotationController extends Controller
     {
         $quotation->load('items');
         $clients = Client::orderBy('name')->get();
+        $saasProducts = SaasProduct::with('client')->orderBy('name')->get();
 
-        return view('quotations.edit', compact('quotation', 'clients'));
+        return view('quotations.edit', compact('quotation', 'clients', 'saasProducts'));
     }
 
     public function update(QuotationRequest $request, Quotation $quotation): RedirectResponse
@@ -124,6 +138,8 @@ class QuotationController extends Controller
         DB::transaction(function () use ($request, $quotation) {
             $quotation->update([
                 'client_id' => $request->validated('client_id'),
+                'saas_product_id' => $request->validated('saas_product_id'),
+                'saas_invoice_type' => $request->validated('saas_product_id') ? $request->validated('saas_invoice_type') : null,
                 'quotation_date' => $request->validated('quotation_date'),
                 'valid_until' => $request->validated('valid_until'),
                 'intro_text' => $request->validated('intro_text'),
@@ -190,7 +206,7 @@ class QuotationController extends Controller
 
     public function pdf(Quotation $quotation): Response
     {
-        $quotation->load('client', 'items');
+        $quotation->load('client', 'items', 'saasProduct');
         $settings = CompanySetting::current();
         $html = view('quotations.document', compact('quotation', 'settings'))->render();
 
@@ -201,7 +217,7 @@ class QuotationController extends Controller
 
     public function preview(Quotation $quotation): HttpResponse
     {
-        $quotation->load('client', 'items');
+        $quotation->load('client', 'items', 'saasProduct');
         $settings = CompanySetting::current();
         $html = view('quotations.document', compact('quotation', 'settings'))->render();
 

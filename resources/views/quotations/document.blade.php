@@ -250,9 +250,10 @@
     <div class="page-content">
     <table class="header">
         <tr>
+            @php $logo = $settings->logoDataUriFor($quotation); @endphp
             <td class="logo">
-                @if ($settings->logo_data_uri)
-                    <img src="{{ $settings->logo_data_uri }}" alt="{{ $settings->company_name }}">
+                @if ($logo)
+                    <img src="{{ $logo }}" alt="{{ $settings->company_name }}">
                 @else
                     <strong>{{ $settings->company_name }}</strong>
                 @endif

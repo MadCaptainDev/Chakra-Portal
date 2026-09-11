@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\CompanySetting;
+use App\Support\PublicUpload;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class SettingsController extends Controller
@@ -37,19 +37,17 @@ class SettingsController extends Controller
         if ($request->hasFile('logo')) {
             $previous = $settings->logo_path;
 
-            $path = $request->file('logo')->store('logos', 'public');
-            $validated['logo_path'] = 'storage/'.$path;
+            $validated['logo_path'] = PublicUpload::store($request->file('logo'), 'logos');
 
-            $this->deletePreviousLogo($previous);
+            PublicUpload::delete($previous);
         }
 
         if ($request->hasFile('app_studio_logo')) {
             $previous = $settings->app_studio_logo_path;
 
-            $path = $request->file('app_studio_logo')->store('logos', 'public');
-            $validated['app_studio_logo_path'] = 'storage/'.$path;
+            $validated['app_studio_logo_path'] = PublicUpload::store($request->file('app_studio_logo'), 'logos');
 
-            $this->deletePreviousLogo($previous);
+            PublicUpload::delete($previous);
         }
 
         unset($validated['logo'], $validated['app_studio_logo']);
@@ -57,21 +55,5 @@ class SettingsController extends Controller
         $settings->update($validated);
 
         return redirect()->route('settings.edit')->with('status', 'Settings updated.');
-    }
-
-    /**
-     * Remove a replaced logo so uploads don't pile up.
-     *
-     * Only touches files this app wrote under storage/ -- the bundled default
-     * lives at public/images/chakra-logo.png and must survive, or every
-     * invoice loses its logo.
-     */
-    private function deletePreviousLogo(?string $logoPath): void
-    {
-        if (! $logoPath || ! str_starts_with($logoPath, 'storage/')) {
-            return;
-        }
-
-        Storage::disk('public')->delete(substr($logoPath, strlen('storage/')));
     }
 }
