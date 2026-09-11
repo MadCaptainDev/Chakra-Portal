@@ -69,10 +69,10 @@
     }
     .watermark {
         position: absolute;
-        top: 20mm;
-        left: 150mm;
-        width: 46mm;
-        height: 79mm;
+        top: 42mm;
+        right: 14mm;
+        width: 30mm;
+        height: 51mm;
         opacity: 1;
         z-index: 0;
     }

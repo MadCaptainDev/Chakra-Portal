@@ -61,12 +61,18 @@
     .page-content {
         padding: 16mm 14mm 40mm;
     }
+    /* Sits in the blank space between the intro paragraph and the items
+       table -- it used to start at top:20mm/height:79mm, which put it
+       directly behind (and visually colliding with) the 32pt heading and
+       date text above. Moved down and shrunk (same 46:79 aspect ratio,
+       so it isn't stretched) to clear that text entirely while still
+       ending well above the items table. */
     .watermark {
         position: absolute;
-        top: 20mm;
-        left: 150mm;
-        width: 46mm;
-        height: 79mm;
+        top: 42mm;
+        right: 14mm;
+        width: 30mm;
+        height: 51mm;
         opacity: 1;
         z-index: 0;
     }
