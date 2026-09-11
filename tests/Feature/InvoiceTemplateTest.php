@@ -103,6 +103,51 @@ class InvoiceTemplateTest extends TestCase
         $this->assertStringNotContainsString('{{client_name}}', $response->getContent());
     }
 
+    public function test_studio_toggle_overrides_which_logo_the_preview_uses(): void
+    {
+        $user = User::factory()->create();
+        $invoice = Invoice::factory()->create(); // plain Production invoice
+
+        $this->fakeLogo('images/company-logo-test.png', 'company');
+        $this->fakeLogo('images/app-studio-logo-test.png', 'studio');
+        $settings = \App\Models\CompanySetting::current();
+        $settings->update([
+            'logo_path' => 'images/company-logo-test.png',
+            'app_studio_logo_path' => 'images/app-studio-logo-test.png',
+        ]);
+
+        // Production toggle, even against a real Production invoice.
+        $prod = $this->actingAs($user)->post(route('invoice-template.preview'), [
+            'mode' => 'blocks',
+            'blocks' => json_encode(InvoiceTemplate::defaultBlocks()),
+            'invoice_id' => $invoice->id,
+            'studio' => '0',
+        ])->getContent();
+        $this->assertStringContainsString($settings->logo_data_uri, $prod);
+        $this->assertStringNotContainsString($settings->app_studio_logo_data_uri, $prod);
+
+        // App Studio toggle overrides the same Production invoice.
+        $studio = $this->actingAs($user)->post(route('invoice-template.preview'), [
+            'mode' => 'blocks',
+            'blocks' => json_encode(InvoiceTemplate::defaultBlocks()),
+            'invoice_id' => $invoice->id,
+            'studio' => '1',
+        ])->getContent();
+        $this->assertStringContainsString($settings->app_studio_logo_data_uri, $studio);
+
+        @unlink(public_path('images/company-logo-test.png'));
+        @unlink(public_path('images/app-studio-logo-test.png'));
+    }
+
+    /** A 1x1 PNG written under public_path(), padded so two calls differ. */
+    private function fakeLogo(string $relativePath, string $variant): void
+    {
+        $absolute = public_path($relativePath);
+        @mkdir(dirname($absolute), recursive: true);
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=');
+        file_put_contents($absolute, $png.$variant);
+    }
+
     public function test_reset_restores_classic_blocks(): void
     {
         $user = User::factory()->create();

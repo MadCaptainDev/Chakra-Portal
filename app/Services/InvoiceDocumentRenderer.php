@@ -197,7 +197,11 @@ HTML;
     }
     table.header td { vertical-align: top; padding: 0; }
     .header-right { text-align: right; }
-    .logo img { height: 18mm; }
+    /* Fallback only -- CompanySetting::logoBoxStyle() sets an inline
+       width/height per logo so a wide wordmark (App Studio's own mark)
+       can't outgrow the heading; this just covers the rare case that
+       inline style is missing. */
+    .logo img { max-height: 18mm; max-width: 46mm; }
     .invoice-heading {
         font-family: 'Poppins', Arial, sans-serif;
         font-weight: 800;
@@ -362,7 +366,7 @@ CSS;
         $map = [
             'company_name' => e($settings->company_name),
             'logo' => $settings->logoDataUriFor($invoice)
-                ? '<img src="'.e($settings->logoDataUriFor($invoice)).'" alt="'.e($settings->company_name).'">'
+                ? '<img src="'.e($settings->logoDataUriFor($invoice)).'" alt="'.e($settings->company_name).'" style="'.e($settings->logoBoxStyle($settings->logoPathFor($invoice))).'">'
                 : '<strong>'.e($settings->company_name).'</strong>',
             'watermark' => '<img class="watermark" src="'.e(Assets::image('images/chakra-watermark.png')).'" alt="">',
             'invoice_number' => e($invoice->invoice_number ?? 'DRAFT'),

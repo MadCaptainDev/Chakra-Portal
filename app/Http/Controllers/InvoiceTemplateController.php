@@ -83,6 +83,12 @@ class InvoiceTemplateController extends Controller
             'html' => ['nullable', 'string'],
             'custom_css' => ['nullable', 'string'],
             'invoice_id' => ['nullable', 'integer', 'exists:invoices,id'],
+            // The builder's own Production/App Studio toggle -- lets
+            // someone see and adjust the App Studio logo's layout without
+            // needing a real App Studio invoice on file. Overrides
+            // whichever the picked/sample invoice actually is, in memory
+            // only (never saved), so the toggle is authoritative either way.
+            'studio' => ['nullable', 'boolean'],
         ]);
 
         $blocks = $data['blocks'] ?? null;
@@ -98,6 +104,12 @@ class InvoiceTemplateController extends Controller
         $invoice = ! empty($data['invoice_id'])
             ? Invoice::with('client', 'items')->findOrFail($data['invoice_id'])
             : ($this->sampleInvoice() ?? $this->syntheticInvoice());
+
+        if (array_key_exists('studio', $data)) {
+            // -1 rather than a real id: nothing here ever saves, and the
+            // logo swap only checks this column for truthiness.
+            $invoice->saas_product_id = $data['studio'] ? -1 : null;
+        }
 
         $html = $renderer->render($invoice, CompanySetting::current(), [
             'mode' => $data['mode'],

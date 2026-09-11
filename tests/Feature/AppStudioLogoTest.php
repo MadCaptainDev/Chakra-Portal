@@ -95,4 +95,56 @@ class AppStudioLogoTest extends TestCase
 
         $this->assertSame($settings->logo_data_uri, $settings->logoDataUriFor($invoice));
     }
+
+    /**
+     * CompanySetting::logoBoxStyle() -- the actual "App Studio logo is big"
+     * fix. A wordmark shaped like App Studio's real one (730x129, 5.66:1)
+     * used to render at a fixed height with width left to follow the ratio,
+     * which stretched it to ~102mm wide on a 210mm page.
+     */
+    public function test_a_wide_wordmark_logo_is_capped_by_width(): void
+    {
+        $settings = CompanySetting::current();
+        $path = $this->fakeSizedLogo('test-logos/wordmark.png', 730, 129);
+
+        $style = $settings->logoBoxStyle($path);
+
+        $this->assertStringContainsString('width: 46.0mm', $style);
+        $this->assertStringNotContainsString('max-width', $style); // an exact size, not just a ceiling
+        preg_match('/height: ([\d.]+)mm/', $style, $m);
+        $this->assertLessThan(16.0, (float) $m[1]);
+    }
+
+    public function test_a_roughly_square_logo_is_capped_by_height(): void
+    {
+        $settings = CompanySetting::current();
+        $path = $this->fakeSizedLogo('test-logos/square.png', 114, 60);
+
+        $style = $settings->logoBoxStyle($path);
+
+        $this->assertStringContainsString('height: 16.0mm', $style);
+        preg_match('/width: ([\d.]+)mm/', $style, $m);
+        $this->assertLessThan(46.0, (float) $m[1]);
+    }
+
+    public function test_box_style_falls_back_to_a_plain_cap_when_the_file_is_missing(): void
+    {
+        $settings = CompanySetting::current();
+
+        $this->assertStringContainsString('max-height', $settings->logoBoxStyle('test-logos/does-not-exist.png'));
+        $this->assertStringContainsString('max-height', $settings->logoBoxStyle(null));
+    }
+
+    /** A real (not 1x1) PNG at exact dimensions, for aspect-ratio math. */
+    private function fakeSizedLogo(string $relativePath, int $width, int $height): string
+    {
+        $absolute = public_path($relativePath);
+        @mkdir(dirname($absolute), recursive: true);
+        $image = imagecreatetruecolor($width, $height);
+        imagepng($image, $absolute);
+        imagedestroy($image);
+        $this->tempFiles[] = $absolute;
+
+        return $relativePath;
+    }
 }

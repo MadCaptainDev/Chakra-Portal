@@ -1,9 +1,12 @@
 <table class="header">
     <tr>
         <td class="logo">
-            @php $logo = $settings->logoDataUriFor($invoice); @endphp
+            @php
+                $logoPath = $settings->logoPathFor($invoice);
+                $logo = $settings->logoDataUriFor($invoice);
+            @endphp
             @if ($logo)
-                <img src="{{ $logo }}" alt="{{ $settings->company_name }}">
+                <img src="{{ $logo }}" alt="{{ $settings->company_name }}" style="{{ $settings->logoBoxStyle($logoPath) }}">
             @else
                 <strong>{{ $settings->company_name }}</strong>
             @endif

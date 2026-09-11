@@ -84,7 +84,7 @@
     }
     table.header td { vertical-align: top; padding: 0; }
     .header-right { text-align: right; }
-    .logo img { height: 18mm; }
+    .logo img { max-height: 18mm; max-width: 46mm; }
     .invoice-heading {
         font-family: 'Poppins', Arial, sans-serif;
         font-weight: 800;

@@ -78,7 +78,10 @@
     }
     table.header td { vertical-align: top; padding: 0; }
     .header-right { text-align: right; }
-    .logo img { height: 18mm; }
+    /* Fallback only -- see the inline style set on the <img> below, which
+       is what actually sizes a wide wordmark logo (App Studio's own mark)
+       down to fit without stretching across the page. */
+    .logo img { max-height: 18mm; max-width: 46mm; }
     .doc-heading {
         font-family: 'Poppins', Arial, sans-serif;
         font-weight: 800;
@@ -279,15 +282,16 @@
         // to the ordinary logo if that one has never been uploaded -- same
         // fallback as CompanySetting::logoDataUriFor(Invoice), just without
         // a saas_product_id to key off (a quotation carries none yet).
-        $logo = ($quotation->is_app_studio && $settings->app_studio_logo_data_uri)
-            ? $settings->app_studio_logo_data_uri
-            : $settings->logo_data_uri;
+        $logoIsAppStudio = $quotation->is_app_studio && $settings->app_studio_logo_path
+            && is_file(public_path($settings->app_studio_logo_path));
+        $logoPath = $logoIsAppStudio ? $settings->app_studio_logo_path : $settings->logo_path;
+        $logo = $logoIsAppStudio ? $settings->app_studio_logo_data_uri : $settings->logo_data_uri;
     @endphp
     <table class="header">
         <tr>
             <td class="logo">
                 @if ($logo)
-                    <img src="{{ $logo }}" alt="{{ $settings->company_name }}">
+                    <img src="{{ $logo }}" alt="{{ $settings->company_name }}" style="{{ $settings->logoBoxStyle($logoPath) }}">
                 @else
                     <strong>{{ $settings->company_name }}</strong>
                 @endif

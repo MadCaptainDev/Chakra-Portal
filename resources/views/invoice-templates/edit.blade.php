@@ -260,9 +260,33 @@
                 {{-- Live preview --}}
                 <div class="xl:sticky xl:top-4 self-start">
                     <x-card class="p-3 sm:p-4">
-                        <div class="flex items-center justify-between mb-3">
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
                             <p class="text-sm font-semibold text-white">Live preview</p>
-                            <span class="text-xs text-brand-100/60" x-text="previewStatus"></span>
+                            <div class="flex items-center gap-3">
+                                {{-- Which logo the preview renders with -- lets you
+                                     see and adjust the App Studio mark's layout
+                                     without needing a real App Studio invoice on
+                                     file. Overrides the sample invoice either way. --}}
+                                <div class="inline-flex items-center rounded-lg bg-white/10 p-1">
+                                    <button
+                                        type="button"
+                                        @click="previewStudio = false; queuePreview()"
+                                        :class="! previewStudio ? 'bg-white/5 text-white shadow-sm' : 'text-brand-100/60 hover:text-brand-100/80'"
+                                        class="px-3 min-h-[32px] rounded-md text-xs font-semibold transition-colors"
+                                    >
+                                        Production
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="previewStudio = true; queuePreview()"
+                                        :class="previewStudio ? 'bg-white/5 text-white shadow-sm' : 'text-brand-100/60 hover:text-brand-100/80'"
+                                        class="px-3 min-h-[32px] rounded-md text-xs font-semibold transition-colors"
+                                    >
+                                        App Studio
+                                    </button>
+                                </div>
+                                <span class="text-xs text-brand-100/60" x-text="previewStatus"></span>
+                            </div>
                         </div>
                         <div class="bg-white/10 rounded-md overflow-auto" style="max-height: calc(100vh - 10rem);">
                             <div class="mx-auto my-3 shadow-md bg-white/5" style="width: 210mm; min-height: 297mm; transform-origin: top center;">
@@ -298,6 +322,7 @@
                 generateHtmlUrl: config.generateHtmlUrl,
                 sampleInvoiceId: config.sampleInvoiceId,
                 csrf: config.csrf,
+                previewStudio: false,
                 previewStatus: 'Idle',
                 generating: false,
                 previewTimer: null,
@@ -412,6 +437,7 @@
                         if (this.sampleInvoiceId) {
                             body.append('invoice_id', this.sampleInvoiceId);
                         }
+                        body.append('studio', this.previewStudio ? '1' : '0');
 
                         const res = await fetch(this.previewUrl, {
                             method: 'POST',
