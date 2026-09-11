@@ -5,8 +5,12 @@ namespace App\Console\Commands;
 use App\Models\Shoot;
 use App\Models\User;
 use App\Notifications\ShootContentMissing;
+use App\Services\WhatsappSender;
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use RuntimeException;
 
 /**
  * One push per shoot that's completed with nothing added to the Reel
@@ -61,6 +65,7 @@ class SendMissingContentAlerts extends Command
                 : $fallback;
 
             Notification::send($recipients, new ShootContentMissing($shoot));
+            $this->sendWhatsapp($shoot, $recipients);
 
             $shoot->forceFill(['content_missing_alert_sent_at' => now()])->save();
             $sent++;
@@ -69,5 +74,37 @@ class SendMissingContentAlerts extends Command
         $this->info("{$sent} missing-content alert(s) sent.");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Same alert over WhatsApp, to whichever of these recipients have a
+     * phone on file -- skipped quietly for anyone who doesn't, same as no
+     * push token quietly means no push. One bad number or an unapproved
+     * template must not stop the rest from being told, so failures are
+     * logged rather than thrown.
+     *
+     * @param  Collection<int, User>  $recipients
+     */
+    private function sendWhatsapp(Shoot $shoot, Collection $recipients): void
+    {
+        foreach ($recipients as $recipient) {
+            if (blank($recipient->phone)) {
+                continue;
+            }
+
+            try {
+                WhatsappSender::make()->sendTemplate(
+                    to: $recipient->phone,
+                    template: Shoot::WHATSAPP_TEMPLATE_MISSING_CONTENT,
+                    bodyParameters: [$shoot->title, $shoot->starts_at->format('D j M')],
+                );
+            } catch (RuntimeException $e) {
+                Log::error('Missing-content alert WhatsApp send failed.', [
+                    'shoot_id' => $shoot->id,
+                    'user_id' => $recipient->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 }

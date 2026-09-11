@@ -35,6 +35,12 @@ class Shoot extends Model
         self::STATUS_CANCELLED => 'Cancelled',
     ];
 
+    /** Crew's tomorrow-evening reminder -- see SeedShootReminderTemplate and SendShootReminders. */
+    public const WHATSAPP_TEMPLATE_REMINDER = 'shoot_reminder_v1';
+
+    /** Staff alert for a completed shoot missing from the Reel Planner -- see SeedMissingContentAlertTemplate and SendMissingContentAlerts. */
+    public const WHATSAPP_TEMPLATE_MISSING_CONTENT = 'shoot_content_missing_v1';
+
     protected $fillable = [
         'title',
         'client_id',

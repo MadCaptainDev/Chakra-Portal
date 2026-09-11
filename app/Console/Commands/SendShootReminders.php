@@ -3,9 +3,15 @@
 namespace App\Console\Commands;
 
 use App\Models\Shoot;
+use App\Models\ShootCrew;
 use App\Notifications\ShootReminderDue;
+use App\Services\WhatsappSender;
 use Illuminate\Console\Command;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use RuntimeException;
+use Throwable;
 
 /**
  * Tomorrow's shoots, pushed to their crew tonight -- crew only, not the
@@ -41,6 +47,7 @@ class SendShootReminders extends Command
             foreach ($shoot->crew as $crew) {
                 if ($crew->user) {
                     Notification::send($crew->user, new ShootReminderDue($crew));
+                    $this->sendWhatsapp($shoot, $crew);
                 }
             }
 
@@ -51,5 +58,53 @@ class SendShootReminders extends Command
         $this->info("{$sent} shoot(s) reminded for {$tomorrow->format('D j M')}.");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Same information as the push, over WhatsApp too -- skipped quietly
+     * when the crew member has no phone on file, same as no push token
+     * quietly means no push. One bad number or an unapproved template must
+     * not stop the rest of the crew from being reminded, so failures are
+     * logged rather than thrown.
+     */
+    private function sendWhatsapp(Shoot $shoot, ShootCrew $crew): void
+    {
+        if (! $crew->user || blank($crew->user->phone)) {
+            return;
+        }
+
+        $callTime = null;
+        if ($crew->call_time) {
+            try {
+                $callTime = Carbon::parse($crew->call_time)->format('g:ia');
+            } catch (Throwable) {
+                $callTime = null;
+            }
+        }
+
+        // The template's third {{n}} is never blank -- an approved
+        // template's variables aren't optional at send time, so a shoot
+        // with neither a call time nor a location still gets a real
+        // sentence here rather than an empty string.
+        $detail = collect([
+            $callTime ? "Call {$callTime}" : null,
+            $shoot->location,
+        ])->filter()->implode(' · ');
+
+        $detail = $detail !== '' ? "{$detail}." : 'Check the call sheet for details.';
+
+        try {
+            WhatsappSender::make()->sendTemplate(
+                to: $crew->user->phone,
+                template: Shoot::WHATSAPP_TEMPLATE_REMINDER,
+                bodyParameters: [$shoot->title, $shoot->starts_at->format('D j M'), $detail],
+            );
+        } catch (RuntimeException $e) {
+            Log::error('Shoot reminder WhatsApp send failed.', [
+                'shoot_id' => $shoot->id,
+                'user_id' => $crew->user->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

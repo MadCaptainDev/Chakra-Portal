@@ -136,6 +136,43 @@ class StudioAutomationsTest extends TestCase
         $this->assertNotNull($shoot->fresh()->reminder_sent_at);
     }
 
+    public function test_crew_with_a_phone_on_file_are_also_reminded_over_whatsapp(): void
+    {
+        $this->configuredWhatsapp();
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.TEST']]])]);
+
+        $client = $this->client();
+        $crewMember = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'phone' => '9876543210']);
+        $shoot = Shoot::create([
+            'title' => 'Diwali campaign', 'client_id' => $client->id, 'location' => 'Studio 2',
+            'starts_at' => now()->addDay(), 'status' => Shoot::STATUS_CONFIRMED,
+        ]);
+        ShootCrew::create(['shoot_id' => $shoot->id, 'user_id' => $crewMember->id, 'role' => 'Camera', 'call_time' => '09:00:00']);
+
+        $this->artisan('shoots:send-reminders')->assertExitCode(0);
+
+        Http::assertSent(fn ($request) => $request->data()['type'] === 'template'
+            && $request->data()['template']['name'] === Shoot::WHATSAPP_TEMPLATE_REMINDER
+            && $request->data()['to'] === '919876543210');
+    }
+
+    public function test_crew_with_no_phone_on_file_get_no_whatsapp_attempt(): void
+    {
+        Http::fake();
+
+        $client = $this->client();
+        $crewMember = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'phone' => null]);
+        $shoot = Shoot::create([
+            'title' => 'Diwali campaign', 'client_id' => $client->id,
+            'starts_at' => now()->addDay(), 'status' => Shoot::STATUS_CONFIRMED,
+        ]);
+        ShootCrew::create(['shoot_id' => $shoot->id, 'user_id' => $crewMember->id]);
+
+        $this->artisan('shoots:send-reminders');
+
+        Http::assertNothingSent();
+    }
+
     public function test_a_shoot_reminder_is_never_sent_twice(): void
     {
         $client = $this->client();

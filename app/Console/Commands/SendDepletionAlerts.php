@@ -2,11 +2,16 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Client;
 use App\Models\User;
 use App\Notifications\ContentDepletionWarning;
+use App\Services\WhatsappSender;
 use App\Support\ContentForecast;
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use RuntimeException;
 
 /**
  * One push per client whose content is about to run out with nothing
@@ -60,7 +65,10 @@ class SendDepletionAlerts extends Command
             // The client's own account manager first -- see Client::
             // alertRecipients(); falls back to the broad Forecast-visible
             // list only when nobody's been assigned to this client yet.
-            Notification::send($client->alertRecipients($recipients), new ContentDepletionWarning($client, $row));
+            $theseRecipients = $client->alertRecipients($recipients);
+
+            Notification::send($theseRecipients, new ContentDepletionWarning($client, $row));
+            $this->sendWhatsapp($client, $row, $theseRecipients);
 
             $client->forceFill([
                 'forecast_alert_depletion_date' => $depletionDate,
@@ -73,5 +81,45 @@ class SendDepletionAlerts extends Command
         $this->info("{$sent} depletion alert(s) sent, {$critical->count()} client(s) currently critical.");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Same alert over WhatsApp, to whichever of these recipients have a
+     * phone on file -- skipped quietly for anyone who doesn't, same as no
+     * push token quietly means no push. One bad number or an unapproved
+     * template must not stop the rest from being told, so failures are
+     * logged rather than thrown.
+     *
+     * @param  array<string, mixed>  $row  A ContentForecast::forClient() row.
+     * @param  Collection<int, User>  $recipients
+     */
+    private function sendWhatsapp(Client $client, array $row, Collection $recipients): void
+    {
+        $depletion = $row['depletion_date'];
+        $remaining = $row['remaining'];
+
+        $status = $remaining <= 0
+            ? 'out of content already'
+            : "running out around {$depletion->format('j M')} ({$remaining} left)";
+
+        foreach ($recipients as $recipient) {
+            if (blank($recipient->phone)) {
+                continue;
+            }
+
+            try {
+                WhatsappSender::make()->sendTemplate(
+                    to: $recipient->phone,
+                    template: Client::WHATSAPP_TEMPLATE_DEPLETION,
+                    bodyParameters: [$client->name, $status],
+                );
+            } catch (RuntimeException $e) {
+                Log::error('Content depletion WhatsApp send failed.', [
+                    'client_id' => $client->id,
+                    'user_id' => $recipient->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 }

@@ -234,6 +234,20 @@ class McpServerTest extends TestCase
 
         $this->assertContains('list_shoots', $names);
         $this->assertContains('list_scripts', $names);
+        $this->assertContains('reel_planner_today', $names);
+    }
+
+    /**
+     * reel_planner_today has no registered module -- it relies entirely on
+     * AppServiceProvider's Gate::before admin short-circuit, same as the
+     * underlying HTTP route (content-dashboard.reel-today) being admin-only
+     * with no module check either.
+     */
+    public function test_reel_planner_today_is_admin_only(): void
+    {
+        $employee = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
+
+        $this->assertNotContains('reel_planner_today', $this->toolNames($this->tokenFor($employee)));
     }
 
     public function test_calling_a_tool_you_cannot_see_is_refused(): void
@@ -313,6 +327,47 @@ class McpServerTest extends TestCase
         $data = $this->toolData($this->tokenFor($manager), 'list_timesheet', ['person' => 'Mine Report']);
 
         $this->assertSame('Mine Report', $data['person']);
+    }
+
+    public function test_reel_planner_today_reports_todays_reels_by_stage(): void
+    {
+        \App\Models\ContentItem::factory()->create([
+            'source' => \App\Models\ContentItem::SOURCE_REEL,
+            'status' => 'To Be Edited',
+            'published_date' => today(),
+            'title' => 'Diwali Sale Teaser',
+            'editor' => 'Priya',
+        ]);
+        \App\Models\ContentItem::factory()->create([
+            'source' => \App\Models\ContentItem::SOURCE_REEL,
+            'status' => 'Published',
+            'published_date' => today(),
+        ]);
+        // A different day, and a different source -- neither counted.
+        \App\Models\ContentItem::factory()->create([
+            'source' => \App\Models\ContentItem::SOURCE_REEL,
+            'status' => 'To Be Edited',
+            'published_date' => today()->addDay(),
+        ]);
+        \App\Models\ContentItem::factory()->create([
+            'source' => \App\Models\ContentItem::SOURCE_YOUTUBE,
+            'status' => 'To Be Edited',
+            'published_date' => today(),
+        ]);
+
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $data = $this->toolData($this->tokenFor($admin), 'reel_planner_today');
+
+        $this->assertSame(today()->toDateString(), $data['date']);
+        $this->assertSame(2, $data['total_posting']);
+        $this->assertSame(1, $data['counts']['to_be_edited']);
+        $this->assertSame(1, $data['counts']['posted']);
+
+        // Ordered by status then title, so which index this lands at isn't
+        // pinned here -- find it by title instead.
+        $teaser = collect($data['items'])->firstWhere('title', 'Diwali Sale Teaser');
+        $this->assertNotNull($teaser);
+        $this->assertSame('Priya', $teaser['editor']);
     }
 
     // ——— Writing ———

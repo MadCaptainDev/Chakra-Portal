@@ -8,6 +8,7 @@ use App\Mcp\Tools\ListShoots;
 use App\Mcp\Tools\ListTimesheet;
 use App\Mcp\Tools\ListTodos;
 use App\Mcp\Tools\LogTimesheetEntry;
+use App\Mcp\Tools\ReelPlannerToday;
 use App\Mcp\Tools\SetTodoStatus;
 use App\Mcp\Tools\WhoAmI;
 use App\Models\User;
@@ -54,6 +55,7 @@ class Server
             new SetTodoStatus,
             new ListShoots,
             new ListScripts,
+            new ReelPlannerToday,
         ];
     }
 

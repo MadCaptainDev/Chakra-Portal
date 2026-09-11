@@ -59,6 +59,9 @@ class Client extends Model
         self::CLIENT_TYPE_OCCASION => 'Occasion',
     ];
 
+    /** Staff alert when a client is about to run out of content -- see SeedContentDepletionTemplate and SendDepletionAlerts. */
+    public const WHATSAPP_TEMPLATE_DEPLETION = 'content_depletion_v1';
+
     protected $fillable = [
         'name',
         'logo_path',
