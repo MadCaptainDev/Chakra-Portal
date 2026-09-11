@@ -8,7 +8,6 @@ use App\Models\Invoice;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class DataSafetyGuardTest extends TestCase
@@ -104,10 +103,26 @@ class DataSafetyGuardTest extends TestCase
         $this->assertSame(0.0, $invoice->fresh()->balanceDue());
     }
 
+    /**
+     * Logo uploads go through PublicUpload (public/uploads/...), not the
+     * "public" disk -- see [[public-uploads-convention]] / SettingsController.
+     * The old Storage::disk('public')->store() path 404'd in the browser on
+     * this host (symlink() disabled), so this asserts against real files
+     * under public/uploads instead of the fake "public" disk.
+     */
+    private array $uploadedLogos = [];
+
+    protected function tearDown(): void
+    {
+        foreach ($this->uploadedLogos as $path) {
+            @unlink($path);
+        }
+
+        parent::tearDown();
+    }
+
     public function test_replacing_a_logo_deletes_the_previous_upload(): void
     {
-        Storage::fake('public');
-
         $settings = CompanySetting::current();
         $user = User::factory()->create();
 
@@ -116,6 +131,7 @@ class DataSafetyGuardTest extends TestCase
             'signature_name' => 'Owner',
             'signature_title' => 'CEO',
             'invoice_prefix' => 'CP-',
+            'quotation_prefix' => 'QT-',
             'footer_text' => 'Thanks',
         ];
 
@@ -124,24 +140,25 @@ class DataSafetyGuardTest extends TestCase
         ]);
 
         $first = $settings->fresh()->logo_path;
-        Storage::disk('public')->assertExists(substr($first, strlen('storage/')));
+        $this->uploadedLogos[] = public_path($first);
+        $this->assertStringStartsWith('uploads/logos/', $first);
+        $this->assertFileExists(public_path($first));
 
         $this->actingAs($user)->put(route('settings.update'), $base + [
             'logo' => UploadedFile::fake()->image('second.png'),
         ]);
 
         $second = $settings->fresh()->logo_path;
+        $this->uploadedLogos[] = public_path($second);
         $this->assertNotSame($first, $second);
-        Storage::disk('public')->assertMissing(substr($first, strlen('storage/')));
-        Storage::disk('public')->assertExists(substr($second, strlen('storage/')));
+        $this->assertFileDoesNotExist(public_path($first));
+        $this->assertFileExists(public_path($second));
     }
 
     public function test_the_bundled_default_logo_is_never_deleted(): void
     {
-        Storage::fake('public');
-
         $settings = CompanySetting::current();
-        // The seeded default lives in public/images, not on the storage disk.
+        // The seeded default lives in public/images, not an upload path.
         $this->assertSame('images/chakra-logo.png', $settings->logo_path);
 
         $this->actingAs(User::factory()->create())->put(route('settings.update'), [
@@ -149,9 +166,12 @@ class DataSafetyGuardTest extends TestCase
             'signature_name' => 'Owner',
             'signature_title' => 'CEO',
             'invoice_prefix' => 'CP-',
+            'quotation_prefix' => 'QT-',
             'footer_text' => 'Thanks',
             'logo' => UploadedFile::fake()->image('new.png'),
         ]);
+
+        $this->uploadedLogos[] = public_path($settings->fresh()->logo_path);
 
         // Still on disk in the repo -- deleting it would strip the logo from
         // every invoice for anyone who never uploaded one.
