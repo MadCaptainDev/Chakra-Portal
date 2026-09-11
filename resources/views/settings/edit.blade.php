@@ -59,6 +59,12 @@
                     </div>
 
                     <div>
+                        <x-input-label for="quotation_prefix" value="Quotation Number Prefix" />
+                        <x-text-input id="quotation_prefix" name="quotation_prefix" type="text" class="mt-1 w-full" value="{{ old('quotation_prefix', $settings->quotation_prefix) }}" required />
+                        <x-input-error :messages="$errors->get('quotation_prefix')" class="mt-2" />
+                    </div>
+
+                    <div>
                         <x-input-label for="footer_text" value="Footer Thank-You Text" />
                         <x-text-input id="footer_text" name="footer_text" type="text" class="mt-1 w-full" value="{{ old('footer_text', $settings->footer_text) }}" required />
                         <x-input-error :messages="$errors->get('footer_text')" class="mt-2" />

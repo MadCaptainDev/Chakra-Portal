@@ -8,6 +8,14 @@
     $map = [
         'pending_approval' => 'bg-amber-400/15 text-amber-200',
         'unpaid' => 'bg-sky-400/15 text-sky-200',
+        // Quotation statuses (App\Models\Quotation::displayStatus()).
+        // "draft" reuses "idea"'s neutral chip below; "rejected"/"expired"
+        // reuse red, "accepted"/"converted" reuse the emerald invoices use
+        // for "paid" -- one decided/settled colour across both modules.
+        'draft' => 'bg-white/10 text-brand-100/70',
+        'accepted' => 'bg-emerald-400/15 text-emerald-200',
+        'expired' => 'bg-red-400/15 text-red-200',
+        'converted' => 'bg-brand-400/20 text-brand-200',
         'partial' => 'bg-amber-400/15 text-amber-200',
         'paid' => 'bg-emerald-400/15 text-emerald-200',
         'overdue' => 'bg-red-400/15 text-red-200',
@@ -70,6 +78,10 @@
     $labels = [
         'pending_approval' => 'Pending Approval',
         'unpaid' => 'Unpaid',
+        'draft' => 'Draft',
+        'accepted' => 'Accepted',
+        'expired' => 'Expired',
+        'converted' => 'Converted',
         'partial' => 'Partially Paid',
         'paid' => 'Paid',
         'overdue' => 'Overdue',

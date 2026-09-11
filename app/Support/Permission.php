@@ -238,6 +238,19 @@ class Permission
             'icon' => 'card',
             'abilities' => ['view', 'create', 'edit', 'delete', 'approve', 'manage'],
         ],
+        /*
+         * Quotations sent before any work is booked -- separate from
+         * Invoices because deciding what to quote a prospect and reconciling
+         * what was actually billed are different jobs. `approve` covers
+         * accept/reject and converting an accepted quotation into an
+         * Invoice, same split as Invoices' own approve ability.
+         */
+        'quotations' => [
+            'label' => 'Quotations',
+            'group' => 'Finance',
+            'icon' => 'clipboard-list',
+            'abilities' => ['view', 'create', 'edit', 'delete', 'approve', 'manage'],
+        ],
         'expenses' => [
             'label' => 'Expenses',
             'group' => 'Finance',

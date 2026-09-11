@@ -45,6 +45,7 @@ use App\Http\Controllers\InstagramConnectionController;
 use App\Http\Controllers\InstagramInsightsController;
 use App\Http\Controllers\InstagramSettingController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\InvoiceTemplateController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\McpTokenController;
@@ -860,6 +861,48 @@ Route::middleware(['auth', 'module:invoices,view', 'recurring.catchup'])->group(
         Route::resource('recurring', RecurringInvoiceController::class)->except('show');
         Route::patch('recurring/{recurring}/toggle', [RecurringInvoiceController::class, 'toggle'])->name('recurring.toggle');
     });
+});
+
+/*
+ * What a client is quoted before any work is booked -- internal-only, no
+ * public link (see App\Models\Quotation). Accepted ones convert into a real
+ * Invoice via QuotationController::convert().
+ */
+Route::middleware(['auth', 'module:quotations,view'])->group(function () {
+    Route::get('quotations', [QuotationController::class, 'index'])->name('quotations.index');
+
+    /*
+     * Declared before quotations/{quotation}: Laravel matches in declaration
+     * order, so a literal path registered after the wildcard is never
+     * reached -- /quotations/create would be read as a request to show
+     * quotation "create".
+     */
+    Route::middleware('module:quotations,create')->group(function () {
+        Route::get('quotations/create', [QuotationController::class, 'create'])->name('quotations.create');
+        Route::post('quotations', [QuotationController::class, 'store'])->name('quotations.store');
+    });
+
+    Route::get('quotations/{quotation}', [QuotationController::class, 'show'])->name('quotations.show');
+    Route::get('quotations/{quotation}/pdf', [QuotationController::class, 'pdf'])->name('quotations.pdf');
+    Route::get('quotations/{quotation}/preview', [QuotationController::class, 'preview'])->name('quotations.preview');
+
+    Route::middleware('module:quotations,edit')->group(function () {
+        Route::get('quotations/{quotation}/edit', [QuotationController::class, 'edit'])->name('quotations.edit');
+        Route::put('quotations/{quotation}', [QuotationController::class, 'update'])->name('quotations.update');
+        Route::patch('quotations/{quotation}', [QuotationController::class, 'update']);
+    });
+
+    // Accept/reject/convert sit behind the same `approve` ability as
+    // Invoices' own approve -- deciding a quotation's fate, and turning it
+    // into billing, is not necessarily the job of whoever drafted it.
+    Route::middleware('module:quotations,approve')->group(function () {
+        Route::post('quotations/{quotation}/accept', [QuotationController::class, 'accept'])->name('quotations.accept');
+        Route::post('quotations/{quotation}/reject', [QuotationController::class, 'reject'])->name('quotations.reject');
+        Route::post('quotations/{quotation}/convert', [QuotationController::class, 'convert'])->name('quotations.convert');
+    });
+
+    Route::delete('quotations/{quotation}', [QuotationController::class, 'destroy'])
+        ->middleware('module:quotations,delete')->name('quotations.destroy');
 });
 
 /*

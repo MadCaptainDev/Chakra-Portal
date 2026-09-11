@@ -25,6 +25,7 @@ class SettingsController extends Controller
             'signature_name' => ['required', 'string', 'max:255'],
             'signature_title' => ['required', 'string', 'max:255'],
             'invoice_prefix' => ['required', 'string', 'max:20'],
+            'quotation_prefix' => ['required', 'string', 'max:20'],
             'footer_text' => ['required', 'string', 'max:255'],
             'notification_email' => ['nullable', 'email', 'max:255'],
             'logo' => ['nullable', 'image', 'max:2048'],

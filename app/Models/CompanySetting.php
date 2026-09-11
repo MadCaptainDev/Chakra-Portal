@@ -14,6 +14,7 @@ class CompanySetting extends Model
         'signature_name',
         'signature_title',
         'invoice_prefix',
+        'quotation_prefix',
         'footer_text',
         'notification_email',
     ];
@@ -26,6 +27,7 @@ class CompanySetting extends Model
             'signature_name' => 'Annamalai Sivakumar',
             'signature_title' => 'CEO',
             'invoice_prefix' => 'CP-',
+            'quotation_prefix' => 'QT-',
             'footer_text' => 'ThankYou For Your Buisness With Us !',
         ]);
     }
