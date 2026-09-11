@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Client;
 use App\Models\Invoice;
 use App\Models\Quotation;
-use App\Models\SaasProduct;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -104,50 +103,28 @@ class QuotationTest extends TestCase
         $this->assertFalse($quotation->fresh()->isConverted());
     }
 
-    public function test_an_app_studio_quotation_carries_its_saas_product_into_the_converted_invoice(): void
-    {
-        $user = User::factory()->create();
-        $client = Client::factory()->create();
-        $product = SaasProduct::create(['client_id' => $client->id, 'name' => 'Acme App']);
-
-        $this->actingAs($user)->post(route('quotations.store'), [
-            'client_id' => $client->id,
-            'saas_product_id' => $product->id,
-            'saas_invoice_type' => Invoice::STUDIO_TYPE_AMC,
-            'quotation_date' => now()->format('Y-m-d'),
-            'items' => [
-                ['description' => 'AMC renewal', 'quantity' => 1, 'unit_price' => 5000],
-            ],
-        ]);
-
-        $quotation = Quotation::first();
-        $this->assertSame($product->id, $quotation->saas_product_id);
-        $this->assertSame(Invoice::STUDIO_TYPE_AMC, $quotation->saas_invoice_type);
-
-        $quotation->accept();
-        $invoice = $quotation->convertToInvoice($user->id);
-
-        $this->assertSame($product->id, $invoice->saas_product_id);
-        $this->assertSame(Invoice::STUDIO_TYPE_AMC, $invoice->saas_invoice_type);
-    }
-
-    public function test_saas_invoice_type_is_dropped_when_no_product_is_selected(): void
+    public function test_notes_render_as_bullet_points_on_the_pdf(): void
     {
         $user = User::factory()->create();
         $client = Client::factory()->create();
 
         $this->actingAs($user)->post(route('quotations.store'), [
             'client_id' => $client->id,
-            'saas_invoice_type' => Invoice::STUDIO_TYPE_AMC,
             'quotation_date' => now()->format('Y-m-d'),
+            'notes' => "Development Timeline: 6-8 Weeks\nPayment Terms: 40% Advance | 30% Development | 20% Testing | 10% Deployment",
             'items' => [
                 ['description' => 'Service', 'quantity' => 1, 'unit_price' => 100],
             ],
         ]);
 
         $quotation = Quotation::first();
-        $this->assertNull($quotation->saas_product_id);
-        $this->assertNull($quotation->saas_invoice_type);
+        $this->assertNotNull($quotation->notes);
+
+        $response = $this->actingAs($user)->get(route('quotations.preview', $quotation));
+
+        $response->assertOk();
+        $response->assertSee('Development Timeline: 6-8 Weeks', false);
+        $response->assertSee('Payment Terms: 40% Advance | 30% Development | 20% Testing | 10% Deployment', false);
     }
 
     public function test_a_converted_quotation_cannot_be_deleted(): void

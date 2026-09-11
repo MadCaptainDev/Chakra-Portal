@@ -53,16 +53,15 @@ class CompanySetting extends Model
     }
 
     /**
-     * Which logo one specific invoice or quotation should render with:
-     * App Studio's own mark for a document tagged with a saas_product_id,
-     * the ordinary company logo for everything else -- and the ordinary
-     * logo again if App Studio's has never been uploaded, so a document is
-     * never left with no logo at all just because that upload has not
-     * happened yet.
+     * Which logo one specific invoice should render with: App Studio's own
+     * mark for an invoice tagged with a saas_product_id, the ordinary
+     * company logo for everything else -- and the ordinary logo again if
+     * App Studio's has never been uploaded, so an invoice is never left
+     * with no logo at all just because that upload has not happened yet.
      */
-    public function logoDataUriFor(Invoice|Quotation $document): ?string
+    public function logoDataUriFor(Invoice $invoice): ?string
     {
-        if ($document->saas_product_id && $this->app_studio_logo_data_uri) {
+        if ($invoice->saas_product_id && $this->app_studio_logo_data_uri) {
             return $this->app_studio_logo_data_uri;
         }
 

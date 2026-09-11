@@ -30,67 +30,6 @@
         <x-input-error :messages="$errors->get('client_id')" class="mt-2" />
     </div>
 
-    @if ($saasProducts->isNotEmpty())
-        @php
-            $studioDefault = old('saas_product_id', $quotation->saas_product_id ?? null) ? 'true' : 'false';
-        @endphp
-        <div class="mb-6" x-data="{ studio: {{ $studioDefault }} }">
-            <x-input-label value="Which side of Chakra is this for?" />
-
-            {{-- Left = Production (the default for almost every quotation),
-                 right = App Studio -- same either/or toggle as the invoice
-                 form. --}}
-            <div class="mt-1 inline-flex items-center rounded-lg bg-white/10 p-1">
-                <button type="button" @click="studio = false"
-                        :class="! studio ? 'bg-white/5 text-white shadow-sm' : 'text-brand-100/60 hover:text-brand-100/80'"
-                        class="px-4 min-h-[40px] rounded-md text-sm font-semibold transition-colors">
-                    Production
-                </button>
-                <button type="button" @click="studio = true"
-                        :class="studio ? 'bg-white/5 text-white shadow-sm' : 'text-brand-100/60 hover:text-brand-100/80'"
-                        class="px-4 min-h-[40px] rounded-md text-sm font-semibold transition-colors">
-                    App Studio
-                </button>
-            </div>
-
-            <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4" x-show="studio" x-cloak>
-                <div>
-                    <x-input-label for="saas_product_id" value="App Studio product" />
-                    <x-select id="saas_product_id" name="saas_product_id" class="mt-1 w-full" x-bind:disabled="! studio">
-                        <option value="">Select a product...</option>
-                        @foreach ($saasProducts as $product)
-                            <option value="{{ $product->id }}" @selected(old('saas_product_id', $quotation->saas_product_id ?? null) == $product->id)>
-                                {{ $product->name }} ({{ $product->client->name }})
-                            </option>
-                        @endforeach
-                    </x-select>
-                    <x-input-error :messages="$errors->get('saas_product_id')" class="mt-2" />
-                </div>
-
-                <div>
-                    <x-input-label value="Quotation type" />
-                    @php $studioType = old('saas_invoice_type', $quotation->saas_invoice_type ?? null); @endphp
-                    <div class="mt-1 flex items-center gap-4 min-h-[44px]">
-                        @foreach (\App\Models\Invoice::STUDIO_TYPES as $value => $label)
-                            <label class="inline-flex items-center gap-2 text-sm text-brand-100/80">
-                                <input type="radio" name="saas_invoice_type" value="{{ $value }}" x-bind:disabled="! studio"
-                                       @checked($studioType === $value)
-                                       class="bg-white/10 border-white/25 text-brand-400 focus:ring-brand-400">
-                                {{ $label }}
-                            </label>
-                        @endforeach
-                    </div>
-                    <x-input-error :messages="$errors->get('saas_invoice_type')" class="mt-2" />
-                </div>
-            </div>
-
-            <p class="mt-2 text-xs text-brand-100/60" x-show="studio" x-cloak>
-                AMC: quoting a renewal/extension of the product's AMC. Development: a one-off build/dev-work quote --
-                App Studio income either way, but this is only a label until it is converted to an invoice.
-            </p>
-        </div>
-    @endif
-
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div>
             <x-input-label for="quotation_date" value="Quotation Date" />
@@ -179,6 +118,13 @@
         </table>
     </div>
     <button type="button" @click="addItem()" class="text-sm text-brand-500 hover:text-brand-300 font-semibold mb-6 min-h-[44px] inline-flex items-center">+ Add line item</button>
+
+    <div class="mb-6">
+        <x-input-label for="notes" value="Points (optional, one per line)" />
+        <x-textarea id="notes" name="notes" rows="5" class="mt-1" placeholder="Includes: POS Billing, Table Management, KOT...&#10;Development Timeline: 6&ndash;8 Weeks&#10;Payment Terms: 40% Advance | 30% Development | 20% Testing | 10% Deployment">{{ old('notes', $quotation->notes ?? '') }}</x-textarea>
+        <p class="mt-1 text-xs text-brand-100/60">Each line becomes its own bullet point under the line items on the quotation -- scope notes, timeline, payment terms, whatever this quote needs to spell out.</p>
+        <x-input-error :messages="$errors->get('notes')" class="mt-2" />
+    </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div>

@@ -210,6 +210,32 @@
         line-height: 1.2;
     }
 
+    .points {
+        margin-top: 6mm;
+        position: relative;
+        z-index: 1;
+    }
+    .points ul { margin: 0; padding: 0; list-style: none; }
+    .points li {
+        position: relative;
+        padding-left: 4mm;
+        font-size: 9.5pt;
+        font-weight: 400;
+        color: #000000;
+        line-height: 1.4;
+        margin-bottom: 1.2mm;
+    }
+    .points li:before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 1.6mm;
+        width: 1.6mm;
+        height: 1.6mm;
+        border-radius: 50%;
+        background: #67BCD4;
+    }
+
     .signature {
         position: fixed;
         bottom: 23mm;
@@ -250,10 +276,9 @@
     <div class="page-content">
     <table class="header">
         <tr>
-            @php $logo = $settings->logoDataUriFor($quotation); @endphp
             <td class="logo">
-                @if ($logo)
-                    <img src="{{ $logo }}" alt="{{ $settings->company_name }}">
+                @if ($settings->logo_data_uri)
+                    <img src="{{ $settings->logo_data_uri }}" alt="{{ $settings->company_name }}">
                 @else
                     <strong>{{ $settings->company_name }}</strong>
                 @endif
@@ -338,6 +363,17 @@
     <div class="total-box">
         <div class="box">TOTAL :&nbsp;&nbsp;{{ number_format($quotation->total, fmod((float) $quotation->total, 1.0) === 0.0 ? 0 : 2) }}/-</div>
     </div>
+
+    @if ($quotation->notes)
+        <div class="points">
+            <ul>
+                @foreach (preg_split('/\r\n|\r|\n/', $quotation->notes) as $point)
+                    @continue(trim($point) === '')
+                    <li>{{ trim($point) }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
 
     <div class="signature">
         <div class="sig-name">{{ $settings->signature_name }}</div>

@@ -18,13 +18,13 @@ class QuotationRequest extends FormRequest
     {
         return [
             'client_id' => ['required', 'exists:clients,id'],
-            // Marks this as an App Studio quotation rather than Production
-            // -- same toggle and split as InvoiceRequest.
-            'saas_product_id' => ['nullable', 'exists:saas_products,id'],
-            'saas_invoice_type' => ['nullable', 'required_with:saas_product_id', 'in:amc,development'],
             'quotation_date' => ['required', 'date'],
             'valid_until' => ['nullable', 'date', 'after_or_equal:quotation_date'],
             'intro_text' => ['nullable', 'string'],
+            // Free-form bullet points shown after the line items -- scope
+            // notes, timeline, payment terms, whatever the quote needs to
+            // spell out. One point per line; see QuotationController.
+            'notes' => ['nullable', 'string'],
             'discount_label' => ['nullable', 'string', 'max:255', 'required_with:discount_amount'],
             'discount_amount' => ['nullable', 'numeric', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
