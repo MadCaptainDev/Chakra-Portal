@@ -57,6 +57,7 @@ use App\Http\Controllers\My\SalaryController as MySalaryController;
 use App\Http\Controllers\My\TeamController as MyTeamController;
 use App\Http\Controllers\My\TimesheetController as MyTimesheetController;
 use App\Http\Controllers\My\TodoController as MyTodoController;
+use App\Http\Controllers\NotificationCenterController;
 use App\Http\Controllers\NotionSettingController;
 use App\Http\Controllers\NotionShootController;
 use App\Http\Controllers\OtherExpenseController;
@@ -193,6 +194,11 @@ Route::get('q/{token}', [PublicQuotationController::class, 'pdf'])->name('quotat
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+
+    // The top-bar bell's feed -- see NotificationCenterController for why
+    // this needs no migration.
+    Route::get('/notification-center/feed', [NotificationCenterController::class, 'feed'])
+        ->name('notification-center.feed');
 
     /*
      * Arranging your own dashboard cards. Sits in the plain `auth` group

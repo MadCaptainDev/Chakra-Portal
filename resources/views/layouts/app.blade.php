@@ -23,7 +23,7 @@
              x-data="{ sidebarOpen: false }" @keydown.escape.window="sidebarOpen = false">
 
             <!-- Desktop sidebar -->
-            <div class="hidden lg:flex lg:fixed lg:inset-y-0 lg:w-64 lg:flex-col bg-brand-900">
+            <div class="hidden lg:flex lg:fixed lg:inset-y-0 lg:w-64 lg:flex-col bg-brand-900 border-r border-white/[0.06] shadow-[4px_0_24px_-8px_rgba(0,0,0,0.35)]">
                 @include('layouts.sidebar')
             </div>
 
@@ -40,6 +40,16 @@
                 @else
                     <span class="flex-1"></span>
                 @endif
+
+                <button type="button" @click="$dispatch('open-command-palette')"
+                        class="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-lg text-brand-100 hover:bg-white/10 hover:text-white transition"
+                        aria-label="Search">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
+                    </svg>
+                </button>
+
+                @include('layouts._notification-bell')
 
                 <button @click="sidebarOpen = true"
                         class="shrink-0 inline-flex items-center justify-center w-11 h-11 -mr-2 rounded-lg text-brand-100 hover:bg-white/10 hover:text-white transition"
@@ -79,6 +89,23 @@
 
             <!-- Main column -->
             <div class="lg:pl-64 flex flex-col min-h-screen">
+                {{-- Desktop-only utility strip: search and notifications live
+                     here so they don't have to be repeated in every page's
+                     $header slot (most pages don't set one). Mobile already
+                     has both in the top bar above. --}}
+                <div class="hidden lg:flex items-center justify-end gap-1 h-12 px-4 sm:px-6 lg:px-8 border-b border-white/5">
+                    <button type="button" @click="$dispatch('open-command-palette')"
+                            class="inline-flex items-center gap-2 h-8 pl-2.5 pr-3 rounded-lg text-xs text-brand-100/60 border border-white/10 hover:border-white/20 hover:text-brand-100 transition">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
+                        </svg>
+                        Quick jump
+                        <kbd class="ml-1 text-[10px] font-semibold border border-white/10 rounded px-1 py-0.5">⌘K</kbd>
+                    </button>
+
+                    @include('layouts._notification-bell')
+                </div>
+
                 @isset($header)
                     <header class="bg-brand-900/85 backdrop-blur border-b border-white/10 lg:sticky lg:top-0 lg:z-20">
                         <div class="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
@@ -117,6 +144,8 @@
                 </main>
             </div>
         </div>
+
+        @include('layouts._command-palette')
 
         @stack('scripts')
     </body>
