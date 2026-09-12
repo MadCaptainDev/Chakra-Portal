@@ -48,6 +48,77 @@ html, body {
     overscroll-behavior-y: contain;
 }
 
+/* iOS Safari ignores `user-scalable=no` (deliberately, for accessibility), so
+   the viewport meta in layouts/app.blade.php does not on its own stop the one
+   zoom people actually complained about: tapping a field and having the whole
+   page lurch in, because Safari auto-zooms any control whose text is under
+   16px. Setting the floor here is what actually prevents it. Phone widths
+   only -- the desktop forms keep their compact 14px. */
+@media (max-width: 639px) {
+    input:not([type='checkbox']):not([type='radio']),
+    select,
+    textarea {
+        font-size: 16px;
+    }
+}
+
+/* Pull to refresh. The browser's own was switched off above (overscroll-
+   behavior) because an unstyled full reload fired without warning; this is
+   the same gesture, made deliberate -- it only arms at the very top of the
+   page, shows what it is about to do, and needs a real pull to commit.
+   resources/js/app.js drives --ptr-pull (0..1) and the state classes. */
+.ptr {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    z-index: 9998;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    margin-left: -17px;
+    border-radius: 9999px;
+    background: #17384A; /* brand-800 */
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .35);
+    opacity: var(--ptr-pull, 0);
+    transform: translateY(calc(-42px + (var(--ptr-pull, 0) * 62px)));
+    pointer-events: none;
+}
+
+.ptr.is-settling {
+    transition: transform .25s ease, opacity .25s ease;
+}
+
+.ptr-spinner {
+    width: 16px;
+    height: 16px;
+    border-radius: 9999px;
+    border: 2px solid rgba(103, 188, 212, .25); /* brand-400 */
+    border-top-color: #67BCD4;
+    /* Winds up with the pull, so the gesture reads as "not yet" until it is
+       past the threshold -- then .is-armed squares it up. */
+    transform: rotate(calc(var(--ptr-pull, 0) * 270deg));
+}
+
+.ptr.is-armed .ptr-spinner {
+    border-color: rgba(103, 188, 212, .35);
+    border-top-color: #67BCD4;
+}
+
+.ptr.is-refreshing .ptr-spinner {
+    animation: ptrSpin .7s linear infinite;
+}
+
+@keyframes ptrSpin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ptr-spinner { transform: none; }
+    .ptr.is-refreshing .ptr-spinner { animation-duration: 1.4s; }
+}
+
 /* Without this, elements marked x-cloak render for a frame before Alpine
    boots and hides them -- collapsible forms flash open on every page load. */
 [x-cloak] {

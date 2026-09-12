@@ -172,3 +172,152 @@ window.chakraPush = {
         start();
     });
 })();
+
+/*
+ * Pull to refresh.
+ *
+ * app.css switches the browser's own off (overscroll-behavior) because it
+ * fired an unstyled full reload with no warning, mid-scroll. This is that
+ * gesture put back deliberately: it only arms at the very top of the page,
+ * it shows what it is about to do while the finger is still down, and it
+ * only commits past a real threshold -- so the accidental version that got
+ * it switched off in the first place does not come back with it.
+ *
+ * Touch only. There is no mouse equivalent and nothing to fix on desktop,
+ * where the keyboard already has a refresh.
+ */
+(function initPullToRefresh() {
+    if (!window.matchMedia?.('(pointer: coarse)').matches) return;
+
+    const THRESHOLD = 72; // px of finger travel before a release reloads
+    const MAX_PULL = 150; // past here the indicator stops following
+
+    let startY = null;
+    let armed = false;
+    let indicator = null;
+
+    function el() {
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.className = 'ptr';
+            indicator.innerHTML = '<span class="ptr-spinner"></span>';
+            document.body.appendChild(indicator);
+        }
+
+        return indicator;
+    }
+
+    /*
+     * A touch that begins inside something with its own scrollbar -- a modal
+     * body, the equipment picker's list, a table that scrolls sideways --
+     * belongs to that element, not to the page. Bailing on any scrollable
+     * ancestor (rather than only one already scrolled) is the conservative
+     * call: a list sitting at its own top still scrolls down under the
+     * finger, and stealing that gesture to reload the page would be worse
+     * than not offering the gesture there at all.
+     */
+    function hasScrollableAncestor(node) {
+        while (node && node !== document.body && node.nodeType === 1) {
+            if (node.scrollHeight > node.clientHeight + 1) {
+                const overflowY = getComputedStyle(node).overflowY;
+                if (overflowY === 'auto' || overflowY === 'scroll') return true;
+            }
+            node = node.parentElement;
+        }
+
+        return false;
+    }
+
+    function settle() {
+        const bar = el();
+        bar.classList.add('is-settling');
+        bar.classList.remove('is-armed');
+        bar.style.setProperty('--ptr-pull', '0');
+        setTimeout(() => bar.classList.remove('is-settling'), 260);
+    }
+
+    function onMove(event) {
+        if (startY === null) return;
+
+        const delta = event.touches[0].clientY - startY;
+
+        // Pulling up, or the page scrolled away under the finger: this
+        // gesture is a scroll after all. Hand it back untouched.
+        if (delta <= 0 || window.scrollY > 0) {
+            if (armed || delta <= 0) settle();
+            startY = null;
+            armed = false;
+            stopTracking();
+
+            return;
+        }
+
+        // Only now is this definitely a pull rather than a scroll, so this is
+        // the first point at which suppressing the rubber-band is honest.
+        if (event.cancelable) event.preventDefault();
+
+        const pull = Math.min(delta, MAX_PULL) / MAX_PULL;
+        const bar = el();
+        bar.classList.remove('is-settling');
+        bar.style.setProperty('--ptr-pull', String(pull));
+
+        armed = delta >= THRESHOLD;
+        bar.classList.toggle('is-armed', armed);
+    }
+
+    function stopTracking() {
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onEnd);
+        document.removeEventListener('touchcancel', onCancel);
+    }
+
+    function onEnd() {
+        const shouldRefresh = armed;
+        startY = null;
+        armed = false;
+        stopTracking();
+
+        if (!shouldRefresh) {
+            settle();
+
+            return;
+        }
+
+        const bar = el();
+        bar.classList.add('is-refreshing');
+        bar.style.setProperty('--ptr-pull', '1');
+        location.reload();
+    }
+
+    function onCancel() {
+        startY = null;
+        armed = false;
+        stopTracking();
+        settle();
+    }
+
+    document.addEventListener('touchstart', (event) => {
+        if (event.touches.length !== 1) return;
+        // A modal is open (x-modal locks the body this way) -- the page
+        // behind it is not what the finger is on.
+        if (document.body.classList.contains('overflow-y-hidden')) return;
+        // iOS rubber-band can report a negative scrollY; only a page truly
+        // resting at the top arms.
+        if (window.scrollY > 0) return;
+        if (hasScrollableAncestor(event.target)) return;
+
+        startY = event.touches[0].clientY;
+        armed = false;
+
+        /*
+         * touchmove has to be non-passive to suppress the rubber-band, and a
+         * permanently non-passive document listener takes every scroll on the
+         * page off the browser's fast path. Registering it only once a touch
+         * has started at the very top -- and tearing it down on release --
+         * keeps ordinary scrolling untouched.
+         */
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onEnd, { passive: true });
+        document.addEventListener('touchcancel', onCancel, { passive: true });
+    }, { passive: true });
+})();

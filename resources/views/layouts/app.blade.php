@@ -2,7 +2,12 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
+        {{-- Zoom pinned on the signed-in app: installed as a PWA it is meant to
+             read as an app, and an accidental double-tap or pinch left people
+             on a half-zoomed screen with no obvious way back. The public
+             marketing and invoice pages deliberately keep zoom -- a visitor
+             reading fine print there has every reason to want it. --}}
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <meta name="theme-color" content="#132A38">
 

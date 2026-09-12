@@ -1,18 +1,32 @@
-{{-- ——— Needs attention. Every domain feeds this one list. Open by
-     default -- this is the one list somebody opens the dashboard
-     for -- but shrinkable like everything else, for a day it's
-     already been cleared. ——— --}}
-<section x-data="{ open: true }">
-    <details open @toggle="open = $event.target.open">
+{{-- ——— Needs attention. Every domain feeds this one list. Collapsed by
+     default: the count in the header is the part that gets read at a
+     glance, and a dozen open rows pushed the rest of the dashboard
+     below the fold on every single load. One tap opens it. ——— --}}
+<section x-data="{ open: false }">
+    <details @toggle="open = $event.target.open">
         <summary class="list-none cursor-pointer flex items-baseline justify-between gap-4 mb-4">
             <span class="flex items-center gap-2">
                 <x-icon name="chevron-right" class="w-4 h-4 text-brand-100/50 transition-transform shrink-0" x-bind:class="{ 'rotate-90': open }" />
                 <x-section-label dark>Needs attention</x-section-label>
                 @if (count($actionItems) > 0)
-                    <span class="text-[10px] font-semibold text-brand-100/60 tabular-nums">({{ count($actionItems) }})</span>
+                    @php
+                        // Collapsed, this pill is the whole signal -- so it carries
+                        // the worst tone in the list rather than a neutral count.
+                        $worst = collect($actionItems)->pluck('tone')->contains('red') ? 'red'
+                            : (collect($actionItems)->pluck('tone')->contains('amber') ? 'amber' : 'brand');
+                        $pill = match ($worst) {
+                            'red' => 'bg-red-400/15 text-red-200 ring-red-400/40',
+                            'amber' => 'bg-amber-400/15 text-amber-200 ring-amber-400/40',
+                            default => 'bg-brand-400/15 text-brand-200 ring-brand-400/40',
+                        };
+                    @endphp
+                    <span class="inline-flex items-center justify-center min-w-[22px] h-[22px] px-2 rounded-full ring-1 text-[11px] font-bold tabular-nums {{ $pill }}">
+                        {{ count($actionItems) }}
+                    </span>
                 @endif
             </span>
-            <p class="text-xs text-brand-100/60 shrink-0">Worst first</p>
+            <p class="text-xs text-brand-100/60 shrink-0" x-show="open" x-cloak>Worst first</p>
+            <p class="text-xs text-brand-100/60 shrink-0" x-show="! open">Tap to open</p>
         </summary>
 
         <div class="space-y-2.5">
