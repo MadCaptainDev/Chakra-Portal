@@ -235,6 +235,50 @@
                 @endif
             </section>
 
+            {{-- ——— What the system noticed by itself this month.
+                 Deliberately counts and moments, never a total and never a
+                 position against anyone else: an editor owning forty content
+                 items and a camera operator owning none would produce wildly
+                 different numbers that say nothing about either of them. The
+                 monthly Points tile above stays the admin's judgement and is
+                 never added to from here. ——— --}}
+            <section>
+                <div class="flex items-baseline justify-between gap-4 mb-3.5">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-300">Noticed this month</p>
+                    <p class="text-xs text-brand-100/60">Counted automatically</p>
+                </div>
+
+                @php
+                    $byKind = $recognitions->groupBy('kind');
+                @endphp
+
+                @if ($recognitions->isEmpty())
+                    <div class="rounded-xl border border-dashed border-white/15 px-6 py-10 text-center">
+                        <p class="text-sm text-brand-100/70">Nothing counted yet this month.</p>
+                    </div>
+                @else
+                    <div class="rounded-xl bg-white/5 ring-1 ring-white/10 overflow-hidden">
+                        <div class="grid grid-cols-2 divide-x divide-white/10">
+                            @foreach (\App\Models\EmployeeRecognition::KINDS as $kind => $label)
+                                <div class="p-4">
+                                    <p class="text-2xl font-extrabold leading-none tabular-nums">{{ $byKind->get($kind)?->count() ?? 0 }}</p>
+                                    <p class="mt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-100/70">{{ $label }}</p>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        <div class="border-t border-white/10">
+                            @foreach ($recognitions->take(4) as $entry)
+                                <div class="px-4 py-2.5 {{ $loop->first ? '' : 'border-t border-white/5' }} flex items-baseline gap-3">
+                                    <span class="shrink-0 text-[11px] tabular-nums text-brand-100/40">{{ $entry->earned_on->format('j M') }}</span>
+                                    <p class="min-w-0 flex-1 text-xs text-brand-100/70">{{ $entry->note }}</p>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+            </section>
+
             <section>
                 <div class="flex items-baseline justify-between gap-4 mb-3.5">
                     <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-300">Points history</p>

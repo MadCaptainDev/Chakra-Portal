@@ -5,6 +5,7 @@ namespace App\Http\Controllers\My;
 use App\Http\Controllers\Controller;
 use App\Models\Announcement;
 use App\Models\EmployeePoint;
+use App\Models\EmployeeRecognition;
 use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
 use App\Support\DashboardWidgets;
@@ -69,6 +70,16 @@ class DashboardController extends Controller
             'recentPoints' => EmployeePoint::where('user_id', $user->id)
                 ->orderByDesc('period')
                 ->take(6)
+                ->get(),
+            /*
+             * Separate from `point` above on purpose: that one is an admin's
+             * monthly judgement, this is what the system saw for itself. They
+             * are never summed together -- see the employee_recognitions
+             * migration.
+             */
+            'recognitions' => EmployeeRecognition::where('user_id', $user->id)
+                ->forMonth($month)
+                ->orderByDesc('earned_on')
                 ->get(),
             'announcements' => Announcement::active()->latest()->take(5)->get(),
             'recentEntries' => TimesheetEntry::where('user_id', $user->id)
