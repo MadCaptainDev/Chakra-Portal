@@ -485,6 +485,7 @@ Route::middleware(['auth', 'module:shoots,view'])->scopeBindings()->group(functi
         Route::post('shoots/{shoot}/crew', [ShootCrewController::class, 'store'])->name('shoots.crew.store');
         Route::delete('shoots/{shoot}/crew/{crew}', [ShootCrewController::class, 'destroy'])->name('shoots.crew.destroy');
         Route::post('shoots/{shoot}/kit', [ShootKitController::class, 'store'])->name('shoots.kit.store');
+        Route::post('shoots/{shoot}/kit/bulk-add', [ShootKitController::class, 'storeMany'])->name('shoots.kit.store-many');
         Route::delete('shoots/{shoot}/kit/{kit}', [ShootKitController::class, 'destroy'])->name('shoots.kit.destroy');
     });
 

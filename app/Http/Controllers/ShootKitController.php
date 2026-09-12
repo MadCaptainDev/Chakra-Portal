@@ -6,6 +6,7 @@ use App\Models\EquipmentItem;
 use App\Models\Shoot;
 use App\Models\ShootKit;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -37,6 +38,30 @@ class ShootKitController extends Controller
         $line->save();
 
         return response()->json($this->payload($line->fresh(['item', 'checkedOutBy'])), 201);
+    }
+
+    /**
+     * The picker's "Add N items" button: everything staged in the modal,
+     * saved in one trip instead of one form submit per item. Same
+     * add-or-raise-the-quantity rule as store() above, just looped.
+     */
+    public function storeMany(Request $request, Shoot $shoot): RedirectResponse
+    {
+        $validated = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.equipment_item_id' => ['required', Rule::exists('equipment_items', 'id')],
+            'items.*.quantity' => ['nullable', 'integer', 'min:1', 'max:999'],
+        ]);
+
+        foreach ($validated['items'] as $row) {
+            $line = $shoot->kits()->firstOrNew(['equipment_item_id' => $row['equipment_item_id']]);
+            $line->quantity = $row['quantity'] ?? 1;
+            $line->save();
+        }
+
+        $count = count($validated['items']);
+
+        return back()->with('status', $count === 1 ? 'Added 1 item to the kit.' : "Added {$count} items to the kit.");
     }
 
     public function destroy(Shoot $shoot, ShootKit $kit): JsonResponse

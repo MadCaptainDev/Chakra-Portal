@@ -133,44 +133,7 @@
 
             @can('shoots.edit')
                 <div class="p-4 bg-brand-900/40 border-t border-white/10">
-                    <form method="POST" action="{{ route('shoots.kit.store', $shoot) }}"
-                          class="flex flex-wrap items-end gap-2" @submit="() => {}">
-                        @csrf
-                        <div class="flex-1 min-w-[180px]">
-                            <x-input-label for="equipment_item_id" value="Add kit" />
-                            <x-select id="equipment_item_id" name="equipment_item_id" class="mt-1" required>
-                                <option value="">Choose an item</option>
-                                @foreach ($available as $item)
-                                    @php
-                                        $short = (int) ($shortfalls[$item->id] ?? 0);
-                                        $stock = max(0, $item->quantity - $short);
-                                        $taken = (int) ($committed[$item->id]->committed ?? 0);
-                                        $free = $stock - $taken;
-                                    @endphp
-                                    <option value="{{ $item->id }}" @disabled(in_array($item->id, $alreadyOn, true))>
-                                        {{ $item->name }}
-                                        @if (in_array($item->id, $alreadyOn, true))
-                                            — already on this shoot
-                                        @elseif ($free <= 0)
-                                            — none free ({{ $taken }} promised elsewhere)
-                                        @elseif ($item->quantity > 1)
-                                            — {{ $free }} of {{ $stock }} free
-                                        @endif
-                                        {{-- Not a gate, same as the shortfall warnings above -- the
-                                             crew asked for a heads-up, not to be blocked. --}}
-                                        @unless ($item->isAvailable())
-                                            — {{ $item->statusLabel() }}
-                                        @endunless
-                                    </option>
-                                @endforeach
-                            </x-select>
-                        </div>
-                        <div class="w-20">
-                            <x-input-label for="quantity" value="Qty" />
-                            <x-text-input id="quantity" name="quantity" type="number" min="1" value="1" class="mt-1" />
-                        </div>
-                        <x-btn type="submit" size="sm">Add</x-btn>
-                    </form>
+                    @include('shoots._equipment-picker')
                 </div>
             @endcan
         </x-card>
