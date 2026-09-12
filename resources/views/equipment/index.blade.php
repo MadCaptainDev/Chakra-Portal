@@ -90,6 +90,11 @@
                                             {{ $short }} never came back
                                         </p>
                                     @endif
+                                    @if ($item->pairedWith)
+                                        <p class="text-xs text-brand-300/70 mt-0.5">
+                                            Goes with {{ $item->pairedWith->name }} — auto-added on shoots
+                                        </p>
+                                    @endif
                                 </div>
 
                                 @can('equipment.edit')
@@ -109,7 +114,7 @@
                                         @csrf
                                         @method('PUT')
                                         <h2 class="text-lg font-semibold text-white mb-4">Edit {{ $item->name }}</h2>
-                                        @include('equipment._fields', ['item' => $item, 'categories' => $categories])
+                                        @include('equipment._fields', ['item' => $item, 'categories' => $categories, 'pairables' => $pairables])
 
                                         <div class="mt-6 flex items-center justify-between gap-3">
                                             <x-btn type="submit">Save</x-btn>
@@ -148,7 +153,7 @@
                     One entry per kind of thing. Twelve identical batteries are one entry with a quantity of twelve.
                 </p>
 
-                @include('equipment._fields', ['item' => null, 'categories' => $categories])
+                @include('equipment._fields', ['item' => null, 'categories' => $categories, 'pairables' => $pairables])
 
                 <div class="mt-6 flex items-center gap-3">
                     <x-btn type="submit">Add item</x-btn>

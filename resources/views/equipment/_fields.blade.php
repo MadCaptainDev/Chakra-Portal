@@ -34,6 +34,24 @@
                       :value="old('identifier', $item?->identifier)" placeholder="FX3-01" />
     </div>
 
+    <div>
+        <x-input-label :for="'paired-'.($item?->id ?? 'new')" value="Pairs with (optional)" />
+        <x-select :id="'paired-'.($item?->id ?? 'new')" name="paired_with_id" class="mt-1">
+            <option value="">Nothing — pick separately</option>
+            @foreach ($pairables as $pairable)
+                @continue($item && $pairable->id === $item->id)
+                <option value="{{ $pairable->id }}" @selected(old('paired_with_id', $item?->paired_with_id) == $pairable->id)>
+                    {{ $pairable->name }}
+                </option>
+            @endforeach
+        </x-select>
+        <p class="mt-1.5 text-xs text-brand-100/50">
+            An accessory that always travels with one specific item -- a battery with its camera, a charger with
+            its body. Adding that item to a shoot auto-adds this one too, so nobody has to remember it separately.
+        </p>
+        <x-input-error :messages="$errors->get('paired_with_id')" class="mt-2" />
+    </div>
+
     <div class="grid grid-cols-2 gap-3" x-data="{ status: '{{ old('status', $item?->status ?? \App\Models\EquipmentItem::STATUS_AVAILABLE) }}' }">
         <div>
             <x-input-label :for="'status-'.($item?->id ?? 'new')" value="Condition" />

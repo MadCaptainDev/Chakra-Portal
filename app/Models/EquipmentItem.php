@@ -38,6 +38,7 @@ class EquipmentItem extends Model
     protected $fillable = [
         'name',
         'category_id',
+        'paired_with_id',
         'identifier',
         'quantity',
         'is_active',
@@ -54,6 +55,18 @@ class EquipmentItem extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(TaxonomyTerm::class, 'category_id');
+    }
+
+    /** The camera (or other item) this accessory always travels with. */
+    public function pairedWith(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'paired_with_id');
+    }
+
+    /** Everything that travels with this item -- batteries, chargers, cages. */
+    public function accessories(): HasMany
+    {
+        return $this->hasMany(self::class, 'paired_with_id');
     }
 
     public function kits(): HasMany

@@ -9,11 +9,25 @@
     */
     $pickerItems = $available
         ->reject(fn ($item) => in_array($item->id, $alreadyOn, true))
-        ->map(function ($item) use ($committed, $shortfalls) {
+        ->map(function ($item) use ($committed, $shortfalls, $available, $alreadyOn) {
             $short = (int) ($shortfalls[$item->id] ?? 0);
             $stock = max(0, $item->quantity - $short);
             $taken = (int) ($committed[$item->id]->committed ?? 0);
             $free = max(0, $stock - $taken);
+
+            // Accessories that always travel with this item -- see
+            // EquipmentItem::accessories(). Already-on-the-shoot ones are
+            // dropped the same way the top-level list is: nothing to
+            // auto-add if it's already sitting on the kit.
+            $accessoryIds = $available
+                ->where('paired_with_id', $item->id)
+                ->reject(fn ($a) => in_array($a->id, $alreadyOn, true))
+                ->pluck('id')
+                ->values();
+
+            $pairedWithName = $item->paired_with_id
+                ? $available->firstWhere('id', $item->paired_with_id)?->name
+                : null;
 
             return [
                 'id' => $item->id,
@@ -24,6 +38,8 @@
                 'free' => $free,
                 'available' => $item->isAvailable(),
                 'statusLabel' => $item->isAvailable() ? null : $item->statusLabel(),
+                'accessoryIds' => $accessoryIds,
+                'pairedWithName' => $pairedWithName,
             ];
         })
         ->values();
@@ -79,6 +95,9 @@
                                         <template x-if="item.available && item.free > 0 && item.total > 1" x-text="item.free + ' of ' + item.total + ' free'"></template>
                                         <template x-if="item.available && item.free > 0 && item.total <= 1">Free</template>
                                     </p>
+                                    <p x-show="item.pairedWithName" class="text-[11px] mt-0.5 text-brand-300/70">
+                                        <span x-text="'Goes with ' + item.pairedWithName"></span>
+                                    </p>
                                 </div>
 
                                 <template x-if="!picked(item.id)">
@@ -88,13 +107,16 @@
                                     </button>
                                 </template>
                                 <template x-if="picked(item.id)">
-                                    <div class="shrink-0 flex items-center gap-1">
-                                        <button type="button" @click="dec(item.id)" class="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition" aria-label="Fewer">−</button>
-                                        <span class="w-6 text-center text-sm font-semibold text-white" x-text="qty(item.id)"></span>
-                                        <button type="button" @click="inc(item)" class="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition" aria-label="More">+</button>
-                                        <button type="button" @click="remove(item.id)" class="w-9 h-9 rounded-lg text-brand-100/40 hover:text-red-300 hover:bg-white/5 flex items-center justify-center transition" aria-label="Remove">
-                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                                        </button>
+                                    <div class="shrink-0 flex items-center gap-2">
+                                        <span x-show="wasAutoAdded(item.id)" class="text-[10px] font-semibold uppercase tracking-wide text-brand-300/70">Auto</span>
+                                        <div class="flex items-center gap-1">
+                                            <button type="button" @click="dec(item.id)" class="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition" aria-label="Fewer">−</button>
+                                            <span class="w-6 text-center text-sm font-semibold text-white" x-text="qty(item.id)"></span>
+                                            <button type="button" @click="inc(item)" class="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition" aria-label="More">+</button>
+                                            <button type="button" @click="remove(item.id)" class="w-9 h-9 rounded-lg text-brand-100/40 hover:text-red-300 hover:bg-white/5 flex items-center justify-center transition" aria-label="Remove">
+                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                            </button>
+                                        </div>
                                     </div>
                                 </template>
                             </div>
@@ -151,9 +173,20 @@
             },
             picked(id) { return this.selected.some((s) => s.id === id); },
             qty(id) { return this.selected.find((s) => s.id === id)?.quantity ?? 1; },
-            add(item) {
+            wasAutoAdded(id) { return !!this.selected.find((s) => s.id === id)?.auto; },
+            add(item, auto = false) {
                 if (this.picked(item.id)) return;
-                this.selected.push({ id: item.id, quantity: 1, max: item.total || 999 });
+                this.selected.push({ id: item.id, quantity: 1, max: item.total || 999, auto });
+
+                // A battery only ever goes out with its own camera -- adding
+                // the camera brings its paired accessories along instead of
+                // making someone remember each one separately. Still just a
+                // suggestion: the +/- and × controls work on these exactly
+                // like anything picked by hand, including removing them.
+                (item.accessoryIds || []).forEach((id) => {
+                    const accessory = this.items.find((i) => i.id === id);
+                    if (accessory) this.add(accessory, true);
+                });
             },
             remove(id) {
                 this.selected = this.selected.filter((s) => s.id !== id);

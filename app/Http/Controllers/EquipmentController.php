@@ -22,7 +22,7 @@ class EquipmentController extends Controller
         $status = $request->string('status')->toString();
 
         $items = EquipmentItem::query()
-            ->with('category')
+            ->with(['category', 'pairedWith'])
             ->when(! $showRetired, fn ($query) => $query->active())
             ->when($status !== '' && array_key_exists($status, EquipmentItem::STATUSES), fn ($query) => $query->where('status', $status))
             ->when($search !== '', fn ($query) => $query->where(
@@ -45,6 +45,11 @@ class EquipmentController extends Controller
             'shortfalls' => $shortfalls,
             'filters' => ['q' => $search, 'retired' => $showRetired, 'status' => $status],
             'categories' => TaxonomyTerm::options(TaxonomyTerm::TYPE_EQUIPMENT_CATEGORY),
+            // For the "pairs with" picker on each item's form -- kept
+            // independent of the search/retired filters above, since an
+            // accessory should still be able to pair with a camera that
+            // happens to be filtered out of the list right now.
+            'pairables' => EquipmentItem::active()->ordered()->get(['id', 'name']),
             'total' => $items->sum('quantity'),
             'missing' => $shortfalls->sum(),
             'needsAttention' => EquipmentItem::active()->where('status', '!=', EquipmentItem::STATUS_AVAILABLE)->count(),
@@ -99,6 +104,13 @@ class EquipmentController extends Controller
             'category_id' => [
                 'nullable',
                 Rule::exists('taxonomy_terms', 'id')->where('type', TaxonomyTerm::TYPE_EQUIPMENT_CATEGORY),
+            ],
+            'paired_with_id' => [
+                'nullable',
+                Rule::exists('equipment_items', 'id'),
+                // An item cannot pair with itself -- that would make the
+                // picker's auto-add walk in a circle.
+                $item ? Rule::notIn([$item->id]) : 'nullable',
             ],
             'identifier' => ['nullable', 'string', 'max:120'],
             'quantity' => ['required', 'integer', 'min:1', 'max:999'],
