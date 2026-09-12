@@ -67,6 +67,9 @@
 /* Crew Action is Client Action's staff twin -- amber against its teal, so
    the two never get misread for each other on a busy canvas. */
 .drawflow .drawflow-node.crew_action { border-left-color: #fb923c; }
+/* Admin Action reads across every client's money -- violet, distinct from
+   Client Action's teal and Crew Action's amber. */
+.drawflow .drawflow-node.admin_action { border-left-color: #a78bfa; }
 
 .drawflow .drawflow-node .drawflow_content_node {
     width: 100%;
@@ -234,3 +237,4 @@
 .flow-palette-item.client_action { border-left-color: #2dd4bf; }
 .flow-palette-item.send_list { border-left-color: #4ade80; }
 .flow-palette-item.crew_action { border-left-color: #fb923c; }
+.flow-palette-item.admin_action { border-left-color: #a78bfa; }

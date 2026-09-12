@@ -29,11 +29,18 @@ class WhatsappFlow extends Model
         'created_by_id',
     ];
 
+    /*
+     * last_run_on is deliberately absent from $fillable: it is a record of
+     * something that happened, written only by ScheduledFlowRunner, never
+     * posted by the flow form. A mass-assignable one could be cleared by
+     * saving the flow, and the next request would send the briefing again.
+     */
     protected $casts = [
         'trigger_config' => 'array',
         'graph' => 'array',
         'is_active' => 'boolean',
         'version' => 'integer',
+        'last_run_on' => 'date',
     ];
 
     /**

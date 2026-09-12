@@ -181,6 +181,25 @@ class DrawflowGraphTranslator
                 ],
             ],
         ],
+        'admin_action' => [
+            'label' => 'Admin Action',
+            'outputs' => 1,
+            'fields' => [
+                [
+                    'key' => 'action',
+                    'label' => 'Owner self-service',
+                    'type' => 'select',
+                    'cast' => 'string',
+                    'default' => 'money',
+                    'options' => [
+                        'money' => 'Collected & outstanding',
+                        'overdue' => 'Overdue invoices',
+                        'todays_shoots' => "Today's shoots",
+                        'timesheet_gaps' => "Who hasn't logged",
+                    ],
+                ],
+            ],
+        ],
     ];
 
     /**

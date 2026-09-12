@@ -74,7 +74,8 @@
                         'client_portal' => 'Activated client number (self-service menu)',
                         'inbound_message' => 'Any inbound message (catch-all)',
                         'keyword' => 'Keyword match',
-                        'label_applied' => 'Label applied',
+                        'label_applied' => 'Label applied (in the inbox)',
+                        'scheduled' => 'On a schedule',
                     ] as $value => $label)
                         <option value="{{ $value }}" @selected($selectedTrigger === $value)>{{ $label }}</option>
                     @endforeach
@@ -88,6 +89,25 @@
             <div id="trigger-keyword-field" class="w-full sm:w-40 shrink-0 {{ $selectedTrigger === 'keyword' ? '' : 'hidden' }}">
                 <x-text-input id="trigger_config_keyword" name="trigger_config[keyword]" type="text" class="!min-h-[38px] !bg-white/[0.03]"
                     value="{{ old('trigger_config.keyword', $flow->trigger_config['keyword'] ?? '') }}" placeholder="Keyword" />
+            </div>
+
+            {{-- Which label to watch for. A free-text name rather than a
+                 picker: SetLabelNode already creates labels by name, so the
+                 one a flow watches may not exist until the day it is first
+                 used. --}}
+            <div id="trigger-label-field" class="w-full sm:w-44 shrink-0 {{ $selectedTrigger === 'label_applied' ? '' : 'hidden' }}">
+                <x-text-input id="trigger_config_label" name="trigger_config[label]" type="text" class="!min-h-[38px] !bg-white/[0.03]"
+                    value="{{ old('trigger_config.label', $flow->trigger_config['label'] ?? '') }}" placeholder="Label name" />
+            </div>
+
+            <div id="trigger-schedule-field" class="w-full sm:w-auto shrink-0 flex items-center gap-2 {{ $selectedTrigger === 'scheduled' ? '' : 'hidden' }}">
+                <x-text-input id="trigger_config_time" name="trigger_config[time]" type="time" class="!min-h-[38px] !bg-white/[0.03] w-32"
+                    value="{{ old('trigger_config.time', $flow->trigger_config['time'] ?? '08:00') }}" />
+                <x-select id="trigger_config_audience" name="trigger_config[audience]" class="!min-h-[38px] !bg-white/[0.03] w-36">
+                    @foreach (['admins' => 'To admins', 'staff' => 'To all staff'] as $value => $text)
+                        <option value="{{ $value }}" @selected(old('trigger_config.audience', $flow->trigger_config['audience'] ?? 'admins') === $value)>{{ $text }}</option>
+                    @endforeach
+                </x-select>
             </div>
 
             <span class="flex-1"></span>
@@ -118,8 +138,14 @@
             Runs only for clients with <strong class="text-brand-200">WhatsApp self-service portal</strong> enabled on their phone number.
             Use <strong class="text-brand-200">Client Action</strong> nodes for invoices, reports and shoots. In Send Message/Send List, use <code class="text-brand-300">@{{client.name}}</code>.
         </p>
-        <p id="trigger-label-applied-warning" class="shrink-0 px-4 py-1.5 text-xs text-amber-300 bg-brand-900/60 {{ $selectedTrigger === 'label_applied' ? '' : 'hidden' }}">
-            Not wired up yet -- a flow with this trigger will never start on its own.
+        <p id="trigger-label-applied-warning" class="shrink-0 px-4 py-1.5 text-xs text-brand-100/60 bg-brand-900/60 {{ $selectedTrigger === 'label_applied' ? '' : 'hidden' }}">
+            Runs when somebody applies that label to a conversation <strong class="text-brand-200">in the inbox</strong>.
+            A label applied by a Set Label node deliberately does not trigger this — that would let two flows label each other in a loop.
+            Re-applying a label the conversation already has does nothing.
+        </p>
+        <p id="trigger-scheduled-hint" class="shrink-0 px-4 py-1.5 text-xs text-amber-300 bg-brand-900/60 {{ $selectedTrigger === 'scheduled' ? '' : 'hidden' }}">
+            Runs once a day, at or just after that time, to staff who have a phone number on their profile.
+            <strong class="text-amber-200">Start it with a Send Template node</strong> — a plain Send Message only reaches someone who wrote to you in the last 24 hours, which on a scheduled send is usually nobody.
         </p>
 
         <div class="flex-1 min-h-0 flex">

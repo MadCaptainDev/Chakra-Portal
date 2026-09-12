@@ -6,10 +6,13 @@ use App\Jobs\AdvanceWhatsappFlowSession;
 use App\Models\Client;
 use App\Models\User;
 use App\Models\WhatsappFlow;
+use App\Models\WhatsappConversation;
 use App\Models\WhatsappFlowSession;
+use App\Models\WhatsappLabel;
 use App\Models\WhatsappWebhookEvent;
 use App\Services\WhatsappFlow\Nodes\ClientActionNode;
 use App\Services\WhatsappFlow\Nodes\CrewActionNode;
+use App\Services\WhatsappFlow\Nodes\AdminActionNode;
 use App\Services\WhatsappFlow\Nodes\AgentTransferNode;
 use App\Services\WhatsappFlow\Nodes\ConditionNode;
 use App\Services\WhatsappFlow\Nodes\DelayNode;
@@ -67,6 +70,7 @@ class FlowEngine
         'make_request' => MakeRequestNode::class,
         'client_action' => ClientActionNode::class,
         'crew_action' => CrewActionNode::class,
+        'admin_action' => AdminActionNode::class,
     ];
 
     public function handleInbound(WhatsappWebhookEvent $event): void
@@ -134,26 +138,106 @@ class FlowEngine
     {
         $flow = $this->matchFlow($event);
 
-        if (! $flow) {
-            return null;
-        }
+        return $flow ? $this->openSession($flow, $event->wa_id) : null;
+    }
 
+    /**
+     * Opens a session on a flow for one number, without running it.
+     *
+     * The one place a session is created, whatever started it -- an inbound
+     * message, a label, the clock. A flow whose start node was never marked
+     * yields null rather than a session parked on nothing.
+     *
+     * @param  array<string, mixed>  $variables
+     */
+    private function openSession(WhatsappFlow $flow, string $waId, array $variables = []): ?WhatsappFlowSession
+    {
         $graph = is_array($flow->graph) ? $flow->graph : [];
         $startNodeId = $graph['start_node_id'] ?? null;
 
-        if (blank($startNodeId)) {
+        if (blank($startNodeId) || blank($waId)) {
             return null;
         }
 
         return WhatsappFlowSession::create([
             'flow_id' => $flow->id,
-            'wa_id' => $event->wa_id,
+            'wa_id' => $waId,
             'current_node_id' => $startNodeId,
-            'variables' => [],
+            'variables' => array_merge(self::identityVariables($waId), $variables),
             'status' => 'active',
             'iteration_count' => 0,
             'started_at' => now(),
         ]);
+    }
+
+    /**
+     * Someone labelled a conversation in the inbox: run the flow watching for
+     * that label, if one is active.
+     *
+     * Called only from the inbox's own attach-label action, deliberately NOT
+     * from SetLabelNode. A flow that labels a conversation would otherwise be
+     * able to trigger a flow that labels a conversation, and the engine's loop
+     * protection is per-session -- it counts nodes inside one run and would
+     * never see two flows taking turns. Keeping the trigger to the human
+     * action makes that loop unconstructable rather than merely unlikely.
+     *
+     * A number with a session already running is left alone: it is mid-
+     * conversation, and cutting in with a second flow would interleave two
+     * sets of messages in one thread.
+     */
+    public function handleLabelApplied(WhatsappConversation $conversation, WhatsappLabel $label): void
+    {
+        $waId = (string) $conversation->wa_id;
+
+        if (blank($waId)) {
+            return;
+        }
+
+        $flow = WhatsappFlow::query()
+            ->where('is_active', true)
+            ->where('trigger_type', 'label_applied')
+            ->get()
+            ->first(function (WhatsappFlow $candidate) use ($label) {
+                $watched = data_get($candidate->trigger_config, 'label');
+
+                return filled($watched) && mb_strtolower(trim($watched)) === mb_strtolower(trim($label->name));
+            });
+
+        if (! $flow) {
+            return;
+        }
+
+        $alreadyTalking = WhatsappFlowSession::query()
+            ->where('wa_id', $waId)
+            ->where('status', 'active')
+            ->exists();
+
+        if ($alreadyTalking) {
+            return;
+        }
+
+        $session = $this->openSession($flow, $waId, [
+            'label' => ['name' => $label->name],
+        ]);
+
+        if ($session) {
+            $this->run($session);
+        }
+    }
+
+    /**
+     * Starts a scheduled flow for one recipient. ScheduledFlowRunner owns the
+     * "is it due, and who for" question; this only opens and runs it.
+     */
+    public function startScheduled(WhatsappFlow $flow, string $waId): void
+    {
+        $session = $this->openSession($flow, $waId, [
+            'scheduled' => ['at' => now()->toIso8601String()],
+        ]);
+
+        if ($session) {
+            $this->run($session);
+        }
     }
 
     /**
@@ -199,26 +283,46 @@ class FlowEngine
             $variables['message']['reply_id'] = (string) $replyId;
         }
 
-        if ($client = Client::findForWhatsappPortal($event->wa_id)) {
+        $session->variables = array_merge($variables, self::identityVariables($event->wa_id));
+        $session->save();
+    }
+
+    /**
+     * Who this number belongs to, as flow variables.
+     *
+     * Shared by every path that can start a session -- an inbound message, a
+     * label applied in the inbox, a scheduled run -- so `client.name` and
+     * `crew.id` mean the same thing in a flow however that flow was reached.
+     *
+     * `crew` is also the gate CrewActionNode and AdminActionNode read: set
+     * only for a number belonging to one of the studio's own people, so
+     * `crew.id exists` is a flow author's way of saying "this branch is for
+     * us, not for a client or a stranger".
+     *
+     * @return array<string, mixed>
+     */
+    public static function identityVariables(string $waId): array
+    {
+        $variables = [];
+
+        if ($client = Client::findForWhatsappPortal($waId)) {
             $variables['client'] = [
                 'id' => $client->id,
                 'name' => $client->name,
             ];
         }
 
-        // The staff twin of the block above, and the gate CrewActionNode
-        // reads: set only for a number that belongs to one of the studio's
-        // own people, so `crew.id exists` is a flow author's way of saying
-        // "this branch is for us, not for a client or a stranger".
-        if ($crew = User::findForWhatsappCrew($event->wa_id)) {
+        if ($crew = User::findForWhatsappCrew($waId)) {
             $variables['crew'] = [
                 'id' => $crew->id,
                 'name' => $crew->name,
+                // Lets one flow serve both without a second flow: branch on
+                // `crew.is_admin equals true` for the owner-only rows.
+                'is_admin' => $crew->isAdmin(),
             ];
         }
 
-        $session->variables = $variables;
-        $session->save();
+        return $variables;
     }
 
     /**

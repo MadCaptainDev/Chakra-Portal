@@ -141,6 +141,25 @@ const NODE_TYPES = {
             },
         ],
     },
+    admin_action: {
+        label: 'Admin Action',
+        inputs: 1,
+        outputs: 1,
+        fields: [
+            {
+                key: 'action',
+                label: 'Owner self-service',
+                type: 'select',
+                options: [
+                    ['money', 'Collected & outstanding'],
+                    ['overdue', 'Overdue invoices'],
+                    ['todays_shoots', "Today's shoots"],
+                    ['timesheet_gaps', "Who hasn't logged"],
+                ],
+                default: 'money',
+            },
+        ],
+    },
 };
 
 function escapeHtml(value) {
@@ -182,6 +201,8 @@ function buildNodeHtml(typeKey, users) {
         ? '<p class="flow-node__hint">Top output = True, bottom output = False.</p>'
         : typeKey === 'send_list'
             ? '<p class="flow-node__hint">Leave the output unconnected -- a tap starts a new message, routed by a Condition node on message.choice. Free-form send: only works within 24h of their last message.</p>'
+            : typeKey === 'admin_action'
+                ? '<p class="flow-node__hint">Admins only: everything here reads across every client\'s money. An employee or a stranger hitting it is refused. Branch on <code>crew.is_admin</code> (equals true) first.</p>'
             : typeKey === 'crew_action'
                 ? '<p class="flow-node__hint">Staff only: runs when the number matches a team member\'s phone. Branch on <code>crew.id</code> (exists) first, or the flow errors for everyone else. Flag kit reads the item name out of their own message.</p>'
                 : (def.outputs === 0 ? '<p class="flow-node__hint">Ends the flow (hands off to a human).</p>' : '');
@@ -357,6 +378,9 @@ function init() {
     triggerType?.addEventListener('change', () => {
         keywordField?.classList.toggle('hidden', triggerType.value !== 'keyword');
         labelAppliedWarning?.classList.toggle('hidden', triggerType.value !== 'label_applied');
+        document.getElementById('trigger-label-field')?.classList.toggle('hidden', triggerType.value !== 'label_applied');
+        document.getElementById('trigger-schedule-field')?.classList.toggle('hidden', triggerType.value !== 'scheduled');
+        document.getElementById('trigger-scheduled-hint')?.classList.toggle('hidden', triggerType.value !== 'scheduled');
         document.getElementById('trigger-client-portal-hint')?.classList.toggle('hidden', triggerType.value !== 'client_portal');
     });
 

@@ -7,6 +7,7 @@ use App\Models\WhatsappContact;
 use App\Models\WhatsappConversation;
 use App\Models\WhatsappLabel;
 use App\Models\WhatsappWebhookEvent;
+use App\Services\WhatsappFlow\FlowEngine;
 use App\Services\WhatsappSender;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -199,7 +200,20 @@ class WhatsappInboxController extends Controller
 
     public function attachLabel(WhatsappConversation $conversation, WhatsappLabel $label): RedirectResponse
     {
+        // Already carrying it: re-tapping must not re-run the automation.
+        // syncWithoutDetaching is happily idempotent, the flow behind it is
+        // not -- it would send the whole sequence a second time.
+        $alreadyLabelled = $conversation->labels()->whereKey($label->id)->exists();
+
         $conversation->labels()->syncWithoutDetaching([$label->id]);
+
+        if (! $alreadyLabelled) {
+            // After the response, so a slow Graph API call never holds up the
+            // redirect back to the thread.
+            dispatch(function () use ($conversation, $label): void {
+                app(FlowEngine::class)->handleLabelApplied($conversation, $label);
+            })->afterResponse();
+        }
 
         return redirect()->route('whatsapp-crm.inbox.show', $conversation)
             ->with('status', "Labeled \"{$label->name}\".");

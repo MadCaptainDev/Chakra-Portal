@@ -7,6 +7,7 @@ use App\Models\WhatsappFlow;
 use App\Services\WhatsappFlow\DrawflowGraphTranslator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -134,6 +135,17 @@ class WhatsappFlowController extends Controller
             }
 
             $flow->update(['is_active' => true]);
+
+            /*
+             * Activating a scheduled flow starts it at its NEXT occurrence,
+             * not this one. Switching on an 08:00 briefing at two in the
+             * afternoon otherwise fires it within seconds, because from the
+             * runner's point of view 08:00 has passed and it has never run.
+             * Stamping today spends that turn.
+             */
+            if ($flow->trigger_type === 'scheduled' && $flow->last_run_on === null) {
+                $flow->forceFill(['last_run_on' => today()->toDateString()])->save();
+            }
         });
 
         return redirect()->route('whatsapp-crm.flows.index')
@@ -166,9 +178,14 @@ class WhatsappFlowController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'trigger_type' => ['required', Rule::in(['inbound_message', 'keyword', 'label_applied', 'client_portal'])],
+            'trigger_type' => ['required', Rule::in(['inbound_message', 'keyword', 'label_applied', 'client_portal', 'scheduled'])],
             'trigger_config' => ['nullable', 'array'],
             'trigger_config.keyword' => ['required_if:trigger_type,keyword', 'nullable', 'string', 'max:255'],
+            'trigger_config.label' => ['required_if:trigger_type,label_applied', 'nullable', 'string', 'max:255'],
+            // 24-hour clock, so ScheduledFlowRunner's own regex and this
+            // agree on what a valid time looks like.
+            'trigger_config.time' => ['required_if:trigger_type,scheduled', 'nullable', 'date_format:H:i'],
+            'trigger_config.audience' => ['required_if:trigger_type,scheduled', 'nullable', Rule::in(['admins', 'staff'])],
             'graph' => ['required', 'string'],
         ]);
 
@@ -195,13 +212,17 @@ class WhatsappFlowController extends Controller
         return [
             'name' => $data['name'],
             'trigger_type' => $data['trigger_type'],
-            // Only kept for `keyword` -- the keyword field stays in the DOM
-            // (merely hidden by CSS) for the other two trigger types, so it
-            // still arrives in $data whenever it was left non-empty from an
-            // earlier edit; FlowEngine's matchFlow() never reads it for
-            // anything but a `keyword` flow, but there is no reason to keep
-            // stale trigger_config sitting on a flow that has moved on.
-            'trigger_config' => $data['trigger_type'] === 'keyword' ? ($data['trigger_config'] ?? null) : null,
+            // Every trigger field stays in the DOM (merely hidden by CSS) for
+            // the trigger types that do not use it, so a keyword left over
+            // from an earlier edit still arrives in $data. Each trigger keeps
+            // only the keys it actually reads, so a flow that has moved on
+            // does not carry a stale config the next reader has to ignore.
+            'trigger_config' => match ($data['trigger_type']) {
+                'keyword' => Arr::only($data['trigger_config'] ?? [], ['keyword']) ?: null,
+                'label_applied' => Arr::only($data['trigger_config'] ?? [], ['label']) ?: null,
+                'scheduled' => Arr::only($data['trigger_config'] ?? [], ['time', 'audience', 'days']) ?: null,
+                default => null,
+            },
             'graph' => $graph,
         ];
     }

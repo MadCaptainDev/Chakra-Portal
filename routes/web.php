@@ -255,7 +255,7 @@ Route::middleware('auth')->get('oauth/instagram/callback', [InstagramConnectionC
  * middleware admits employees and salary-linked admins; pure admins and
  * clients are refused.
  */
-Route::middleware(['auth', 'logs-work', 'recognitions.catchup'])->prefix('my')->name('my.')->group(function () {
+Route::middleware(['auth', 'logs-work', 'recognitions.catchup', 'scheduled-flows.catchup'])->prefix('my')->name('my.')->group(function () {
     Route::get('dashboard', [MyDashboardController::class, 'index'])->name('dashboard');
     Route::get('calendar', [MyCalendarController::class, 'index'])->name('calendar');
 
@@ -1139,7 +1139,7 @@ Route::middleware(['auth', 'module:whatsapp-crm,view'])->prefix('whatsapp-crm')-
  * last sync, so the catch-up needs to run before the dashboard reads it,
  * not after.
  */
-Route::middleware(['auth', 'admin', 'recurring.catchup', 'instagram.catchup', 'recognitions.catchup'])->group(function () {
+Route::middleware(['auth', 'admin', 'recurring.catchup', 'instagram.catchup', 'recognitions.catchup', 'scheduled-flows.catchup'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // JSON endpoints behind the invoice form's client modal. Both POST: a
