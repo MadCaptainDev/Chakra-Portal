@@ -151,6 +151,17 @@
                             {{ $member->role ?: 'Crew' }}
                             @if ($member->call_time) &middot; call {{ \Illuminate\Support\Str::of($member->call_time)->substr(0, 5) }} @endif
                         </p>
+                        {{-- Whether they've actually acknowledged the call time.
+                             Set by them over WhatsApp (App\Support\CrewPortal),
+                             never here -- so it means "they said so", not
+                             "somebody ticked it for them". --}}
+                        @if ($member->isConfirmed())
+                            <p class="text-[11px] text-emerald-300/80 mt-0.5">
+                                ✓ Confirmed {{ $member->confirmed_at->format('j M, g:i A') }}
+                            </p>
+                        @elseif ($shoot->starts_at->isFuture())
+                            <p class="text-[11px] text-brand-100/40 mt-0.5">Not confirmed yet</p>
+                        @endif
                     </div>
                     @can('shoots.edit')
                         <form method="POST" action="{{ route('shoots.crew.destroy', [$shoot, $member]) }}">

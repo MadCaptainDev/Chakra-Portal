@@ -122,6 +122,25 @@ const NODE_TYPES = {
             },
         ],
     },
+    crew_action: {
+        label: 'Crew Action',
+        inputs: 1,
+        outputs: 1,
+        fields: [
+            {
+                key: 'action',
+                label: 'Crew self-service',
+                type: 'select',
+                options: [
+                    ['my_shoots', 'Their next shoots'],
+                    ['confirm_call_time', 'Confirm next call time'],
+                    ['flag_damaged', 'Flag kit as damaged'],
+                    ['flag_missing', 'Flag kit as lost'],
+                ],
+                default: 'my_shoots',
+            },
+        ],
+    },
 };
 
 function escapeHtml(value) {
@@ -163,7 +182,9 @@ function buildNodeHtml(typeKey, users) {
         ? '<p class="flow-node__hint">Top output = True, bottom output = False.</p>'
         : typeKey === 'send_list'
             ? '<p class="flow-node__hint">Leave the output unconnected -- a tap starts a new message, routed by a Condition node on message.choice. Free-form send: only works within 24h of their last message.</p>'
-            : (def.outputs === 0 ? '<p class="flow-node__hint">Ends the flow (hands off to a human).</p>' : '');
+            : typeKey === 'crew_action'
+                ? '<p class="flow-node__hint">Staff only: runs when the number matches a team member\'s phone. Branch on <code>crew.id</code> (exists) first, or the flow errors for everyone else. Flag kit reads the item name out of their own message.</p>'
+                : (def.outputs === 0 ? '<p class="flow-node__hint">Ends the flow (hands off to a human).</p>' : '');
 
     return `<div class="flow-node">`
         + `<div class="flow-node__header">`

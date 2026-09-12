@@ -4,10 +4,12 @@ namespace App\Services\WhatsappFlow;
 
 use App\Jobs\AdvanceWhatsappFlowSession;
 use App\Models\Client;
+use App\Models\User;
 use App\Models\WhatsappFlow;
 use App\Models\WhatsappFlowSession;
 use App\Models\WhatsappWebhookEvent;
 use App\Services\WhatsappFlow\Nodes\ClientActionNode;
+use App\Services\WhatsappFlow\Nodes\CrewActionNode;
 use App\Services\WhatsappFlow\Nodes\AgentTransferNode;
 use App\Services\WhatsappFlow\Nodes\ConditionNode;
 use App\Services\WhatsappFlow\Nodes\DelayNode;
@@ -64,6 +66,7 @@ class FlowEngine
         'agent_transfer' => AgentTransferNode::class,
         'make_request' => MakeRequestNode::class,
         'client_action' => ClientActionNode::class,
+        'crew_action' => CrewActionNode::class,
     ];
 
     public function handleInbound(WhatsappWebhookEvent $event): void
@@ -200,6 +203,17 @@ class FlowEngine
             $variables['client'] = [
                 'id' => $client->id,
                 'name' => $client->name,
+            ];
+        }
+
+        // The staff twin of the block above, and the gate CrewActionNode
+        // reads: set only for a number that belongs to one of the studio's
+        // own people, so `crew.id exists` is a flow author's way of saying
+        // "this branch is for us, not for a client or a stranger".
+        if ($crew = User::findForWhatsappCrew($event->wa_id)) {
+            $variables['crew'] = [
+                'id' => $crew->id,
+                'name' => $crew->name,
             ];
         }
 

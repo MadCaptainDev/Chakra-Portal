@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Services\WhatsappSender;
 use App\Support\Permission;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -112,6 +113,44 @@ class User extends Authenticatable
     public function isEmployee(): bool
     {
         return $this->role === self::ROLE_EMPLOYEE;
+    }
+
+    /**
+     * The staff member behind an incoming WhatsApp number, or null.
+     *
+     * Deliberately the same shape as Client::findForWhatsappPortal(): match
+     * the normalised number outright, or on its last ten digits, because
+     * `phone` is typed by hand and the register genuinely holds both
+     * "9786579573" and "+91 6380240378". Clients are excluded -- a client
+     * number reaching the crew tools would be a straightforward leak of the
+     * studio's internal schedule.
+     *
+     * A blank `phone` can never match: str_ends_with('', $suffix) is false
+     * for any non-empty suffix, and the guard below drops them anyway.
+     */
+    public static function findForWhatsappCrew(string $waId): ?self
+    {
+        $normalised = WhatsappSender::normalise($waId);
+        $suffix = strlen($normalised) >= 10 ? substr($normalised, -10) : $normalised;
+
+        if ($normalised === '') {
+            return null;
+        }
+
+        return static::query()
+            ->staff()
+            ->whereNotNull('phone')
+            ->where('phone', '!=', '')
+            ->get()
+            ->first(function (self $user) use ($normalised, $suffix) {
+                $phone = WhatsappSender::normalise($user->phone);
+
+                if ($phone === '') {
+                    return false;
+                }
+
+                return $phone === $normalised || ($suffix !== '' && str_ends_with($phone, $suffix));
+            });
     }
 
     /**

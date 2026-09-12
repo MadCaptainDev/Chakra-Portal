@@ -162,6 +162,25 @@ class DrawflowGraphTranslator
                 ],
             ],
         ],
+        'crew_action' => [
+            'label' => 'Crew Action',
+            'outputs' => 1,
+            'fields' => [
+                [
+                    'key' => 'action',
+                    'label' => 'Crew self-service',
+                    'type' => 'select',
+                    'cast' => 'string',
+                    'default' => 'my_shoots',
+                    'options' => [
+                        'my_shoots' => 'Their next shoots',
+                        'confirm_call_time' => 'Confirm next call time',
+                        'flag_damaged' => 'Flag kit as damaged',
+                        'flag_missing' => 'Flag kit as lost',
+                    ],
+                ],
+            ],
+        ],
     ];
 
     /**
