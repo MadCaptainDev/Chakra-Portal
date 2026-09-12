@@ -41,7 +41,7 @@
      x-init="load()"
      @keydown.escape.window="open = false"
      @click.outside="open = false"
-     class="relative">
+     class="relative shrink-0">
 
     <button type="button" @click="toggle()"
             class="relative inline-flex items-center justify-center w-11 h-11 rounded-lg text-brand-100 hover:bg-white/10 hover:text-white transition"

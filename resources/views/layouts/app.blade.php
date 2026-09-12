@@ -33,7 +33,7 @@
             </div>
 
             <!-- Mobile top bar -->
-            <div class="lg:hidden sticky top-0 z-30 flex items-center gap-3 h-16 px-4 bg-brand-900 shadow-sm">
+            <div class="lg:hidden sticky top-0 z-30 flex items-center gap-2 h-16 px-4 bg-brand-900 shadow-sm">
                 {{-- Role-aware: an employee tapping the logo must not land on
                      the admin dashboard and get a 403. --}}
                 <a href="{{ route(auth()->user()?->homeRoute() ?? 'home') }}" class="flex items-center shrink-0">
@@ -46,23 +46,31 @@
                     <span class="flex-1"></span>
                 @endif
 
-                <button type="button" @click="$dispatch('open-command-palette')"
-                        class="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-lg text-brand-100 hover:bg-white/10 hover:text-white transition"
-                        aria-label="Search">
-                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
-                    </svg>
-                </button>
+                {{-- One cluster, not three items spaced like the title beside
+                     them. Each button keeps its own 44px target and they sit
+                     flush against each other, which on a 360px phone is the
+                     difference between a readable page title and a truncated
+                     stub -- three gap-3 gaps plus a logo left it almost no
+                     room. --}}
+                <div class="shrink-0 flex items-center">
+                    <button type="button" @click="$dispatch('open-command-palette')"
+                            class="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-lg text-brand-100 hover:bg-white/10 hover:text-white transition"
+                            aria-label="Search">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
+                        </svg>
+                    </button>
 
-                @include('layouts._notification-bell')
+                    @include('layouts._notification-bell')
 
-                <button @click="sidebarOpen = true"
-                        class="shrink-0 inline-flex items-center justify-center w-11 h-11 -mr-2 rounded-lg text-brand-100 hover:bg-white/10 hover:text-white transition"
-                        aria-label="Open menu">
-                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                    </svg>
-                </button>
+                    <button @click="sidebarOpen = true"
+                            class="shrink-0 inline-flex items-center justify-center w-11 h-11 -mr-2.5 rounded-lg text-brand-100 hover:bg-white/10 hover:text-white transition"
+                            aria-label="Open menu">
+                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                </div>
             </div>
 
             <!-- Mobile drawer -->
@@ -98,17 +106,28 @@
                      here so they don't have to be repeated in every page's
                      $header slot (most pages don't set one). Mobile already
                      has both in the top bar above. --}}
-                <div class="hidden lg:flex items-center justify-end gap-1 h-12 px-4 sm:px-6 lg:px-8 border-b border-white/5">
-                    <button type="button" @click="$dispatch('open-command-palette')"
-                            class="inline-flex items-center gap-2 h-8 pl-2.5 pr-3 rounded-lg text-xs text-brand-100/60 border border-white/10 hover:border-white/20 hover:text-brand-100 transition">
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
-                        </svg>
-                        Quick jump
-                        <kbd class="ml-1 text-[10px] font-semibold border border-white/10 rounded px-1 py-0.5">⌘K</kbd>
-                    </button>
+                <div class="hidden lg:block border-b border-white/5">
+                    {{-- Inside the same max-w-7xl column as $header and <main>
+                         below. Without it the bell sat flush to the viewport
+                         edge on a wide screen while the content it belongs to
+                         stopped short of it. --}}
+                    <div class="mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 h-12 flex items-center justify-end">
+                        <button type="button" @click="$dispatch('open-command-palette')"
+                                class="inline-flex items-center gap-2 h-8 pl-2.5 pr-3 rounded-lg text-xs text-brand-100/60 border border-white/10 hover:border-white/20 hover:text-brand-100 transition">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
+                            </svg>
+                            Quick jump
+                            <kbd class="ml-1 text-[10px] font-semibold border border-white/10 rounded px-1 py-0.5">⌘K</kbd>
+                        </button>
 
-                    @include('layouts._notification-bell')
+                        {{-- -mr-2.5 pulls the bell's 44px tap target back so its
+                             icon lines up with the content edge, not its
+                             padding. --}}
+                        <div class="-mr-2.5 ml-1">
+                            @include('layouts._notification-bell')
+                        </div>
+                    </div>
                 </div>
 
                 @isset($header)

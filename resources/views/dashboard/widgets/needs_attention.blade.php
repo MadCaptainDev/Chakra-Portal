@@ -4,7 +4,11 @@
      below the fold on every single load. One tap opens it. ——— --}}
 <section x-data="{ open: false }">
     <details @toggle="open = $event.target.open">
-        <summary class="list-none cursor-pointer flex items-baseline justify-between gap-4 mb-4">
+        {{-- items-center, not the items-baseline the other widget headers use:
+             this is the only one with a fixed-height pill in the row, and a
+             22px pill has no text baseline to share with the note opposite
+             it. --}}
+        <summary class="list-none cursor-pointer flex items-center justify-between gap-4 mb-4">
             <span class="flex items-center gap-2">
                 <x-icon name="chevron-right" class="w-4 h-4 text-brand-100/50 transition-transform shrink-0" x-bind:class="{ 'rotate-90': open }" />
                 <x-section-label dark>Needs attention</x-section-label>
