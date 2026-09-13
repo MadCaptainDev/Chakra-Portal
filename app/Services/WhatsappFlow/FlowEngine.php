@@ -274,6 +274,81 @@ class FlowEngine
     }
 
     /**
+     * Send the owner menu, as though the admin had typed its keyword.
+     *
+     * The assistant's way of stepping aside. When the free tier is out of
+     * tokens for the minute, or the model cannot be reached at all, an
+     * apology is the wrong thing to send somebody who asked how much money
+     * came in -- the four figures the menu answers are right there, and they
+     * cost nothing to produce.
+     *
+     * Goes through a real session rather than sending the list directly, and
+     * that matters: a menu with no session behind it is a menu whose taps
+     * land nowhere. staffMenuContinuation() routes the tap by finding the
+     * session this leaves completed.
+     *
+     * Returns false when there is no owner menu to send -- nobody has built
+     * one, or it was switched off -- so the caller can fall back to words.
+     */
+    public function startAdminMenu(string $waId): bool
+    {
+        if (blank($waId)) {
+            return false;
+        }
+
+        $alreadyTalking = WhatsappFlowSession::query()
+            ->where('wa_id', $waId)
+            ->where('status', 'active')
+            ->exists();
+
+        if ($alreadyTalking) {
+            return false;
+        }
+
+        /*
+         * The flow with an admin_action node in it, rather than a flow named
+         * or keyed a particular way. The crew menu is also a keyword flow, and
+         * sending a crew member's menu to the owner because it sorted first
+         * would be a worse failure than the one being recovered from.
+         */
+        $flow = WhatsappFlow::query()
+            ->where('is_active', true)
+            ->where('trigger_type', 'keyword')
+            ->orderBy('id')
+            ->get()
+            ->first(function (WhatsappFlow $candidate) {
+                $nodes = is_array($candidate->graph['nodes'] ?? null) ? $candidate->graph['nodes'] : [];
+
+                return collect($nodes)->contains(fn ($node) => ($node['type'] ?? null) === 'admin_action');
+            });
+
+        $keyword = mb_strtolower(trim((string) data_get($flow?->trigger_config, 'keyword')));
+
+        if ($flow === null || $keyword === '') {
+            return false;
+        }
+
+        // Seeded as if they had typed the keyword, because that is the branch
+        // the graph tests to decide it is being greeted rather than answered.
+        $session = $this->openSession($flow, $waId, [
+            'message' => [
+                'text' => $keyword,
+                'normalized' => $keyword,
+                'choice' => $keyword,
+                'type' => 'text',
+            ],
+        ]);
+
+        if ($session === null) {
+            return false;
+        }
+
+        $this->run($session);
+
+        return true;
+    }
+
+    /**
      * Starts a scheduled flow for one recipient. ScheduledFlowRunner owns the
      * "is it due, and who for" question; this only opens and runs it.
      */

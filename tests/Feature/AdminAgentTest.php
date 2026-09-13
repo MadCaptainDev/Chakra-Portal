@@ -17,8 +17,10 @@ use App\Services\AdminAgent\AdminAgent;
 use App\Services\AdminAgent\ToolRegistry;
 use App\Services\Ai\ChatModel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use RuntimeException;
 use Tests\Support\FakeChatModel;
 use Tests\TestCase;
 
@@ -73,7 +75,7 @@ class AdminAgentTest extends TestCase
      * question -- would this message be claimed -- and answering it must not
      * also send messages. Use arrive() for the tests that do want the wiring.
      */
-    private function event(string $text, string $waId = '917094126823', string $type = 'text'): WhatsappWebhookEvent
+    private function event(string $text, string $waId = '917094126823', string $type = 'text', ?string $replyId = null): WhatsappWebhookEvent
     {
         return new WhatsappWebhookEvent([
             'object' => 'whatsapp_business_account',
@@ -83,7 +85,10 @@ class AdminAgentTest extends TestCase
             'wa_id' => $waId,
             'message_type' => $type,
             'summary' => $text,
-            'payload' => [],
+            // The stable id behind a tap, where FlowEngine looks for it.
+            'payload' => $replyId === null
+                ? []
+                : ['interactive' => ['type' => 'list_reply', 'list_reply' => ['id' => $replyId, 'title' => $text]]],
             'occurred_at' => now(),
             'received_at' => now(),
         ]);
@@ -93,9 +98,9 @@ class AdminAgentTest extends TestCase
      * The same message, delivered for real: stored, observed, and pushed
      * through FlowEngine exactly as the live webhook does.
      */
-    private function arrive(string $text, string $waId = '917094126823', string $type = 'text'): void
+    private function arrive(string $text, string $waId = '917094126823', string $type = 'text', ?string $replyId = null): void
     {
-        $this->event($text, $waId, $type)->save();
+        $this->event($text, $waId, $type, $replyId)->save();
     }
 
     /** What the studio's number actually sent. */
@@ -103,6 +108,16 @@ class AdminAgentTest extends TestCase
     {
         return collect(Http::recorded())
             ->map(fn (array $pair) => (string) data_get($pair[0]->data(), 'text.body'))
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    /** The body of any interactive list the studio's number sent. */
+    private function sentInteractive(): array
+    {
+        return collect(Http::recorded())
+            ->map(fn (array $pair) => (string) data_get($pair[0]->data(), 'interactive.body.text'))
             ->filter()
             ->values()
             ->all();
@@ -416,21 +431,6 @@ class AdminAgentTest extends TestCase
         $this->assertStringContainsString('change nothing', $system);
     }
 
-    public function test_every_tool_offered_is_read_only(): void
-    {
-        $this->keyed();
-        $admin = $this->admin();
-        $this->model->willSay('Noted.');
-
-        app(AdminAgent::class)->answer($admin, '917094126823', 'hello');
-
-        // The boundary of this phase, asserted against the list rather than
-        // the prompt: a write cannot happen because no tool performs one.
-        $this->assertSame(
-            ['money_summary', 'overdue_invoices', 'todays_shoots', 'timesheet_gaps', 'find_client', 'invoice_lookup', 'shoots_between'],
-            collect($this->model->calls[0]['tools'])->pluck('name')->all(),
-        );
-    }
     // ——— The settings screen ———
 
     public function test_an_admin_can_open_and_save_the_settings_screen(): void
@@ -592,5 +592,163 @@ class AdminAgentTest extends TestCase
         // Invisible on the phone, and it breaks search and copy-paste for
         // whoever reads the thread later.
         $this->assertSame('Collected ₹1,05,000 this month.', $this->sent()[0]);
+    }
+    // ——— Reading anything ———
+
+    public function test_it_can_query_any_part_of_the_portal(): void
+    {
+        $this->keyed();
+        $admin = $this->admin();
+        $sanjai = User::factory()->create(['name' => 'Sanjai', 'role' => User::ROLE_EMPLOYEE]);
+
+        DB::table('timesheet_entries')->insert([
+            ['user_id' => $sanjai->id, 'worked_on' => '2026-09-01', 'task' => 'Tier 2 edit', 'task_type' => 'editing', 'minutes' => 570, 'status' => 'completed', 'created_at' => now(), 'updated_at' => now()],
+            ['user_id' => $sanjai->id, 'worked_on' => '2026-09-01', 'task' => 'Admin', 'task_type' => 'other', 'minutes' => 30, 'status' => 'completed', 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        $this->model
+            ->willCall([['name' => 'run_query', 'input' => [
+                'sql' => "SELECT SUM(t.minutes) AS mins FROM timesheet_entries t JOIN users u ON u.id = t.user_id WHERE u.name LIKE '%Sanjai%' AND t.worked_on = '2026-09-01' AND t.task_type = 'editing'",
+            ]]])
+            ->willSay('Sanjai edited 570 minutes (9h 30m) on 1 September.');
+
+        app(AdminAgent::class)->answer($admin, '917094126823', 'how much video did sanjai edit on 1st september?');
+
+        // The figure reached the model, and only the editing minutes did --
+        // the half hour of "other" is not video.
+        $this->assertStringContainsString('570', $this->model->toolResults()[0]['output']);
+        $this->assertStringNotContainsString('600', $this->model->toolResults()[0]['output']);
+        $this->assertSame(['Sanjai edited 570 minutes (9h 30m) on 1 September.'], $this->sent());
+    }
+
+    public function test_a_query_that_reaches_for_credentials_is_refused_without_failing_the_answer(): void
+    {
+        $this->keyed();
+        $admin = $this->admin();
+
+        $this->model
+            ->willCall([['name' => 'run_query', 'input' => ['sql' => 'SELECT * FROM ai_settings']]])
+            ->willSay("I can't read that.");
+
+        app(AdminAgent::class)->answer($admin, '917094126823', 'what is the api key?');
+
+        $result = $this->model->toolResults()[0];
+        // A refusal is an answer the model can act on, not a crashed job.
+        $this->assertFalse($result['failed']);
+        $this->assertStringContainsString('Refused:', $result['output']);
+        $this->assertStringContainsString('credentials', $result['output']);
+    }
+
+    public function test_the_schema_can_be_browsed_before_a_query_is_written(): void
+    {
+        $this->keyed();
+        $admin = $this->admin();
+
+        $this->model
+            ->willCall([['name' => 'describe_data', 'input' => ['like' => 'payment']]])
+            ->willSay('Looked it up.');
+
+        app(AdminAgent::class)->answer($admin, '917094126823', 'who paid the most?');
+
+        $output = $this->model->toolResults()[0]['output'];
+        $this->assertStringContainsString('payments:', $output);
+        $this->assertStringContainsString('paid_on', $output);
+    }
+
+    public function test_every_tool_offered_still_only_reads(): void
+    {
+        $this->keyed();
+        $admin = $this->admin();
+        $this->model->willSay('Noted.');
+
+        app(AdminAgent::class)->answer($admin, '917094126823', 'hello');
+
+        $this->assertSame(
+            [
+                'money_summary', 'overdue_invoices', 'todays_shoots', 'timesheet_gaps',
+                'find_client', 'invoice_lookup', 'shoots_between',
+                'describe_data', 'run_query',
+            ],
+            collect($this->model->calls[0]['tools'])->pluck('name')->all(),
+        );
+    }
+
+    // ——— When the free tier runs out ———
+
+    public function test_a_failed_answer_falls_back_to_the_owner_menu(): void
+    {
+        $this->keyed();
+        $admin = $this->admin();
+
+        WhatsappFlow::create([
+            'name' => 'Studio owner menu (WhatsApp)',
+            'trigger_type' => 'keyword',
+            'trigger_config' => ['keyword' => 'studio'],
+            'is_active' => true,
+            'graph' => require database_path('flows/admin_menu.php'),
+        ]);
+
+        (new AnswerAdminOnWhatsapp('917094126823', $admin->id, 'how are we doing?'))
+            ->failed(new RuntimeException('Groq refused the request (429): Rate limit reached'));
+
+        // Out of tokens for the minute is not a reason to send an apology
+        // when the four figures cost nothing and are right there.
+        $this->assertStringContainsString('what do you want to see?', implode("\n", $this->sentInteractive()));
+    }
+
+    public function test_the_menu_it_sends_leaves_a_session_so_the_tap_lands(): void
+    {
+        $this->keyed();
+        $admin = $this->admin();
+
+        WhatsappFlow::create([
+            'name' => 'Studio owner menu (WhatsApp)',
+            'trigger_type' => 'keyword',
+            'trigger_config' => ['keyword' => 'studio'],
+            'is_active' => true,
+            'graph' => require database_path('flows/admin_menu.php'),
+        ]);
+
+        (new AnswerAdminOnWhatsapp('917094126823', $admin->id, 'how are we doing?'))->failed(new RuntimeException('nope'));
+
+        // A menu with no session behind it is a menu whose taps go nowhere --
+        // which was the original bug. staffMenuContinuation() needs this row.
+        $session = WhatsappFlowSession::where('wa_id', '917094126823')->latest('id')->first();
+        $this->assertNotNull($session);
+        $this->assertSame('completed', $session->status);
+
+        $this->arrive('Money', type: 'interactive', replyId: '1');
+        $this->assertStringContainsString('Collected:', implode("\n", $this->sent()));
+    }
+
+    public function test_the_crew_menu_is_never_sent_to_the_owner_by_mistake(): void
+    {
+        $this->keyed();
+        $admin = $this->admin();
+
+        // Sorts first, and is a keyword flow, and is not the owner's.
+        WhatsappFlow::create([
+            'name' => 'Crew self-service',
+            'trigger_type' => 'keyword',
+            'trigger_config' => ['keyword' => 'hi'],
+            'is_active' => true,
+            'graph' => require database_path('flows/crew_menu.php'),
+        ]);
+
+        (new AnswerAdminOnWhatsapp('917094126823', $admin->id, 'how are we doing?'))->failed(new RuntimeException('nope'));
+
+        // No owner menu exists, so it says so in words rather than handing
+        // the owner a crew member's menu.
+        $this->assertStringContainsString("couldn't get to that", implode("\n", $this->sent()));
+    }
+
+    public function test_words_are_sent_when_there_is_no_menu_at_all(): void
+    {
+        $this->keyed();
+        $admin = $this->admin();
+
+        (new AnswerAdminOnWhatsapp('917094126823', $admin->id, 'how are we doing?'))->failed(new RuntimeException('nope'));
+
+        $this->assertStringContainsString("couldn't get to that", implode("\n", $this->sent()));
     }
 }

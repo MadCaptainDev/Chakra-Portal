@@ -26,10 +26,18 @@ class AdminAgentMessage extends Model
      * tomorrow morning's "how are we doing" is not answered in the context of
      * last night's argument about one late invoice.
      */
-    public const CONTEXT_HOURS = 12;
+    public const CONTEXT_HOURS = 3;
 
-    /** How many turns are replayed at most, newest kept. */
-    public const CONTEXT_TURNS = 24;
+    /**
+     * How many turns are replayed at most, newest kept.
+     *
+     * Three exchanges. This is not a guess at what reads well -- it is the
+     * budget. The whole conversation is resent on every call, and on a free
+     * tier metered at eight thousand tokens a minute a long memory is paid
+     * for out of the same purse as the next question. Three covers "and the
+     * one before that?", which is as far back as anyone reaches on a phone.
+     */
+    public const CONTEXT_TURNS = 6;
 
     protected $fillable = [
         'wa_id',

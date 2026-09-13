@@ -3,9 +3,11 @@
 namespace App\Services\AdminAgent;
 
 use App\Models\User;
+use App\Services\AdminAgent\Tools\DescribeDataTool;
 use App\Services\AdminAgent\Tools\FindClientTool;
 use App\Services\AdminAgent\Tools\InvoiceLookupTool;
 use App\Services\AdminAgent\Tools\PortalReadTool;
+use App\Services\AdminAgent\Tools\RunQueryTool;
 use App\Services\AdminAgent\Tools\ShootsBetweenTool;
 use Throwable;
 
@@ -16,6 +18,10 @@ use Throwable;
  * somebody can read rather than a grep. Every tool here reads; none writes.
  * That is this phase's boundary and it is enforced by the list rather than by
  * intention -- a write cannot happen because no tool here performs one.
+ *
+ * That still holds now the list ends with run_query, which can reach any
+ * table in the schema: what makes it true there is ReadOnlyQuery, which
+ * refuses anything but a single SELECT before MySQL is handed a word of it.
  *
  * A name the model invents, or a tool that throws, comes back as an error
  * string rather than an exception. The model can then tell the admin which
@@ -39,6 +45,15 @@ class ToolRegistry
             new FindClientTool,
             new InvoiceLookupTool,
             new ShootsBetweenTool,
+            /*
+             * Last, and deliberately so: the ones above answer the common
+             * questions in one call with wording already shaped for a phone,
+             * and a model that reaches for SQL to ask what is overdue spends
+             * three calls getting to a worse version of the same answer.
+             * These two are for everything nobody wrote a tool for.
+             */
+            new DescribeDataTool,
+            new RunQueryTool,
         ];
 
         $this->tools = [];

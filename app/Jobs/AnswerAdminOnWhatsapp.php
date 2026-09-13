@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\User;
 use App\Services\AdminAgent\AdminAgent;
+use App\Services\WhatsappFlow\FlowEngine;
 use App\Services\WhatsappSender;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -65,25 +66,37 @@ class AnswerAdminOnWhatsapp implements ShouldQueue
     }
 
     /**
-     * Out of attempts. Say so on the phone that is waiting, then let the
-     * failure stand in the failed_jobs table for somebody to read.
+     * Out of attempts: send the menu instead.
+     *
+     * The free tier allows eight thousand tokens a minute, so the commonest
+     * reason to be here is the owner asking a third question inside a minute
+     * -- and the right answer to that is not an apology. It is the four
+     * figures the owner menu has always been able to produce, for nothing, in
+     * one round trip. They tap, they get their number, and the assistant
+     * picks up again on the next question.
+     *
+     * Words only if there is no menu to send.
      */
     public function failed(?Throwable $e): void
     {
-        Log::error('Admin assistant could not answer.', [
+        Log::error('Admin assistant could not answer; falling back to the menu.', [
             'wa_id' => $this->waId,
             'error' => $e?->getMessage(),
         ]);
 
         try {
+            if (app(FlowEngine::class)->startAdminMenu($this->waId)) {
+                return;
+            }
+
             WhatsappSender::make()->sendText(
                 $this->waId,
-                "Sorry — I couldn't get to that just now. Type *menu* for the usual figures.",
+                "Sorry — I couldn't get to that just now. Try again in a minute.",
             );
         } catch (Throwable $sendFailed) {
             // If WhatsApp itself is the thing that is down, there is nowhere
             // left to apologise to.
-            Log::error('Admin assistant could not send its apology either.', [
+            Log::error('Admin assistant could not send its fallback either.', [
                 'wa_id' => $this->waId,
                 'error' => $sendFailed->getMessage(),
             ]);
