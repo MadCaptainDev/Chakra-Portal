@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AiSettingController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\BillController;
 use App\Http\Controllers\BriefQuestionController;
@@ -1181,6 +1182,15 @@ Route::middleware(['auth', 'admin', 'recurring.catchup', 'instagram.catchup', 'r
     Route::put('notion', [NotionSettingController::class, 'update'])->name('notion.update');
     Route::post('notion/recheck', [NotionSettingController::class, 'recheck'])->name('notion.recheck');
 
+    /*
+     * The WhatsApp assistant's Anthropic key. Admin-only, and the sharpest
+     * case of the same reasoning as Notion and WhatsApp above: this key turns
+     * on something that answers whoever is holding an admin's phone, reading
+     * across every client's money.
+     */
+    Route::get('assistant', [AiSettingController::class, 'edit'])->name('ai.edit');
+    Route::put('assistant', [AiSettingController::class, 'update'])->name('ai.update');
+    Route::delete('assistant/key', [AiSettingController::class, 'forget'])->name('ai.forget');
     /*
      * The Firebase push connection. Admin-only, same reasoning again: the
      * service account here can send a push as the studio to every device.

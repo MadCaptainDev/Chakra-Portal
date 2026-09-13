@@ -26,6 +26,7 @@
             'whatsapp.edit' => 'WhatsApp',
             'instagram-settings.edit' => 'Instagram',
             'notion.edit' => 'Notion',
+            'ai.edit' => 'Assistant',
             'push.edit' => 'Notifications',
             'competitor-settings.edit' => 'Competitor Analysis',
             'content-accounts.edit' => 'Content Accounts',

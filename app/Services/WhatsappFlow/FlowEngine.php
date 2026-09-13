@@ -3,18 +3,20 @@
 namespace App\Services\WhatsappFlow;
 
 use App\Jobs\AdvanceWhatsappFlowSession;
+use App\Jobs\AnswerAdminOnWhatsapp;
 use App\Models\Client;
 use App\Models\User;
-use App\Models\WhatsappFlow;
 use App\Models\WhatsappConversation;
+use App\Models\WhatsappFlow;
 use App\Models\WhatsappFlowSession;
 use App\Models\WhatsappLabel;
 use App\Models\WhatsappWebhookEvent;
-use App\Services\WhatsappFlow\Nodes\ClientActionNode;
-use App\Services\WhatsappFlow\Nodes\CrewActionNode;
+use App\Services\AdminAgent\AdminAgent;
 use App\Services\WhatsappFlow\Nodes\AdminActionNode;
 use App\Services\WhatsappFlow\Nodes\AgentTransferNode;
+use App\Services\WhatsappFlow\Nodes\ClientActionNode;
 use App\Services\WhatsappFlow\Nodes\ConditionNode;
+use App\Services\WhatsappFlow\Nodes\CrewActionNode;
 use App\Services\WhatsappFlow\Nodes\DelayNode;
 use App\Services\WhatsappFlow\Nodes\MakeRequestNode;
 use App\Services\WhatsappFlow\Nodes\NodeHandler;
@@ -22,8 +24,8 @@ use App\Services\WhatsappFlow\Nodes\SendListNode;
 use App\Services\WhatsappFlow\Nodes\SendMessageNode;
 use App\Services\WhatsappFlow\Nodes\SendTemplateNode;
 use App\Services\WhatsappFlow\Nodes\SetLabelNode;
-use Illuminate\Support\Arr;
 use App\Support\ClientPortalContent;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Throwable;
@@ -85,6 +87,10 @@ class FlowEngine
             return;
         }
 
+        if ($this->handedToAssistant($event)) {
+            return;
+        }
+
         if (Client::findForWhatsappPortal($event->wa_id) !== null) {
             WhatsappFlowSession::query()
                 ->where('wa_id', $event->wa_id)
@@ -124,6 +130,42 @@ class FlowEngine
         }
 
         $this->run($session);
+    }
+
+    /**
+     * Whether the studio's assistant is taking this message instead.
+     *
+     * The one place a flow gives way to something else. AdminAgent::claimant()
+     * answers null for anything that is not an admin typing a question with
+     * the assistant switched on and keyed -- so with the assistant off, or a
+     * key never pasted, this is a no-op and every flow behaves exactly as it
+     * did before it existed.
+     *
+     * Any menu session open on that number is closed first. Two things
+     * answering one thread would interleave their messages, and the menu's
+     * answer to a tap the admin made a minute ago is not what they are asking
+     * about now.
+     */
+    private function handedToAssistant(WhatsappWebhookEvent $event): bool
+    {
+        $admin = AdminAgent::claimant($event);
+
+        if ($admin === null) {
+            return false;
+        }
+
+        WhatsappFlowSession::query()
+            ->where('wa_id', $event->wa_id)
+            ->where('status', 'active')
+            ->update(['status' => 'completed', 'current_node_id' => null]);
+
+        AnswerAdminOnWhatsapp::dispatch(
+            (string) $event->wa_id,
+            $admin->id,
+            (string) $event->summary,
+        );
+
+        return true;
     }
 
     /**
@@ -443,7 +485,7 @@ class FlowEngine
         try {
             ClientPortalContent::sendToSession(
                 new WhatsappFlowSession(['wa_id' => $event->wa_id, 'variables' => ['client' => ['id' => $client->id, 'name' => $client->name]]]),
-                'Hi '.$client->name." — our WhatsApp menu is being set up. Someone from the studio will reply shortly.",
+                'Hi '.$client->name.' — our WhatsApp menu is being set up. Someone from the studio will reply shortly.',
             );
         } catch (RuntimeException $e) {
             Log::error('Could not reply to portal client.', ['error' => $e->getMessage(), 'wa_id' => $event->wa_id]);

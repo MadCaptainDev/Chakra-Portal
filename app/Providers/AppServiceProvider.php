@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Models\Routine;
 use App\Models\User;
 use App\Models\WhatsappSendLog;
+use App\Services\Ai\ChatModel;
+use App\Services\Ai\Claude;
 use App\Support\Permission;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -17,7 +19,12 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        /*
+         * Which model the studio's assistant talks to. Bound as an interface
+         * so the tests can hand AdminAgent a scripted one: a fake that has to
+         * fake HTTP would be testing the Anthropic SDK, not this portal.
+         */
+        $this->app->bind(ChatModel::class, Claude::class);
     }
 
     /**
