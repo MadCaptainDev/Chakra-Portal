@@ -58,6 +58,12 @@ class FlowEngine
 
     public const MAX_EXECUTION_SECONDS = 120;
 
+    /**
+     * How long after a staff menu was sent a bare answer to it still counts
+     * as an answer to it -- see staffMenuContinuation().
+     */
+    public const MENU_CONTINUATION_MINUTES = 60;
+
     /** @var array<string, class-string<NodeHandler>> */
     private const HANDLERS = [
         'send_message' => SendMessageNode::class,
@@ -358,7 +364,62 @@ class FlowEngine
             return filled($keyword) && str_contains($text, mb_strtolower($keyword));
         });
 
-        return $keywordMatch ?? $candidates->first(fn (WhatsappFlow $flow) => $flow->trigger_type === 'inbound_message');
+        return $keywordMatch
+            ?? $candidates->first(fn (WhatsappFlow $flow) => $flow->trigger_type === 'inbound_message')
+            ?? $this->staffMenuContinuation($event);
+    }
+
+    /**
+     * The staff half of the client_portal short-circuit at the top of
+     * matchFlow(): what lets one of the studio's own people answer a menu.
+     *
+     * A menu node sends and ends -- SendListNode is stateless on purpose, and
+     * the tap that follows arrives as a brand new inbound message that has to
+     * find its flow again through matchFlow(). A portal client always does:
+     * their wa_id alone routes them, whatever they tapped. Staff had no such
+     * path. Their flow is reached by keyword ("studio"), and the tap carries
+     * the row's title ("Money") -- which contains no keyword, so it matched no
+     * flow and was silently dropped. The menu arrived, every answer to it went
+     * nowhere, and nothing anywhere said so: the session had already completed,
+     * so there was no failed row to find either.
+     *
+     * So: a staff number that has just been talking to a flow keeps talking to
+     * that flow. Three things bound it, because this is the one matcher that
+     * needs no keyword and so must not become a catch-all:
+     * - only a number belonging to staff, by the same last-ten-digit lookup
+     *   CrewPortal and AdminPortal gate on;
+     * - only within MENU_CONTINUATION_MINUTES of that flow's last step, so a
+     *   message the next morning is a fresh message rather than an answer to
+     *   yesterday's menu;
+     * - never once a human owns the thread (AgentTransferNode's assignment),
+     *   and never from a session that failed -- re-entering a flow that just
+     *   threw would only throw again on the same node.
+     */
+    private function staffMenuContinuation(WhatsappWebhookEvent $event): ?WhatsappFlow
+    {
+        if (User::findForWhatsappCrew($event->wa_id) === null) {
+            return null;
+        }
+
+        $assignedTo = WhatsappConversation::query()
+            ->where('wa_id', $event->wa_id)
+            ->value('assigned_to_id');
+
+        if ($assignedTo !== null) {
+            return null;
+        }
+
+        $previous = WhatsappFlowSession::query()
+            ->where('wa_id', $event->wa_id)
+            ->where('status', 'completed')
+            ->where('last_advanced_at', '>=', now()->subMinutes(self::MENU_CONTINUATION_MINUTES))
+            ->whereHas('flow', fn ($query) => $query
+                ->where('is_active', true)
+                ->whereIn('trigger_type', ['keyword', 'inbound_message']))
+            ->latest('id')
+            ->first();
+
+        return $previous?->flow;
     }
 
     /**
