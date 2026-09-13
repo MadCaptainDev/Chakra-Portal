@@ -43,6 +43,10 @@ final class ModelTurn
      */
     public function isRefusal(): bool
     {
-        return $this->stopReason === 'refusal';
+        // Two spellings for one thing: Anthropic stops with `refusal`,
+        // OpenAI-compatible providers with `content_filter`. Either way the
+        // call succeeded, the answer is a refusal, and retrying it would
+        // simply be refused again.
+        return in_array($this->stopReason, ['refusal', 'content_filter'], true);
     }
 }

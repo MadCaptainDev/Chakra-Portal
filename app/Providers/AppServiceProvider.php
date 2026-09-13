@@ -2,11 +2,13 @@
 
 namespace App\Providers;
 
+use App\Models\AiSetting;
 use App\Models\Routine;
 use App\Models\User;
 use App\Models\WhatsappSendLog;
 use App\Services\Ai\ChatModel;
 use App\Services\Ai\Claude;
+use App\Services\Ai\Groq;
 use App\Support\Permission;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -20,11 +22,21 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         /*
-         * Which model the studio's assistant talks to. Bound as an interface
-         * so the tests can hand AdminAgent a scripted one: a fake that has to
-         * fake HTTP would be testing the Anthropic SDK, not this portal.
+         * Which model the studio's assistant talks to, decided by the
+         * settings row rather than by this file -- so the studio can move
+         * between a free tier and a paid one on a screen.
+         *
+         * Bound as an interface so the tests can hand AdminAgent a scripted
+         * model: a fake that has to fake a provider's wire format would be
+         * testing the provider, not this portal. Groq's own translation is
+         * tested separately, against Http::fake.
+         *
+         * Resolved per use, never cached as a singleton: the provider can
+         * change mid-process, and a queue worker lives for minutes.
          */
-        $this->app->bind(ChatModel::class, Claude::class);
+        $this->app->bind(ChatModel::class, fn () => AiSetting::current()->providerName() === AiSetting::PROVIDER_ANTHROPIC
+            ? new Claude
+            : new Groq);
     }
 
     /**

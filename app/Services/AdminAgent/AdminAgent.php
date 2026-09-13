@@ -89,6 +89,19 @@ class AdminAgent
     /** Answer one message, and send the answer. */
     public function answer(User $admin, string $waId, string $question): void
     {
+        WhatsappSender::make()->sendText($waId, $this->compose($admin, $waId, $question));
+    }
+
+    /**
+     * Everything except the sending.
+     *
+     * Split out so the answer can be seen without spending a WhatsApp
+     * message: `assistant:ask` on the server reaches this, which is how
+     * somebody tells a missing key from a spent quota from a stopped queue
+     * worker without texting the studio's number and waiting.
+     */
+    public function compose(User $admin, string $waId, string $question): string
+    {
         $this->remember($waId, $admin, AdminAgentMessage::ROLE_USER, $question);
 
         // Loaded after the question is stored, so the question is in it --
@@ -100,6 +113,7 @@ class AdminAgent
 
         $calls = [];
         $turn = null;
+        $lastGoodLookup = null;
 
         for ($step = 0; $step < self::MAX_STEPS; $step++) {
             $turn = $this->model->reply($system, $conversation, $definitions);
@@ -116,6 +130,14 @@ class AdminAgent
 
                 $calls[] = ['name' => $call['name'], 'input' => $call['input'], 'failed' => $ran['failed']];
 
+                // Kept because the tools already write for a phone -- they
+                // were written for the owner menu. If the model mangles its
+                // summary of this, the figures themselves are a better answer
+                // than an apology. See bodyFor().
+                if (! $ran['failed']) {
+                    $lastGoodLookup = $ran['output'];
+                }
+
                 $results[] = [
                     'id' => $call['id'],
                     'output' => $ran['output'],
@@ -130,13 +152,13 @@ class AdminAgent
             $turn = null;
         }
 
-        $body = $this->bodyFor($turn, $calls);
+        $body = $this->bodyFor($turn, $calls, $lastGoodLookup);
 
         $this->remember($waId, $admin, AdminAgentMessage::ROLE_ASSISTANT, $body, $calls, $turn);
 
         AiSetting::current()->forceFill(['last_answered_at' => now()])->save();
 
-        WhatsappSender::make()->sendText($waId, $body);
+        return $body;
     }
 
     /**
@@ -150,7 +172,7 @@ class AdminAgent
      *
      * @param  list<array<string, mixed>>  $calls
      */
-    private function bodyFor(?ModelTurn $turn, array $calls): string
+    private function bodyFor(?ModelTurn $turn, array $calls, ?string $lastGoodLookup = null): string
     {
         if ($turn === null) {
             return $calls === []
@@ -160,13 +182,60 @@ class AdminAgent
 
         if ($turn->isRefusal()) {
             return filled($turn->text)
-                ? $turn->text
+                ? self::tidy($turn->text)
                 : "I can't answer that one. Type *menu* for the usual figures.";
         }
 
+        /*
+         * The open model on the free tier occasionally elides its own answer
+         * mid-word -- a real reply, stored in the transcript, read
+         * "Digital Harvest (Jan[zero-width] ...". It is rare, it survives
+         * temperature 0, and no instruction prevents it.
+         *
+         * So when the words are untrustworthy, send the figures instead. The
+         * tools were written for the owner menu and already read well on a
+         * phone, so the fallback is a plainer answer rather than an apology --
+         * and the owner gets the thing they asked for either way.
+         */
+        if (self::looksMangled($turn->text)) {
+            Log::warning('Admin assistant discarded a mangled reply.', ['reply' => $turn->text]);
+
+            if (filled($lastGoodLookup)) {
+                return self::tidy($lastGoodLookup);
+            }
+        }
+
         return filled($turn->text)
-            ? $turn->text
+            ? self::tidy($turn->text)
             : "I didn't have anything to add there. Type *menu* for the usual figures.";
+    }
+
+    /**
+     * Whether a reply gave up partway through.
+     *
+     * A zero-width space is the tell, and it is a reliable one: nothing that
+     * legitimately reaches this assistant contains one -- not a client name,
+     * not a rupee figure, not anything a tool produced -- while every mangled
+     * reply seen so far has. Cheaper and steadier than trying to guess from
+     * the shape of the text whether a sentence finished.
+     */
+    private static function looksMangled(string $text): bool
+    {
+        return preg_match('/[\x{200B}-\x{200D}\x{FEFF}]/u', $text) === 1;
+    }
+
+    /**
+     * Invisible characters out, trailing whitespace off each line.
+     *
+     * Unconditional, because a zero-width space has no business in a WhatsApp
+     * message even when the rest of the reply is sound -- it is invisible on
+     * the phone and breaks search and copy-paste for whoever reads it later.
+     */
+    private static function tidy(string $text): string
+    {
+        $text = (string) preg_replace('/[\x{200B}-\x{200D}\x{FEFF}]/u', '', $text);
+
+        return trim((string) preg_replace('/[ \t]+$/m', '', $text));
     }
 
     /** @return list<array<string, mixed>> */
@@ -196,16 +265,20 @@ class AdminAgent
     private function system(User $admin): string
     {
         return implode("\n", [
-            'You are the assistant for Chakra Groups, a photo and video production studio in India. You are speaking to the studio\'s owner over WhatsApp.',
+            'You are a private assistant to the owner of Chakra Groups, a photo and video production studio in India. You work for this one person, over their own WhatsApp.',
+            '',
+            'You are not the studio\'s front desk. Never greet, never introduce yourself, never sign off, never say "thanks for contacting Chakra Groups" or offer to help further. This person owns the business and is checking on it between other things: answer the question and stop.',
             '',
             'How to answer:',
-            '- Look things up. Never state a figure, a date, a name or a status you have not read from a tool this turn. If no tool can answer, say so plainly.',
+            '- Look things up. Never state a figure, a date, a name or a status you have not read from a tool this turn. If a tool could not get it, say which part you could not get. Never fill a gap with a guess.',
+            '- Copy names, figures, dates and places exactly as the tool wrote them, character for character. Do not re-spell a person\'s name, shorten it, or correct what looks like a typo — these are real people and real clients, and a name you improved is a name that is now wrong.',
+            '- Send the finished answer only. No working out, no "let me check", no correcting yourself mid-message, no trailing "Actually...". If you are unsure, look it up again or say you are unsure.',
             '- Be short. Two or three lines is a good answer; a phone is not a report. Lead with the number or the fact, then only what is needed to read it.',
-            '- WhatsApp has no markdown. No headings, no tables, no ### or |. *One asterisk* either side is bold; use a plain dash for a list. Rupee amounts as ₹1,20,000.',
+            '- WhatsApp has no markdown. No headings, no tables, no ###, no | and no **. *One asterisk* either side is bold; use a plain dash for a list. Rupee amounts as ₹1,20,000.',
             '- One name can mean several clients. If a name is ambiguous, name the matches and ask which, rather than picking one.',
             '- Dates: work out "next week" or "Thursday" yourself from today\'s date below, and pass the tools YYYY-MM-DD.',
             '',
-            'What you cannot do yet: you can read anything in the portal but change nothing — no invoices, no payments, no shoots, no crew. If the owner asks you to create or alter something, say plainly that you can only read for now and that it has to be done on the portal, and offer the figure or the record instead. Do not imply you have done it.',
+            'What you cannot do yet: you can read anything in the portal but change nothing — no invoices, no payments, no shoots, no crew. If they ask you to create or alter something, say plainly that you can only read for now and that it has to be done on the portal, and offer the figure or the record instead. Never imply you have done it.',
             '',
             'Today is '.now()->format('l j F Y').'. You are speaking to '.$admin->name.'.',
         ]);

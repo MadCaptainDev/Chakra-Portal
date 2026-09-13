@@ -16,11 +16,29 @@ use Illuminate\Database\QueryException;
  */
 class AiSetting extends Model
 {
-    /** What we call unless somebody chooses otherwise on the settings screen. */
-    public const DEFAULT_MODEL = 'claude-opus-5';
+    /**
+     * Groq serves an open model on a free tier; Anthropic bills per token.
+     * Groq is the default because the studio should not need a card on file
+     * to ask about its own invoices.
+     */
+    public const PROVIDER_GROQ = 'groq';
+
+    public const PROVIDER_ANTHROPIC = 'anthropic';
+
+    /**
+     * What each provider is called unless somebody types something else on
+     * the settings screen. A model id is provider-specific -- sending Groq a
+     * Claude id is a 404 -- so this is keyed by provider rather than being
+     * one constant.
+     */
+    public const DEFAULT_MODELS = [
+        self::PROVIDER_GROQ => 'openai/gpt-oss-120b',
+        self::PROVIDER_ANTHROPIC => 'claude-opus-5',
+    ];
 
     protected $fillable = [
         'api_key',
+        'provider',
         'model',
         'is_active',
         'daily_answer_limit',
@@ -74,9 +92,24 @@ class AiSetting extends Model
             ->count() >= $limit;
     }
 
+    public function providerName(): string
+    {
+        return array_key_exists((string) $this->provider, self::DEFAULT_MODELS)
+            ? (string) $this->provider
+            : self::PROVIDER_GROQ;
+    }
+
     public function modelName(): string
     {
-        return filled($this->model) ? $this->model : self::DEFAULT_MODEL;
+        return filled($this->model) ? $this->model : self::DEFAULT_MODELS[$this->providerName()];
+    }
+
+    /** Where the key comes from, for the settings screen to point at. */
+    public function keyConsoleUrl(): string
+    {
+        return $this->providerName() === self::PROVIDER_ANTHROPIC
+            ? 'console.anthropic.com'
+            : 'console.groq.com';
     }
 
     public function updatedBy(): BelongsTo

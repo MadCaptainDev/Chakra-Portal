@@ -65,29 +65,46 @@
                 @method('PUT')
 
                 <x-section-heading
-                    title="Anthropic key"
-                    subtitle="console.anthropic.com → API keys → Create key. Billing has to be set up on that account before any answer works." />
+                    title="Provider and key"
+                    subtitle="{{ $settings->keyConsoleUrl() }} → API keys → Create key." />
+
+                <div class="mb-4">
+                    <x-input-label for="provider" value="Provider" />
+                    <select id="provider" name="provider"
+                            class="mt-1 w-full rounded-md border-brand-100/20 bg-brand-900/40 text-white text-sm focus:border-brand-400 focus:ring-brand-400">
+                        <option value="groq" @selected(old('provider', $settings->providerName()) === 'groq')>Groq — free tier</option>
+                        <option value="anthropic" @selected(old('provider', $settings->providerName()) === 'anthropic')>Anthropic (Claude) — paid</option>
+                    </select>
+                    <x-input-error :messages="$errors->get('provider')" class="mt-2" />
+                    <p class="text-xs text-brand-100/60 mt-1">
+                        Groq costs nothing and has a daily request cap. Worth knowing: on a free tier the provider may
+                        use what is sent to improve their own products, and every question carries client names and
+                        balances. Anthropic bills per question and does not train on API traffic.
+                    </p>
+                </div>
 
                 <div class="mb-4">
                     <x-input-label for="api_key" value="API key" />
                     <x-text-input id="api_key" name="api_key" type="password" class="mt-1 w-full font-mono"
                                   autocomplete="new-password"
-                                  placeholder="{{ $keyed ? 'Saved — leave blank to keep it' : 'sk-ant-...' }}" />
+                                  placeholder="{{ $keyed ? 'Saved — leave blank to keep it' : 'gsk_... or sk-ant-...' }}" />
                     <x-input-error :messages="$errors->get('api_key')" class="mt-2" />
                     <p class="text-xs text-brand-100/60 mt-1">
-                        Stored encrypted and never shown again. Leaving this blank keeps the current one.
+                        Stored encrypted and never shown again. Leaving this blank keeps the current one — but a key
+                        belongs to one provider, so changing the provider above means pasting that provider's key here.
                     </p>
                 </div>
 
                 <div class="mb-4">
                     <x-input-label for="model" value="Model" />
                     <x-text-input id="model" name="model" type="text" class="mt-1 w-full font-mono"
-                                  :value="old('model', $settings->modelName())" />
+                                  :value="old('model', $settings->model)"
+                                  placeholder="{{ $settings->modelName() }}" />
                     <x-input-error :messages="$errors->get('model')" class="mt-2" />
                     <p class="text-xs text-brand-100/60 mt-1">
-                        <span class="font-mono">{{ \App\Models\AiSetting::DEFAULT_MODEL }}</span> unless you have a reason.
-                        A cheaper one — <span class="font-mono">claude-sonnet-5</span> — costs less per answer and is
-                        usually enough for looking figures up.
+                        Blank uses <span class="font-mono">{{ \App\Models\AiSetting::DEFAULT_MODELS[$settings->providerName()] }}</span>,
+                        which is the right answer unless you have a reason. A model id belongs to its provider —
+                        a Claude id sent to Groq is simply not found.
                     </p>
                 </div>
 

@@ -6,6 +6,7 @@ use App\Models\AdminAgentMessage;
 use App\Models\AiSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
@@ -47,7 +48,11 @@ class AiSettingController extends Controller
     {
         $validated = $request->validate([
             'api_key' => ['nullable', 'string', 'max:255'],
-            'model' => ['required', 'string', 'max:64'],
+            'provider' => ['required', 'string', Rule::in(array_keys(AiSetting::DEFAULT_MODELS))],
+            // Blank is allowed and means "whatever this provider's default
+            // is" -- see AiSetting::modelName(). Typing a model id is for
+            // the day a provider retires one.
+            'model' => ['nullable', 'string', 'max:64'],
             'is_active' => ['nullable', 'boolean'],
             'daily_answer_limit' => ['required', 'integer', 'min:0', 'max:10000'],
         ]);

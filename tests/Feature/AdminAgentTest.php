@@ -440,16 +440,20 @@ class AdminAgentTest extends TestCase
         $this->actingAs($admin)->get(route('ai.edit'))->assertOk()->assertSee('WhatsApp Assistant');
 
         $this->actingAs($admin)->put(route('ai.update'), [
-            'api_key' => 'sk-ant-pasted',
-            'model' => 'claude-opus-5',
+            'api_key' => 'gsk_pasted',
+            'provider' => 'groq',
+            'model' => '',
             'is_active' => '1',
             'daily_answer_limit' => 50,
         ])->assertRedirect(route('ai.edit'));
 
         $settings = AiSetting::current()->fresh();
-        $this->assertSame('sk-ant-pasted', $settings->api_key);
+        $this->assertSame('gsk_pasted', $settings->api_key);
         $this->assertTrue($settings->is_active);
         $this->assertSame(50, $settings->daily_answer_limit);
+        // Blank model means whatever this provider's default is, rather than
+        // an empty string sent to the API as a model id.
+        $this->assertSame(AiSetting::DEFAULT_MODELS['groq'], $settings->modelName());
     }
 
     public function test_a_blank_key_keeps_the_one_already_on_file(): void
@@ -461,6 +465,7 @@ class AdminAgentTest extends TestCase
         // changing the model must not silently unkey the assistant.
         $this->actingAs($admin)->put(route('ai.update'), [
             'api_key' => '',
+            'provider' => 'anthropic',
             'model' => 'claude-sonnet-5',
             'is_active' => '1',
             'daily_answer_limit' => 100,
@@ -469,6 +474,18 @@ class AdminAgentTest extends TestCase
         $settings = AiSetting::current()->fresh();
         $this->assertSame('sk-ant-test', $settings->api_key);
         $this->assertSame('claude-sonnet-5', $settings->model);
+        $this->assertSame('anthropic', $settings->providerName());
+    }
+
+    public function test_an_unknown_provider_is_refused(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->put(route('ai.update'), [
+            'provider' => 'some-other-shop',
+            'model' => '',
+            'daily_answer_limit' => 100,
+        ])->assertSessionHasErrors('provider');
     }
 
     public function test_removing_the_key_also_switches_it_off(): void
@@ -520,5 +537,60 @@ class AdminAgentTest extends TestCase
                 );
             }
         }
+    }
+    // ——— When the model mangles its own answer ———
+
+    public function test_a_mangled_reply_is_replaced_by_the_figures_it_was_summarising(): void
+    {
+        $this->keyed();
+        $admin = $this->admin();
+        $client = Client::factory()->create(['name' => 'Janet Hospitals']);
+        Invoice::factory()->create([
+            'client_id' => $client->id,
+            'total' => 40000,
+            'status' => Invoice::STATUS_UNPAID,
+            'due_date' => today()->subDays(40),
+        ]);
+
+        // Exactly what the free tier really sent once: the answer gives up
+        // mid-word, with a zero-width space where it stopped.
+        $this->model
+            ->willCall([['name' => 'overdue_invoices']])
+            ->willSay("2 overdue — total ₹40,000\n- Janet Hospitals — ₹7,500, 40 days late\n- Digital Harvest (Jan\u{200B} …\u{200B}...");
+
+        app(AdminAgent::class)->answer($admin, '917094126823', 'anything overdue?');
+
+        // The tools were written for the owner menu, so the fallback is a
+        // plainer answer rather than an apology.
+        $sent = $this->sent()[0];
+        $this->assertStringContainsString('Janet Hospitals', $sent);
+        $this->assertStringNotContainsString('…', $sent);
+        $this->assertSame(0, preg_match('/[\x{200B}-\x{200D}\x{FEFF}]/u', $sent));
+    }
+
+    public function test_a_mangled_reply_with_nothing_looked_up_says_so(): void
+    {
+        $this->keyed();
+        $admin = $this->admin();
+        $this->model->willSay("Sure, I can\u{200B}…");
+
+        app(AdminAgent::class)->answer($admin, '917094126823', 'hello');
+
+        // Nothing to fall back to, so the invisible characters still go and
+        // the owner is not handed half a sentence as if it were an answer.
+        $this->assertSame(0, preg_match('/[\x{200B}-\x{200D}\x{FEFF}]/u', $this->sent()[0]));
+    }
+
+    public function test_invisible_characters_are_stripped_from_a_sound_reply_too(): void
+    {
+        $this->keyed();
+        $admin = $this->admin();
+        $this->model->willSay("Collected \u{200B}₹1,05,000 this month.   ");
+
+        app(AdminAgent::class)->answer($admin, '917094126823', 'how are we doing?');
+
+        // Invisible on the phone, and it breaks search and copy-paste for
+        // whoever reads the thread later.
+        $this->assertSame('Collected ₹1,05,000 this month.', $this->sent()[0]);
     }
 }
