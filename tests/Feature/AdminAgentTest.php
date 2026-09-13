@@ -356,7 +356,7 @@ class AdminAgentTest extends TestCase
 
         $this->model
             ->willCall([['name' => 'money_summary']])
-            ->willSay('Collected ₹1,20,000 so far.')
+            ->willSay('Nothing outstanding at the moment.')
             ->willSay('Yes, that was this month.');
 
         app(AdminAgent::class)->answer($admin, '917094126823', 'how are we doing?');
@@ -368,7 +368,7 @@ class AdminAgentTest extends TestCase
         $conversation = $this->model->calls[2]['messages'];
         $this->assertCount(3, $conversation);
         $this->assertSame('how are we doing?', $conversation[0]['said']);
-        $this->assertSame('Collected ₹1,20,000 so far.', $conversation[1]['turn']->text);
+        $this->assertSame('Nothing outstanding at the moment.', $conversation[1]['turn']->text);
         $this->assertSame('this month?', $conversation[2]['said']);
         $this->assertSame([], collect($conversation)->filter(fn ($m) => isset($m['ran']))->all());
     }
@@ -581,17 +581,17 @@ class AdminAgentTest extends TestCase
         $this->assertSame(0, preg_match('/[\x{200B}-\x{200D}\x{FEFF}]/u', $this->sent()[0]));
     }
 
-    public function test_invisible_characters_are_stripped_from_a_sound_reply_too(): void
+    public function test_a_sound_reply_is_tidied_rather_than_replaced(): void
     {
         $this->keyed();
         $admin = $this->admin();
-        $this->model->willSay("Collected \u{200B}₹1,05,000 this month.   ");
+        $this->model->willSay("Everything looks in order.   \n  ");
 
         app(AdminAgent::class)->answer($admin, '917094126823', 'how are we doing?');
 
-        // Invisible on the phone, and it breaks search and copy-paste for
-        // whoever reads the thread later.
-        $this->assertSame('Collected ₹1,05,000 this month.', $this->sent()[0]);
+        // Trailing whitespace off, and the words themselves left alone: only
+        // a reply that fails a check gets replaced.
+        $this->assertSame('Everything looks in order.', $this->sent()[0]);
     }
     // ——— Reading anything ———
 
@@ -750,5 +750,99 @@ class AdminAgentTest extends TestCase
         (new AnswerAdminOnWhatsapp('917094126823', $admin->id, 'how are we doing?'))->failed(new RuntimeException('nope'));
 
         $this->assertStringContainsString("couldn't get to that", implode("\n", $this->sent()));
+    }
+    // ——— Figures it did not read ———
+
+    /** An overdue invoice whose balance is a figure worth getting right. */
+    private function overdueInvoice(int $total = 32500): void
+    {
+        $client = Client::factory()->create(['name' => 'Janet Hospitals']);
+        Invoice::factory()->create([
+            'client_id' => $client->id,
+            'total' => $total,
+            'status' => Invoice::STATUS_UNPAID,
+            'due_date' => today()->subDays(9),
+        ]);
+    }
+
+    public function test_a_single_wrong_digit_in_a_rupee_figure_is_not_sent(): void
+    {
+        $this->keyed();
+        $admin = $this->admin();
+        $this->overdueInvoice(32500);
+
+        // Exactly what the live model did: read ₹32,500 off the tool and
+        // wrote ₹32,000. One digit, in a message about money somebody owes.
+        $this->model
+            ->willCall([['name' => 'overdue_invoices']])
+            ->willSay('1 overdue — Janet Hospitals owes ₹32,000.');
+
+        app(AdminAgent::class)->answer($admin, '917094126823', 'anything overdue?');
+
+        $sent = $this->sent()[0];
+        $this->assertStringNotContainsString('32,000', $sent);
+        $this->assertStringContainsString('32,500', $sent);
+    }
+
+    public function test_a_figure_that_matches_the_lookup_is_sent_as_written(): void
+    {
+        $this->keyed();
+        $admin = $this->admin();
+        $this->overdueInvoice(32500);
+
+        $this->model
+            ->willCall([['name' => 'overdue_invoices']])
+            ->willSay('Janet Hospitals is ₹32,500 overdue.');
+
+        app(AdminAgent::class)->answer($admin, '917094126823', 'anything overdue?');
+
+        // The guard must not cost a correct answer its wording.
+        $this->assertSame('Janet Hospitals is ₹32,500 overdue.', $this->sent()[0]);
+    }
+
+    public function test_lakh_grouping_is_not_mistaken_for_a_different_number(): void
+    {
+        $this->keyed();
+        $admin = $this->admin();
+
+        $this->model
+            ->willCall([['name' => 'run_query', 'input' => ['sql' => 'SELECT 105000 AS collected']]])
+            ->willSay('₹1,05,000 collected.');
+
+        app(AdminAgent::class)->answer($admin, '917094126823', 'how much came in?');
+
+        // 105000, ₹105,000 and ₹1,05,000 are one number, and the studio
+        // writes the third one.
+        $this->assertSame('₹1,05,000 collected.', $this->sent()[0]);
+    }
+
+    public function test_arithmetic_the_owner_asked_for_is_left_alone(): void
+    {
+        $this->keyed();
+        $admin = $this->admin();
+
+        $this->model
+            ->willCall([['name' => 'run_query', 'input' => ['sql' => 'SELECT 42500 AS paid']]])
+            ->willSay('Suryas paid ₹42,500 — about 40% of the month, roughly 9 hours 30 minutes of work.');
+
+        app(AdminAgent::class)->answer($admin, '917094126823', 'who paid most?');
+
+        // Percentages and unit conversions are the answers he asked for.
+        // Only rupee amounts have to have been read from a tool.
+        $this->assertStringContainsString('40%', $this->sent()[0]);
+        $this->assertStringContainsString('9 hours 30 minutes', $this->sent()[0]);
+    }
+
+    public function test_money_stated_with_no_lookup_at_all_is_refused(): void
+    {
+        $this->keyed();
+        $admin = $this->admin();
+        $this->model->willSay('You collected ₹3,00,000 this month.');
+
+        app(AdminAgent::class)->answer($admin, '917094126823', 'how much did we collect?');
+
+        // Nothing was looked up, so there is nothing behind that figure.
+        $this->assertStringNotContainsString('3,00,000', $this->sent()[0]);
+        $this->assertStringContainsString('Ask me again', $this->sent()[0]);
     }
 }

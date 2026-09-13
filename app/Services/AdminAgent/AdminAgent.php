@@ -115,7 +115,7 @@ class AdminAgent
 
         $calls = [];
         $turn = null;
-        $lastGoodLookup = null;
+        $lookups = [];
 
         for ($step = 0; $step < self::MAX_STEPS; $step++) {
             $turn = $this->model->reply($system, $conversation, $definitions);
@@ -132,12 +132,13 @@ class AdminAgent
 
                 $calls[] = ['name' => $call['name'], 'input' => $call['input'], 'failed' => $ran['failed']];
 
-                // Kept because the tools already write for a phone -- they
-                // were written for the owner menu. If the model mangles its
-                // summary of this, the figures themselves are a better answer
-                // than an apology. See bodyFor().
+                // Kept for two jobs, both in bodyFor(): they are what the
+                // reply is checked against before it is sent, and they are
+                // what gets sent instead when the reply does not survive that
+                // check. The tools already write for a phone -- they were
+                // written for the owner menu.
                 if (! $ran['failed']) {
-                    $lastGoodLookup = $ran['output'];
+                    $lookups[] = $ran['output'];
                 }
 
                 $results[] = [
@@ -154,7 +155,7 @@ class AdminAgent
             $turn = null;
         }
 
-        $body = $this->bodyFor($turn, $calls, $lastGoodLookup);
+        $body = $this->bodyFor($turn, $calls, $lookups);
 
         $this->remember($waId, $admin, AdminAgentMessage::ROLE_ASSISTANT, $body, $calls, $turn);
 
@@ -174,7 +175,7 @@ class AdminAgent
      *
      * @param  list<array<string, mixed>>  $calls
      */
-    private function bodyFor(?ModelTurn $turn, array $calls, ?string $lastGoodLookup = null): string
+    private function bodyFor(?ModelTurn $turn, array $calls, array $lookups = []): string
     {
         if ($turn === null) {
             return $calls === []
@@ -202,14 +203,109 @@ class AdminAgent
         if (self::looksMangled($turn->text)) {
             Log::warning('Admin assistant discarded a mangled reply.', ['reply' => $turn->text]);
 
-            if (filled($lastGoodLookup)) {
-                return self::tidy($lastGoodLookup);
-            }
+            return $this->insteadOfTheReply($lookups);
+        }
+
+        /*
+         * The one error worth this much machinery. Asked what was overdue,
+         * the model read "₹32,500" off the tool and wrote "₹32,000" -- one
+         * digit, silently, in a message about money somebody is owed. It
+         * survived temperature zero and it survived being told twice to copy
+         * figures exactly, because nothing in a language model guarantees the
+         * token it copies is the token it read.
+         *
+         * So it is checked rather than asked for: every rupee amount in the
+         * reply must appear in something a tool returned this turn. Only
+         * rupee amounts -- a percentage or "9 hours 30 minutes" is arithmetic
+         * the model is supposed to be doing, and those are the answers the
+         * owner asked for.
+         */
+        if (self::inventsMoney($turn->text, $lookups)) {
+            Log::warning('Admin assistant stated a figure no tool returned.', [
+                'reply' => $turn->text,
+                'lookups' => $lookups,
+            ]);
+
+            return $this->insteadOfTheReply($lookups);
         }
 
         return filled($turn->text)
             ? self::tidy($turn->text)
             : "I didn't have anything to add there. Type *menu* for the usual figures.";
+    }
+
+    /**
+     * What to send when the reply itself cannot be trusted.
+     *
+     * The last thing a tool returned, which is the answer in plainer words --
+     * these tools were written for the owner menu and read fine on a phone.
+     * Failing that, a sentence, because a wrong figure is worse than none and
+     * silence is worse than both.
+     *
+     * @param  list<string>  $lookups
+     */
+    private function insteadOfTheReply(array $lookups): string
+    {
+        $last = end($lookups);
+
+        // Tested for as a string rather than with filled(): end() answers
+        // `false` on an empty array, and `filled(false)` is true -- which
+        // sends an empty WhatsApp message, the one outcome worse than a
+        // wrong figure.
+        return is_string($last) && trim($last) !== ''
+            ? self::tidy($last)
+            : "I couldn't put that together reliably. Ask me again, or type *menu*.";
+    }
+
+    /**
+     * Whether the reply states a rupee amount that no tool produced.
+     *
+     * Compared as bare digits, so ₹1,05,000 and ₹105,000 and 105000 are one
+     * number -- the studio's own lakh grouping must not read as a mismatch.
+     *
+     * @param  list<string>  $lookups
+     */
+    private static function inventsMoney(string $text, array $lookups): bool
+    {
+        preg_match_all('/₹\s*([\d.,]+)/u', $text, $stated);
+
+        $stated = array_filter(array_map(self::digits(...), $stated[1] ?? []));
+
+        if ($stated === []) {
+            return false;
+        }
+
+        $known = [];
+
+        foreach ($lookups as $lookup) {
+            preg_match_all('/\d[\d.,]*/', (string) $lookup, $numbers);
+            $known = array_merge($known, array_map(self::digits(...), $numbers[0] ?? []));
+        }
+
+        foreach ($stated as $amount) {
+            if (! in_array($amount, $known, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * A number as the digits it is made of.
+     *
+     * Grouping separators go, so ₹1,05,000 and ₹105,000 are one number. A
+     * decimal tail goes only when it is zeroes -- 32500.00 and 32500 are the
+     * same money, while 32.5 and 325 are not, and collapsing those would let
+     * the error this exists to catch straight through.
+     */
+    private static function digits(string $number): string
+    {
+        if (str_contains($number, '.')) {
+            $number = rtrim(rtrim($number, '0'), '.');
+        }
+
+        return (string) preg_replace('/\D/', '', $number);
     }
 
     /**
