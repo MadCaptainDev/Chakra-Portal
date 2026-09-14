@@ -2,6 +2,10 @@
 
 namespace App\Support;
 
+use App\Models\Enquiry;
+use App\Models\RoutineOccurrence;
+use App\Models\WhatsappConversation;
+
 /**
  * The registry of what can be granted.
  *
@@ -165,7 +169,7 @@ class Permission
              * Enquiries to a producer gave them the screen but not the one cue
              * that tells them to open it.
              */
-            'badge' => [\App\Models\Enquiry::class, 'unreadCount'],
+            'badge' => [Enquiry::class, 'unreadCount'],
             'abilities' => ['view', 'edit', 'delete', 'manage'],
         ],
         'announcements' => [
@@ -205,7 +209,7 @@ class Permission
             'label' => 'Routines',
             'group' => 'Production',
             'icon' => 'refresh',
-            'badge' => [\App\Models\RoutineOccurrence::class, 'overdueCount'],
+            'badge' => [RoutineOccurrence::class, 'overdueCount'],
             'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
         /*
@@ -232,6 +236,19 @@ class Permission
          * EMIs would mean anyone who reconciles the electricity bill also
          * learns the payroll.
          */
+        /*
+         * Effort against revenue, who pays late, and what is off right now.
+         * Reads across every client's money and every person's hours, which
+         * is why it has only `view` and why nobody but an admin gets it: an
+         * effective hourly rate per client is not a Timesheets-permission
+         * kind of number.
+         */
+        'insights' => [
+            'label' => 'Insights',
+            'group' => 'Finance',
+            'icon' => 'trending-up',
+            'abilities' => ['view'],
+        ],
         'invoices' => [
             'label' => 'Invoices',
             'group' => 'Finance',
@@ -292,7 +309,7 @@ class Permission
             'label' => 'WhatsApp CRM',
             'group' => 'Marketing',
             'icon' => 'chat',
-            'badge' => [\App\Models\WhatsappConversation::class, 'unreadCount'],
+            'badge' => [WhatsappConversation::class, 'unreadCount'],
             'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
     ];

@@ -28,25 +28,23 @@ use App\Http\Controllers\CompetitorSettingController;
 use App\Http\Controllers\ContentAccountController;
 use App\Http\Controllers\ContentDashboardController;
 use App\Http\Controllers\ContentItemAssignmentController;
-use App\Http\Controllers\DeliveryController;
-use App\Http\Controllers\ForecastController;
-use App\Http\Controllers\ScriptCommentController;
-use App\Http\Controllers\ShootCalendarController;
-use App\Http\Controllers\WorkloadController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardLayoutController;
 use App\Http\Controllers\DashboardWidgetController;
+use App\Http\Controllers\DeliveryController;
 use App\Http\Controllers\DeveloperController;
 use App\Http\Controllers\EditorOutputController;
 use App\Http\Controllers\EmiController;
 use App\Http\Controllers\EnquiryController;
 use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\ForecastController;
+use App\Http\Controllers\GoogleKeepImportController;
+use App\Http\Controllers\InsightsController;
 use App\Http\Controllers\InstagramConnectionController;
 use App\Http\Controllers\InstagramInsightsController;
 use App\Http\Controllers\InstagramSettingController;
 use App\Http\Controllers\InvoiceController;
-use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\InvoiceTemplateController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\McpTokenController;
@@ -68,20 +66,22 @@ use App\Http\Controllers\PortfolioItemController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicBriefController;
 use App\Http\Controllers\PublicInvoiceController;
-use App\Http\Controllers\PublicQuotationController;
 use App\Http\Controllers\PublicPortfolioController;
+use App\Http\Controllers\PublicQuotationController;
 use App\Http\Controllers\PushSettingController;
 use App\Http\Controllers\PushTokenController;
+use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\RecurringInvoiceController;
 use App\Http\Controllers\RoutineCalendarController;
 use App\Http\Controllers\RoutineCheckingController;
 use App\Http\Controllers\RoutineController;
 use App\Http\Controllers\SaasProductController;
 use App\Http\Controllers\SalaryController;
-use App\Http\Controllers\GoogleKeepImportController;
+use App\Http\Controllers\ScriptCommentController;
 use App\Http\Controllers\ScriptController;
 use App\Http\Controllers\ScriptSectionController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\ShootCalendarController;
 use App\Http\Controllers\ShootController;
 use App\Http\Controllers\ShootCrewController;
 use App\Http\Controllers\ShootKitController;
@@ -104,6 +104,7 @@ use App\Http\Controllers\WhatsappPhonebookController;
 use App\Http\Controllers\WhatsappQuickReplyController;
 use App\Http\Controllers\WhatsappSettingController;
 use App\Http\Controllers\WhatsappTemplateController;
+use App\Http\Controllers\WorkloadController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 
@@ -824,6 +825,14 @@ Route::middleware(['auth', 'module:timesheets,view'])->group(function () {
  * what generates any recurring invoices that have fallen due -- see the
  * middleware for why it is not a scheduled job.
  */
+/*
+ * Effort against revenue, payment habits, and what needs attention right now.
+ * One screen, three questions, and nothing recorded to answer them -- it reads
+ * timesheets, invoices and payments that were already there.
+ */
+Route::middleware(['auth', 'module:insights,view'])->group(function () {
+    Route::get('insights', [InsightsController::class, 'index'])->name('insights.index');
+});
 Route::middleware(['auth', 'module:invoices,view', 'recurring.catchup'])->group(function () {
     Route::get('invoices/quantity-variables/preview', [InvoiceController::class, 'previewQuantityVariables'])
         ->name('invoices.quantity-variables.preview');

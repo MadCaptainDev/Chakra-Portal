@@ -4,8 +4,10 @@ namespace App\Support;
 
 use App\Models\Client;
 use App\Models\ContentItem;
+use App\Models\TaxonomyTerm;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\In;
 
 /**
  * Client ↔ timesheet venture is one concept.
@@ -78,8 +80,8 @@ class TimesheetVenture
     public static function customVentures(): Collection
     {
         try {
-            return \App\Models\TaxonomyTerm::query()
-                ->where('type', \App\Models\TaxonomyTerm::TYPE_VENTURE)
+            return TaxonomyTerm::query()
+                ->where('type', TaxonomyTerm::TYPE_VENTURE)
                 ->where('is_active', true)
                 ->orderBy('sort_order')
                 ->orderBy('name')
@@ -110,10 +112,10 @@ class TimesheetVenture
             }
         }
 
-        \App\Models\TaxonomyTerm::create([
-            'type' => \App\Models\TaxonomyTerm::TYPE_VENTURE,
+        TaxonomyTerm::create([
+            'type' => TaxonomyTerm::TYPE_VENTURE,
             'name' => $name,
-            'slug' => \App\Models\TaxonomyTerm::uniqueSlug(\App\Models\TaxonomyTerm::TYPE_VENTURE, $name),
+            'slug' => TaxonomyTerm::uniqueSlug(TaxonomyTerm::TYPE_VENTURE, $name),
             'is_active' => true,
         ]);
 
@@ -132,7 +134,7 @@ class TimesheetVenture
     }
 
     /**
-     * @return list<string|\Illuminate\Validation\Rules\In>
+     * @return list<string|In>
      */
     public static function validationRules(): array
     {
@@ -205,6 +207,67 @@ class TimesheetVenture
         return $value === '' ? null : $value;
     }
 
+    /**
+     * The client a venture belongs to, or null.
+     *
+     * The reverse of canonicalForClient(), and the thing that lets the hours
+     * somebody logged be set beside the money that client was invoiced.
+     * Without it the two can only be joined by hoping the spellings match,
+     * which they do not: "Surya's Restaurant" on a timesheet and "Suryas
+     * Groups of Companies" on an invoice are one customer and share not a
+     * single matching word.
+     *
+     * Goes through normalize() first, so a historical free-text spelling
+     * lands on the same client the timesheet screens would put it on. A
+     * venture that is not a client at all -- ALL_CLIENTS, or an internal
+     * project somebody added -- is null rather than a guess, and a report
+     * showing it says "not a client" rather than quietly dropping the hours.
+     */
+    public static function clientIdFor(?string $venture): ?int
+    {
+        $canonical = self::normalize($venture);
+
+        if ($canonical === null || $canonical === self::ALL_CLIENTS) {
+            return null;
+        }
+
+        return self::clientIdsByVenture()[self::fold($canonical)] ?? null;
+    }
+
+    /**
+     * Every client's canonical venture, folded, pointing at its id.
+     *
+     * Built once per request from the same clients() memo the rest of this
+     * class uses, because a report asks this once per row and a query per row
+     * is how a page that reads a year of timesheets takes a minute.
+     *
+     * @return array<string, int>
+     */
+    public static function clientIdsByVenture(): array
+    {
+        if (! app()->bound(self::VENTURE_CLIENT_CACHE)) {
+            $map = [];
+
+            foreach (self::clients() as $client) {
+                $canonical = self::canonicalForClient($client);
+
+                if ($canonical !== null) {
+                    // First spelling wins: two clients sharing a venture name
+                    // is a data problem to fix in Clients, not one for a
+                    // report to arbitrate silently every time it runs.
+                    $map[self::fold($canonical)] ??= (int) $client->id;
+                }
+            }
+
+            app()->instance(self::VENTURE_CLIENT_CACHE, $map);
+        }
+
+        return app()->make(self::VENTURE_CLIENT_CACHE);
+    }
+
+    /** Where the request-lifetime memo of the venture→client map lives. */
+    private const VENTURE_CLIENT_CACHE = 'timesheet-venture.client-ids';
+
     /** Where the request-lifetime memo of the client list lives. */
     private const CLIENT_CACHE = 'timesheet-venture.clients';
 
@@ -215,6 +278,7 @@ class TimesheetVenture
     public static function forgetClients(): void
     {
         app()->forgetInstance(self::CLIENT_CACHE);
+        app()->forgetInstance(self::VENTURE_CLIENT_CACHE);
     }
 
     /**
