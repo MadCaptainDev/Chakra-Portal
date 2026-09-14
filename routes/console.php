@@ -93,3 +93,14 @@ Schedule::command('shoots:send-missing-content-alerts')->dailyAt('09:00')->timez
 // went out". All three depend entirely on schedule:run actually firing,
 // same as everything else in this file -- see the comment at the top and
 // the Hostinger PHP environment memory note on adding the real cron entry.
+
+/*
+ * The studio's morning on the owner's phone, before the push digest below it
+ * and before anybody opens a laptop. Half past seven rather than eight: the
+ * point of it is to be read before the day starts, not during it.
+ *
+ * Only reaches admins whose 24-hour WhatsApp window is open -- see
+ * SendMorningBrief's own doc block for why that is a skip rather than a
+ * failure.
+ */
+Schedule::command('whatsapp:morning-brief')->dailyAt('07:30')->timezone(config('app.timezone'));

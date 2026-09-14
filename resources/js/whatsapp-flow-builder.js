@@ -155,6 +155,7 @@ const NODE_TYPES = {
                     ['overdue', 'Overdue invoices'],
                     ['todays_shoots', "Today's shoots"],
                     ['timesheet_gaps', "Who hasn't logged"],
+                    ['brief', 'Morning brief (all four)'],
                 ],
                 default: 'money',
             },

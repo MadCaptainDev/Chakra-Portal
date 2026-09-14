@@ -29,6 +29,7 @@ class AdminActionNode implements NodeHandler
             'overdue' => AdminPortal::overdue(),
             'todays_shoots' => AdminPortal::todaysShoots(),
             'timesheet_gaps' => AdminPortal::timesheetGaps(),
+            'brief' => AdminPortal::brief(),
             default => throw new RuntimeException('Choose what this Admin Action node should send.'),
         };
 

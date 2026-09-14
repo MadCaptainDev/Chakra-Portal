@@ -100,7 +100,7 @@ class DrawflowGraphTranslator
             'outputs' => 1,
             'fields' => [
                 ['key' => 'body', 'label' => 'Message', 'type' => 'textarea', 'cast' => 'string', 'placeholder' => 'What can we help with?'],
-                ['key' => 'rows', 'label' => 'Options (one per line: id|Title|Description)', 'type' => 'textarea', 'cast' => 'list_rows', 'placeholder' => "1|Invoices|Your recent bills"],
+                ['key' => 'rows', 'label' => 'Options (one per line: id|Title|Description)', 'type' => 'textarea', 'cast' => 'list_rows', 'placeholder' => '1|Invoices|Your recent bills'],
                 ['key' => 'button', 'label' => 'Button label', 'type' => 'text', 'cast' => 'list_button', 'default' => 'Select Option', 'placeholder' => 'Select Option'],
                 ['key' => 'header', 'label' => 'Header (optional)', 'type' => 'text', 'cast' => 'string'],
                 ['key' => 'footer', 'label' => 'Footer (optional)', 'type' => 'text', 'cast' => 'string'],
@@ -196,6 +196,7 @@ class DrawflowGraphTranslator
                         'overdue' => 'Overdue invoices',
                         'todays_shoots' => "Today's shoots",
                         'timesheet_gaps' => "Who hasn't logged",
+                        'brief' => 'Morning brief (all four)',
                     ],
                 ],
             ],

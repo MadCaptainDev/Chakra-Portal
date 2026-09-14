@@ -9,7 +9,7 @@ use App\Models\TimesheetEntry;
 use App\Models\User;
 use App\Models\WhatsappFlowSession;
 use App\Services\WhatsappSender;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * The owner's cut of the WhatsApp portal: the four questions somebody
@@ -138,15 +138,7 @@ class AdminPortal
     public static function timesheetGaps(): string
     {
         $day = today()->subDay();
-
-        $logged = TimesheetEntry::query()
-            ->whereDate('worked_on', $day->toDateString())
-            ->counted()
-            ->pluck('user_id')
-            ->unique();
-
-        $missing = User::query()->whoLogWork()->orderBy('name')->get()
-            ->reject(fn (User $user) => $logged->contains($user->id));
+        $missing = self::didNotLogYesterday();
 
         if ($missing->isEmpty()) {
             return 'Everyone logged '.$day->format('D j M').'.';
@@ -154,8 +146,91 @@ class AdminPortal
 
         return implode("\n", array_merge(
             [$missing->count().' did not log '.$day->format('D j M').':', ''],
-            $missing->map(fn (User $user) => '• '.$user->name)->all(),
+            $missing->map(fn (string $name) => '• '.$name)->all(),
         ));
+    }
+
+    /**
+     * The whole morning in one message: money, what is late, what is on, who
+     * did not log.
+     *
+     * One message rather than four, because this one is not asked for -- it
+     * arrives at eight in the morning whether or not anybody wanted it, and a
+     * thing that arrives uninvited gets one notification, not four.
+     *
+     * Every line is the same figure the menu and the dashboard give, computed
+     * by the same methods; this only puts them next to each other. A line with
+     * nothing to say is left out entirely rather than saying "nothing" four
+     * times -- a brief that is three lines on a quiet day is one somebody
+     * keeps reading.
+     */
+    public static function brief(): string
+    {
+        $month = now()->startOfMonth();
+        $collected = (float) Payment::whereBetween('paid_on', [$month, now()->endOfMonth()])->sum('amount');
+
+        $unpaid = Invoice::unpaid()->with('payments')->get();
+        $outstanding = $unpaid->sum(fn (Invoice $invoice) => $invoice->balanceDue());
+        $overdue = $unpaid->filter(fn (Invoice $invoice) => $invoice->isOverdue());
+
+        $shoots = Shoot::query()
+            ->whereBetween('starts_at', [today()->startOfDay(), today()->endOfDay()])
+            ->with('crew')
+            ->orderBy('starts_at')
+            ->get();
+
+        $lines = ['*'.now()->format('l j F').'*', ''];
+
+        foreach ($shoots as $shoot) {
+            $lines[] = '• '.$shoot->title.self::whenSuffix($shoot)
+                .($shoot->crew->isEmpty() ? ' — *nobody crewed*' : '');
+        }
+
+        if ($shoots->isEmpty()) {
+            $lines[] = 'Nothing shooting today.';
+        }
+
+        $lines[] = '';
+        $lines[] = 'Collected this month: '.self::money_($collected);
+        $lines[] = 'Outstanding: '.self::money_($outstanding)
+            .($overdue->isNotEmpty()
+                ? ', of which '.self::money_($overdue->sum(fn (Invoice $invoice) => $invoice->balanceDue()))
+                    .' is overdue'
+                : '');
+
+        $missing = self::didNotLogYesterday();
+
+        if ($missing->isNotEmpty()) {
+            $lines[] = '';
+            $lines[] = 'Did not log '.today()->subDay()->format('D').': '.$missing->implode(', ');
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Who has not logged yesterday, as names.
+     *
+     * Pulled out of timesheetGaps() so the brief can say them on one line
+     * while the menu keeps its own bulleted answer -- two wordings of one
+     * question, and only one place that decides who is in it.
+     *
+     * @return Collection<int, string>
+     */
+    private static function didNotLogYesterday()
+    {
+        $day = today()->subDay();
+
+        $logged = TimesheetEntry::query()
+            ->whereDate('worked_on', $day->toDateString())
+            ->counted()
+            ->pluck('user_id')
+            ->unique();
+
+        return User::query()->whoLogWork()->orderBy('name')->get()
+            ->reject(fn (User $user) => $logged->contains($user->id))
+            ->map(fn (User $user) => $user->name)
+            ->values();
     }
 
     public static function sendToSession(WhatsappFlowSession $session, string $body): void
