@@ -1,13 +1,10 @@
 <?php
 
-namespace App\Mcp\Tools;
+namespace App\Tools;
 
-use App\Mcp\McpToolException;
-use App\Mcp\Tool;
 use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
 use App\Models\User;
-
 use Illuminate\Support\Carbon;
 use Throwable;
 
@@ -64,7 +61,7 @@ class LogTimesheetEntry extends Tool
             ?? (int) ($arguments['minutes'] ?? 0);
 
         if ($minutes <= 0) {
-            throw new McpToolException('That entry has no duration. Give start and end times, or minutes.');
+            throw new ToolException('That entry has no duration. Give start and end times, or minutes.');
         }
 
         $entry = new TimesheetEntry([
@@ -109,11 +106,11 @@ class LogTimesheetEntry extends Tool
         try {
             $day = Carbon::parse($value)->startOfDay();
         } catch (Throwable) {
-            throw new McpToolException('That date could not be read. Use YYYY-MM-DD.');
+            throw new ToolException('That date could not be read. Use YYYY-MM-DD.');
         }
 
         if ($day->gt(today())) {
-            throw new McpToolException('That day has not happened yet. A timesheet records work already done.');
+            throw new ToolException('That day has not happened yet. A timesheet records work already done.');
         }
 
         return $day;

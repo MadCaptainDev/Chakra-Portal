@@ -1,9 +1,7 @@
 <?php
 
-namespace App\Mcp\Tools;
+namespace App\Tools;
 
-use App\Mcp\McpToolException;
-use App\Mcp\Tool;
 use App\Models\Todo;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -92,7 +90,7 @@ class ListTodos extends Tool
         try {
             return Carbon::parse($value)->startOfDay();
         } catch (Throwable) {
-            throw new McpToolException('That date could not be read. Use YYYY-MM-DD.');
+            throw new ToolException('That date could not be read. Use YYYY-MM-DD.');
         }
     }
 }

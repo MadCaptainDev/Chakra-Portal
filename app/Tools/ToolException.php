@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Mcp;
+namespace App\Tools;
 
 use RuntimeException;
 
@@ -11,4 +11,4 @@ use RuntimeException;
  * colleague would say -- what went wrong and what would work instead -- not
  * like a stack trace.
  */
-class McpToolException extends RuntimeException {}
+class ToolException extends RuntimeException {}

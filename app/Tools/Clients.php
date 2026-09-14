@@ -1,8 +1,7 @@
 <?php
 
-namespace App\Mcp\Tools;
+namespace App\Tools;
 
-use App\Mcp\McpToolException;
 use App\Support\TimesheetVenture;
 
 /**
@@ -46,7 +45,7 @@ class Clients
             }
         }
 
-        throw new McpToolException(
+        throw new ToolException(
             'There is no client called "'.$needle.'". The ones on file are: '.implode(', ', $allowed).'.'
         );
     }

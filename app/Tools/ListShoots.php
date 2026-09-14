@@ -1,8 +1,7 @@
 <?php
 
-namespace App\Mcp\Tools;
+namespace App\Tools;
 
-use App\Mcp\Tool;
 use App\Models\Shoot;
 use App\Models\User;
 

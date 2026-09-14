@@ -1,22 +1,21 @@
 <?php
 
-namespace App\Services\AdminAgent\Tools;
+namespace App\Tools;
 
 use App\Models\Client;
 use App\Models\Invoice;
 use App\Models\User;
-use App\Services\AdminAgent\Tool;
 
 /**
  * Who a name refers to, and where they stand.
  *
- * The tool the model reaches for first when the admin says a name, because a
- * name on WhatsApp is never an id: "how much does Saravana owe" has to become
- * a client row before any figure means anything. Returning several matches
- * with their ids is on purpose -- the model can then ask which one rather
- * than quietly answering about the wrong Saravana.
+ * The tool to reach for first when somebody says a name, because a name is
+ * never an id: "how much does Saravana owe" has to become a client row before
+ * any figure means anything. Several matches come back with their ids on
+ * purpose -- the model can then ask which, rather than quietly answering about
+ * the wrong Saravana.
  */
-class FindClientTool implements Tool
+class FindClient extends Tool
 {
     private const LIMIT = 6;
 
@@ -25,27 +24,28 @@ class FindClientTool implements Tool
         return 'find_client';
     }
 
-    public function definition(): array
+    public function description(): string
     {
-        return [
-            'name' => 'find_client',
-            'description' => 'Look up clients by name (partial is fine). Returns each match with its id, contact details, whether the account is active, and how much it currently owes. Use this to resolve a name before asking about their invoices.',
-            'inputSchema' => [
-                'type' => 'object',
-                'properties' => [
-                    'name' => [
-                        'type' => 'string',
-                        'description' => 'All or part of the client name, as the admin said it.',
-                    ],
-                ],
-                'required' => ['name'],
-            ],
-        ];
+        return 'Look up clients by name (partial is fine). Returns each match with its id, contact '
+            .'details, whether the account is active, and how much it currently owes. Use this to '
+            .'resolve a name before asking about their invoices.';
     }
 
-    public function run(User $admin, array $input): string
+    public function permission(): ?string
     {
-        $name = trim((string) ($input['name'] ?? ''));
+        return 'clients.view';
+    }
+
+    public function schema(): array
+    {
+        return $this->object([
+            'name' => ['type' => 'string', 'description' => 'All or part of the client name, as it was said.'],
+        ], ['name']);
+    }
+
+    public function handle(array $arguments, User $user): string
+    {
+        $name = trim((string) ($arguments['name'] ?? ''));
 
         if ($name === '') {
             return 'No name was given to search for.';

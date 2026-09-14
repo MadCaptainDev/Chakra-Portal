@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Client;
 use App\Models\User;
-use App\Services\AdminAgent\ReadOnlyQuery;
+use App\Services\ReadOnlyQuery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
 use Tests\TestCase;

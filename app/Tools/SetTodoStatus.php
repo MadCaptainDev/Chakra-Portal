@@ -1,9 +1,7 @@
 <?php
 
-namespace App\Mcp\Tools;
+namespace App\Tools;
 
-use App\Mcp\McpToolException;
-use App\Mcp\Tool;
 use App\Models\Todo;
 use App\Models\User;
 
@@ -49,7 +47,7 @@ class SetTodoStatus extends Tool
          * must be identical or the difference between them is the leak.
          */
         if (! $todo || ! $todo->isWritableBy($user)) {
-            throw new McpToolException(
+            throw new ToolException(
                 'There is no to-do #'.$arguments['id'].' that you can change. You can move work '
                 .'that is yours to do, or that you asked somebody else for.'
             );
@@ -58,7 +56,7 @@ class SetTodoStatus extends Tool
         $note = $arguments['note'] ?? null;
 
         if ($arguments['status'] === Todo::STATUS_BLOCKED && ($note === null || trim($note) === '')) {
-            throw new McpToolException('Say what it is blocked by. "Blocked" on its own helps nobody.');
+            throw new ToolException('Say what it is blocked by. "Blocked" on its own helps nobody.');
         }
 
         $from = $todo->statusLabel();

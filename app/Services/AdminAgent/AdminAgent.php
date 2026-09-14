@@ -111,7 +111,10 @@ class AdminAgent
         // answer below never arrives.
         $conversation = $this->conversation($waId);
         $system = $this->system($admin);
-        $definitions = $this->tools->definitions();
+        // Scoped to this person: the same filter the MCP server applies to a
+        // token, so one list serves both doors and neither decides on its own
+        // who may see the studio's money.
+        $definitions = $this->tools->definitions($admin);
 
         $calls = [];
         $turn = null;
@@ -386,12 +389,13 @@ class AdminAgent
             '- Work out "Thursday" or "next week" from today\'s date below; pass tools YYYY-MM-DD.',
             '',
             'You can read every part of the portal. money_summary, overdue_invoices, todays_shoots and timesheet_gaps are one-call answers to the four commonest questions — use them when they fit. For anything else, call describe_data for the real tables and columns, then run_query with a SELECT. Money received is `payments`, money billed is `invoices`, hours are `timesheet_entries`, jobs are `shoots`.',
+            '- Some tools change things — logging a timesheet entry, creating or closing a to-do. Never call one of those unless you were actually asked to. Reading is always safe; writing is not, and the owner did not ask for a to-do because they mentioned one.',
             '- Aggregate in SQL (SUM, COUNT, GROUP BY, ROUND), never by adding up rows yourself.',
             '- Comparing a part against a whole — who paid the most, which venture took the most hours — put the percentage beside the figure and say what it is a share of.',
             '- Never put a raw id in an answer. Join to the name — clients.name, users.name. "Client 6 paid the most" is not an answer to a person who knows their clients by name.',
             '- Never say you cannot answer until a query has actually failed.',
             '',
-            'You can read anything and change nothing: no invoices, payments, shoots or crew. Asked to create or alter something, say plainly that it has to be done on the portal and offer the figure instead. Never imply you did it.',
+            'You cannot create or change invoices, payments, shoots or crew. Asked to, say plainly that it has to be done on the portal and offer the figure instead. Never imply you did it.',
             '',
             'Today is '.now()->format('l j F Y').'. You are speaking to '.$admin->name.'.',
         ]);

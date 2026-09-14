@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Mcp;
+namespace App\Tools;
 
 use App\Models\User;
 
@@ -37,7 +37,7 @@ abstract class Tool
     /**
      * Do the thing. Return an array to be sent as JSON, or a string.
      *
-     * Throwing McpToolException is how a tool says "I could not" in a way the
+     * Throwing ToolException is how a tool says "I could not" in a way the
      * model gets to read.
      *
      * @param  array<string, mixed>  $arguments
@@ -52,6 +52,20 @@ abstract class Tool
     public function permission(): ?string
     {
         return null;
+    }
+
+    /**
+     * Is this one only for the people who run the studio?
+     *
+     * Separate from permission(), which names a module, because some tools do
+     * not belong to a module at all: run_query reads every table there is, and
+     * the four studio figures read across every client's money. There is no
+     * "invoices.view" that means "and also everybody else's". Those are the
+     * owner's, and an employee with a token is never shown them.
+     */
+    public function requiresAdmin(): bool
+    {
+        return false;
     }
 
     /**
@@ -94,13 +108,28 @@ abstract class Tool
      */
     protected function object(array $properties, array $required = []): array
     {
-        return [
-            'type' => 'object',
-            'properties' => $properties,
-            'required' => $required,
-            // Nothing here takes free-form extras, and saying so lets a client
-            // catch a hallucinated argument before it reaches the server.
-            'additionalProperties' => false,
-        ];
+        $schema = ['type' => 'object'];
+
+        /*
+         * Omitted when empty rather than sent as `[]`. An empty PHP array
+         * encodes to a JSON list, and `"properties": []` is not a valid
+         * schema -- a tool with no arguments was describing itself in a shape
+         * the Messages API rejects. It went unnoticed while this list only
+         * ever served MCP clients, which are lenient about it; the moment the
+         * same tools were handed to a model it became a 400.
+         */
+        if ($properties !== []) {
+            $schema['properties'] = $properties;
+        }
+
+        if ($required !== []) {
+            $schema['required'] = $required;
+        }
+
+        // Nothing here takes free-form extras, and saying so lets a client
+        // catch a hallucinated argument before it reaches the server.
+        $schema['additionalProperties'] = false;
+
+        return $schema;
     }
 }

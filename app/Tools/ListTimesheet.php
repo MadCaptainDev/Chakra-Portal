@@ -1,9 +1,7 @@
 <?php
 
-namespace App\Mcp\Tools;
+namespace App\Tools;
 
-use App\Mcp\McpToolException;
-use App\Mcp\Tool;
 use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
 use App\Models\User;
@@ -100,17 +98,17 @@ class ListTimesheet extends Tool
             $to = isset($arguments['to']) ? Carbon::parse($arguments['to'])->startOfDay() : today();
             $from = isset($arguments['from']) ? Carbon::parse($arguments['from'])->startOfDay() : $to->copy()->subDays(6);
         } catch (Throwable) {
-            throw new McpToolException('Those dates could not be read. Use YYYY-MM-DD.');
+            throw new ToolException('Those dates could not be read. Use YYYY-MM-DD.');
         }
 
         if ($from->gt($to)) {
-            throw new McpToolException('The "from" date is after the "to" date.');
+            throw new ToolException('The "from" date is after the "to" date.');
         }
 
         // A model asked for "everything" will happily request ten years and get
         // a reply too big to be useful to anybody.
         if ($from->diffInDays($to) > 366) {
-            throw new McpToolException('That range is longer than a year. Ask for a shorter one.');
+            throw new ToolException('That range is longer than a year. Ask for a shorter one.');
         }
 
         return [$from, $to];

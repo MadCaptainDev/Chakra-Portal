@@ -2,16 +2,24 @@
 
 namespace App\Mcp;
 
-use App\Mcp\Tools\CreateTodo;
-use App\Mcp\Tools\ListScripts;
-use App\Mcp\Tools\ListShoots;
-use App\Mcp\Tools\ListTimesheet;
-use App\Mcp\Tools\ListTodos;
-use App\Mcp\Tools\LogTimesheetEntry;
-use App\Mcp\Tools\ReelPlannerToday;
-use App\Mcp\Tools\SetTodoStatus;
-use App\Mcp\Tools\WhoAmI;
 use App\Models\User;
+use App\Tools\CreateTodo;
+use App\Tools\DescribeData;
+use App\Tools\FindClient;
+use App\Tools\InvoiceLookup;
+use App\Tools\ListScripts;
+use App\Tools\ListShoots;
+use App\Tools\ListTimesheet;
+use App\Tools\ListTodos;
+use App\Tools\LogTimesheetEntry;
+use App\Tools\ReelPlannerToday;
+use App\Tools\RunQuery;
+use App\Tools\SetTodoStatus;
+use App\Tools\ShootsBetween;
+use App\Tools\StudioFigures;
+use App\Tools\Tool;
+use App\Tools\ToolException;
+use App\Tools\WhoAmI;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -40,7 +48,12 @@ class Server
     /**
      * Every tool, in the order a model meets them.
      *
-     * whoami first because it is the one that orients everything else.
+     * whoami first because it is the one that orients everything else, and
+     * the owner's figures last because they are the narrowest audience.
+     *
+     * This is the studio's one tool list. Two front doors read it: this
+     * server, for Claude on a laptop, and AdminAgent, for the owner's
+     * WhatsApp. Adding a tool here adds it to both.
      *
      * @return list<Tool>
      */
@@ -56,6 +69,21 @@ class Server
             new ListShoots,
             new ListScripts,
             new ReelPlannerToday,
+            /*
+             * The owner's half. These began life as a separate set for the
+             * WhatsApp assistant and were merged in, because two lists of
+             * tools over one database is two places to add the next one and
+             * two places for them to drift apart. Everything above is filtered
+             * by module permission; everything here is filtered by
+             * requiresAdmin(), because reading across every client's money
+             * belongs to no module.
+             */
+            ...StudioFigures::all(),
+            new FindClient,
+            new InvoiceLookup,
+            new ShootsBetween,
+            new DescribeData,
+            new RunQuery,
         ];
     }
 
@@ -75,8 +103,9 @@ class Server
             $this->tools(),
             // Through the Gate rather than asking the user directly, so admins
             // are answered by Gate::before exactly as they are everywhere else.
-            fn (Tool $tool) => $tool->permission() === null
-                || Gate::forUser($user)->allows($tool->permission())
+            fn (Tool $tool) => (! $tool->requiresAdmin() || $user->isAdmin())
+                && ($tool->permission() === null
+                    || Gate::forUser($user)->allows($tool->permission()))
         ));
     }
 
@@ -158,7 +187,7 @@ class Server
 
         try {
             return Protocol::result($id, Protocol::toolResult($tool->handle($arguments, $user)));
-        } catch (McpToolException $e) {
+        } catch (ToolException $e) {
             // The tool's own "I could not", which the model is meant to read.
             return Protocol::result($id, Protocol::toolError($e->getMessage()));
         } catch (Throwable $e) {

@@ -1,8 +1,7 @@
 <?php
 
-namespace App\Mcp\Tools;
+namespace App\Tools;
 
-use App\Mcp\Tool;
 use App\Models\User;
 use App\Services\Notion\NotionSyncRunner;
 use App\Support\ContentDashboard;

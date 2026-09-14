@@ -1,28 +1,22 @@
 <?php
 
-namespace App\Services\AdminAgent\Tools;
+namespace App\Tools;
 
 use App\Models\Shoot;
 use App\Models\User;
-use App\Services\AdminAgent\Tool;
 use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Support\Carbon;
 
 /**
- * The diary, for any window other than today.
+ * The diary for any window other than today.
  *
- * Takes two dates rather than words like "next week", because resolving
- * "next week" against the studio's own calendar is the model's job and it is
- * told today's date -- a tool that also tried to parse English would give two
- * different answers to the same question depending on which one got there
- * first.
+ * Takes two dates rather than words like "next week", because resolving that
+ * against the studio's calendar is the model's job -- a tool that also tried
+ * to parse English would give two different answers to one question depending
+ * on which got there first.
  */
-class ShootsBetweenTool implements Tool
+class ShootsBetween extends Tool
 {
-    /**
-     * A window wider than this is somebody asking for the whole year on a
-     * phone. Answered, but trimmed, with the count so the model can say so.
-     */
     private const MAX_ROWS = 15;
 
     public function name(): string
@@ -30,27 +24,30 @@ class ShootsBetweenTool implements Tool
         return 'shoots_between';
     }
 
-    public function definition(): array
+    public function description(): string
     {
-        return [
-            'name' => 'shoots_between',
-            'description' => "Shoots scheduled between two dates inclusive, with call time, client, location and assigned crew. Dates must be YYYY-MM-DD; work them out yourself from today's date, which is in your instructions.",
-            'inputSchema' => [
-                'type' => 'object',
-                'properties' => [
-                    'from' => ['type' => 'string', 'description' => 'First day, YYYY-MM-DD.'],
-                    'to' => ['type' => 'string', 'description' => 'Last day, YYYY-MM-DD. Same as `from` for a single day.'],
-                ],
-                'required' => ['from', 'to'],
-            ],
-        ];
+        return 'Shoots scheduled between two dates inclusive, with call time, client, location and '
+            .'assigned crew. Dates must be YYYY-MM-DD; work them out yourself from today.';
     }
 
-    public function run(User $admin, array $input): string
+    public function permission(): ?string
+    {
+        return 'shoots.view';
+    }
+
+    public function schema(): array
+    {
+        return $this->object([
+            'from' => ['type' => 'string', 'description' => 'First day, YYYY-MM-DD.'],
+            'to' => ['type' => 'string', 'description' => 'Last day, YYYY-MM-DD. Same as `from` for a single day.'],
+        ], ['from', 'to']);
+    }
+
+    public function handle(array $arguments, User $user): string
     {
         try {
-            $from = Carbon::parse((string) ($input['from'] ?? ''))->startOfDay();
-            $to = Carbon::parse((string) ($input['to'] ?? ''))->endOfDay();
+            $from = Carbon::parse((string) ($arguments['from'] ?? ''))->startOfDay();
+            $to = Carbon::parse((string) ($arguments['to'] ?? ''))->endOfDay();
         } catch (InvalidFormatException) {
             return 'Those dates could not be read. Use YYYY-MM-DD.';
         }

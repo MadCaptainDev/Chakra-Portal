@@ -428,7 +428,7 @@ class AdminAgentTest extends TestCase
         $this->assertStringContainsString($admin->name, $system);
         // The read-only boundary is stated, so it says so rather than
         // implying it has created something.
-        $this->assertStringContainsString('change nothing', $system);
+        $this->assertStringContainsString('cannot create or change', $system);
     }
 
     // ——— The settings screen ———
@@ -518,7 +518,7 @@ class AdminAgentTest extends TestCase
      */
     public function test_every_tool_definition_is_a_shape_the_api_accepts(): void
     {
-        foreach (app(ToolRegistry::class)->definitions() as $definition) {
+        foreach (app(ToolRegistry::class)->definitions($this->admin()) as $definition) {
             $wire = json_decode(json_encode(SdkTool::with(
                 inputSchema: $definition['inputSchema'],
                 name: $definition['name'],
@@ -655,7 +655,7 @@ class AdminAgentTest extends TestCase
         $this->assertStringContainsString('paid_on', $output);
     }
 
-    public function test_every_tool_offered_still_only_reads(): void
+    public function test_the_owner_is_offered_both_halves_of_the_one_tool_list(): void
     {
         $this->keyed();
         $admin = $this->admin();
@@ -663,16 +663,32 @@ class AdminAgentTest extends TestCase
 
         app(AdminAgent::class)->answer($admin, '917094126823', 'hello');
 
-        $this->assertSame(
-            [
-                'money_summary', 'overdue_invoices', 'todays_shoots', 'timesheet_gaps',
-                'find_client', 'invoice_lookup', 'shoots_between',
-                'describe_data', 'run_query',
-            ],
-            collect($this->model->calls[0]['tools'])->pluck('name')->all(),
-        );
+        $offered = collect($this->model->calls[0]['tools'])->pluck('name');
+
+        // One list, two front doors: the tools written for Claude on a laptop
+        // and the tools written for the owner's phone are the same set now.
+        $this->assertContains('log_timesheet_entry', $offered);
+        $this->assertContains('list_todos', $offered);
+        $this->assertContains('money_summary', $offered);
+        $this->assertContains('run_query', $offered);
     }
 
+    public function test_an_employee_is_never_offered_the_studios_money(): void
+    {
+        $this->keyed();
+        $employee = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'phone' => '9000000002']);
+
+        $offered = collect(app(ToolRegistry::class)->definitions($employee))->pluck('name');
+
+        // The gate that matters once one list serves everybody: their own
+        // timesheet yes, every client's money no, and run_query least of all
+        // — it reads every table there is.
+        $this->assertContains('log_timesheet_entry', $offered);
+        $this->assertNotContains('money_summary', $offered);
+        $this->assertNotContains('overdue_invoices', $offered);
+        $this->assertNotContains('run_query', $offered);
+        $this->assertNotContains('describe_data', $offered);
+    }
     // ——— When the free tier runs out ———
 
     public function test_a_failed_answer_falls_back_to_the_owner_menu(): void

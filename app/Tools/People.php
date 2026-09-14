@@ -1,8 +1,7 @@
 <?php
 
-namespace App\Mcp\Tools;
+namespace App\Tools;
 
-use App\Mcp\McpToolException;
 use App\Models\User;
 
 /**
@@ -45,7 +44,7 @@ class People
             ->get();
 
         if ($matches->count() > 1) {
-            throw new McpToolException(
+            throw new ToolException(
                 'More than one person matches "'.$needle.'": '
                 .$matches->pluck('name')->implode(', ').'. Use a full name or an email address.'
             );
@@ -54,7 +53,7 @@ class People
         $subject = $matches->first();
 
         if (! $subject || ! $caller->managesTimesheetOf($subject)) {
-            throw new McpToolException(
+            throw new ToolException(
                 'No-one called "'.$needle.'" whose work you can read. You can read your own, '
                 .'and an admin or their manager can read anybody\'s.'
             );
@@ -92,11 +91,11 @@ class People
             ->get();
 
         if ($matches->isEmpty()) {
-            throw new McpToolException('Nobody here is called "'.$needle.'".');
+            throw new ToolException('Nobody here is called "'.$needle.'".');
         }
 
         if ($matches->count() > 1) {
-            throw new McpToolException(
+            throw new ToolException(
                 'More than one person matches "'.$needle.'": '
                 .$matches->pluck('name')->implode(', ').'. Use a full name or an email address.'
             );

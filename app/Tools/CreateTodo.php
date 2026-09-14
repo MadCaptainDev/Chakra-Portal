@@ -1,9 +1,7 @@
 <?php
 
-namespace App\Mcp\Tools;
+namespace App\Tools;
 
-use App\Mcp\McpToolException;
-use App\Mcp\Tool;
 use App\Models\Todo;
 use App\Models\TodoUpdate;
 use App\Models\User;
@@ -50,7 +48,7 @@ class CreateTodo extends Tool
         $due = $this->date($arguments['due_on'] ?? null) ?? $starts->copy();
 
         if ($due->lt($starts)) {
-            throw new McpToolException('The due date is before the day it starts.');
+            throw new ToolException('The due date is before the day it starts.');
         }
 
         $todo = Todo::create([
@@ -93,7 +91,7 @@ class CreateTodo extends Tool
         try {
             return Carbon::parse($value)->startOfDay();
         } catch (Throwable) {
-            throw new McpToolException('"'.$value.'" could not be read as a date. Use YYYY-MM-DD.');
+            throw new ToolException('"'.$value.'" could not be read as a date. Use YYYY-MM-DD.');
         }
     }
 
