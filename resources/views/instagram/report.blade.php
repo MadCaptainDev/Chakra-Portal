@@ -242,10 +242,27 @@
                             <x-textarea name="note" rows="4"
                                         placeholder="What carried the month, what's planned next -- this is what the client sees on the PDF."
                                         class="w-full">{{ old('note', $note->note) }}</x-textarea>
-                            <div class="mt-2 flex justify-end">
+                            <div class="mt-2 flex items-center justify-end gap-2">
+                                @if ($account && \App\Models\AiSetting::current()->isReady())
+                                    {{-- Outside this form on purpose: it must not submit the
+                                         textarea, and whatever comes back is a draft in the box
+                                         rather than a note on the client's report. --}}
+                                    <button type="submit" form="draft-note"
+                                            class="text-xs text-brand-100/70 hover:text-white underline underline-offset-4 transition">
+                                        Draft it for me
+                                    </button>
+                                @endif
                                 <x-secondary-button type="submit">Save note</x-secondary-button>
                             </div>
                         </form>
+
+                        @if ($account && \App\Models\AiSetting::current()->isReady())
+                            <form method="POST" id="draft-note" class="hidden"
+                                  action="{{ route('instagram.report.note.draft', $client) }}">
+                                @csrf
+                                <input type="hidden" name="month" value="{{ $monthParam }}">
+                            </form>
+                        @endif
                     </div>
                 @endif
 

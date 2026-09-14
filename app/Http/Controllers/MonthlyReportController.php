@@ -8,6 +8,7 @@ use App\Models\SocialAccount;
 use App\Services\Instagram\InstagramSyncRunner;
 use App\Services\MonthlyReportData;
 use App\Services\MonthlyReportDocumentRenderer;
+use App\Services\MonthlyReportNoteWriter;
 use App\Services\WhatsappSender;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
@@ -16,6 +17,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 use RuntimeException;
+use Throwable;
 
 /**
  * The monthly Instagram report for one client -- the studio's own screen,
@@ -97,6 +99,39 @@ class MonthlyReportController extends Controller
 
         return redirect()->route('instagram.report', ['client' => $client, 'month' => $data['month']])
             ->with('status', 'Note saved.');
+    }
+
+    /**
+     * Write a first draft of the note, from this month's own figures.
+     *
+     * Deliberately does not save it. The draft comes back in the textarea as
+     * old input for somebody to read, change and then save themselves --
+     * this paragraph goes to a paying customer over the studio's name, and
+     * nothing writes to a client in the studio's voice without a person
+     * looking at it first.
+     */
+    public function draftNote(Request $request, Client $client, MonthlyReportNoteWriter $writer): RedirectResponse
+    {
+        $data = $request->validate(['month' => ['required', 'date_format:Y-m']]);
+        $month = $this->parseMonth($data['month']);
+        $account = $this->instagramFor($client);
+
+        abort_unless($account, 404);
+
+        [$since, $until] = MonthlyReportData::monthRange($month);
+
+        try {
+            $draft = $writer->draft($client, $month, MonthlyReportData::forRange($client, $account, $since, $until));
+        } catch (Throwable $e) {
+            return redirect()
+                ->route('instagram.report', ['client' => $client, 'month' => $data['month']])
+                ->with('error', $e->getMessage());
+        }
+
+        return redirect()
+            ->route('instagram.report', ['client' => $client, 'month' => $data['month']])
+            ->withInput(['note' => $draft])
+            ->with('status', 'Draft written — read it before you save it.');
     }
 
     public function pdf(Request $request, Client $client, MonthlyReportDocumentRenderer $renderer): Response
@@ -200,7 +235,7 @@ class MonthlyReportController extends Controller
         if ($raw !== '') {
             try {
                 return $this->parseMonth($raw);
-            } catch (\Throwable) {
+            } catch (Throwable) {
                 // An unparsable month falls back rather than 500ing on a
                 // typo in the address bar.
             }

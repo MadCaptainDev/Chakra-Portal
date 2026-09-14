@@ -576,6 +576,8 @@ Route::middleware(['auth', 'module:clients,view'])->scopeBindings()->group(funct
         ->name('instagram.report');
     Route::post('clients/{client}/instagram/report/note', [MonthlyReportController::class, 'updateNote'])
         ->middleware('module:clients,edit')->name('instagram.report.note');
+    Route::post('clients/{client}/instagram/report/note/draft', [MonthlyReportController::class, 'draftNote'])
+        ->middleware('module:clients,edit')->name('instagram.report.note.draft');
     Route::get('clients/{client}/instagram/report/pdf', [MonthlyReportController::class, 'pdf'])
         ->name('instagram.report.pdf');
     // Persists the report screen's current section checklist as this
