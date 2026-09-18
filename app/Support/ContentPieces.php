@@ -41,6 +41,20 @@ class ContentPieces
     ];
 
     /**
+     * Which platform a source actually is -- Reels, Posts and Stories are
+     * Instagram, only Shorts/videos are YouTube. Same mapping as
+     * content-dashboard/index.blade.php's $platformIcon, so the client-facing
+     * pages and the staff board put the same brand mark on the same source
+     * rather than each guessing at it separately.
+     */
+    public const PLATFORMS = [
+        ContentItem::SOURCE_REEL => 'instagram',
+        ContentItem::SOURCE_POST => 'instagram',
+        ContentItem::SOURCE_STORY => 'instagram',
+        ContentItem::SOURCE_YOUTUBE => 'youtube',
+    ];
+
+    /**
      * @param  Collection<int, ContentItem>  $items
      * @return Collection<int, array{title: string, date: ?\Illuminate\Support\Carbon, channels: array<string, array{label: string, icon: string, url: ?string}>, note: ?string, items: Collection<int, ContentItem>}>
      */
@@ -103,13 +117,18 @@ class ContentPieces
     }
 
     /**
-     * @return array{label: string, icon: string, url: ?string}
+     * @return array{label: string, icon: string, platform: string, url: ?string}
      */
     private static function channel(ContentItem $row): array
     {
         return [
             'label' => $row->sourceLabel(),
+            // Kept for anywhere still reading it directly; the client-facing
+            // views render 'platform' through <x-brand-icon> instead -- the
+            // same real Instagram/YouTube marks the admin dashboard uses,
+            // not this emoji.
             'icon' => $row->sourceIcon(),
+            'platform' => self::PLATFORMS[$row->source] ?? 'instagram',
             'url' => $row->notion_url,
         ];
     }

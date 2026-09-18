@@ -70,7 +70,7 @@
                                     <a href="#day-{{ $day['date']->toDateString() }}"
                                        class="flex items-center gap-1 px-1 py-0.5 rounded text-[10px] leading-tight
                                               {{ $chip($piece['state']) }} hover:brightness-125 transition">
-                                        <span class="shrink-0 leading-none">{{ head($piece['channels'])['icon'] }}</span>
+                                        <x-brand-icon :name="head($piece['channels'])['platform']" class="w-3 h-3 shrink-0" />
                                         <span class="truncate">{{ $piece['title'] }}</span>
                                     </a>
                                 @endforeach
@@ -112,7 +112,7 @@
                         <div class="p-4 {{ $loop->first ? '' : 'border-t border-white/10' }}">
                             <div class="flex flex-wrap items-start justify-between gap-3">
                                 <div class="min-w-0 flex items-start gap-3">
-                                    <span class="text-xl leading-none shrink-0">{{ head($piece['channels'])['icon'] }}</span>
+                                    <x-brand-icon :name="head($piece['channels'])['platform']" class="w-5 h-5 shrink-0 mt-0.5" />
                                     <div class="min-w-0">
                                         <p class="font-semibold truncate">{{ $piece['title'] }}</p>
                                         <p class="mt-1 text-sm text-brand-100/70">
@@ -150,7 +150,7 @@
                 <div class="rounded-xl bg-white/5 ring-1 ring-white/10 p-4 sm:p-5 {{ $loop->first ? '' : 'mt-3' }}">
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div class="min-w-0 flex items-start gap-3">
-                            <span class="text-xl leading-none shrink-0">{{ head($piece['channels'])['icon'] }}</span>
+                            <x-brand-icon :name="head($piece['channels'])['platform']" class="w-5 h-5 shrink-0 mt-0.5" />
                             <div class="min-w-0">
                                 <p class="font-semibold truncate">{{ $piece['title'] }}</p>
                                 <p class="mt-1 text-sm text-brand-100/70">

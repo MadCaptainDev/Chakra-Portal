@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Client\Concerns\ResolvesClient;
 use App\Http\Controllers\Controller;
-use App\Models\ContentItem;
 use App\Support\ContentPieces;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -60,9 +59,9 @@ class WorkController extends Controller
             ->map(fn (int $count, string $source) => [
                 'label' => ContentPieces::TYPES[$source],
                 'count' => $count,
-                // Taken off a real row rather than a second match() here, so a
-                // tab and the rows it filters to cannot show different icons.
-                'icon' => $items->firstWhere('source', $source)?->sourceIcon() ?? '📄',
+                // The real Instagram/YouTube mark, same as the admin board --
+                // see ContentPieces::PLATFORMS.
+                'platform' => ContentPieces::PLATFORMS[$source] ?? 'instagram',
             ]);
 
         // An unknown type in the URL falls back to everything rather than to

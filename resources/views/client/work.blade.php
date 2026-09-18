@@ -31,7 +31,7 @@
                                'bg-brand-400/20 text-brand-100 ring-1 ring-brand-300/40' => $active,
                                'bg-white/5 text-brand-100/70 ring-1 ring-white/10 hover:bg-white/10' => ! $active,
                            ])>
-                            <span class="leading-none">{{ $tab['icon'] }}</span>
+                            <x-brand-icon :name="$tab['platform']" class="w-4 h-4 shrink-0" />
                             {{ $tab['label'] }}
                             <span class="tabular-nums text-brand-100/60">{{ $tab['count'] }}</span>
                         </a>
@@ -67,8 +67,8 @@
                     @foreach ($month['items'] as $piece)
                         <div class="p-4 {{ $loop->first ? '' : 'border-t border-white/10' }}">
                             <div class="flex items-start gap-3.5">
-                                <span class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-brand-400/15 text-base leading-none">
-                                    {{ head($piece['channels'])['icon'] }}
+                                <span class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-brand-400/15">
+                                    <x-brand-icon :name="head($piece['channels'])['platform']" class="w-5 h-5" />
                                 </span>
 
                                 <div class="min-w-0 flex-1">
@@ -88,13 +88,13 @@
                                                 <a href="{{ $channel['url'] }}" target="_blank" rel="noopener noreferrer"
                                                    class="inline-flex items-center gap-1 min-h-[28px] px-2.5 rounded-full bg-white/10 ring-1 ring-white/15
                                                           text-[10px] font-semibold uppercase tracking-wide hover:bg-white/20 transition-colors">
-                                                    <span class="leading-none normal-case">{{ $channel['icon'] }}</span>
+                                                    <x-brand-icon :name="$channel['platform']" class="w-3.5 h-3.5 shrink-0" />
                                                     {{ $channel['label'] }}
                                                 </a>
                                             @else
                                                 <span class="inline-flex items-center gap-1 min-h-[28px] px-2.5 rounded-full bg-white/5 ring-1 ring-white/10
                                                              text-[10px] font-semibold uppercase tracking-wide text-brand-100/70">
-                                                    <span class="leading-none normal-case">{{ $channel['icon'] }}</span>
+                                                    <x-brand-icon :name="$channel['platform']" class="w-3.5 h-3.5 shrink-0" />
                                                     {{ $channel['label'] }}
                                                 </span>
                                             @endif
