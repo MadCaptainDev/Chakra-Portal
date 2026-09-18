@@ -125,6 +125,69 @@ class ClientPortalExpansionTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_the_grid_is_whole_weeks_and_lands_work_on_its_own_day(): void
+    {
+        $client = $this->client();
+        $day = today()->startOfMonth()->addDays(9);
+        $this->item('SVA Silks', ['title' => 'Mid Month Reel', 'published_date' => $day->toDateString()]);
+
+        $weeks = $this->actingAs($this->loginFor($client))->get(route('client.content-calendar'))
+            ->assertOk()
+            ->viewData('weeks');
+
+        // Padded out of the neighbouring months, so nothing shifts sideways.
+        $this->assertTrue($weeks->every(fn ($week) => $week->count() === 7));
+
+        $withWork = $weeks->flatten(1)->filter(fn (array $d) => $d['pieces']->isNotEmpty());
+        $this->assertCount(1, $withWork);
+        $this->assertSame($day->toDateString(), $withWork->first()['date']->toDateString());
+    }
+
+    public function test_one_cut_planned_for_two_places_fills_one_square_not_two(): void
+    {
+        $client = $this->client();
+        $day = today()->startOfMonth()->addDays(4);
+
+        // Notion keeps a database per destination; the same cut is planned
+        // once per place it is shared.
+        $this->item('SVA Silks', ['title' => 'Deepavali', 'source' => 'reel', 'published_date' => $day->toDateString()]);
+        $this->item('SVA Silks', ['title' => 'Deepavali', 'source' => 'youtube', 'published_date' => $day->toDateString()]);
+
+        $response = $this->actingAs($this->loginFor($client))->get(route('client.content-calendar'))->assertOk();
+
+        $this->assertCount(1, $response->viewData('published'));
+        // Both destinations still named, on the one row.
+        $response->assertSee('Reel + YouTube');
+    }
+
+    public function test_a_reel_already_out_is_not_merged_with_a_youtube_cut_still_to_come(): void
+    {
+        $client = $this->client();
+        $day = today()->startOfMonth()->addDays(2);
+
+        $this->item('SVA Silks', ['title' => 'Same Name', 'source' => 'reel', 'status' => 'Published', 'published_date' => $day->toDateString()]);
+        $this->item('SVA Silks', ['title' => 'Same Name', 'source' => 'youtube', 'status' => 'Scheduled', 'published_date' => $day->toDateString()]);
+
+        // Merging these would report work as delivered that has not gone
+        // anywhere yet, so each bucket collapses on its own.
+        $response = $this->actingAs($this->loginFor($client))->get(route('client.content-calendar'))->assertOk();
+
+        $this->assertCount(1, $response->viewData('published'));
+        $this->assertCount(1, $response->viewData('scheduled'));
+    }
+
+    public function test_an_item_with_no_date_stays_off_the_grid(): void
+    {
+        $client = $this->client();
+        $this->item('SVA Silks', ['title' => 'No Date Yet', 'status' => 'To Be Edited', 'published_date' => null]);
+
+        $response = $this->actingAs($this->loginFor($client))->get(route('client.content-calendar'))->assertOk();
+
+        // A square would be claiming a date nobody has chosen.
+        $this->assertTrue($response->viewData('weeks')->flatten(1)->every(fn (array $d) => $d['pieces']->isEmpty()));
+        $response->assertSee('No Date Yet');
+    }
+
     // -- Portfolio gallery ----------------------------------------------------
 
     public function test_a_client_sees_their_own_published_portfolio_item(): void

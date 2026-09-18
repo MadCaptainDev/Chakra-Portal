@@ -270,6 +270,63 @@ class ClientPortalTest extends TestCase
         $this->assertStringNotContainsString('Low Effort', $body);
     }
 
+    public function test_one_cut_shared_to_two_places_counts_as_one_piece(): void
+    {
+        $client = $this->client();
+        $day = today()->subDay()->toDateString();
+
+        // Notion keeps a database per destination, so the same cut is planned
+        // once per place it goes. 1,919 published rows are 1,271 real pieces;
+        // counting rows told every client a number 34% too high.
+        $this->item('SVA Silks', ['title' => 'Saree draping', 'source' => 'reel', 'published_date' => $day]);
+        $this->item('SVA Silks', ['title' => 'Saree draping', 'source' => 'youtube', 'published_date' => $day]);
+
+        $this->actingAs($this->loginFor($client))->get(route('client.work'))
+            ->assertOk()
+            ->assertViewHas('total', 1)
+            // Both destinations still show on the one row.
+            ->assertSee('Reel')
+            ->assertSee('YouTube');
+    }
+
+    public function test_the_same_title_on_a_different_day_is_a_different_piece(): void
+    {
+        $client = $this->client();
+
+        // A series that reuses its title is two deliveries, not one.
+        $this->item('SVA Silks', ['title' => 'Weekly picks', 'published_date' => today()->subDay()->toDateString()]);
+        $this->item('SVA Silks', ['title' => 'Weekly picks', 'published_date' => today()->subWeek()->toDateString()]);
+
+        $this->actingAs($this->loginFor($client))->get(route('client.work'))
+            ->assertOk()
+            ->assertViewHas('total', 2);
+    }
+
+    public function test_a_type_tab_shows_only_that_type(): void
+    {
+        $client = $this->client();
+        $this->item('SVA Silks', ['title' => 'A reel only', 'source' => 'reel']);
+        $this->item('SVA Silks', ['title' => 'A feed post', 'source' => 'post']);
+
+        $this->actingAs($this->loginFor($client))->get(route('client.work', ['type' => 'post']))
+            ->assertOk()
+            ->assertViewHas('total', 1)
+            ->assertSee('A feed post')
+            ->assertDontSee('A reel only');
+    }
+
+    public function test_an_unknown_type_in_the_url_shows_everything_rather_than_nothing(): void
+    {
+        $client = $this->client();
+        $this->item('SVA Silks', ['title' => 'A reel only', 'source' => 'reel']);
+
+        // A stale bookmark is not a request for an empty page.
+        $this->actingAs($this->loginFor($client))->get(route('client.work', ['type' => 'podcast']))
+            ->assertOk()
+            ->assertViewHas('type', 'all')
+            ->assertSee('A reel only');
+    }
+
     // ——— Shoots ———
 
     public function test_shoots_show_the_client_only_what_is_theirs_and_nothing_internal(): void
