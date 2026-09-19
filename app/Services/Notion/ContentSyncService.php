@@ -6,6 +6,9 @@ use App\Models\ContentItem;
 use App\Models\NotionSetting;
 use App\Models\NotionShoot;
 use App\Models\User;
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -60,7 +63,7 @@ class ContentSyncService
      * every row where Notion supplied a related shoot but the local FK
      * hasn't been resolved yet.
      *
-     * A separate pass rather than resolving inline in upsertPage(): shoots
+     * A separate pass rather than resolving inline in contentRowFor(): shoots
      * and reels sync as two independent passes with no guaranteed order, so
      * a reel synced before its shoot exists locally would otherwise never
      * get linked. Running this after every source has synced means it
@@ -110,6 +113,7 @@ class ContentSyncService
         // its own rows, not the ones already read from its siblings.
         foreach ($databaseIds as $databaseId) {
             $cursor = null;
+            $buffer = [];
 
             try {
                 do {
@@ -124,12 +128,18 @@ class ContentSyncService
                         ->json();
 
                     foreach ($body['results'] ?? [] as $page) {
-                        $source === NotionShoot::SOURCE
-                            ? $this->upsertShootPage($page)
-                            : $this->upsertPage($source, $page);
+                        $buffer[] = $source === NotionShoot::SOURCE
+                            ? $this->shootRowFor($page)
+                            : $this->contentRowFor($source, $page);
                         $seenPageIds[] = $page['id'];
                         $synced++;
                     }
+
+                    // Flushed a page of results at a time rather than row by
+                    // row: updateOrCreate cost a SELECT and an UPDATE each,
+                    // which on a full sync was over five thousand queries for
+                    // roughly two thousand rows.
+                    $this->flush($source, $buffer);
 
                     $cursor = ($body['has_more'] ?? false) ? ($body['next_cursor'] ?? null) : null;
                 } while ($cursor);
@@ -433,32 +443,38 @@ class ContentSyncService
         return Str::lower(trim(preg_replace('/\s+/u', ' ', (string) $value) ?? ''));
     }
 
-    private function upsertPage(string $source, array $page): void
+    /**
+     * One page as a row ready for upsert. Writes nothing -- see flush().
+     *
+     * @return array<string, mixed>
+     */
+    private function contentRowFor(string $source, array $page): array
     {
         $properties = $page['properties'] ?? [];
         $names = config('notion.properties', []);
         $relations = config("notion.relations.{$source}", []);
         $shootPageId = $this->relationIds($properties, $relations['shoot'] ?? [])[0] ?? null;
 
-        ContentItem::updateOrCreate(
-            ['notion_page_id' => $page['id']],
-            [
+        return [
+                'notion_page_id' => $page['id'],
                 'source' => $source,
                 'notion_url' => $page['url'] ?? null,
                 'title' => $this->extractTitle($properties),
                 'venture' => $this->value($properties, $names['venture'] ?? []),
                 'notion_shoot_page_id' => $shootPageId,
-                // If Notion no longer relates this reel to any shoot, drop
-                // the resolved link too -- otherwise a shoot removed in
-                // Notion would stay "linked" here forever. When a relation
-                // IS present, notion_shoot_id is left out of this array on
-                // purpose (see below): resolveShootLinks() fills it in bulk
-                // after every source has synced, rather than one lookup per
-                // row here.
-                ...($shootPageId === null ? ['notion_shoot_id' => null] : []),
+                /*
+                 * notion_shoot_id is deliberately not written here at all.
+                 * A bulk upsert writes the same columns for every row, and
+                 * this one needs three different behaviours: null it when
+                 * Notion dropped the relation, leave it when the relation
+                 * still stands, and set it when the shoot is newly known.
+                 * flush() nulls the first case in one statement and
+                 * resolveShootLinks() handles the rest in bulk once every
+                 * source has synced.
+                 */
                 'status' => $this->value($properties, $names['status'] ?? []),
-                'published_date' => $this->value($properties, $names['published_date'] ?? []),
-                'shoot_date' => $this->value($properties, $names['shoot_date'] ?? []),
+                'published_date' => $this->toDateTime($this->value($properties, $names['published_date'] ?? [])),
+                'shoot_date' => $this->toDateTime($this->value($properties, $names['shoot_date'] ?? [])),
                 'editor' => $this->value($properties, $names['editor'] ?? []),
                 'tier' => $this->value($properties, $names['tier'] ?? []),
                 'post_type' => $this->value($properties, $names['post_type'] ?? []),
@@ -469,27 +485,25 @@ class ContentSyncService
                 'yt_csv_link' => $this->value($properties, $names['yt_csv_link'] ?? []),
                 'script' => $this->value($properties, $names['script'] ?? []),
                 'show_notes' => $this->value($properties, $names['show_notes'] ?? []),
-                'notion_created_at' => $page['created_time'] ?? null,
+                'notion_created_at' => $this->toDateTime($page['created_time'] ?? null),
                 'synced_at' => now(),
-            ]
-        );
+        ];
     }
 
     /**
-     * Same shape as upsertPage(), against notion_shoots and
+     * Same shape as contentRowFor(), against notion_shoots and
      * notion.shoot_properties instead -- a separate config key rather than
      * folding shoot-only names into 'properties', since that map is also
      * read for the 4 content sources and a shoot-only name like "Location"
      * has no business matching there.
      */
-    private function upsertShootPage(array $page): void
+    private function shootRowFor(array $page): array
     {
         $properties = $page['properties'] ?? [];
         $names = config('notion.shoot_properties', []);
 
-        NotionShoot::updateOrCreate(
-            ['notion_page_id' => $page['id']],
-            [
+        return [
+                'notion_page_id' => $page['id'],
                 'notion_url' => $page['url'] ?? null,
                 'title' => $this->extractTitle($properties),
                 'status' => $this->value($properties, $names['status'] ?? []),
@@ -497,16 +511,110 @@ class ContentSyncService
                 'team' => $this->value($properties, $names['team'] ?? []),
                 'host_model' => $this->value($properties, $names['host_model'] ?? []),
                 'location' => $this->value($properties, $names['location'] ?? []),
-                'shoot_date' => $this->value($properties, $names['shoot_date'] ?? []),
+                'shoot_date' => $this->toDateTime($this->value($properties, $names['shoot_date'] ?? [])),
                 'duration' => $this->value($properties, $names['duration'] ?? []),
                 'video_count' => $this->value($properties, $names['video_count'] ?? []),
                 'gear_needed' => $this->value($properties, $names['gear_needed'] ?? []),
                 'weather_forecast' => $this->value($properties, $names['weather_forecast'] ?? []),
                 'photo_url' => $this->value($properties, $names['photo_url'] ?? []),
-                'notion_created_at' => $page['created_time'] ?? null,
+                'notion_created_at' => $this->toDateTime($page['created_time'] ?? null),
                 'synced_at' => now(),
-            ]
-        );
+        ];
+    }
+
+    /**
+     * Write a page of buffered rows, then empty the buffer.
+     *
+     * upsert() writes every row in one statement and updates the columns
+     * named rather than whatever happens to differ, which is why the column
+     * list is derived from the rows themselves -- a column added to
+     * contentRowFor() that was forgotten here would silently stop updating.
+     *
+     * @param  list<array<string, mixed>>  $buffer
+     */
+    private function flush(string $source, array &$buffer): void
+    {
+        if ($buffer === []) {
+            return;
+        }
+
+        $columns = array_values(array_diff(array_keys($buffer[0]), ['notion_page_id']));
+        $model = $source === NotionShoot::SOURCE ? NotionShoot::class : ContentItem::class;
+
+        try {
+            $model::upsert($buffer, ['notion_page_id'], $columns);
+        } catch (Throwable $e) {
+            /*
+             * One statement per page means one bad value takes the whole
+             * page down with it -- and, before this fallback existed, the
+             * exception escaped to syncSource()'s catch and stopped
+             * pagination, so a single unparseable cell silently cost a
+             * source most of its rows.
+             *
+             * Row by row is the slow path the bulk write replaced, used
+             * here only to isolate the offender: the other ninety-nine
+             * still land, and the log names the one that did not.
+             */
+            Log::warning("Notion bulk write failed for [{$source}], falling back to row-by-row: {$e->getMessage()}");
+
+            foreach ($buffer as $row) {
+                try {
+                    $model::updateOrCreate(
+                        ['notion_page_id' => $row['notion_page_id']],
+                        Arr::except($row, ['notion_page_id']),
+                    );
+                } catch (Throwable $rowError) {
+                    Log::warning("Notion page [{$row['notion_page_id']}] could not be written: {$rowError->getMessage()}");
+                }
+            }
+        }
+
+        if ($source !== NotionShoot::SOURCE) {
+            /*
+             * The relation Notion dropped. Not expressible in the upsert
+             * above (see contentRowFor()), and one statement for the whole
+             * page rather than a lookup per row.
+             */
+            $orphaned = array_column(
+                array_filter($buffer, fn (array $row) => $row['notion_shoot_page_id'] === null),
+                'notion_page_id'
+            );
+
+            if ($orphaned !== []) {
+                ContentItem::query()
+                    ->whereIn('notion_page_id', $orphaned)
+                    ->whereNotNull('notion_shoot_id')
+                    ->update(['notion_shoot_id' => null]);
+            }
+        }
+
+        $buffer = [];
+    }
+
+    /**
+     * Notion's ISO-8601 into something MySQL will take.
+     *
+     * Only needed since these rows started going through upsert(): unlike
+     * save()/updateOrCreate(), a bulk upsert does NOT run values through the
+     * model's casts, so "2026-09-19T14:18:00.000Z" reached the driver
+     * verbatim and MySQL refused it -- which, because the whole page is one
+     * statement, threw away every row in that page and stopped pagination
+     * for the source. Anything written here that a cast used to handle has
+     * to be normalised by hand.
+     */
+    private function toDateTime(mixed $value): ?CarbonInterface
+    {
+        if (blank($value)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value);
+        } catch (Throwable) {
+            // A property somebody typed into by hand. Better no date than a
+            // failed page.
+            return null;
+        }
     }
 
     /**

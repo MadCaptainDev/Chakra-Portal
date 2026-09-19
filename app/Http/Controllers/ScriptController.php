@@ -9,6 +9,7 @@ use App\Models\Script;
 use App\Models\ScriptSection;
 use App\Models\TaxonomyTerm;
 use App\Models\User;
+use App\Services\Notion\NotionScriptImporter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -103,14 +104,12 @@ class ScriptController extends Controller
          * A script with no blocks is an empty page and a bad first impression,
          * so a new one opens on the three every reel needs. They are ordinary
          * sections -- rename, reorder or delete them like any other.
+         *
+         * When this script was started from a reel Notion already holds a
+         * script for, Body opens on that text rather than empty: retyping
+         * something the studio has already written is not writing.
          */
-        foreach (['Hook', 'Body', 'CTA'] as $position => $heading) {
-            // position is not fillable -- the reorder action owns it -- so it
-            // is set here rather than passed through create().
-            $section = $script->sections()->make(['heading' => $heading]);
-            $section->position = $position;
-            $section->save();
-        }
+        NotionScriptImporter::seedSections($script, $script->contentItem);
 
         return redirect()
             ->route('scripts.edit', $script)

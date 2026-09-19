@@ -225,4 +225,84 @@ class ContentSyncServiceTest extends TestCase
 
         $this->assertSame(['Amar Dental', 'SVA Silks', 'THOR'], $options);
     }
+    /**
+     * The regression that cost a live sync most of its rows.
+     *
+     * Rows are written a page at a time with upsert(), which -- unlike
+     * save()/updateOrCreate() -- does not run values through the model's
+     * casts. Notion's created_time is ISO-8601 ("2026-01-01T00:00:00.000Z"),
+     * MySQL refused it, and because a page is one statement the exception
+     * took all 100 rows with it AND escaped far enough to stop pagination.
+     * Three sources silently synced only their first page.
+     */
+    public function test_notion_iso_timestamps_survive_the_bulk_write(): void
+    {
+        Http::fake(array_merge($this->fakeSearch([
+            self::REEL_ID => 'Reel Planner - Instagram',
+        ]), [
+            'api.notion.com/v1/databases/'.self::REEL_ID.'/query' => Http::response([
+                'results' => [$this->reelPage()],
+                'has_more' => false,
+            ]),
+            'api.notion.com/v1/databases/*' => Http::response(['results' => [], 'has_more' => false]),
+        ]));
+
+        app(ContentSyncService::class)->syncAll();
+
+        $item = ContentItem::where('notion_page_id', 'reel-page-1')->firstOrFail();
+
+        $this->assertNotNull($item->notion_created_at, 'an ISO timestamp must not be dropped');
+        $this->assertSame('2026-01-01', $item->notion_created_at->format('Y-m-d'));
+    }
+
+    /** Every page is read, not just the first. */
+    public function test_results_are_paginated_to_the_end(): void
+    {
+        $page = fn (string $id) => array_merge($this->reelPage(), ['id' => $id]);
+
+        Http::fake(array_merge($this->fakeSearch([
+            self::REEL_ID => 'Reel Planner - Instagram',
+        ]), [
+            'api.notion.com/v1/databases/'.self::REEL_ID.'/query' => Http::sequence()
+                ->push(['results' => [$page('p1'), $page('p2')], 'has_more' => true, 'next_cursor' => 'cursor-2'])
+                ->push(['results' => [$page('p3')], 'has_more' => false]),
+            'api.notion.com/v1/databases/*' => Http::response(['results' => [], 'has_more' => false]),
+        ]));
+
+        $counts = app(ContentSyncService::class)->syncAll();
+
+        $this->assertSame(3, $counts['reel'], 'pagination must not stop after the first page');
+        $this->assertSame(3, ContentItem::where('source', 'reel')->count());
+    }
+
+    /**
+     * A second run updates in place rather than duplicating.
+     *
+     * One Http::fake with a sequence, not two fake() calls: fake() pushes
+     * stubs onto the existing list rather than replacing them, so a second
+     * registration for the same URL never gets reached and the test would
+     * silently assert against the first response.
+     */
+    public function test_a_repeated_sync_updates_rather_than_inserts(): void
+    {
+        $renamed = $this->reelPage();
+        $renamed['properties']['Videos']['title'][0]['plain_text'] = 'Renamed In Notion';
+
+        Http::fake(array_merge($this->fakeSearch([
+            self::REEL_ID => 'Reel Planner - Instagram',
+        ]), [
+            'api.notion.com/v1/databases/'.self::REEL_ID.'/query' => Http::sequence()
+                ->push(['results' => [$this->reelPage()], 'has_more' => false])
+                ->push(['results' => [$renamed], 'has_more' => false]),
+            'api.notion.com/v1/databases/*' => Http::response(['results' => [], 'has_more' => false]),
+        ]));
+
+        app(ContentSyncService::class)->syncAll();
+        $this->assertSame('Sample Reel', ContentItem::firstOrFail()->title);
+
+        app(ContentSyncService::class)->syncAll();
+
+        $this->assertSame(1, ContentItem::where('source', 'reel')->count(), 'a re-sync must not duplicate');
+        $this->assertSame('Renamed In Notion', ContentItem::firstOrFail()->title);
+    }
 }
