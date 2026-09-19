@@ -1,6 +1,6 @@
-<x-guest-layout title="Staff sign in">
+<x-guest-layout title="Sign in">
     <h2 class="text-2xl sm:text-3xl font-extrabold">Sign in</h2>
-    <p class="mt-2.5 mb-8 text-sm text-brand-100/70">Use the email address the studio set you up with.</p>
+    <p class="mt-2.5 mb-8 text-sm text-brand-100/70">Clients and staff sign in here with the email address the studio set up.</p>
 
     <x-auth-session-status class="mb-6" :status="session('status')" />
 
@@ -9,7 +9,7 @@
 
         <x-auth-field name="email" :label="__('Email')" type="email"
                       :value="old('email')" autocomplete="username" autofocus
-                      placeholder="you@chakraproductions.in" />
+                      placeholder="you@example.com" />
 
         <x-auth-field name="password" :label="__('Password')" type="password"
                       autocomplete="current-password" class="mt-5"

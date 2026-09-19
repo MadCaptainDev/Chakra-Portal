@@ -38,23 +38,34 @@
                     <span class="sr-only">Chakra Productions</span>
                 </a>
 
+                {{--
+                    One screen, two audiences: a client signing in to see their
+                    own content, and staff signing in to record the work behind
+                    it. The copy names the client first because that is who
+                    arrives here cold -- staff know what this is; a client
+                    following a link from an email does not.
+                --}}
                 <div class="relative animate-rise-in">
-                    <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-300">Staff portal</p>
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-300">
+                        Client &amp; studio portal
+                    </p>
                     {{-- 19ch, not the mock's 14ch: at this size 14ch broke the
                          second sentence across two ragged lines. --}}
                     <h1 class="mt-4 max-w-[19ch] text-4xl xl:text-5xl font-extrabold leading-[1.06] text-balance">
-                        Log the hours. We&rsquo;ll do the maths.
+                        Your content, and how it performed.
                     </h1>
-                    <p class="mt-5 max-w-[40ch] text-base text-brand-100/70 leading-relaxed">
-                        Shoots, edits and posts &mdash; recorded against the right client, totalled by day and month.
+                    <p class="mt-5 max-w-[42ch] text-base text-brand-100/70 leading-relaxed">
+                        Clients sign in to see the shoots and reels Chakra Productions made for them,
+                        connect their Instagram Business account, and read how that content actually
+                        performed. Staff sign in to record the work behind it.
                     </p>
                 </div>
 
                 <div class="relative flex flex-wrap gap-7 text-xs text-brand-100/60">
-                    <span>Shooting</span>
-                    <span>Editing</span>
-                    <span>Posting</span>
-                    <span>Other</span>
+                    <span>Shoots</span>
+                    <span>Reels &amp; posts</span>
+                    <span>Instagram insights</span>
+                    <span>Invoices</span>
                 </div>
             </div>
 
