@@ -35,6 +35,15 @@
         <x-page-header :title="$shoot->title" eyebrow="Shoot"
                        :subtitle="$shoot->starts_at->format('l j F, H:i').($shoot->location ? ' · '.$shoot->location : '')">
             <x-slot name="actions">
+                {{-- Only for people actually on this shoot: the runner is the
+                     floor's screen, not the producer's. An admin sees it too,
+                     because they cover for anybody. --}}
+                @if (! $shoot->hasWrapped() && ! $shoot->isCancelled()
+                    && ($shoot->crew->contains('user_id', auth()->id()) || auth()->user()->isAdmin()))
+                    <x-btn :href="route('my.shoots.run', $shoot)" icon="camera">
+                        {{ $shoot->isInProgress() ? 'Back to shoot' : 'Start shoot' }}
+                    </x-btn>
+                @endif
                 <x-btn :href="route('shoots.call-sheet', $shoot)" variant="secondary" icon="printer">Call sheet</x-btn>
                 @can('shoots.edit')
                     <x-btn :href="route('shoots.edit', $shoot)" icon="pencil">Edit</x-btn>

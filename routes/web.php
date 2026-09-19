@@ -53,6 +53,7 @@ use App\Http\Controllers\My\CalendarController as MyCalendarController;
 use App\Http\Controllers\My\DashboardController as MyDashboardController;
 use App\Http\Controllers\My\RoutineController as MyRoutineController;
 use App\Http\Controllers\My\SalaryController as MySalaryController;
+use App\Http\Controllers\My\ShootRunController;
 use App\Http\Controllers\My\TeamController as MyTeamController;
 use App\Http\Controllers\My\TimesheetController as MyTimesheetController;
 use App\Http\Controllers\My\TodoController as MyTodoController;
@@ -310,6 +311,22 @@ Route::middleware(['auth', 'logs-work', 'recognitions.catchup', 'scheduled-flows
  * the signed-in manager's own reports the same way the rest of the my/ area
  * scopes to the signed-in user.
  */
+/*
+ * Running a shoot from the floor.
+ *
+ * Outside the module:shoots group on purpose, and outside the my/ group's
+ * logs-work middleware too. The people who need this are the crew standing
+ * on location, and most of them hold no module permissions at all -- being
+ * named on the shoot is the permission, which ShootRunController checks per
+ * shoot because no middleware can.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('my/shoots/{shoot}/run', [ShootRunController::class, 'show'])->name('my.shoots.run');
+    Route::post('my/shoots/{shoot}/start', [ShootRunController::class, 'start'])->name('my.shoots.start');
+    Route::post('my/shoots/{shoot}/videos', [ShootRunController::class, 'storeVideo'])->name('my.shoots.videos.store');
+    Route::post('my/shoots/{shoot}/finish', [ShootRunController::class, 'finish'])->name('my.shoots.finish');
+});
+
 Route::middleware('auth')->group(function () {
     Route::get('my/team', [MyTeamController::class, 'index'])->name('my.team');
 

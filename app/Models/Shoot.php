@@ -11,10 +11,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * NOT App\Models\NotionShoot -- that is a read-only mirror of Notion's
- * "Shoots" database, synced by ContentSyncService and never written to.
- * This is the portal's own first-class, writable shoot-booking record. The
- * two share a name by one word and nothing else; do not conflate them.
+ * NOT App\Models\NotionShoot -- that is the local mirror of Notion's
+ * "Shoots" database, filled by ContentSyncService. This is the portal's own
+ * first-class shoot-booking record. The two share a name by one word and
+ * nothing else; do not conflate them.
  */
 class Shoot extends Model
 {
@@ -60,6 +60,8 @@ class Shoot extends Model
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
         'requested_at' => 'datetime',
+        'started_at' => 'datetime',
+        'finished_at' => 'datetime',
         'reminder_sent_at' => 'datetime',
         'content_missing_alert_sent_at' => 'datetime',
     ];
@@ -73,10 +75,15 @@ class Shoot extends Model
      * The Notion shoot this was imported from, or null when it was created
      * in the portal.
      *
-     * Null is a real state, not missing data: the Notion token is
-     * read-only, so a shoot created here cannot be pushed back and Notion
-     * genuinely does not know about it. The Shoots screen says so rather
-     * than implying the two are in step.
+     * Null is a real state, not missing data: a shoot booked in the portal
+     * has no Notion counterpart to create -- the integration is attached to
+     * existing pages, not a writer of new ones -- so Notion genuinely does
+     * not know about it. The Shoots screen says so rather than implying the
+     * two are in step.
+     *
+     * Where one does exist, its status is writable: see
+     * App\Services\Notion\NotionShootStatus, which moves the card when the
+     * crew start and wrap.
      */
     public function notionShoot(): BelongsTo
     {
@@ -124,6 +131,39 @@ class Shoot extends Model
     public function scopeOrdered(Builder $query): void
     {
         $query->orderBy('starts_at');
+    }
+
+    /** Videos filed by the crew while this shoot was running, in order. */
+    public function videos(): HasMany
+    {
+        return $this->hasMany(ShootVideo::class)->orderBy('position');
+    }
+
+    public function startedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'started_by_id');
+    }
+
+    /**
+     * Happening right now -- started and not yet wrapped.
+     *
+     * Deliberately not a fifth STATUS_* value; see the
+     * add_run_tracking_to_shoots_table migration for why.
+     */
+    public function isInProgress(): bool
+    {
+        return $this->started_at !== null && $this->finished_at === null;
+    }
+
+    /** Started and wrapped. A shoot never booked at all is neither. */
+    public function hasWrapped(): bool
+    {
+        return $this->finished_at !== null;
+    }
+
+    public function scopeInProgress(Builder $query): void
+    {
+        $query->whereNotNull('started_at')->whereNull('finished_at');
     }
 
     /**
