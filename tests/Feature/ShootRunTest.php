@@ -188,7 +188,7 @@ class ShootRunTest extends TestCase
         ShootRun::finish($shoot, $crew);
 
         $this->actingAs($crew)->post(route('my.shoots.videos.store', $shoot), ['name' => 'After the fact'])
-            ->assertSessionHasErrors('name');
+            ->assertSessionHasErrors(['name' => 'This shoot has already been wrapped.']);
 
         $this->expectException(RuntimeException::class);
         ShootRun::start($shoot->fresh(), $crew);

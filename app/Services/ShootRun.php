@@ -80,6 +80,15 @@ class ShootRun
         ?UploadedFile $photo = null,
         ?string $notes = null,
     ): ShootVideo {
+        /*
+         * Two different refusals, because "not in progress" covers two
+         * opposite mistakes and telling a wrapped shoot to start would send
+         * somebody looking for a button that is deliberately not there.
+         */
+        if ($shoot->hasWrapped()) {
+            throw new RuntimeException('This shoot has already been wrapped.');
+        }
+
         if (! $shoot->isInProgress()) {
             throw new RuntimeException('Start the shoot before adding videos.');
         }
