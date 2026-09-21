@@ -208,6 +208,12 @@ class Client extends Model
         return $this->hasMany(Invoice::class);
     }
 
+    /** Costs the studio carried for this client and expects back. */
+    public function advances(): HasMany
+    {
+        return $this->hasMany(ClientAdvance::class);
+    }
+
     /**
      * Software Chakra App Studio built and maintains for this client -- the
      * one thing (besides invoices) that separates an App Studio client from

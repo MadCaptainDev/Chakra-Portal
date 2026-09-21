@@ -18,6 +18,7 @@ use App\Http\Controllers\Client\ShootController as ClientShootController;
 use App\Http\Controllers\Client\ShootRequestController as ClientShootRequestController;
 use App\Http\Controllers\Client\SocialController as ClientSocialController;
 use App\Http\Controllers\Client\WorkController as ClientWorkController;
+use App\Http\Controllers\ClientAdvanceController;
 use App\Http\Controllers\ClientBriefLinkController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientCredentialController;
@@ -956,6 +957,34 @@ Route::middleware(['auth', 'module:quotations,view'])->group(function () {
  * Money out, minus payroll. Salaries is a separate module because it is the
  * only screen here that tells you what a colleague earns.
  */
+/*
+ * Money the studio carried for a client and wants back. Its own module rather
+ * than part of Expenses below, because it is the opposite kind of number: an
+ * advance is owed TO the studio, and counting it as outflow would misstate the
+ * one screen that exists to state outflow correctly.
+ */
+Route::middleware(['auth', 'module:client-advances,view'])->group(function () {
+    Route::get('client-advances', [ClientAdvanceController::class, 'index'])->name('client-advances.index');
+    Route::get('client-advances/{clientAdvance}/receipt', [ClientAdvanceController::class, 'receipt'])
+        ->name('client-advances.receipt');
+
+    Route::middleware('module:client-advances,create')->group(function () {
+        Route::get('client-advances/create', [ClientAdvanceController::class, 'create'])->name('client-advances.create');
+        Route::post('client-advances', [ClientAdvanceController::class, 'store'])->name('client-advances.store');
+    });
+
+    // Marking recovered is `edit`: it changes a record's state, it does not
+    // create one -- the same reading Expenses applies to paying.
+    Route::middleware('module:client-advances,edit')->group(function () {
+        Route::get('client-advances/{clientAdvance}/edit', [ClientAdvanceController::class, 'edit'])->name('client-advances.edit');
+        Route::put('client-advances/{clientAdvance}', [ClientAdvanceController::class, 'update'])->name('client-advances.update');
+        Route::post('client-advances/{clientAdvance}/recovered', [ClientAdvanceController::class, 'markRecovered'])->name('client-advances.recovered');
+        Route::delete('client-advances/{clientAdvance}/recovered', [ClientAdvanceController::class, 'undoRecovered'])->name('client-advances.recovered.undo');
+    });
+
+    Route::delete('client-advances/{clientAdvance}', [ClientAdvanceController::class, 'destroy'])
+        ->middleware('module:client-advances,delete')->name('client-advances.destroy');
+});
 Route::middleware(['auth', 'module:expenses,view'])->group(function () {
     // Combined month overview.
     Route::get('expenses', [ExpenseController::class, 'index'])->name('expenses.index');

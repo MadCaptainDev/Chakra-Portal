@@ -41,6 +41,8 @@ class TaxonomyTerm extends Model
 
     public const TYPE_VENTURE = 'venture';
 
+    public const TYPE_CLIENT_COST = 'client_cost_category';
+
     /**
      * The lists, in the order the master-data screen shows them.
      *
@@ -105,6 +107,11 @@ class TaxonomyTerm extends Model
             'label' => 'Task type',
             'plural' => 'Task types',
             'hint' => 'What a timesheet entry was — shooting, editing, posting. The SLUG is what every entry stores, so renaming a term is safe but changing its slug would orphan the hours already logged against it.',
+        ],
+        self::TYPE_CLIENT_COST => [
+            'label' => 'Client cost',
+            'plural' => 'Client costs',
+            'hint' => 'Kinds of cost the studio carries for a client and recovers later — ad spend, subscriptions, a model’s fee. Used by Client Advances.',
         ],
     ];
 

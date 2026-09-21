@@ -274,6 +274,17 @@ class Permission
             'icon' => 'wallet',
             'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
+        /*
+         * Its own module rather than a screen inside Expenses: this is money
+         * owed TO the studio, and the two answer opposite questions. See the
+         * create_client_advances_table migration.
+         */
+        'client-advances' => [
+            'label' => 'Client Advances',
+            'group' => 'Finance',
+            'icon' => 'card',
+            'abilities' => ['view', 'create', 'edit', 'delete'],
+        ],
         'salaries' => [
             'label' => 'Salaries',
             'group' => 'Finance',
