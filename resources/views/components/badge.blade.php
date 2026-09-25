@@ -54,6 +54,9 @@
         // WhatsApp delivery statuses, which climb sent -> delivered -> read.
         // "failed" borrows the red that overdue and blocked already own.
         'sent' => 'bg-white/10 text-brand-100/70',
+        // Proposal statuses (Proposal::STATUSES); draft/sent/accepted above.
+        'viewed' => 'bg-sky-400/15 text-sky-200',
+        'declined' => 'bg-red-400/15 text-red-200',
         'delivered' => 'bg-sky-400/15 text-sky-200',
         'read' => 'bg-emerald-400/15 text-emerald-200',
         'failed' => 'bg-red-400/15 text-red-200',

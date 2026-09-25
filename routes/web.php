@@ -66,9 +66,12 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PortfolioCategoryController;
 use App\Http\Controllers\PortfolioItemController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProposalCommentController;
+use App\Http\Controllers\ProposalController;
 use App\Http\Controllers\PublicBriefController;
 use App\Http\Controllers\PublicInvoiceController;
 use App\Http\Controllers\PublicPortfolioController;
+use App\Http\Controllers\PublicProposalController;
 use App\Http\Controllers\PublicQuotationController;
 use App\Http\Controllers\PushSettingController;
 use App\Http\Controllers\PushTokenController;
@@ -171,6 +174,20 @@ Route::middleware('throttle:30,1')->group(function () {
         Route::post('brief/{token}', [PublicBriefController::class, 'update'])->name('brief.public.update');
         Route::post('brief/{token}/submit', [PublicBriefController::class, 'submit'])->name('brief.public.submit');
     });
+
+    /*
+     * A proposal on a no-login link: the client reads it, comments on any
+     * section, and downloads the PDF. Same token-is-the-credential rule as
+     * brief/{token}; unknown or revoked is a 404. The comment POST is
+     * CSRF-exempt for the same reason as the brief's -- somebody reading a
+     * 22-page proposal can easily outlast the session, and a 419 would throw
+     * their comment away.
+     */
+    Route::get('p/{token}', [PublicProposalController::class, 'show'])->name('proposals.public');
+    Route::get('p/{token}/pdf', [PublicProposalController::class, 'pdf'])->name('proposals.public-pdf');
+    Route::post('p/{token}/comments', [PublicProposalController::class, 'comment'])
+        ->withoutMiddleware(ValidateCsrfToken::class)
+        ->name('proposals.public.comment');
 });
 
 // Public enquiry form. Throttled because it is unauthenticated and sends mail.
@@ -951,6 +968,42 @@ Route::middleware(['auth', 'module:quotations,view'])->group(function () {
 
     Route::delete('quotations/{quotation}', [QuotationController::class, 'destroy'])
         ->middleware('module:quotations,delete')->name('quotations.destroy');
+});
+
+/*
+ * Proposals: the designed document sent before anything is quoted, with its
+ * section editor and the share link clients comment on (p/{token} above).
+ */
+Route::middleware(['auth', 'module:proposals,view'])->group(function () {
+    Route::get('proposals', [ProposalController::class, 'index'])->name('proposals.index');
+
+    // Before proposals/{proposal}, for the same declaration-order reason as
+    // quotations/create.
+    Route::middleware('module:proposals,create')->group(function () {
+        Route::get('proposals/create', [ProposalController::class, 'create'])->name('proposals.create');
+        Route::post('proposals', [ProposalController::class, 'store'])->name('proposals.store');
+        Route::post('proposals/{proposal}/duplicate', [ProposalController::class, 'duplicate'])->name('proposals.duplicate');
+    });
+
+    Route::get('proposals/{proposal}', [ProposalController::class, 'show'])->name('proposals.show');
+    Route::get('proposals/{proposal}/pdf', [ProposalController::class, 'pdf'])->name('proposals.pdf');
+
+    Route::middleware('module:proposals,edit')->group(function () {
+        Route::get('proposals/{proposal}/edit', [ProposalController::class, 'edit'])->name('proposals.edit');
+        Route::put('proposals/{proposal}', [ProposalController::class, 'update'])->name('proposals.update');
+        Route::patch('proposals/{proposal}/status', [ProposalController::class, 'updateStatus'])->name('proposals.status');
+        Route::post('proposals/{proposal}/link', [ProposalController::class, 'issueLink'])->name('proposals.link');
+        Route::delete('proposals/{proposal}/link', [ProposalController::class, 'revokeLink'])->name('proposals.link.revoke');
+    });
+
+    Route::middleware('module:proposals,comment')->group(function () {
+        Route::post('proposals/{proposal}/comments', [ProposalCommentController::class, 'store'])->name('proposals.comments.store');
+        Route::post('proposals/{proposal}/comments/{comment}/resolve', [ProposalCommentController::class, 'resolve'])->name('proposals.comments.resolve');
+        Route::delete('proposals/{proposal}/comments/{comment}/resolve', [ProposalCommentController::class, 'reopen'])->name('proposals.comments.reopen');
+    });
+
+    Route::delete('proposals/{proposal}', [ProposalController::class, 'destroy'])
+        ->middleware('module:proposals,delete')->name('proposals.destroy');
 });
 
 /*

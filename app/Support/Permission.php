@@ -268,6 +268,19 @@ class Permission
             'icon' => 'clipboard-list',
             'abilities' => ['view', 'create', 'edit', 'delete', 'approve', 'manage'],
         ],
+        /*
+         * The long designed document a prospect reads before anything is
+         * quoted line by line -- scope, phases, commercials, terms -- with a
+         * no-login link the client comments on. `comment` covers replying to
+         * and resolving those comments, which is talking to the client, not
+         * rewriting the document.
+         */
+        'proposals' => [
+            'label' => 'Proposals',
+            'group' => 'Finance',
+            'icon' => 'document',
+            'abilities' => ['view', 'create', 'edit', 'delete', 'comment', 'manage'],
+        ],
         'expenses' => [
             'label' => 'Expenses',
             'group' => 'Finance',

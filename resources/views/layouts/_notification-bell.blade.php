@@ -1,6 +1,7 @@
 {{--
     Top-bar bell. Pulls from NotificationCenterController@feed (your own
-    open to-dos + active announcements -- nothing new persisted). "Unread"
+    open to-dos, active announcements, client comments on your proposals --
+    nothing new persisted). "Unread"
     is a client-side timestamp in localStorage, not a database column: the
     badge counts items newer than the last time this person opened the
     panel on this device. Good enough for "did I miss anything today?"

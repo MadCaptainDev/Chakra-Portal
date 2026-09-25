@@ -2,6 +2,7 @@ import './bootstrap';
 
 import Alpine from 'alpinejs';
 import { whatsappInboxThread } from './whatsapp-inbox.js';
+import { proposalComment } from './proposal.js';
 
 window.Alpine = Alpine;
 
@@ -10,6 +11,9 @@ window.Alpine = Alpine;
 // this is not lazy: the thread's polling has to be running the moment the
 // page it belongs to loads, not after a first user gesture opts in.
 Alpine.data('whatsappInboxThread', whatsappInboxThread);
+
+// The public proposal's comment boxes -- see resources/js/proposal.js.
+Alpine.data('proposalComment', proposalComment);
 
 Alpine.start();
 
