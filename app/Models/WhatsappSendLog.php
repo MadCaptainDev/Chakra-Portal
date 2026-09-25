@@ -7,7 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 /**
- * One "Send via WhatsApp" attempt against an Invoice or a Quotation --
+ * One "Send via WhatsApp" attempt against an Invoice, a Quotation or a
+ * Proposal --
  * see the migration's own doc block for why this is polymorphic.
  * Written by DocumentWhatsappNotifier for every attempt, sent or failed,
  * never only on success -- a log that skips failures cannot answer "did
@@ -25,6 +26,7 @@ class WhatsappSendLog extends Model
     public const LOGGABLE_MORPH_MAP = [
         'invoice' => Invoice::class,
         'quotation' => Quotation::class,
+        'proposal' => Proposal::class,
     ];
 
     public const STATUS_SENT = 'sent';

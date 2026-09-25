@@ -5,10 +5,16 @@ namespace Tests\Feature;
 use App\Models\Proposal;
 use App\Models\ProposalComment;
 use App\Models\User;
+use App\Models\WhatsappSendLog;
+use App\Models\WhatsappSetting;
+use App\Models\WhatsappWebhookEvent;
 use App\Notifications\ProposalCommented;
+use App\Services\DocumentWhatsappNotifier;
 use App\Support\ProposalBlocks;
 use Database\Seeders\ProposalSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
@@ -388,6 +394,126 @@ class ProposalTest extends TestCase
 
         $this->actingAs($creator)->getJson(route('notification-center.feed'))
             ->assertJsonMissing(['type' => 'proposal-comment']);
+    }
+
+    /* -------------------------------------------------------- whatsapp */
+
+    private function whatsappConfigured(): void
+    {
+        WhatsappSetting::current()->update([
+            'access_token' => 'EAAG-test-token',
+            'phone_number_id' => '123456789',
+            'business_account_id' => '102290129340398',
+        ]);
+    }
+
+    public function test_sending_on_whatsapp_uses_the_template_and_creates_the_link(): void
+    {
+        $this->whatsappConfigured();
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.P1']]])]);
+
+        $proposal = $this->proposal();
+        $admin = $this->admin();
+
+        $this->actingAs($admin)
+            ->post(route('proposals.send-whatsapp', $proposal), ['phone' => '9999888877'])
+            ->assertRedirect(route('proposals.show', $proposal))
+            ->assertSessionHas('status', fn (string $status) => str_contains($status, '9999888877'));
+
+        $proposal->refresh();
+        $this->assertNotNull($proposal->public_token);
+        $this->assertSame(Proposal::STATUS_SENT, $proposal->status);
+
+        Http::assertSent(function (Request $request) use ($proposal) {
+            $body = $request->data();
+
+            return $body['to'] === '919999888877'
+                && $body['template']['name'] === Proposal::WHATSAPP_TEMPLATE
+                && $body['template']['components'][0]['parameters'][1]['text'] === 'Test proposal'
+                && $body['template']['components'][1]['type'] === 'button'
+                && $body['template']['components'][1]['parameters'][0]['text'] === $proposal->public_token;
+        });
+
+        $log = $proposal->whatsappLogs()->sole();
+        $this->assertSame(WhatsappSendLog::STATUS_SENT, $log->status);
+        $this->assertSame(Proposal::WHATSAPP_TEMPLATE, $log->template);
+        $this->assertSame('wamid.P1', $log->wamid);
+        $this->assertSame($admin->id, $log->sent_by);
+
+        $this->actingAs($admin)->get(route('proposals.show', $proposal))->assertOk()->assertSee('Send history (1)');
+    }
+
+    public function test_inside_the_service_window_the_link_goes_as_plain_text(): void
+    {
+        $this->whatsappConfigured();
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.P2']]])]);
+
+        WhatsappWebhookEvent::create([
+            'object' => 'whatsapp_business_account',
+            'field' => 'messages',
+            'type' => WhatsappWebhookEvent::TYPE_MESSAGE,
+            'dedupe_key' => hash('sha256', 'inbound|proposal'),
+            'external_id' => 'wamid.IN-P',
+            'wa_id' => '919999888877',
+            'message_type' => 'text',
+            'summary' => 'Hi, send it over',
+            'payload' => [],
+            'occurred_at' => now()->subHours(3),
+            'received_at' => now()->subHours(3),
+        ]);
+
+        $proposal = $this->proposal();
+        $token = $proposal->issuePublicToken();
+
+        $this->actingAs($this->admin())
+            ->post(route('proposals.send-whatsapp', $proposal), ['phone' => '9999888877'])
+            ->assertRedirect();
+
+        Http::assertSent(fn (Request $request) => $request->data()['type'] === 'text'
+            && str_contains($request->data()['text']['body'], route('proposals.public', $token)));
+
+        // The existing link was reused, not replaced.
+        $this->assertSame($token, $proposal->refresh()->public_token);
+        $this->assertSame(DocumentWhatsappNotifier::TEXT_TEMPLATE, $proposal->whatsappLogs()->sole()->template);
+    }
+
+    public function test_a_failed_send_is_logged_and_flashed(): void
+    {
+        $this->whatsappConfigured();
+        Http::fake(['graph.facebook.com/*' => Http::response(['error' => ['message' => 'Template not approved']], 400)]);
+
+        $proposal = $this->proposal();
+
+        $this->actingAs($this->admin())
+            ->post(route('proposals.send-whatsapp', $proposal), ['phone' => '9999888877'])
+            ->assertRedirect(route('proposals.show', $proposal))
+            ->assertSessionHas('error');
+
+        $this->assertSame(WhatsappSendLog::STATUS_FAILED, $proposal->whatsappLogs()->sole()->status);
+    }
+
+    public function test_a_bad_phone_is_rejected_before_meta_is_called(): void
+    {
+        $this->whatsappConfigured();
+        Http::fake();
+
+        $proposal = $this->proposal();
+
+        $this->actingAs($this->admin())
+            ->post(route('proposals.send-whatsapp', $proposal), ['phone' => 'call me'])
+            ->assertSessionHasErrors('phone');
+
+        Http::assertNothingSent();
+        $this->assertNull($proposal->refresh()->public_token);
+    }
+
+    public function test_sending_on_whatsapp_needs_edit(): void
+    {
+        $proposal = $this->proposal();
+
+        $this->actingAs($this->employee(['view']))
+            ->post(route('proposals.send-whatsapp', $proposal), ['phone' => '9999888877'])
+            ->assertForbidden();
     }
 
     /* ------------------------------------------------------------- pdf */

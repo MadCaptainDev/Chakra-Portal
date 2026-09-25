@@ -6,8 +6,10 @@ use App\Http\Requests\ProposalRequest;
 use App\Models\Client;
 use App\Models\CompanySetting;
 use App\Models\Proposal;
+use App\Services\DocumentWhatsappNotifier;
 use App\Support\ProposalBlocks;
 use App\Support\PublicUpload;
+use App\Support\WhatsappServiceWindow;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Dompdf\Canvas;
 use Dompdf\FontMetrics;
@@ -15,6 +17,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -85,7 +88,7 @@ class ProposalController extends Controller
 
     public function show(Proposal $proposal): View
     {
-        $proposal->load('client', 'createdBy');
+        $proposal->load('client', 'createdBy', 'whatsappLogs.sentBy');
 
         $comments = $proposal->comments()
             ->topLevel()
@@ -185,6 +188,54 @@ class ProposalController extends Controller
         $proposal->revokePublicToken();
 
         return back()->with('status', 'Link closed. Comments already left are kept.');
+    }
+
+    /**
+     * Send the client their link on WhatsApp, to whatever number is typed --
+     * same as Send via WhatsApp on a quotation.
+     *
+     * Two paths, the brand-brief reminder's (ClientBriefNudge): inside the
+     * 24-hour window after the client last messaged the studio, the link
+     * goes as plain text, which needs no Meta approval; outside it, Meta only
+     * accepts the approved proposal_ready template, whose button carries the
+     * token into p/{{1}}. Either way the attempt is logged on the proposal.
+     *
+     * Sending needs a link, so one is created if there is none -- which also
+     * moves a draft to "sent", as creating it by hand does.
+     */
+    public function sendWhatsapp(Request $request, Proposal $proposal, DocumentWhatsappNotifier $notifier): RedirectResponse
+    {
+        $proposal->loadMissing('client');
+
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'min:10', 'max:20', 'regex:/^[0-9+\-\s()]+$/'],
+        ], [
+            'phone.regex' => 'That doesn\'t look like a phone number.',
+        ]);
+
+        if ($proposal->public_token === null) {
+            $proposal->issuePublicToken();
+        }
+
+        try {
+            if (WhatsappServiceWindow::isOpen($validated['phone'])) {
+                $notifier->sendText($proposal, $validated['phone'], $proposal->whatsappMessage(), $request->user()->id);
+            } else {
+                $notifier->send(
+                    document: $proposal,
+                    phone: $validated['phone'],
+                    template: Proposal::WHATSAPP_TEMPLATE,
+                    bodyParameters: [$proposal->recipientName(), $proposal->title],
+                    buttonUrlParameter: $proposal->public_token,
+                    sentByUserId: $request->user()->id,
+                );
+            }
+        } catch (RuntimeException $e) {
+            return redirect()->route('proposals.show', $proposal)->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('proposals.show', $proposal)
+            ->with('status', "Link sent to {$validated['phone']} on WhatsApp.");
     }
 
     public function pdf(Proposal $proposal): Response

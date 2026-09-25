@@ -117,6 +117,53 @@
                 @endif
 
                 @can('proposals.edit')
+                    {{-- Any number, typed fresh -- same as a quotation's send.
+                         Creates the link first if there is none. --}}
+                    <form method="POST" action="{{ route('proposals.send-whatsapp', $proposal) }}"
+                          class="pt-3 border-t border-white/10 space-y-2">
+                        @csrf
+                        <x-input-label for="phone" value="Send the link on WhatsApp" />
+                        <div class="flex gap-2">
+                            <x-text-input id="phone" name="phone" type="tel" class="flex-1 text-sm"
+                                          value="{{ old('phone', $proposal->client?->phone) }}"
+                                          placeholder="e.g. 9876543210" required />
+                            <x-btn type="submit" size="sm">Send</x-btn>
+                        </div>
+                        <x-input-error :messages="$errors->get('phone')" />
+                        <p class="text-xs text-brand-100/50">
+                            Goes as a normal message if they messaged the studio in the last day; otherwise as the
+                            approved <span class="font-mono">{{ \App\Models\Proposal::WHATSAPP_TEMPLATE }}</span> template.
+                        </p>
+                    </form>
+
+                    @if ($proposal->whatsappLogs->isNotEmpty())
+                        <div x-data="{ open: false }" class="text-sm">
+                            <button type="button" class="text-xs font-semibold text-brand-300 hover:text-brand-200 min-h-[44px]"
+                                    @click="open = !open"
+                                    x-text="open ? 'Hide send history' : 'Send history ({{ $proposal->whatsappLogs->count() }})'"></button>
+                            {{-- A compact list rather than x-whatsapp-log-table: five
+                                 columns do not fit this sidebar. --}}
+                            <ul x-show="open" x-cloak class="space-y-2">
+                                @foreach ($proposal->whatsappLogs as $log)
+                                    <li class="rounded-md bg-white/5 px-3 py-2">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <span class="text-white">{{ $log->phone }}</span>
+                                            <x-badge :status="$log->status" />
+                                        </div>
+                                        <p class="text-xs text-brand-100/60">
+                                            {{ $log->created_at->format('j M, g:i A') }}
+                                            @if ($log->sentBy) · {{ $log->sentBy->name }} @endif
+                                            · {{ $log->template === \App\Services\DocumentWhatsappNotifier::TEXT_TEMPLATE ? 'message' : 'template' }}
+                                        </p>
+                                        @if ($log->error)
+                                            <p class="text-xs text-red-300 break-words">{{ $log->error }}</p>
+                                        @endif
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+
                     <form method="POST" action="{{ route('proposals.status', $proposal) }}" class="flex items-center gap-2 pt-2 border-t border-white/10">
                         @csrf
                         @method('PATCH')

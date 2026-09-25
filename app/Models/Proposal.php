@@ -6,6 +6,7 @@ use App\Support\ProposalBlocks;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Str;
 
 /**
@@ -32,6 +33,14 @@ class Proposal extends Model
         self::STATUS_ACCEPTED => 'Accepted',
         self::STATUS_DECLINED => 'Declined',
     ];
+
+    /**
+     * The Meta template ProposalController::sendWhatsapp() falls back to when
+     * the client has not messaged the studio in the last 24 hours. Must be
+     * Meta-approved before that path can send -- run
+     * `app:seed-proposal-ready-template` once, same as quotation_ready.
+     */
+    public const WHATSAPP_TEMPLATE = 'proposal_ready_v1';
 
     protected $fillable = [
         'client_id',
@@ -62,6 +71,31 @@ class Proposal extends Model
     public function comments(): HasMany
     {
         return $this->hasMany(ProposalComment::class);
+    }
+
+    /**
+     * Every "Send on WhatsApp" attempt, newest first -- the same send
+     * history Invoice and Quotation keep.
+     */
+    public function whatsappLogs(): MorphMany
+    {
+        return $this->morphMany(WhatsappSendLog::class, 'loggable')->latest();
+    }
+
+    /**
+     * The name the WhatsApp message greets: the linked client, else the
+     * client name on the cover.
+     */
+    public function recipientName(): string
+    {
+        return $this->client?->name ?: (($this->cover()['client_name'] ?? '') ?: 'there');
+    }
+
+    /** The free-text version of the message, sent inside the 24-hour window. */
+    public function whatsappMessage(): string
+    {
+        return 'Hi '.$this->recipientName().', your proposal "'.$this->title.'" from Chakra is ready. '
+            .'You can read it, comment on any section and download the PDF here: '.$this->publicUrl();
     }
 
     /**

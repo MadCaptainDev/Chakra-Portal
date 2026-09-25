@@ -994,6 +994,9 @@ Route::middleware(['auth', 'module:proposals,view'])->group(function () {
         Route::patch('proposals/{proposal}/status', [ProposalController::class, 'updateStatus'])->name('proposals.status');
         Route::post('proposals/{proposal}/link', [ProposalController::class, 'issueLink'])->name('proposals.link');
         Route::delete('proposals/{proposal}/link', [ProposalController::class, 'revokeLink'])->name('proposals.link.revoke');
+        // Same ability as the link itself -- sending it is handing it out.
+        Route::post('proposals/{proposal}/send-whatsapp', [ProposalController::class, 'sendWhatsapp'])
+            ->middleware('throttle:10,1')->name('proposals.send-whatsapp');
     });
 
     Route::middleware('module:proposals,comment')->group(function () {
