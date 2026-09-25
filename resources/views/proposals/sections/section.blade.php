@@ -1,4 +1,11 @@
-@php $data = $section['data']; @endphp
+@php
+    $data = $section['data'];
+
+    // The "How to read" key is not something to give feedback on: a
+    // headless section holding nothing but a legend gets no Comment box.
+    $commentable = $data['number'] !== '' || $data['title'] !== ''
+        || collect($data['blocks'])->contains(fn ($block) => $block['type'] !== 'legend');
+@endphp
 
 <section class="cp-section" id="section-{{ $section['key'] }}">
     <div class="cp-section__head">
@@ -20,7 +27,7 @@
         @include('proposals.blocks.'.$block['type'], ['block' => $block])
     @endforeach
 
-    @if ($mode === 'public')
+    @if ($mode === 'public' && $commentable)
         @include('proposals.public._comments', [
             'sectionKey' => $section['key'],
             'thread' => $thread,

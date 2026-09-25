@@ -3,6 +3,7 @@ import './bootstrap';
 import Alpine from 'alpinejs';
 import { whatsappInboxThread } from './whatsapp-inbox.js';
 import { proposalComment } from './proposal.js';
+import { proposalEditor, registerEditDirective } from './proposal-editor.js';
 
 window.Alpine = Alpine;
 
@@ -14,6 +15,11 @@ Alpine.data('whatsappInboxThread', whatsappInboxThread);
 
 // The public proposal's comment boxes -- see resources/js/proposal.js.
 Alpine.data('proposalComment', proposalComment);
+
+// The proposal editor: the document typed into directly -- see
+// resources/js/proposal-editor.js. x-edit is its contenteditable binding.
+registerEditDirective(Alpine);
+Alpine.data('proposalEditor', proposalEditor);
 
 Alpine.start();
 

@@ -336,18 +336,41 @@
 .cp-tag--optional { background: var(--gray-100); color: var(--gray-600); }
 
 .cp-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
-    padding: 12px 14px;
     border: 1px solid var(--gray-200);
-    border-radius: 10px;
-    font-size: 12px;
+    border-radius: var(--radius-xl);
+    background: var(--gray-50);
+    padding: 14px 16px;
     margin-bottom: 22px;
 }
 
-.cp-legend strong { margin-right: 4px; }
+.cp-legend__title {
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--gray-500);
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.cp-legend__items {
+    display: grid;
+    grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+    gap: 12px 16px;
+}
+
+@container cp-doc (max-width: 639px) {
+    .cp-legend__items { grid-template-columns: minmax(0, 1fr); }
+}
+
+.cp-legend__item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--gray-600);
+}
 
 .cp-note {
     margin: 14px 0 10px;
@@ -792,6 +815,73 @@
 .cp-link:hover { color: var(--brand-700); }
 
 [x-cloak] { display: none !important; }
+
+/* ------------------------------------------------------ editor (admin only)
+   The editor (proposals/_editor.blade.php) draws the same sheets with the
+   text contenteditable. Everything here is scoped to .cp-editing, so the
+   document the client reads never carries any of it. */
+
+.cp-editing .cp-edit { outline: none; cursor: text; min-width: 1ch; border-radius: 3px; }
+.cp-editing .cp-edit:hover { box-shadow: 0 0 0 3px rgba(79, 169, 196, .10); }
+.cp-editing .cp-edit:focus { box-shadow: 0 0 0 3px rgba(79, 169, 196, .28); }
+.cp-editing .cp-edit:empty::before { content: attr(data-placeholder); color: var(--gray-400); pointer-events: none; }
+.cp-editing .cp-cover .cp-edit:empty::before { color: rgba(228, 242, 247, .35); }
+.cp-editing div.cp-edit:empty,
+.cp-editing ul.cp-edit,
+.cp-editing ol.cp-edit { min-height: 1.65em; }
+
+.cp-editing .cp-eblock { position: relative; }
+.cp-editing .cp-eblock::after {
+    content: '';
+    position: absolute;
+    left: -12px;
+    top: 2px;
+    bottom: 2px;
+    width: 2px;
+    border-radius: 2px;
+    background: transparent;
+    pointer-events: none;
+}
+.cp-editing .cp-eblock.is-active::after { background: var(--brand-400); }
+
+.cp-editing .cp-e-head { display: flex; gap: 10px; align-items: baseline; }
+.cp-doc h2 .cp-e-num { margin-right: 0; }
+.cp-doc h2 .cp-e-title { color: inherit; font-weight: inherit; margin: 0; flex: 1; }
+.cp-editing .cp-e-head--empty { opacity: .4; }
+.cp-editing .cp-e-head--empty:focus-within,
+.cp-editing .cp-section.is-active .cp-e-head--empty { opacity: 1; }
+
+.cp-editing .cp-e-tail { height: 24px; cursor: text; }
+.cp-editing .cp-e-layer { display: flex; flex-direction: column; gap: 10px; }
+.cp-editing .cp-e-swim-empty {
+    border: 1px dashed var(--gray-200);
+    border-radius: var(--radius-lg);
+    padding: 8px 10px;
+    font-size: 12px;
+    line-height: 1.4;
+    min-height: 34px;
+}
+
+.cp-editing .cp-e-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+.cp-editing .cp-e-logo .cp-cover__logo { margin-bottom: 0; }
+.cp-editing .cp-e-logo__actions { display: flex; gap: 6px; opacity: 0; transition: opacity .15s; }
+.cp-editing .cp-cover:hover .cp-e-logo__actions,
+.cp-editing .cp-e-logo:not(:has(img)) .cp-e-logo__actions { opacity: 1; }
+
+.cp-e-chip {
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--brand-100);
+    background: rgba(255, 255, 255, .08);
+    border: 1px solid rgba(255, 255, 255, .18);
+    border-radius: 999px;
+    padding: 5px 14px;
+    cursor: pointer;
+}
+.cp-e-chip:hover { background: rgba(255, 255, 255, .15); color: var(--white); }
+
+.cp-e-end { display: flex; gap: 8px; justify-content: center; padding-bottom: 24px; }
 
 @media print {
     .cp-ui { display: none !important; }

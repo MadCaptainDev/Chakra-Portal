@@ -55,7 +55,7 @@ class ProposalTest extends TestCase
 
     private function sectionsJson(array $sections): string
     {
-        return json_encode(ProposalBlocks::toForm(ProposalBlocks::normalizeSections($sections)));
+        return json_encode(ProposalBlocks::normalizeSections($sections));
     }
 
     /* ------------------------------------------------------------ admin */
@@ -537,11 +537,62 @@ class ProposalTest extends TestCase
 
     public function test_every_block_survives_the_editor_round_trip(): void
     {
+        // The editor posts the stored shape straight back; saving it again
+        // must change nothing.
         $sections = ProposalBlocks::normalizeSections(ProposalSeeder::sections());
 
-        $posted = json_decode(json_encode(ProposalBlocks::toForm($sections)), true);
+        $posted = json_decode(json_encode($sections), true);
 
-        $this->assertSame($sections, ProposalBlocks::fromForm($posted));
+        $this->assertSame($sections, ProposalBlocks::normalizeSections($posted));
+    }
+
+    public function test_the_editor_saves_over_fetch_and_stays_on_the_page(): void
+    {
+        $admin = $this->admin();
+        $proposal = $this->proposal();
+
+        $this->actingAs($admin)->get(route('proposals.edit', $proposal))
+            ->assertOk()
+            ->assertSee('proposalEditor(', false);
+
+        $this->actingAs($admin)->putJson(route('proposals.update', $proposal), [
+            'title' => 'Renamed',
+            'sections_json' => $this->sectionsJson([
+                ['key' => 'scope', 'type' => 'section', 'data' => [
+                    'number' => '01', 'title' => 'Scope',
+                    'blocks' => [['type' => 'table', 'header' => ['A', 'B'], 'rows' => [['x', 'y']], '_uid' => 7]],
+                ]],
+            ]),
+        ])->assertOk()->assertJson(['saved' => true]);
+
+        $proposal->refresh();
+        $this->assertSame('Renamed', $proposal->title);
+        $this->assertSame([['x', 'y']], $proposal->normalizedSections()[0]['data']['blocks'][0]['rows']);
+        $this->assertArrayNotHasKey('_uid', $proposal->sections[0]['data']['blocks'][0]);
+
+        $this->actingAs($admin)->postJson(route('proposals.store'), [
+            'title' => 'Fresh',
+            'sections_json' => '[]',
+        ])->assertOk()->assertJsonStructure(['edit_url']);
+    }
+
+    public function test_a_legend_only_section_has_no_comment_box(): void
+    {
+        $proposal = $this->proposal(['sections' => ProposalBlocks::normalizeSections([
+            ['key' => 'how-to-read', 'type' => 'section', 'data' => [
+                'blocks' => [ProposalBlocks::normalizeBlock(['type' => 'legend', 'items' => [['tag' => 'requirement', 'note' => 'asked for']]])],
+            ]],
+            ['key' => 'scope', 'type' => 'section', 'data' => [
+                'number' => '01', 'title' => 'Scope', 'blocks' => [['type' => 'paragraph', 'text' => 'Hi']],
+            ]],
+        ])]);
+        $token = $proposal->issuePublicToken();
+
+        $html = $this->get(route('proposals.public', $token))->assertOk()->getContent();
+
+        $this->assertStringContainsString('cp-legend__item', $html);
+        $this->assertStringNotContainsString('aria-label="Comment on this part"', $html);
+        $this->assertStringContainsString('aria-label="Comment on 01 Scope"', $html);
     }
 
     public function test_inline_marks_are_escaped_before_formatting(): void

@@ -5,8 +5,7 @@ namespace App\Support;
 use Illuminate\Support\Str;
 
 /**
- * The shapes a proposal is built from, and the one place that turns them into
- * and out of the editor's form.
+ * The shapes a proposal is built from.
  *
  * A proposal's `sections` column is an ordered list of
  * {key, type, data}. Two section types exist:
@@ -20,11 +19,10 @@ use Illuminate\Support\Str;
  * Block types are the patterns the Print Bazzar design actually uses, so the
  * document renders the way the design does rather than as generic markdown.
  *
- * Every structured block is edited as plain text -- one item per line, cells
- * split by `|` -- because a staff member rewriting a table for the next client
- * types faster than they click "add row". toForm() and fromForm() are the only
- * bridge between that text and the stored arrays, and normalize() is run on
- * every read so a view never guards against a missing key.
+ * The editor (resources/js/proposal-editor.js) works on this same stored
+ * shape and posts it back whole; normalizeSections() is run on every save and
+ * every read, so it is the one gate on what is kept -- and a view never
+ * guards against a missing key.
  */
 class ProposalBlocks
 {
@@ -254,226 +252,6 @@ class ProposalBlocks
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Editor form <-> stored shape */
-    /* ------------------------------------------------------------------ */
-
-    /**
-     * Stored sections as the editor's state: the same list, but every
-     * structured block flattened to the text the staff member edits.
-     *
-     * @param  list<array{key: string, type: string, data: array<string, mixed>}>  $sections
-     * @return list<array<string, mixed>>
-     */
-    public static function toForm(array $sections): array
-    {
-        return array_map(function (array $section) {
-            if ($section['type'] === 'cover') {
-                return ['key' => $section['key'], 'type' => 'cover'] + $section['data'];
-            }
-
-            return [
-                'key' => $section['key'],
-                'type' => 'section',
-                'number' => $section['data']['number'],
-                'title' => $section['data']['title'],
-                'new_page' => $section['data']['new_page'],
-                'blocks' => array_map([self::class, 'blockToForm'], $section['data']['blocks']),
-            ];
-        }, $sections);
-    }
-
-    /**
-     * @param  array<string, mixed>  $b
-     * @return array<string, mixed>
-     */
-    public static function blockToForm(array $b): array
-    {
-        $join = fn (array $cells) => implode(' | ', $cells);
-        $lines = fn (array $items) => implode("\n", $items);
-
-        return match ($b['type']) {
-            'list' => ['items' => $lines($b['items'])] + $b,
-            'table' => array_merge($b, [
-                'header' => $join($b['header']),
-                'rows' => $lines(array_map($join, $b['rows'])),
-                'first_col_width' => $b['first_col_width'] ?: '',
-            ]),
-            'cards' => array_merge($b, [
-                'items' => $lines(array_map(fn ($i) => $i['label'] === '' ? $i['text'] : $i['label'].' | '.$i['text'], $b['items'])),
-            ]),
-            'flow' => array_merge($b, ['steps' => $lines($b['steps']), 'columns' => $b['columns'] ?: '']),
-            'chips' => ['type' => 'chips', 'items' => $lines($b['items'])],
-            'legend' => array_merge($b, [
-                'items' => $lines(array_map(fn ($i) => $i['tag'].' | '.$i['label'].' | '.$i['note'], $b['items'])),
-            ]),
-            'stack' => ['type' => 'stack', 'items' => $lines(array_map(
-                fn ($i) => rtrim($i['category'].' | '.$i['name'].' | '.$i['logo'], ' |'),
-                $b['items']
-            ))],
-            'architecture' => ['type' => 'architecture', 'layers' => $lines(array_merge([], ...array_map(
-                fn ($l) => array_merge(
-                    ['# '.$l['label'].' | '.$l['style'].' | '.$l['columns']],
-                    array_map(fn ($i) => ($i['dashed'] ? '~' : '').$i['text'], $l['items'])
-                ),
-                $b['layers']
-            )))],
-            'swimlane' => [
-                'type' => 'swimlane',
-                'lanes' => $join($b['lanes']),
-                'rows' => $lines(array_map(
-                    fn ($row) => $join(array_map(fn ($c) => ($c['loop'] ? '~' : '').$c['text'], $row)),
-                    $b['rows']
-                )),
-                'legend' => $b['legend'],
-            ],
-            default => $b,
-        };
-    }
-
-    /**
-     * The editor's posted state back into stored sections, normalised.
-     *
-     * @param  array<int, mixed>  $form
-     * @return list<array{key: string, type: string, data: array<string, mixed>}>
-     */
-    public static function fromForm(array $form): array
-    {
-        $sections = [];
-
-        foreach ($form as $section) {
-            if (! is_array($section)) {
-                continue;
-            }
-
-            if (($section['type'] ?? null) === 'cover') {
-                $sections[] = ['key' => $section['key'] ?? null, 'type' => 'cover', 'data' => $section];
-
-                continue;
-            }
-
-            $sections[] = [
-                'key' => $section['key'] ?? null,
-                'type' => 'section',
-                'data' => [
-                    'number' => $section['number'] ?? '',
-                    'title' => $section['title'] ?? '',
-                    'new_page' => filter_var($section['new_page'] ?? false, FILTER_VALIDATE_BOOL),
-                    'blocks' => array_map(
-                        [self::class, 'blockFromForm'],
-                        array_values(array_filter((array) ($section['blocks'] ?? []), 'is_array'))
-                    ),
-                ],
-            ];
-        }
-
-        return self::normalizeSections($sections);
-    }
-
-    /**
-     * @param  array<string, mixed>  $f
-     * @return array<string, mixed>
-     */
-    public static function blockFromForm(array $f): array
-    {
-        $bool = fn (string $k) => filter_var($f[$k] ?? false, FILTER_VALIDATE_BOOL);
-        $lines = fn (string $k) => self::lines($f[$k] ?? '');
-
-        return match ($f['type'] ?? null) {
-            'list' => ['type' => 'list', 'items' => $lines('items'), 'ordered' => $bool('ordered'), 'boxed' => $bool('boxed')],
-            'table' => [
-                'type' => 'table',
-                'header' => trim((string) ($f['header'] ?? '')) === '' ? [] : self::cells($f['header']),
-                'rows' => array_map([self::class, 'cells'], $lines('rows')),
-                'first_col_bold' => $bool('first_col_bold'),
-                'last_col_right' => $bool('last_col_right'),
-                'last_row_bold' => $bool('last_row_bold'),
-                'first_col_width' => (int) ($f['first_col_width'] ?? 0),
-            ],
-            'cards' => [
-                'type' => 'cards',
-                'items' => array_map(function ($line) {
-                    $parts = self::cells($line, 2);
-
-                    return count($parts) === 1
-                        ? ['label' => '', 'text' => $parts[0]]
-                        : ['label' => $parts[0], 'text' => $parts[1]];
-                }, $lines('items')),
-                'columns' => (int) ($f['columns'] ?? 2),
-                'variant' => $f['variant'] ?? 'labelled',
-            ],
-            'flow' => [
-                'type' => 'flow',
-                'steps' => $lines('steps'),
-                'tone' => $f['tone'] ?? 'light',
-                'numbered' => $bool('numbered'),
-                'columns' => (int) ($f['columns'] ?? 0),
-            ],
-            'chips' => ['type' => 'chips', 'items' => $lines('items')],
-            'legend' => [
-                'type' => 'legend',
-                'title' => $f['title'] ?? '',
-                'items' => array_map(function ($line) {
-                    [$tag, $label, $note] = array_pad(self::cells($line, 3), 3, '');
-
-                    return ['tag' => $tag, 'label' => $label, 'note' => $note];
-                }, $lines('items')),
-            ],
-            'stack' => [
-                'type' => 'stack',
-                'items' => array_map(function ($line) {
-                    [$category, $name, $logo] = array_pad(self::cells($line, 3), 3, '');
-
-                    return ['category' => $category, 'name' => $name, 'logo' => Str::lower($logo)];
-                }, $lines('items')),
-            ],
-            'architecture' => ['type' => 'architecture', 'layers' => self::parseLayers($f['layers'] ?? '')],
-            'swimlane' => [
-                'type' => 'swimlane',
-                'lanes' => self::cells($f['lanes'] ?? ''),
-                // Always three cells per row, so "a | b" and "a | b |" both
-                // leave the third lane as the plain connector line.
-                'rows' => array_map(fn ($line) => array_map(fn ($cell) => [
-                    'text' => ltrim($cell, '~ '),
-                    'loop' => str_starts_with($cell, '~'),
-                ], array_pad(self::cells($line, 3), 3, '')), $lines('rows')),
-                'legend' => $bool('legend'),
-            ],
-            default => $f,
-        };
-    }
-
-    /**
-     * "# Label | style | columns" starts a layer; every other line is an
-     * item in it, "~" in front marking a dashed (future / optional) box.
-     *
-     * @return list<array<string, mixed>>
-     */
-    private static function parseLayers(string $text): array
-    {
-        $layers = [];
-
-        foreach (self::lines($text) as $line) {
-            if (str_starts_with($line, '#')) {
-                [$label, $style, $columns] = array_pad(self::cells(ltrim($line, '# '), 3), 3, '');
-                $layers[] = ['label' => $label, 'style' => $style ?: 'light', 'columns' => (int) ($columns ?: 4), 'items' => []];
-
-                continue;
-            }
-
-            if ($layers === []) {
-                $layers[] = ['label' => '', 'style' => 'light', 'columns' => 4, 'items' => []];
-            }
-
-            $layers[array_key_last($layers)]['items'][] = [
-                'text' => ltrim($line, '~ '),
-                'dashed' => str_starts_with($line, '~'),
-            ];
-        }
-
-        return $layers;
-    }
-
-    /* ------------------------------------------------------------------ */
     /*  Rendering helpers */
     /* ------------------------------------------------------------------ */
 
@@ -545,25 +323,8 @@ class ProposalBlocks
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Small parsers */
+    /*  Small normalisers */
     /* ------------------------------------------------------------------ */
-
-    /** @return list<string> */
-    private static function lines(mixed $text): array
-    {
-        return array_values(array_filter(
-            array_map('trim', preg_split('/\R/', (string) $text)),
-            fn ($l) => $l !== ''
-        ));
-    }
-
-    /** @return list<string> */
-    private static function cells(mixed $line, int $limit = PHP_INT_MAX): array
-    {
-        // PHP_INT_MAX, not -1: a negative limit makes explode() DROP that
-        // many trailing cells rather than keep them all.
-        return array_map('trim', explode('|', (string) $line, $limit));
-    }
 
     private static function str(mixed $value, int $max = 500): string
     {

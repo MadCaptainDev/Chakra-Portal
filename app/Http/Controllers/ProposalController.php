@@ -13,6 +13,7 @@ use App\Support\WhatsappServiceWindow;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Dompdf\Canvas;
 use Dompdf\FontMetrics;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -21,8 +22,8 @@ use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Proposals: the designed document a prospect reads, the section editor that
- * writes it, and the share link that lets the client comment without a login.
+ * Proposals: the designed document a prospect reads, the editor that writes
+ * it (typed straight onto the pages -- see resources/js/proposal-editor.js), and the share link that lets the client comment without a login.
  * The client's side is PublicProposalController; replies and resolving are
  * ProposalCommentController.
  */
@@ -65,13 +66,10 @@ class ProposalController extends Controller
             ],
         ]);
 
-        return view('proposals.create', [
-            'proposal' => $proposal,
-            'clients' => Client::orderBy('name')->get(['id', 'name']),
-        ]);
+        return view('proposals.create', $this->editorData($proposal));
     }
 
-    public function store(ProposalRequest $request): RedirectResponse
+    public function store(ProposalRequest $request): RedirectResponse|JsonResponse
     {
         $proposal = new Proposal([
             'title' => $request->validated('title'),
@@ -80,8 +78,14 @@ class ProposalController extends Controller
             'status' => Proposal::STATUS_DRAFT,
             'created_by_id' => $request->user()->id,
         ]);
-        $proposal->sections = $this->sectionsWithLogo($request, ProposalBlocks::fromForm($request->sectionsForm()));
+        $proposal->sections = $this->sectionsWithLogo($request, ProposalBlocks::normalizeSections($request->sectionsForm()));
         $proposal->save();
+
+        if ($request->expectsJson()) {
+            session()->flash('status', 'Proposal created.');
+
+            return response()->json($this->savedJson($proposal) + ['edit_url' => route('proposals.edit', $proposal)]);
+        }
 
         return redirect()->route('proposals.show', $proposal)->with('status', 'Proposal created.');
     }
@@ -106,13 +110,10 @@ class ProposalController extends Controller
 
     public function edit(Proposal $proposal): View
     {
-        return view('proposals.edit', [
-            'proposal' => $proposal,
-            'clients' => Client::orderBy('name')->get(['id', 'name']),
-        ]);
+        return view('proposals.edit', $this->editorData($proposal));
     }
 
-    public function update(ProposalRequest $request, Proposal $proposal): RedirectResponse
+    public function update(ProposalRequest $request, Proposal $proposal): RedirectResponse|JsonResponse
     {
         $previousLogo = $proposal->cover()['client_logo'] ?? null;
 
@@ -121,7 +122,7 @@ class ProposalController extends Controller
             'client_id' => $request->validated('client_id'),
             'valid_until' => $request->validated('valid_until'),
         ]);
-        $proposal->sections = $this->sectionsWithLogo($request, ProposalBlocks::fromForm($request->sectionsForm()));
+        $proposal->sections = $this->sectionsWithLogo($request, ProposalBlocks::normalizeSections($request->sectionsForm()));
         $proposal->save();
 
         // Only once the new path is saved, and only an upload this proposal
@@ -129,6 +130,10 @@ class ProposalController extends Controller
         $currentLogo = $proposal->cover()['client_logo'] ?? null;
         if ($previousLogo !== $currentLogo && ! $this->logoInUse($previousLogo)) {
             PublicUpload::delete($previousLogo);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json($this->savedJson($proposal));
         }
 
         return redirect()->route('proposals.show', $proposal)->with('status', 'Proposal saved.');
@@ -303,6 +308,33 @@ class ProposalController extends Controller
     public static function pdfFilename(Proposal $proposal): string
     {
         return (str($proposal->title)->slug()->value() ?: 'proposal').'.pdf';
+    }
+
+    /**
+     * What the editor needs besides the proposal: every client (with its
+     * logo, the cover falls back to it) and the studio settings the cover
+     * logo comes from.
+     *
+     * @return array<string, mixed>
+     */
+    private function editorData(Proposal $proposal): array
+    {
+        return [
+            'proposal' => $proposal,
+            'clients' => Client::orderBy('name')->get(['id', 'name', 'logo_path']),
+            'settings' => CompanySetting::current(),
+        ];
+    }
+
+    /**
+     * The editor saves over fetch and stays on the page; all it needs back
+     * is the cover logo path, which an upload has just changed.
+     *
+     * @return array<string, mixed>
+     */
+    private function savedJson(Proposal $proposal): array
+    {
+        return ['saved' => true, 'client_logo' => $proposal->cover()['client_logo'] ?? null];
     }
 
     /**
