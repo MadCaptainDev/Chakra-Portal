@@ -82,6 +82,29 @@ abstract class Tool
     }
 
     /**
+     * Does this tool destroy something that cannot be got back? Advertised
+     * so a host can ask before running it.
+     */
+    public function isDestructive(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Is this for Claude over MCP only, and not the WhatsApp assistant?
+     *
+     * The assistant runs on a free model with an 8k-tokens-a-minute budget,
+     * and every tool definition is sent with every message. Tools that only
+     * make sense in a long working session -- writing a 20-page proposal --
+     * would spend that budget on every "how many hours this week?" for
+     * nothing, so they stay on the MCP side.
+     */
+    public function mcpOnly(): bool
+    {
+        return false;
+    }
+
+    /**
      * The tool as the protocol describes it.
      *
      * @return array<string, mixed>
@@ -94,7 +117,7 @@ abstract class Tool
             'inputSchema' => $this->schema(),
             'annotations' => [
                 'readOnlyHint' => $this->isReadOnly(),
-                'destructiveHint' => false,
+                'destructiveHint' => $this->isDestructive(),
             ],
         ];
     }

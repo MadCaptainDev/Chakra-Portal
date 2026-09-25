@@ -6,10 +6,9 @@ use App\Http\Requests\ProposalRequest;
 use App\Models\Client;
 use App\Models\CompanySetting;
 use App\Models\Proposal;
-use App\Services\DocumentWhatsappNotifier;
+use App\Services\ProposalWhatsappSender;
 use App\Support\ProposalBlocks;
 use App\Support\PublicUpload;
-use App\Support\WhatsappServiceWindow;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Dompdf\Canvas;
 use Dompdf\FontMetrics;
@@ -197,44 +196,19 @@ class ProposalController extends Controller
 
     /**
      * Send the client their link on WhatsApp, to whatever number is typed --
-     * same as Send via WhatsApp on a quotation.
-     *
-     * Two paths, the brand-brief reminder's (ClientBriefNudge): inside the
-     * 24-hour window after the client last messaged the studio, the link
-     * goes as plain text, which needs no Meta approval; outside it, Meta only
-     * accepts the approved proposal_ready template, whose button carries the
-     * token into p/{{1}}. Either way the attempt is logged on the proposal.
-     *
-     * Sending needs a link, so one is created if there is none -- which also
-     * moves a draft to "sent", as creating it by hand does.
+     * same as Send via WhatsApp on a quotation. The sending itself is
+     * ProposalWhatsappSender, shared with the MCP tool.
      */
-    public function sendWhatsapp(Request $request, Proposal $proposal, DocumentWhatsappNotifier $notifier): RedirectResponse
+    public function sendWhatsapp(Request $request, Proposal $proposal, ProposalWhatsappSender $sender): RedirectResponse
     {
-        $proposal->loadMissing('client');
-
         $validated = $request->validate([
             'phone' => ['required', 'string', 'min:10', 'max:20', 'regex:/^[0-9+\-\s()]+$/'],
         ], [
             'phone.regex' => 'That doesn\'t look like a phone number.',
         ]);
 
-        if ($proposal->public_token === null) {
-            $proposal->issuePublicToken();
-        }
-
         try {
-            if (WhatsappServiceWindow::isOpen($validated['phone'])) {
-                $notifier->sendText($proposal, $validated['phone'], $proposal->whatsappMessage(), $request->user()->id);
-            } else {
-                $notifier->send(
-                    document: $proposal,
-                    phone: $validated['phone'],
-                    template: Proposal::WHATSAPP_TEMPLATE,
-                    bodyParameters: [$proposal->recipientName(), $proposal->title],
-                    buttonUrlParameter: $proposal->public_token,
-                    sentByUserId: $request->user()->id,
-                );
-            }
+            $sender->send($proposal, $validated['phone'], $request->user()->id);
         } catch (RuntimeException $e) {
             return redirect()->route('proposals.show', $proposal)->with('error', $e->getMessage());
         }

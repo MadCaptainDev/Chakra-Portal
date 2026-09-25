@@ -31,6 +31,11 @@ class ToolRegistry
         $tools = [];
 
         foreach ($this->server->toolsFor($user) as $tool) {
+            // See Tool::mcpOnly(): the proposal tools and their like are
+            // for a working session with Claude, not a WhatsApp question.
+            if ($tool->mcpOnly()) {
+                continue;
+            }
             $tools[$tool->name()] = $tool;
         }
 

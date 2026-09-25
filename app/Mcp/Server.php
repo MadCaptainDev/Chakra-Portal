@@ -19,6 +19,7 @@ use App\Tools\ShootsBetween;
 use App\Tools\StudioFigures;
 use App\Tools\Tool;
 use App\Tools\ToolException;
+use App\Tools\Proposals;
 use App\Tools\WhoAmI;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
@@ -69,6 +70,25 @@ class Server
             new ListShoots,
             new ListScripts,
             new ReelPlannerToday,
+            /*
+             * Proposals, end to end: writing the document, working through
+             * the client's comments, sharing and sending it. MCP only (see
+             * Tool::mcpOnly) and gated by the Proposals module, ability by
+             * ability, like the screens.
+             */
+            new Proposals\ProposalGuide,
+            new Proposals\ListProposals,
+            new Proposals\GetProposal,
+            new Proposals\CreateProposal,
+            new Proposals\UpdateProposal,
+            new Proposals\WriteProposalSections,
+            new Proposals\ArrangeProposalSections,
+            new Proposals\ListProposalComments,
+            new Proposals\ReplyToProposalComment,
+            new Proposals\SetProposalCommentStatus,
+            new Proposals\ShareProposal,
+            new Proposals\SendProposalWhatsapp,
+            new Proposals\DeleteProposal,
             /*
              * The owner's half. These began life as a separate set for the
              * WhatsApp assistant and were merged in, because two lists of
@@ -166,7 +186,8 @@ class Server
             'instructions' => 'The Chakra Productions studio portal. Call whoami first: every '
                 .'tool answers about the person whose token this is, and "today" means the '
                 .'studio\'s today. Dates are YYYY-MM-DD. Timesheets record work already done; '
-                .'to-dos record work still to do.',
+                .'to-dos record work still to do. Proposals: read proposal_guide before writing '
+                .'one, and treat sharing, sending and replying to comments as speaking to the client.',
         ];
     }
 
