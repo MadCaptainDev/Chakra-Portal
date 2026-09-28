@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="Poppins, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="720" rx="24" fill="#EAF4F8"/>
+  <rect x="46" y="48" width="1120" height="640" rx="18" fill="#132A38" opacity="0.08"/>
+  <rect x="40" y="40" width="1120" height="640" rx="18" fill="#FFFFFF"/>
+
+  <!-- window bar -->
+  <path d="M58 40h1084a18 18 0 0 1 18 18v26H40V58a18 18 0 0 1 18-18z" fill="#F3F4F6"/>
+  <circle cx="66" cy="62" r="6" fill="#F87171"/><circle cx="86" cy="62" r="6" fill="#FBBF24"/><circle cx="106" cy="62" r="6" fill="#34D399"/>
+  <rect x="440" y="52" width="320" height="20" rx="10" fill="#FFFFFF"/>
+  <text x="600" y="66" font-size="11" fill="#9CA3AF" text-anchor="middle">Thillai Pets Clinic · CRM</text>
+
+  <!-- sidebar -->
+  <path d="M40 84h210v596H58a18 18 0 0 1-18-18z" fill="#132A38"/>
+  <circle cx="74" cy="118" r="14" fill="#3D8CA6"/>
+  <g fill="#FFFFFF"><ellipse cx="74" cy="122" rx="5" ry="4"/><circle cx="68" cy="114" r="2.2"/><circle cx="72" cy="111" r="2.2"/><circle cx="77" cy="111" r="2.2"/><circle cx="81" cy="114" r="2.2"/></g>
+  <text x="96" y="115" font-size="15" font-weight="700" fill="#FFFFFF">Thillai Pets</text>
+  <text x="96" y="131" font-size="11" fill="#67BCD4">Clinic CRM</text>
+
+  <rect x="56" y="164" width="178" height="38" rx="9" fill="#3D8CA6"/>
+  <text x="76" y="188" font-size="13" font-weight="600" fill="#FFFFFF">Lead Dashboard</text>
+  <g font-size="13" fill="#ABDAE7">
+    <text x="76" y="236">Leads</text>
+    <text x="76" y="276">Follow-ups</text>
+    <text x="76" y="316">Customers &amp; Pets</text>
+    <text x="76" y="356">Bookings</text>
+    <text x="76" y="396">Reminders</text>
+    <text x="76" y="436">Reports</text>
+  </g>
+  <rect x="196" y="263" width="26" height="18" rx="9" fill="#F59E0B"/>
+  <text x="209" y="276" font-size="11" font-weight="700" fill="#132A38" text-anchor="middle">8</text>
+
+  <rect x="56" y="610" width="178" height="52" rx="10" fill="#1E3A4A"/>
+  <circle cx="82" cy="636" r="14" fill="#67BCD4"/>
+  <text x="82" y="641" font-size="12" font-weight="700" fill="#132A38" text-anchor="middle">SK</text>
+  <text x="104" y="632" font-size="12" font-weight="600" fill="#FFFFFF">Sales Team</text>
+  <text x="104" y="648" font-size="11" fill="#8ACCE0">Signed in</text>
+
+  <!-- header -->
+  <text x="280" y="128" font-size="22" font-weight="700" fill="#111827">Lead Dashboard</text>
+  <text x="280" y="150" font-size="12" fill="#6B7280">Every enquiry from Meta Ads, phone and Google Maps — in one place</text>
+  <rect x="1000" y="106" width="128" height="38" rx="10" fill="#3D8CA6"/>
+  <text x="1064" y="130" font-size="13" font-weight="600" fill="#FFFFFF" text-anchor="middle">+ New Lead</text>
+
+  <!-- KPI tiles -->
+  <g>
+    <rect x="280" y="170" width="200" height="96" rx="12" fill="#F2F9FC" stroke="#E4F2F7"/>
+    <text x="298" y="196" font-size="12" fill="#6B7280">New leads today</text>
+    <text x="298" y="236" font-size="30" font-weight="700" fill="#111827">12</text>
+    <rect x="298" y="246" width="70" height="0" fill="none"/>
+    <text x="352" y="236" font-size="11" font-weight="600" fill="#15803D">+4 vs yesterday</text>
+
+    <rect x="496" y="170" width="200" height="96" rx="12" fill="#FEF2F2" stroke="#FEE2E2"/>
+    <text x="514" y="196" font-size="12" fill="#6B7280">Hot leads</text>
+    <text x="514" y="236" font-size="30" font-weight="700" fill="#DC2626">5</text>
+    <text x="548" y="236" font-size="11" fill="#6B7280">call these first</text>
+
+    <rect x="712" y="170" width="200" height="96" rx="12" fill="#FFFBEB" stroke="#FEF3C7"/>
+    <text x="730" y="196" font-size="12" fill="#6B7280">Follow-ups due</text>
+    <text x="730" y="236" font-size="30" font-weight="700" fill="#B45309">8</text>
+    <text x="764" y="236" font-size="11" fill="#6B7280">2 overdue</text>
+
+    <rect x="928" y="170" width="200" height="96" rx="12" fill="#F0FDF4" stroke="#DCFCE7"/>
+    <text x="946" y="196" font-size="12" fill="#6B7280">Converted this month</text>
+    <text x="946" y="236" font-size="30" font-weight="700" fill="#15803D">23</text>
+    <text x="992" y="236" font-size="11" fill="#6B7280">new customers</text>
+  </g>
+
+  <!-- leads table -->
+  <rect x="280" y="284" width="580" height="376" rx="12" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="300" y="314" font-size="14" font-weight="700" fill="#111827">Latest leads</text>
+  <g font-size="11" font-weight="600" fill="#9CA3AF">
+    <text x="300" y="344">NAME / PET</text><text x="486" y="344">SOURCE</text><text x="600" y="344">TEMP.</text><text x="690" y="344">ASSIGNED</text><text x="790" y="344">NEXT</text>
+  </g>
+  <line x1="300" y1="354" x2="840" y2="354" stroke="#F3F4F6" stroke-width="2"/>
+
+  <g font-size="12" fill="#374151">
+    <!-- row 1 -->
+    <text x="300" y="382" font-weight="600" fill="#111827">Karthik R.</text><text x="300" y="398" font-size="11" fill="#9CA3AF">Bruno · Labrador</text>
+    <text x="486" y="388">Meta Ads</text>
+    <rect x="600" y="375" width="52" height="20" rx="10" fill="#FEE2E2"/><text x="626" y="389" font-size="11" font-weight="700" fill="#DC2626" text-anchor="middle">Hot</text>
+    <text x="690" y="388">Divya</text><text x="790" y="388">Today</text>
+    <line x1="300" y1="410" x2="840" y2="410" stroke="#F3F4F6"/>
+    <!-- row 2 -->
+    <text x="300" y="436" font-weight="600" fill="#111827">Priya S.</text><text x="300" y="452" font-size="11" fill="#9CA3AF">Coco · Shih Tzu</text>
+    <text x="486" y="442">Google Maps</text>
+    <rect x="600" y="429" width="52" height="20" rx="10" fill="#FEF3C7"/><text x="626" y="443" font-size="11" font-weight="700" fill="#B45309" text-anchor="middle">Warm</text>
+    <text x="690" y="442">Arun</text><text x="790" y="442">Tomorrow</text>
+    <line x1="300" y1="464" x2="840" y2="464" stroke="#F3F4F6"/>
+    <!-- row 3 -->
+    <text x="300" y="490" font-weight="600" fill="#111827">Suresh K.</text><text x="300" y="506" font-size="11" fill="#9CA3AF">Max · Beagle</text>
+    <text x="486" y="496">Phone call</text>
+    <rect x="600" y="483" width="52" height="20" rx="10" fill="#FEE2E2"/><text x="626" y="497" font-size="11" font-weight="700" fill="#DC2626" text-anchor="middle">Hot</text>
+    <text x="690" y="496">Divya</text><text x="790" y="496">Today</text>
+    <line x1="300" y1="518" x2="840" y2="518" stroke="#F3F4F6"/>
+    <!-- row 4 -->
+    <text x="300" y="544" font-weight="600" fill="#111827">Meena V.</text><text x="300" y="560" font-size="11" fill="#9CA3AF">Snowy · Persian cat</text>
+    <text x="486" y="550">Meta Ads</text>
+    <rect x="600" y="537" width="52" height="20" rx="10" fill="#E4F2F7"/><text x="626" y="551" font-size="11" font-weight="700" fill="#2F6E84" text-anchor="middle">Cold</text>
+    <text x="690" y="550">Arun</text><text x="790" y="550">30 Sep</text>
+    <line x1="300" y1="572" x2="840" y2="572" stroke="#F3F4F6"/>
+    <!-- row 5 -->
+    <text x="300" y="598" font-weight="600" fill="#111827">Rahul M.</text><text x="300" y="614" font-size="11" fill="#9CA3AF">Leo · German Shepherd</text>
+    <text x="486" y="604">Google Maps</text>
+    <rect x="600" y="591" width="52" height="20" rx="10" fill="#FEF3C7"/><text x="626" y="605" font-size="11" font-weight="700" fill="#B45309" text-anchor="middle">Warm</text>
+    <text x="690" y="604">Divya</text><text x="790" y="604">1 Oct</text>
+  </g>
+  <text x="300" y="644" font-size="12" font-weight="600" fill="#3D8CA6">View all leads</text>
+
+  <!-- sources card -->
+  <rect x="876" y="284" width="252" height="176" rx="12" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="894" y="312" font-size="14" font-weight="700" fill="#111827">Leads by source</text>
+  <g transform="translate(900 332) scale(2.5)">
+    <circle cx="21" cy="21" r="15.915" fill="none" stroke="#F3F4F6" stroke-width="6"/>
+    <circle cx="21" cy="21" r="15.915" fill="none" stroke="#3D8CA6" stroke-width="6" stroke-dasharray="52 48" stroke-dashoffset="25"/>
+    <circle cx="21" cy="21" r="15.915" fill="none" stroke="#F59E0B" stroke-width="6" stroke-dasharray="28 72" stroke-dashoffset="-27"/>
+    <circle cx="21" cy="21" r="15.915" fill="none" stroke="#284250" stroke-width="6" stroke-dasharray="20 80" stroke-dashoffset="-55"/>
+  </g>
+  <g font-size="11" fill="#374151">
+    <rect x="1020" y="346" width="10" height="10" rx="2" fill="#3D8CA6"/><text x="1036" y="355">Meta Ads</text><text x="1116" y="355" font-weight="700" text-anchor="end">52%</text>
+    <rect x="1020" y="372" width="10" height="10" rx="2" fill="#F59E0B"/><text x="1036" y="381">Phone</text><text x="1116" y="381" font-weight="700" text-anchor="end">28%</text>
+    <rect x="1020" y="398" width="10" height="10" rx="2" fill="#284250"/><text x="1036" y="407">Maps</text><text x="1116" y="407" font-weight="700" text-anchor="end">20%</text>
+  </g>
+
+  <!-- follow ups card -->
+  <rect x="876" y="476" width="252" height="184" rx="12" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="894" y="504" font-size="14" font-weight="700" fill="#111827">Today's follow-ups</text>
+  <g font-size="12">
+    <rect x="894" y="520" width="216" height="38" rx="8" fill="#FEF2F2"/>
+    <text x="906" y="537" font-weight="600" fill="#111827">Karthik R.</text><text x="906" y="551" font-size="10" fill="#DC2626">10:30 AM · call back</text>
+    <rect x="894" y="566" width="216" height="38" rx="8" fill="#F9FAFB"/>
+    <text x="906" y="583" font-weight="600" fill="#111827">Suresh K.</text><text x="906" y="597" font-size="10" fill="#6B7280">12:00 PM · share price list</text>
+    <rect x="894" y="612" width="216" height="38" rx="8" fill="#F9FAFB"/>
+    <text x="906" y="629" font-weight="600" fill="#111827">Anitha P.</text><text x="906" y="643" font-size="10" fill="#6B7280">4:15 PM · confirm booking</text>
+  </g>
+</svg>

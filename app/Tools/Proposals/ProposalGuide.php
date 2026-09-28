@@ -45,6 +45,10 @@ class ProposalGuide extends Tool
             [['text' => '', 'loop' => false], ['text' => '', 'loop' => false], ['text' => 'Prepares proof', 'loop' => false]],
             [['text' => 'Requests changes', 'loop' => true], ['text' => '', 'loop' => false], ['text' => '', 'loop' => false]],
         ]],
+        'chart' => ['type' => 'chart', 'kind' => 'bar', 'title' => 'Features delivered in each phase', 'suffix' => '', 'caption' => '45 features in total.', 'items' => [
+            ['label' => 'Phase 1', 'value' => 14], ['label' => 'Phase 2', 'value' => 14], ['label' => 'Phase 3', 'value' => 17],
+        ]],
+        'image' => ['type' => 'image', 'path' => 'images/proposals/thillai/lead-dashboard.svg', 'caption' => 'Illustrative preview of the Lead Dashboard.', 'size' => 'full'],
     ];
 
     private const NOTES = [
@@ -62,6 +66,8 @@ class ProposalGuide extends Tool
         'stack' => 'Technology cards. logo: '.'%LOGOS%'.' or "" for a placeholder.',
         'architecture' => 'Layers of boxes, top to bottom. style: light | dark | outline. columns 1-6. dashed marks a future / optional box.',
         'swimlane' => 'Who does what, step by step. Exactly three lanes; every row has exactly three cells, one per lane. An empty text leaves that lane as a connector line. loop marks a review / correction step (amber, dashed). legend shows the colour key.',
+        'chart' => 'kind: bar | donut (shares of a whole, shown as percentages) | funnel (stages that narrow, each shown as a % of the first). items are {label, value}; suffix is appended to each value ("%", " hrs"). Drawn without JavaScript; the PDF shows every kind as bars. Label sample figures as sample in the title or caption -- a proposal is read as a promise.',
+        'image' => 'A picture by path, which must be under images/proposals/ or uploads/proposals/ (.svg, .png, .jpg, .webp). size: full | medium. For an SVG, keep a PNG of the same name beside it -- the PDF cannot draw SVG and uses the PNG.',
     ];
 
     public function name(): string

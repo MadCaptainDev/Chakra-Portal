@@ -205,3 +205,43 @@
         </div>
     </div>
 </template>
+
+{{-- Chart: the title, caption and each label / value are typed in place.
+     The drawing itself is shown in Preview -- redrawing it live on every
+     keystroke would fight the caret for no benefit. --}}
+<template x-if="block.type === 'chart'">
+    <div class="cp-chart">
+        <div class="cp-chart__title" x-edit="block.title" data-placeholder="Chart title"
+             @focusin.stop="setActive(s, b, {})"></div>
+        <div class="cp-ui" style="font-size: 11px; color: #6B7280; margin: -8px 0 10px;"
+             x-text="({ bar: 'Bar chart', donut: 'Donut chart', funnel: 'Funnel' })[block.kind] + ' — drawn in Preview'"></div>
+        <div class="cp-chart__bars">
+            <template x-for="(item, i) in block.items" :key="i">
+                <div class="cp-chart__row" :data-i="i" @focusin.stop="setActive(s, b, { i })"
+                     @edit-empty.prevent="removeIfEmpty(s, b, i)">
+                    <span class="cp-chart__label" x-edit="item.label" data-placeholder="Label"></span>
+                    <span class="cp-chart__track"></span>
+                    <b class="cp-chart__value" x-edit="item.value" data-placeholder="0"
+                       @edit-enter.prevent="addItem(s, b, i)"></b>
+                </div>
+            </template>
+        </div>
+        <p class="cp-chart__caption" x-edit.rich="block.caption" data-placeholder="Caption (optional)"
+           @focusin.stop="setActive(s, b, {})"></p>
+    </div>
+</template>
+
+{{-- Picture: placed by path; only the caption is edited here. --}}
+<template x-if="block.type === 'image'">
+    <figure class="cp-picture" :class="'cp-picture--' + block.size">
+        <template x-if="block.path">
+            <img :src="'/' + block.path" alt="">
+        </template>
+        <div x-show="!block.path" class="cp-ui"
+             style="padding: 28px; border: 1px dashed #D1D5DB; border-radius: 12px; text-align: center; color: #6B7280;">
+            No picture chosen
+        </div>
+        <figcaption x-edit.rich="block.caption" data-placeholder="Caption (optional)"
+                    @focusin.stop="setActive(s, b, {})"></figcaption>
+    </figure>
+</template>

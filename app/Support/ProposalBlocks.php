@@ -46,6 +46,8 @@ class ProposalBlocks
         'stack' => 'Technology stack',
         'architecture' => 'Architecture layers',
         'swimlane' => 'Swimlane flow map',
+        'chart' => 'Chart',
+        'image' => 'Picture',
     ];
 
     /** The three tags the design uses to mark who a statement belongs to. */
@@ -248,7 +250,69 @@ class ProposalBlocks
                 )),
                 'legend' => (bool) ($b['legend'] ?? true),
             ],
+            'chart' => [
+                'title' => self::str($b['title'] ?? ''),
+                'kind' => self::oneOf($b['kind'] ?? null, ['bar', 'donut', 'funnel']),
+                'items' => array_values(array_map(fn ($i) => [
+                    'label' => self::str($i['label'] ?? ''),
+                    'value' => max(0.0, (float) ($i['value'] ?? 0)),
+                ], array_filter((array) ($b['items'] ?? []), 'is_array'))),
+                'suffix' => self::str($b['suffix'] ?? '', 12),
+                'caption' => self::str($b['caption'] ?? '', 500),
+            ],
+            'image' => [
+                'path' => self::imagePath($b['path'] ?? null),
+                'caption' => self::str($b['caption'] ?? '', 500),
+                'size' => self::oneOf($b['size'] ?? null, ['full', 'medium']),
+            ],
         };
+    }
+
+    /**
+     * A chart's bar lengths as a share of its largest value, so the drawing
+     * scales to whatever the numbers are -- and an all-zero chart draws
+     * empty bars rather than dividing by nothing.
+     *
+     * @param  array<int, array{label: string, value: float}>  $items
+     * @return list<array{label: string, value: float, share: float, percent: float}>
+     */
+    public static function chartRows(array $items): array
+    {
+        $max = max([0.0, ...array_column($items, 'value')]);
+        $sum = array_sum(array_column($items, 'value'));
+
+        return array_values(array_map(fn ($i) => $i + [
+            'share' => $max > 0 ? $i['value'] / $max : 0.0,
+            'percent' => $sum > 0 ? $i['value'] / $sum * 100 : 0.0,
+        ], $items));
+    }
+
+    /** A number the way a proposal reader expects it: no ".0" on a whole one. */
+    public static function chartValue(float $value, string $suffix = ''): string
+    {
+        $text = floor($value) == $value ? number_format($value) : number_format($value, 1);
+
+        return $text.$suffix;
+    }
+
+    /**
+     * The picture a PDF can actually draw.
+     *
+     * DomPDF's SVG support is thin, so an SVG picture keeps a rasterised PNG
+     * beside it with the same name; the PDF uses that when it exists and the
+     * web page keeps the crisp SVG.
+     */
+    public static function pdfImagePath(string $path): string
+    {
+        if (str_ends_with(Str::lower($path), '.svg')) {
+            $png = substr($path, 0, -4).'.png';
+
+            if (is_file(public_path($png))) {
+                return $png;
+            }
+        }
+
+        return $path;
     }
 
     /* ------------------------------------------------------------------ */
@@ -356,5 +420,18 @@ class ProposalBlocks
         }
 
         return str_starts_with($path, 'images/proposals/') || str_starts_with($path, 'uploads/proposals/') ? $path : null;
+    }
+
+    /**
+     * Same two roots as the cover logo, for the same reason: a proposal is
+     * read by people outside the studio, so it may only point at pictures
+     * made for proposals -- never at a client's receipts or a staff photo
+     * that happens to live elsewhere under public/.
+     */
+    private static function imagePath(mixed $path): string
+    {
+        $path = self::logoPath($path);
+
+        return $path !== null && preg_match('/\.(svg|png|jpe?g|webp)$/i', $path) ? $path : '';
     }
 }

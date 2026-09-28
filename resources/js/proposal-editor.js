@@ -266,6 +266,12 @@ export const BLANKS = {
         type: 'swimlane', lanes: ['Customer', 'Platform', 'Team'],
         rows: [[cell(), cell(), cell()], [cell(), cell(), cell()]], legend: true,
     }),
+    chart: () => ({
+        type: 'chart', title: '', kind: 'bar', suffix: '', caption: '',
+        items: [{ label: '', value: 0 }, { label: '', value: 0 }],
+    }),
+    // No uploader yet: a picture is placed by path (images/proposals/...).
+    image: () => ({ type: 'image', path: '', caption: '', size: 'full' }),
 };
 
 /** A blank entry for each block's repeatable list. */
@@ -276,9 +282,10 @@ const ITEM_BLANKS = {
     cards: () => ({ label: '', text: '' }),
     legend: () => ({ tag: 'requirement', label: '', note: '' }),
     stack: () => ({ category: '', name: '', logo: '' }),
+    chart: () => ({ label: '', value: 0 }),
 };
 
-const ITEM_LIST = { list: 'items', chips: 'items', flow: 'steps', cards: 'items', legend: 'items', stack: 'items' };
+const ITEM_LIST = { list: 'items', chips: 'items', flow: 'steps', cards: 'items', legend: 'items', stack: 'items', chart: 'items' };
 
 /** The "Style" menu: the text-shaped blocks, each a type plus one setting. */
 export const STYLES = {
@@ -337,7 +344,7 @@ function cleanBlock(block) {
     const { _uid, ...b } = JSON.parse(JSON.stringify(block));
     const filled = (o) => Object.values(o).some((v) => typeof v === 'string' && v.trim() !== '');
 
-    if (b.type === 'cards' || b.type === 'stack' || b.type === 'legend') b.items = b.items.filter(filled);
+    if (b.type === 'cards' || b.type === 'stack' || b.type === 'legend' || b.type === 'chart') b.items = b.items.filter(filled);
     if (b.type === 'table') b.rows = b.rows.filter((r) => r.some((c) => c.trim() !== ''));
     if (b.type === 'table' && b.header.every((c) => c.trim() === '') && b.header.length) b.header = [];
     if (b.type === 'architecture') {

@@ -627,12 +627,18 @@ class ProposalTest extends TestCase
         $this->assertSame(1, Proposal::count());
         $proposal = Proposal::firstOrFail();
 
-        // Every block type is in use, so this is a complete template.
+        // Every block type the Print Bazzar design has is in use, so this is
+        // a complete template of it. Chart and picture came later and are not
+        // part of that design -- adding them here would change another
+        // client's document; ProposalChartAndImageTest covers them instead.
         $used = collect($proposal->normalizedSections())
             ->flatMap(fn ($s) => $s['data']['blocks'] ?? [])
             ->pluck('type')
             ->unique();
-        $this->assertEqualsCanonicalizing(array_keys(ProposalBlocks::BLOCK_TYPES), $used->all());
+        $this->assertEqualsCanonicalizing(
+            array_values(array_diff(array_keys(ProposalBlocks::BLOCK_TYPES), ['chart', 'image'])),
+            $used->all()
+        );
 
         // 22 sheets, like the design: the cover plus 21 new-page breaks.
         $this->assertCount(22, ProposalBlocks::sheets($proposal->normalizedSections()));
