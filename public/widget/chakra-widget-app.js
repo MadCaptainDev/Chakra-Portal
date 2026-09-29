@@ -48,6 +48,18 @@ async function run(opts) {
   let mode = String(opts.parameter || "").trim().toLowerCase();
   if (!mode) mode = data.reels ? "reels" : "today";
 
+  /*
+   * Widgets cannot scroll -- iOS does not allow it. Tapping the Reel Planner
+   * or Shoots widget runs this script in the app instead (see tapUrl), and
+   * that run shows the whole day as a native, scrollable list.
+   */
+  const view = typeof args !== "undefined" && args.queryParameters ? args.queryParameters.view : null;
+  if (!opts.runsInWidget && !data.error && (view === "reels" || view === "shoots")) {
+    if (view === "reels" && data.reels) await reelsList(data);
+    else await shootsList(data);
+    return;
+  }
+
   let widget;
   if (data.error) widget = message("Chakra", data.error);
   else if (mode === "reels") widget = data.reels ? reelsWidget(data, family) : message("Reel Planner", "Only admins can see the Reel Planner.");
@@ -101,7 +113,7 @@ async function load(opts) {
 
 function reelsWidget(d, family) {
   const r = d.reels;
-  const w = frame(d, "REEL PLANNER", r.url);
+  const w = frame(d, "REEL PLANNER", tapUrl("reels") || r.url);
   const total = r.total_posting;
   const posted = r.counts.posted || 0;
   const items = sortReels(r.items);
@@ -191,7 +203,7 @@ function reelsWidget(d, family) {
   });
   if (items.length > max) {
     w.addSpacer(6);
-    text(w, "+" + (items.length - max) + " more in the Reel Planner", 10, C.faint);
+    text(w, "+" + (items.length - max) + " more · tap to see all", 10, C.accent, true);
   }
 
   w.addSpacer();
@@ -235,7 +247,7 @@ function sortReels(items) {
 
 function shootsWidget(d, family) {
   const s = d.shoots;
-  const w = frame(d, "SHOOTS TODAY", s.url);
+  const w = frame(d, "SHOOTS TODAY", tapUrl("shoots") || s.url);
 
   if (family === "small") {
     bigNumber(w, s.count, 40);
@@ -377,6 +389,125 @@ function todayWidget(d, family) {
   w.addSpacer();
   footer(w, d);
   return w;
+}
+
+// ================================================================ full lists (tap a widget)
+
+// Runs this same script inside Scriptable, which then shows the full list.
+function tapUrl(view) {
+  try {
+    return "scriptable:///run/" + encodeURIComponent(Script.name()) + "?view=" + view;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function reelsList(d) {
+  const r = d.reels;
+  const items = sortReels(r.items);
+  const table = new UITable();
+  table.showSeparators = true;
+
+  const head = new UITableRow();
+  head.height = 76;
+  const title = head.addText("Reel Planner — " + d.date_label, r.total_posting + " due · " + r.counts.posted + " posted");
+  title.titleFont = Font.boldSystemFont(20);
+  title.subtitleFont = Font.systemFont(14);
+  table.addRow(head);
+
+  if (items.length === 0) {
+    const empty = new UITableRow();
+    empty.addText("Nothing due today 🎉");
+    table.addRow(empty);
+  }
+
+  // Grouped in pipeline order, so the list reads as what is left to do.
+  REEL_STATUS.concat([{ key: null }]).forEach((status) => {
+    const group = items.filter((item) =>
+      status.key === null ? !REEL_STATUS.some((s) => s.key === item.status) : item.status === status.key);
+    if (group.length === 0) return;
+
+    const s = status.key === null ? { short: "Other", color: C.dim } : status;
+    const section = new UITableRow();
+    section.isHeader = true;
+    section.height = 40;
+    const label = section.addText(s.short.toUpperCase() + "  ·  " + group.length);
+    label.titleColor = s.color;
+    label.titleFont = Font.boldSystemFont(13);
+    table.addRow(section);
+
+    group.forEach((item) => {
+      const row = new UITableRow();
+      row.height = 58;
+      row.dismissOnSelect = false;
+      row.onSelect = () => Safari.open(r.url);
+
+      const main = row.addText(item.title, item.editor && item.editor !== "—" ? item.editor : " ");
+      main.widthWeight = 72;
+      main.titleFont = Font.semiboldSystemFont(15);
+      main.subtitleFont = Font.systemFont(12);
+
+      const st = row.addText(reelStatus(item.status).short);
+      st.widthWeight = 28;
+      st.rightAligned();
+      st.titleColor = reelStatus(item.status).color;
+      st.titleFont = Font.semiboldSystemFont(13);
+      table.addRow(row);
+    });
+  });
+
+  openRow(table, "Open the Reel Planner in the portal", r.url);
+  await table.present(true);
+}
+
+async function shootsList(d) {
+  const s = d.shoots;
+  const table = new UITable();
+  table.showSeparators = true;
+
+  const head = new UITableRow();
+  head.height = 76;
+  const title = head.addText("Shoots — " + d.date_label, s.count + (s.count === 1 ? " shoot today" : " shoots today"));
+  title.titleFont = Font.boldSystemFont(20);
+  title.subtitleFont = Font.systemFont(14);
+  table.addRow(head);
+
+  if (s.count === 0) {
+    const empty = new UITableRow();
+    empty.addText("No shoots today");
+    table.addRow(empty);
+  }
+
+  s.items.forEach((shoot) => {
+    const row = new UITableRow();
+    row.height = 62;
+    row.dismissOnSelect = false;
+    row.onSelect = () => Safari.open(s.url);
+
+    const when = row.addText(shoot.status === "live" ? "LIVE" : (shoot.time || "Today"));
+    when.widthWeight = 22;
+    when.titleColor = shoot.status === "live" ? C.green : C.accent;
+    when.titleFont = Font.semiboldSystemFont(13);
+
+    const main = row.addText(shoot.title, [shoot.client, shoot.location].filter(Boolean).join(" · ") || " ");
+    main.widthWeight = 78;
+    main.titleFont = Font.semiboldSystemFont(15);
+    main.subtitleFont = Font.systemFont(12);
+    table.addRow(row);
+  });
+
+  openRow(table, "Open Shoots in the portal", s.url);
+  await table.present(true);
+}
+
+function openRow(table, label, url) {
+  const row = new UITableRow();
+  row.height = 54;
+  row.onSelect = () => Safari.open(url);
+  const cell = row.addText(label + "  ›");
+  cell.titleColor = C.accent;
+  cell.titleFont = Font.semiboldSystemFont(15);
+  table.addRow(row);
 }
 
 // ================================================================ pieces
