@@ -80,6 +80,20 @@
         </p>
     </div>
 
+    {{-- Widgets cannot hold buttons (a tap always opens Scriptable), so
+         changing day is an iOS widget stack swiped on the home screen. --}}
+    <div class="mt-4 rounded-xl ring-1 ring-white/10 p-4 text-sm text-brand-100/80">
+        <p class="font-semibold text-white">Swipe between days</p>
+        <p class="mt-1">
+            Add <code class="text-brand-300">{{ $user->isAdmin() ? 'reels' : 'shoots' }} yesterday</code>,
+            <code class="text-brand-300">{{ $user->isAdmin() ? 'reels' : 'shoots' }}</code> and
+            <code class="text-brand-300">{{ $user->isAdmin() ? 'reels' : 'shoots' }} tomorrow</code>
+            as three widgets of the same size, then drag one on top of another to stack them.
+            Swipe up and down on the stack to change day — nothing opens.
+            Any day works: <code class="text-brand-300">+2</code>, <code class="text-brand-300">-3</code>.
+        </p>
+    </div>
+
     @if ($widgetTokens->isNotEmpty())
         <div class="mt-6 rounded-xl ring-1 ring-white/10 overflow-hidden">
             @foreach ($widgetTokens as $token)

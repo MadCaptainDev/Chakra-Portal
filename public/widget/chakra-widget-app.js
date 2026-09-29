@@ -12,6 +12,11 @@
 //   todos   Open to-dos
 //   today   Everything, one summary
 // Left empty: reels for admins, today for everyone else.
+//
+// reels and shoots take a day after a space -- "reels tomorrow",
+// "reels yesterday", "shoots +2". Widgets cannot hold buttons (any tap opens
+// Scriptable), so moving between days is an iOS widget stack: yesterday,
+// today and tomorrow piled up and swiped through on the home screen.
 
 const C = {
   bg: new Color("#0F2230"),
@@ -43,12 +48,19 @@ const REEL_STATUS = [
 
 async function run(opts) {
   const family = opts.family || "large";
-  // A tap on a widget arrow opens this script with ?view=…&date=…
+  // A tap on a widget opens this script with ?view=…&date=… for its list.
   const query = typeof args !== "undefined" && args.queryParameters ? args.queryParameters : {};
   if (!opts.runsInWidget && query.date) opts.date = query.date;
+
+  // "reels +1", "shoots tomorrow": a widget pinned to another day. Stacked
+  // on top of each other, they are swiped through without opening anything.
+  const [modeWord, offsetWord] = String(opts.parameter || "").trim().toLowerCase().split(/\s+/);
+  const offset = parseOffset(offsetWord);
+  if (opts.runsInWidget && offset) opts.date = isoDay(offset);
+
   const data = await load(opts);
 
-  let mode = String(opts.parameter || "").trim().toLowerCase();
+  let mode = modeWord || "";
   if (!mode) mode = data.reels ? "reels" : "today";
 
   /*
@@ -88,7 +100,8 @@ async function run(opts) {
 
 async function load(opts) {
   const fm = FileManager.local();
-  const cachePath = fm.joinPath(fm.cacheDirectory(), "chakra-widget.json");
+  // One offline copy per day asked for, so a stale copy is always the right day.
+  const cachePath = fm.joinPath(fm.cacheDirectory(), "chakra-widget" + (opts.date ? "-" + opts.date : "") + ".json");
 
   try {
     const params = [opts.fresh ? "fresh=1" : null, opts.date ? "date=" + encodeURIComponent(opts.date) : null].filter(Boolean);
@@ -100,11 +113,10 @@ async function load(opts) {
     if (req.response.statusCode === 401) return { error: "Key revoked. Make a new widget script on your Profile page." };
     if (req.response.statusCode !== 200) throw new Error("HTTP " + req.response.statusCode);
 
-    // Only today is the offline copy; another day must never stand in for it.
-    if (!opts.date) fm.writeString(cachePath, JSON.stringify(json));
+    fm.writeString(cachePath, JSON.stringify(json));
     return json;
   } catch (e) {
-    if (!opts.date && fm.fileExists(cachePath)) {
+    if (fm.fileExists(cachePath)) {
       const cached = JSON.parse(fm.readString(cachePath));
       cached.stale = true;
       return cached;
@@ -117,14 +129,14 @@ async function load(opts) {
 
 function reelsWidget(d, family) {
   const r = d.reels;
-  const w = frame(d, "REEL PLANNER", tapUrl("reels") || r.url, family === "small" ? null : "reels");
+  const w = frame(d, "REEL PLANNER", tapUrl("reels", listDate(d)) || r.url);
   const total = r.total_posting;
   const posted = r.counts.posted || 0;
   const items = sortReels(r.items);
 
   if (family === "small") {
     bigNumber(w, total, 40);
-    text(w, total === 1 ? "reel due today" : "reels due today", 11, C.dim);
+    text(w, (total === 1 ? "reel due " : "reels due ") + when(d), 11, C.dim);
     w.addSpacer(8);
     progress(w, total ? posted / total : 0, 124, 6);
     w.addSpacer(5);
@@ -142,7 +154,7 @@ function reelsWidget(d, family) {
     left.layoutVertically();
     left.size = new Size(104, 0);
     bigNumber(left, total, 38);
-    text(left, "due today", 11, C.dim);
+    text(left, "due " + when(d), 11, C.dim);
     left.addSpacer(8);
     progress(left, total ? posted / total : 0, 96, 5);
     left.addSpacer(4);
@@ -152,7 +164,7 @@ function reelsWidget(d, family) {
 
     const right = row.addStack();
     right.layoutVertically();
-    if (items.length === 0) emptyLine(right, "Nothing due today");
+    if (items.length === 0) emptyLine(right, "Nothing due " + when(d));
     items.slice(0, 4).forEach((item, i) => {
       if (i) right.addSpacer(6);
       reelRow(right, item, false);
@@ -175,7 +187,7 @@ function reelsWidget(d, family) {
   const heroLabel = hero.addStack();
   heroLabel.layoutVertically();
   text(heroLabel, total === 1 ? "reel due" : "reels due", 13, C.text, true);
-  text(heroLabel, "today", 13, C.dim);
+  text(heroLabel, when(d), 13, C.dim);
   heroLabel.addSpacer(6);
   hero.addSpacer();
   const done = hero.addStack();
@@ -200,7 +212,7 @@ function reelsWidget(d, family) {
   w.addSpacer(14);
 
   const max = 4;
-  if (items.length === 0) emptyLine(w, "Nothing due today 🎉");
+  if (items.length === 0) emptyLine(w, "Nothing due " + when(d) + " 🎉");
   items.slice(0, max).forEach((item, i) => {
     if (i) w.addSpacer(8);
     reelRow(w, item, true);
@@ -251,11 +263,11 @@ function sortReels(items) {
 
 function shootsWidget(d, family) {
   const s = d.shoots;
-  const w = frame(d, "SHOOTS TODAY", tapUrl("shoots") || s.url, family === "small" ? null : "shoots");
+  const w = frame(d, "SHOOTS", tapUrl("shoots", listDate(d)) || s.url);
 
   if (family === "small") {
     bigNumber(w, s.count, 40);
-    text(w, s.count === 1 ? "shoot today" : "shoots today", 11, C.dim);
+    text(w, (s.count === 1 ? "shoot " : "shoots ") + when(d), 11, C.dim);
     w.addSpacer(8);
     if (s.items[0]) {
       text(w, s.items[0].title, 12, C.text, true);
@@ -267,7 +279,7 @@ function shootsWidget(d, family) {
   }
 
   const max = family === "medium" ? 3 : 6;
-  if (s.count === 0) emptyLine(w, "No shoots today");
+  if (s.count === 0) emptyLine(w, "No shoots " + when(d));
   s.items.slice(0, max).forEach((shoot, i) => {
     if (i) w.addSpacer(family === "medium" ? 6 : 10);
     const row = w.addStack();
@@ -521,7 +533,7 @@ function reelsRows(table, d, afterHead) {
 
   if (items.length === 0) {
     const empty = new UITableRow();
-    empty.addText("Nothing due today 🎉");
+    empty.addText("Nothing due " + when(d) + " 🎉");
     table.addRow(empty);
   }
 
@@ -566,12 +578,12 @@ function reelsRows(table, d, afterHead) {
 function shootsRows(table, d, afterHead) {
   const s = d.shoots;
 
-  listHead(table, "Shoots — " + dayOf(d).label, s.count + (s.count === 1 ? " shoot" : " shoots") + (dayOf(d).is_today ? " today" : ""));
+  listHead(table, "Shoots — " + dayOf(d).label, s.count + (s.count === 1 ? " shoot " : " shoots ") + when(d));
   afterHead();
 
   if (s.count === 0) {
     const empty = new UITableRow();
-    empty.addText("No shoots today");
+    empty.addText("No shoots " + when(d));
     table.addRow(empty);
   }
 
@@ -609,11 +621,12 @@ function openRow(table, label, url) {
 // ================================================================ pieces
 
 /*
- * `nav` (medium and large only -- iOS gives a small widget one tap target)
- * puts ‹ date › in the header. Each arrow is its own tap target opening the
- * full list for that day; the widget itself always shows today.
+ * No buttons: any tap on a widget opens Scriptable, so the header only
+ * says which day this is. Moving between days is done by stacking a
+ * yesterday / today / tomorrow widget and swiping (see the Parameter note
+ * at the top of this file).
  */
-function frame(d, title, url, nav) {
+function frame(d, title, url) {
   const w = new ListWidget();
   w.setPadding(16, 16, 12, 16);
   if (url) w.url = url;
@@ -624,27 +637,62 @@ function frame(d, title, url, nav) {
   head.addSpacer();
 
   const day = dayOf(d);
-  if (nav && day.prev && tapUrl(nav)) {
-    arrow(head, "‹", tapUrl(nav, day.prev));
-    head.addSpacer(6);
-    text(head, day.label, 10, C.dim, true);
-    head.addSpacer(6);
-    arrow(head, "›", tapUrl(nav, day.next));
+  if (day.is_today) {
+    text(head, day.label, 10, C.faint);
   } else {
-    text(head, d.date_label, 10, C.faint);
+    text(head, relWord(d) + " · ", 10, C.amber, true);
+    text(head, day.label, 10, C.faint);
   }
 
   w.addSpacer(8);
   return w;
 }
 
-function arrow(stack, glyph, url) {
-  const a = stack.addStack();
-  a.url = url;
-  a.backgroundColor = C.card;
-  a.cornerRadius = 9;
-  a.setPadding(1, 8, 2, 8);
-  text(a, glyph, 13, C.accent, true);
+// "+1", "-2", "tomorrow", "yesterday" → a day offset; anything else is today.
+function parseOffset(word) {
+  if (!word) return 0;
+  if (word === "tomorrow") return 1;
+  if (word === "yesterday") return -1;
+  const n = parseInt(word, 10);
+  return Number.isFinite(n) && Math.abs(n) <= 90 ? n : 0;
+}
+
+// The phone's own calendar day, offset -- not UTC, which is a day behind
+// before 5:30 AM in India.
+function isoDay(offset) {
+  const dt = new Date();
+  dt.setDate(dt.getDate() + offset);
+  const pad = (n) => String(n).padStart(2, "0");
+  return dt.getFullYear() + "-" + pad(dt.getMonth() + 1) + "-" + pad(dt.getDate());
+}
+
+function dayDiff(d) {
+  const day = dayOf(d);
+  const a = Date.parse(day.date + "T00:00:00Z");
+  const b = Date.parse(d.date + "T00:00:00Z");
+  return Math.round((a - b) / 86400000);
+}
+
+function relWord(d) {
+  const n = dayDiff(d);
+  if (n === 0) return "Today";
+  if (n === 1) return "Tomorrow";
+  if (n === -1) return "Yesterday";
+  return (n > 0 ? "In " + n + " days" : -n + " days ago");
+}
+
+// "today", "tomorrow", "on Fri, 2 Oct" -- for sentences like "reels due …".
+function when(d) {
+  const n = dayDiff(d);
+  if (n === 0) return "today";
+  if (n === 1) return "tomorrow";
+  if (n === -1) return "yesterday";
+  return "on " + dayOf(d).label;
+}
+
+function listDate(d) {
+  const day = dayOf(d);
+  return day.is_today ? null : day.date;
 }
 
 function footer(w, d) {
