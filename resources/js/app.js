@@ -4,6 +4,7 @@ import Alpine from 'alpinejs';
 import { whatsappInboxThread } from './whatsapp-inbox.js';
 import { proposalComment } from './proposal.js';
 import { proposalEditor, registerEditDirective } from './proposal-editor.js';
+import { installBanner } from './install.js';
 
 window.Alpine = Alpine;
 
@@ -20,6 +21,10 @@ Alpine.data('proposalComment', proposalComment);
 // resources/js/proposal-editor.js. x-edit is its contenteditable binding.
 registerEditDirective(Alpine);
 Alpine.data('proposalEditor', proposalEditor);
+
+// The "install this app" bar at the top of the signed-in app -- see
+// resources/js/install.js.
+Alpine.data('installBanner', installBanner);
 
 Alpine.start();
 

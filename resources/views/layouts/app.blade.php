@@ -27,6 +27,8 @@
         <div class="min-h-screen {{ $dark ? 'theme-dark bg-brand-900 text-white' : 'bg-brand-50 text-gray-900' }}"
              x-data="{ sidebarOpen: false }" @keydown.escape.window="sidebarOpen = false">
 
+            @include('layouts._install-banner')
+
             <!-- Desktop sidebar -->
             <div class="hidden lg:flex lg:fixed lg:inset-y-0 lg:w-64 lg:flex-col bg-brand-900 border-r border-white/[0.06] shadow-[4px_0_24px_-8px_rgba(0,0,0,0.35)]">
                 @include('layouts.sidebar')
