@@ -1,0 +1,486 @@
+// Chakra home-screen widgets -- the drawing code.
+//
+// Not pasted into Scriptable: the small script people paste (built from
+// resources/widget/chakra-widget.js) downloads this file on every refresh and
+// keeps the last good copy, so a design change here reaches every phone
+// without anybody pasting again. It holds no key and no data.
+//
+// One script, several widgets. The widget's Parameter picks which:
+//   reels   Reel Planner -- today (admins)
+//   shoots  Today's shoots
+//   hours   Hours logged today
+//   todos   Open to-dos
+//   today   Everything, one summary
+// Left empty: reels for admins, today for everyone else.
+
+const C = {
+  bg: new Color("#0F2230"),
+  card: new Color("#FFFFFF", 0.06),
+  track: new Color("#FFFFFF", 0.1),
+  text: Color.white(),
+  dim: new Color("#E4F2F7", 0.6),
+  faint: new Color("#E4F2F7", 0.38),
+  accent: new Color("#67BCD4"),
+  amber: new Color("#FBBF24"),
+  orange: new Color("#FB923C"),
+  violet: new Color("#A78BFA"),
+  sky: new Color("#38BDF8"),
+  teal: new Color("#2DD4BF"),
+  green: new Color("#34D399"),
+  red: new Color("#F87171"),
+};
+
+// Pipeline order: what needs work first, what is done last.
+const REEL_STATUS = [
+  { key: "To Be Shooted", short: "To shoot", color: C.violet },
+  { key: "To Be Edited", short: "To edit", color: C.amber },
+  { key: "Edit in Progress", short: "Editing", color: C.orange },
+  { key: "Under Review", short: "Review", color: C.violet },
+  { key: "Video Ready", short: "Ready", color: C.teal },
+  { key: "Scheduled", short: "Scheduled", color: C.sky },
+  { key: "Published", short: "Posted", color: C.green },
+];
+
+async function run(opts) {
+  const family = opts.family || "large";
+  const data = await load(opts);
+
+  let mode = String(opts.parameter || "").trim().toLowerCase();
+  if (!mode) mode = data.reels ? "reels" : "today";
+
+  let widget;
+  if (data.error) widget = message("Chakra", data.error);
+  else if (mode === "reels") widget = data.reels ? reelsWidget(data, family) : message("Reel Planner", "Only admins can see the Reel Planner.");
+  else if (mode === "shoots") widget = shootsWidget(data, family);
+  else if (mode === "hours") widget = hoursWidget(data, family);
+  else if (mode === "todos") widget = todosWidget(data, family);
+  else widget = todayWidget(data, family);
+
+  widget.backgroundColor = C.bg;
+  widget.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000);
+
+  if (opts.runsInWidget) {
+    Script.setWidget(widget);
+  } else if (family === "small") {
+    await widget.presentSmall();
+  } else if (family === "medium") {
+    await widget.presentMedium();
+  } else {
+    await widget.presentLarge();
+  }
+}
+
+// ================================================================ data
+
+async function load(opts) {
+  const fm = FileManager.local();
+  const cachePath = fm.joinPath(fm.cacheDirectory(), "chakra-widget.json");
+
+  try {
+    const req = new Request(opts.apiUrl);
+    req.headers = { Authorization: "Bearer " + opts.token, Accept: "application/json" };
+    req.timeoutInterval = 25;
+    const json = await req.loadJSON();
+
+    if (req.response.statusCode === 401) return { error: "Key revoked. Make a new widget script on your Profile page." };
+    if (req.response.statusCode !== 200) throw new Error("HTTP " + req.response.statusCode);
+
+    fm.writeString(cachePath, JSON.stringify(json));
+    return json;
+  } catch (e) {
+    if (fm.fileExists(cachePath)) {
+      const cached = JSON.parse(fm.readString(cachePath));
+      cached.stale = true;
+      return cached;
+    }
+    return { error: "Can't reach the portal right now." };
+  }
+}
+
+// ================================================================ reel planner
+
+function reelsWidget(d, family) {
+  const r = d.reels;
+  const w = frame(d, "REEL PLANNER", r.url);
+  const total = r.total_posting;
+  const posted = r.counts.posted || 0;
+  const items = sortReels(r.items);
+
+  if (family === "small") {
+    bigNumber(w, total, 40);
+    text(w, total === 1 ? "reel due today" : "reels due today", 11, C.dim);
+    w.addSpacer(8);
+    progress(w, total ? posted / total : 0, 124, 6);
+    w.addSpacer(5);
+    text(w, posted + " of " + total + " posted", 10, total && posted === total ? C.green : C.dim, true);
+    w.addSpacer();
+    footer(w, d);
+    return w;
+  }
+
+  if (family === "medium") {
+    const row = w.addStack();
+    row.topAlignContent();
+
+    const left = row.addStack();
+    left.layoutVertically();
+    left.size = new Size(104, 0);
+    bigNumber(left, total, 38);
+    text(left, "due today", 11, C.dim);
+    left.addSpacer(8);
+    progress(left, total ? posted / total : 0, 96, 5);
+    left.addSpacer(4);
+    text(left, posted + "/" + total + " posted", 10, C.dim, true);
+
+    row.addSpacer(14);
+
+    const right = row.addStack();
+    right.layoutVertically();
+    if (items.length === 0) emptyLine(right, "Nothing due today");
+    items.slice(0, 4).forEach((item, i) => {
+      if (i) right.addSpacer(6);
+      reelRow(right, item, false);
+    });
+    if (items.length > 4) {
+      right.addSpacer(4);
+      text(right, "+" + (items.length - 4) + " more", 10, C.faint);
+    }
+
+    w.addSpacer();
+    footer(w, d);
+    return w;
+  }
+
+  // Large: the headline, the pipeline, then the list.
+  const hero = w.addStack();
+  hero.bottomAlignContent();
+  bigNumber(hero, total, 42);
+  hero.addSpacer(8);
+  const heroLabel = hero.addStack();
+  heroLabel.layoutVertically();
+  text(heroLabel, total === 1 ? "reel due" : "reels due", 13, C.text, true);
+  text(heroLabel, "today", 13, C.dim);
+  heroLabel.addSpacer(6);
+  hero.addSpacer();
+  const done = hero.addStack();
+  done.layoutVertically();
+  text(done, posted + "/" + total, 20, total && posted === total ? C.green : C.text, true).rightAlignText();
+  text(done, "posted", 11, C.dim).rightAlignText();
+  done.addSpacer(6);
+
+  w.addSpacer(10);
+  progress(w, total ? posted / total : 0, 286, 6);
+  w.addSpacer(12);
+
+  const chips = w.addStack();
+  statChip(chips, r.counts.to_be_edited, "To edit", C.amber);
+  chips.addSpacer(6);
+  statChip(chips, r.counts.edit_in_progress, "Editing", C.orange);
+  chips.addSpacer(6);
+  statChip(chips, r.counts.under_review, "Review", C.violet);
+  chips.addSpacer(6);
+  statChip(chips, posted, "Posted", C.green);
+
+  w.addSpacer(14);
+
+  const max = 4;
+  if (items.length === 0) emptyLine(w, "Nothing due today 🎉");
+  items.slice(0, max).forEach((item, i) => {
+    if (i) w.addSpacer(8);
+    reelRow(w, item, true);
+  });
+  if (items.length > max) {
+    w.addSpacer(6);
+    text(w, "+" + (items.length - max) + " more in the Reel Planner", 10, C.faint);
+  }
+
+  w.addSpacer();
+  footer(w, d);
+  return w;
+}
+
+function reelRow(stack, item, withStatus) {
+  const s = reelStatus(item.status);
+  const row = stack.addStack();
+  row.centerAlignContent();
+
+  dot(row, s.color, 7);
+  row.addSpacer(8);
+
+  const body = row.addStack();
+  body.layoutVertically();
+  text(body, item.title, withStatus ? 13 : 12, C.text, true);
+  if (withStatus && item.editor && item.editor !== "—") text(body, item.editor, 10, C.dim);
+
+  row.addSpacer();
+  if (withStatus) {
+    row.addSpacer(8);
+    pill(row, s.short, s.color);
+  }
+}
+
+function reelStatus(status) {
+  return REEL_STATUS.find((s) => s.key === status) || { key: status, short: status || "—", color: C.dim };
+}
+
+function sortReels(items) {
+  const rank = (status) => {
+    const i = REEL_STATUS.findIndex((s) => s.key === status);
+    return i === -1 ? 50 : i;
+  };
+  return items.slice().sort((a, b) => rank(a.status) - rank(b.status));
+}
+
+// ================================================================ shoots
+
+function shootsWidget(d, family) {
+  const s = d.shoots;
+  const w = frame(d, "SHOOTS TODAY", s.url);
+
+  if (family === "small") {
+    bigNumber(w, s.count, 40);
+    text(w, s.count === 1 ? "shoot today" : "shoots today", 11, C.dim);
+    w.addSpacer(8);
+    if (s.items[0]) {
+      text(w, s.items[0].title, 12, C.text, true);
+      text(w, s.items[0].time || s.items[0].location || "Today", 10, C.accent);
+    }
+    w.addSpacer();
+    footer(w, d);
+    return w;
+  }
+
+  const max = family === "medium" ? 3 : 6;
+  if (s.count === 0) emptyLine(w, "No shoots today");
+  s.items.slice(0, max).forEach((shoot, i) => {
+    if (i) w.addSpacer(family === "medium" ? 6 : 10);
+    const row = w.addStack();
+    row.centerAlignContent();
+
+    const when = row.addStack();
+    when.size = new Size(58, 0);
+    text(when, shoot.status === "live" ? "LIVE" : (shoot.time || "Today"), 11, shoot.status === "live" ? C.green : C.accent, true);
+
+    const body = row.addStack();
+    body.layoutVertically();
+    text(body, shoot.title, 13, C.text, true);
+    const sub = [shoot.client, shoot.location].filter(Boolean).join(" · ");
+    if (sub && family !== "medium") text(body, sub, 10, C.dim);
+    row.addSpacer();
+  });
+  if (s.count > max) {
+    w.addSpacer(6);
+    text(w, "+" + (s.count - max) + " more", 10, C.faint);
+  }
+
+  w.addSpacer();
+  footer(w, d);
+  return w;
+}
+
+// ================================================================ hours
+
+function hoursWidget(d, family) {
+  const own = d.hours;
+  const team = d.team_hours;
+  const w = frame(d, own ? "HOURS TODAY" : "TEAM HOURS", own ? own.url : d.portal_url);
+
+  if (!own && !team) {
+    emptyLine(w, "No hours to show");
+    return w;
+  }
+
+  const main = own || team;
+  bigNumber(w, main.today_label, family === "small" ? 34 : 44);
+  text(w, own ? "logged today" : team.people + (team.people === 1 ? " person" : " people") + " logged today", 11, C.dim);
+
+  if (family !== "small") {
+    w.addSpacer(12);
+    const row = w.addStack();
+    if (own) statChip(row, own.week_label, "This week", C.accent);
+    if (own) row.addSpacer(6);
+    if (own) statChip(row, own.entries, own.entries === 1 ? "Entry" : "Entries", C.teal);
+    if (own && team) row.addSpacer(6);
+    if (own && team) statChip(row, team.today_label, "Team", C.violet);
+  } else if (own) {
+    w.addSpacer(6);
+    text(w, own.week_label + " this week", 10, C.accent, true);
+  }
+
+  w.addSpacer();
+  footer(w, d);
+  return w;
+}
+
+// ================================================================ to-dos
+
+function todosWidget(d, family) {
+  const t = d.todos;
+  const w = frame(d, "TO-DOS", t.url || d.portal_url);
+
+  const top = w.addStack();
+  top.bottomAlignContent();
+  bigNumber(top, t.count, family === "small" ? 38 : 42);
+  top.addSpacer(8);
+  const lbl = top.addStack();
+  lbl.layoutVertically();
+  text(lbl, "open", 12, C.dim);
+  if (t.overdue) text(lbl, t.overdue + " overdue", 11, C.red, true);
+  lbl.addSpacer(6);
+
+  if (family !== "small") {
+    w.addSpacer(10);
+    if (t.items.length === 0) emptyLine(w, "All clear");
+    t.items.forEach((title, i) => {
+      if (i) w.addSpacer(6);
+      const row = w.addStack();
+      row.centerAlignContent();
+      dot(row, C.accent, 6);
+      row.addSpacer(8);
+      text(row, title, 12, C.text);
+      row.addSpacer();
+    });
+  }
+
+  w.addSpacer();
+  footer(w, d);
+  return w;
+}
+
+// ================================================================ everything
+
+function todayWidget(d, family) {
+  const w = frame(d, "TODAY", d.portal_url);
+  const main = d.hours || d.team_hours;
+
+  if (main) {
+    text(w, d.hours ? "Hours" : "Team hours", 10, C.dim);
+    bigNumber(w, main.today_label, family === "small" ? 28 : 32);
+    w.addSpacer(8);
+  }
+
+  const lines = [
+    [C.accent, d.shoots.count + (d.shoots.count === 1 ? " shoot" : " shoots")],
+    d.reels ? [C.amber, d.reels.total_posting + " reels due · " + d.reels.counts.posted + " posted"] : null,
+    [d.todos.overdue ? C.red : C.teal, d.todos.count + " to-dos" + (d.todos.overdue ? " · " + d.todos.overdue + " overdue" : "")],
+  ].filter(Boolean);
+
+  lines.forEach(([color, label], i) => {
+    if (i) w.addSpacer(5);
+    const row = w.addStack();
+    row.centerAlignContent();
+    dot(row, color, 6);
+    row.addSpacer(7);
+    text(row, label, family === "small" ? 11 : 13, C.text, true);
+  });
+
+  w.addSpacer();
+  footer(w, d);
+  return w;
+}
+
+// ================================================================ pieces
+
+function frame(d, title, url) {
+  const w = new ListWidget();
+  w.setPadding(16, 16, 12, 16);
+  if (url) w.url = url;
+
+  const head = w.addStack();
+  head.centerAlignContent();
+  text(head, title, 10, C.accent, true);
+  head.addSpacer();
+  text(head, d.date_label, 10, C.faint);
+  w.addSpacer(8);
+  return w;
+}
+
+function footer(w, d) {
+  text(w, (d.stale ? "Offline · last update " : "Updated ") + d.generated_at, 8, d.stale ? C.amber : C.faint);
+}
+
+function bigNumber(stack, value, size) {
+  const t = stack.addText(String(value));
+  t.font = Font.boldRoundedSystemFont(size);
+  t.textColor = C.text;
+  t.minimumScaleFactor = 0.5;
+  t.lineLimit = 1;
+  return t;
+}
+
+function statChip(stack, value, label, color) {
+  const chip = stack.addStack();
+  chip.layoutVertically();
+  chip.backgroundColor = C.card;
+  chip.cornerRadius = 10;
+  chip.setPadding(6, 9, 6, 9);
+  chip.size = new Size(0, 42);
+  text(chip, String(value ?? 0), 17, value ? color : C.faint, true);
+  text(chip, label, 9, C.dim);
+  chip.addSpacer();
+}
+
+function pill(stack, label, color) {
+  const p = stack.addStack();
+  p.backgroundColor = new Color(color.hex, 0.16);
+  p.cornerRadius = 7;
+  p.setPadding(3, 7, 3, 7);
+  text(p, label, 9, color, true);
+}
+
+function dot(stack, color, size) {
+  const d = stack.addStack();
+  d.size = new Size(size, size);
+  d.cornerRadius = size / 2;
+  d.backgroundColor = color;
+}
+
+function progress(stack, fraction, width, height) {
+  const ctx = new DrawContext();
+  ctx.size = new Size(width, height);
+  ctx.opaque = false;
+  ctx.respectScreenScale = true;
+
+  const track = new Path();
+  track.addRoundedRect(new Rect(0, 0, width, height), height / 2, height / 2);
+  ctx.addPath(track);
+  ctx.setFillColor(C.track);
+  ctx.fillPath();
+
+  if (fraction > 0) {
+    const fill = new Path();
+    fill.addRoundedRect(new Rect(0, 0, Math.max(height, width * Math.min(fraction, 1)), height), height / 2, height / 2);
+    ctx.addPath(fill);
+    ctx.setFillColor(C.green);
+    ctx.fillPath();
+  }
+
+  const img = stack.addImage(ctx.getImage());
+  img.imageSize = new Size(width, height);
+  return img;
+}
+
+function emptyLine(stack, label) {
+  text(stack, label, 12, C.dim);
+}
+
+function text(stack, value, size, color, bold) {
+  const t = stack.addText(String(value));
+  t.font = bold ? Font.semiboldSystemFont(size) : Font.systemFont(size);
+  t.textColor = color;
+  t.lineLimit = 1;
+  return t;
+}
+
+function message(title, body) {
+  const w = new ListWidget();
+  w.setPadding(16, 16, 16, 16);
+  text(w, title.toUpperCase(), 10, C.accent, true);
+  w.addSpacer(8);
+  const t = w.addText(body);
+  t.font = Font.systemFont(12);
+  t.textColor = C.text;
+  return w;
+}
+
+module.exports = { run };

@@ -113,7 +113,11 @@ class PhoneWidgetTest extends TestCase
             ->assertOk()
             ->assertSee('Copy widget script')
             ->assertSee(WidgetToken::PREFIX, false)
-            ->assertSee(route('api.widget.today'), false);
+            ->assertSee(route('api.widget.today'), false)
+            ->assertSee(asset('widget/chakra-widget-app.js'), false);
+
+        // The drawing code the pasted loader downloads is a public file.
+        $this->assertFileExists(public_path('widget/chakra-widget-app.js'));
     }
 
     public function test_nobody_can_revoke_someone_elses_key(): void

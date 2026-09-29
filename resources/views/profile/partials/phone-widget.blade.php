@@ -5,14 +5,16 @@
      * iOS only lets App Store apps put widgets on the home screen, so this
      * goes through Scriptable (free): the portal hands over a ready-to-paste
      * script with a read-only key already inside it, and Scriptable draws the
-     * widget from GET /api/widget/today. The script lives in
-     * resources/widget/chakra-widget.js.
+     * widget from GET /api/widget/today. The pasted script
+     * (resources/widget/chakra-widget.js) is only a loader: the drawing code
+     * is public/widget/chakra-widget-app.js, fetched on every refresh.
      */
     $plain = session('widget_token_plain');
     $script = $plain
         ? strtr(file_get_contents(resource_path('widget/chakra-widget.js')), [
             '__API_URL__' => route('api.widget.today'),
             '__TOKEN__' => $plain,
+            '__CODE_URL__' => asset('widget/chakra-widget-app.js'),
         ])
         : null;
 @endphp
@@ -52,8 +54,31 @@
         <li>Tap <strong class="text-white">Make widget script</strong> below, then <strong class="text-white">Copy widget script</strong> — do this on the iPhone itself.</li>
         <li>In Scriptable tap <strong class="text-white">+</strong>, paste, name it <em>Chakra</em>, and tap <strong class="text-white">Done</strong>.</li>
         <li>On the home screen, press and hold → <strong class="text-white">Edit</strong> → <strong class="text-white">Add Widget</strong> → Scriptable → pick a size.</li>
-        <li>Press and hold the new widget → <strong class="text-white">Edit Widget</strong> → Script: <em>Chakra</em>.</li>
+        <li>Press and hold the new widget → <strong class="text-white">Edit Widget</strong> → Script: <em>Chakra</em>, and type what it should show in <strong class="text-white">Parameter</strong>.</li>
     </ol>
+
+    {{-- One script, one widget per thing: each Scriptable widget's
+         Parameter picks its view (see public/widget/chakra-widget-app.js). --}}
+    <div class="mt-4 rounded-xl ring-1 ring-white/10 overflow-hidden text-sm">
+        <p class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 bg-white/5">
+            Parameter — add one widget for each
+        </p>
+        @foreach (array_filter([
+            $user->isAdmin() ? ['reels', 'Reel Planner — today. Best as a large widget.'] : null,
+            ['shoots', "Today's shoots"],
+            $user->logsWork() || $user->isAdmin() ? ['hours', $user->logsWork() ? 'Hours you logged today' : "The team's hours today"] : null,
+            ['todos', 'Your open to-dos'],
+            ['today', 'Everything in one summary'],
+        ]) as [$param, $what])
+            <div class="flex items-center gap-3 px-4 py-2.5 border-t border-white/10">
+                <code class="shrink-0 w-16 text-brand-300 font-semibold">{{ $param }}</code>
+                <span class="text-brand-100/80">{{ $what }}</span>
+            </div>
+        @endforeach
+        <p class="px-4 py-2.5 border-t border-white/10 text-xs text-brand-100/60">
+            Left empty, it shows {{ $user->isAdmin() ? 'the Reel Planner' : 'the summary' }}. The design updates by itself — no need to paste again.
+        </p>
+    </div>
 
     @if ($widgetTokens->isNotEmpty())
         <div class="mt-6 rounded-xl ring-1 ring-white/10 overflow-hidden">
