@@ -95,6 +95,18 @@ class Permission
             'abilities' => ['view'],
         ],
         /*
+         * Checks an export before it is posted or sent: shape, resolution,
+         * length, frame rate, loudness, clipping. The video is analysed in
+         * the browser and never uploaded -- only the verdict is kept, so
+         * `view` (use it, see your own history) is all there is to grant.
+         */
+        'video-check' => [
+            'label' => 'Video Checker',
+            'group' => 'Production',
+            'icon' => 'eye',
+            'abilities' => ['view'],
+        ],
+        /*
          * Occasion clients' jobs (shoot-only/edit-only/one-off) -- read-only
          * over the same content_items data Forecast and Content Dashboard
          * use, just without the targets/pace framing that doesn't apply to

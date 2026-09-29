@@ -5,6 +5,7 @@ import { whatsappInboxThread } from './whatsapp-inbox.js';
 import { proposalComment } from './proposal.js';
 import { proposalEditor, registerEditDirective } from './proposal-editor.js';
 import { installBanner } from './install.js';
+import { videoChecker } from './video-check.js';
 
 window.Alpine = Alpine;
 
@@ -25,6 +26,9 @@ Alpine.data('proposalEditor', proposalEditor);
 // The "install this app" bar at the top of the signed-in app -- see
 // resources/js/install.js.
 Alpine.data('installBanner', installBanner);
+
+// The Video Checker page -- see resources/js/video-check.js.
+Alpine.data('videoChecker', videoChecker);
 
 Alpine.start();
 
