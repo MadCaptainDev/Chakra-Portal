@@ -297,6 +297,12 @@ class User extends Authenticatable
         return $this->hasMany(McpToken::class);
     }
 
+    /** Read-only keys the phone home-screen widget uses. */
+    public function widgetTokens(): HasMany
+    {
+        return $this->hasMany(WidgetToken::class);
+    }
+
     /** Browsers that have agreed to receive push notifications. */
     public function pushTokens(): HasMany
     {

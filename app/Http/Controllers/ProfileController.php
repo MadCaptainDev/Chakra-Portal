@@ -46,6 +46,7 @@ class ProfileController extends Controller
             'user' => $user,
             'devices' => BrowserSessions::for($user, $request->session()->getId()),
             'mcpTokens' => $user->mcpTokens()->latest()->get(),
+            'widgetTokens' => $user->widgetTokens()->latest()->get(),
             'pushConfigured' => $pushSettings->isConfigured(),
             'pushWebConfig' => $pushSettings->webConfig(),
             'pushVapidKey' => $pushSettings->vapid_public_key,

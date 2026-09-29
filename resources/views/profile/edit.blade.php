@@ -42,6 +42,14 @@
             </x-card>
         @endunless
 
+        @unless ($user->isClient())
+            <x-card class="p-4 sm:p-8">
+                <div class="max-w-xl">
+                    @include('profile.partials.phone-widget')
+                </div>
+            </x-card>
+        @endunless
+
         {{-- Everyone gets this, admin or not. Losing a phone is not a
              privilege of rank. --}}
         <x-card class="p-4 sm:p-8">

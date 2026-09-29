@@ -1,0 +1,169 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Shoot;
+use App\Models\TimesheetEntry;
+use App\Models\Todo;
+use App\Models\User;
+use App\Services\Notion\NotionSyncRunner;
+use App\Support\ContentDashboard;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Throwable;
+
+/**
+ * Today, in one small JSON document, for the phone home-screen widget
+ * (resources/widget/chakra-widget.js, run by the Scriptable app on iOS).
+ *
+ * Every section is only present when the person could see the same thing in
+ * the portal: their own hours if they log work, the team's if they are an
+ * admin, every shoot with shoots.view or only the ones they are crew on
+ * without it, and the Reel Planner board -- an admin-only screen -- for
+ * admins alone.
+ */
+class WidgetController extends Controller
+{
+    public function today(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $today = now()->startOfDay();
+
+        $data = [
+            'date' => $today->toDateString(),
+            'date_label' => $today->format('D, j M'),
+            'name' => strtok((string) $user->name, ' ') ?: $user->name,
+            'generated_at' => now()->format('g:i A'),
+            'portal_url' => url(route($user->homeRoute(), [], false)),
+        ];
+
+        if ($user->logsWork()) {
+            $data['hours'] = $this->ownHours($user, $today);
+        }
+
+        if ($user->isAdmin()) {
+            $data['team_hours'] = $this->teamHours($today);
+        }
+
+        $data['shoots'] = $this->shoots($user, $today);
+        $data['todos'] = $this->todos($user, $today);
+
+        if ($user->isAdmin()) {
+            $data['reels'] = $this->reels();
+        }
+
+        return response()->json($data);
+    }
+
+    private function ownHours(User $user, $today): array
+    {
+        $base = TimesheetEntry::query()->counted()->where('user_id', $user->id);
+
+        $todayMinutes = (int) (clone $base)->whereDate('worked_on', $today)->sum('minutes');
+        $weekMinutes = (int) (clone $base)
+            ->where('worked_on', '>=', $today->copy()->startOfWeek()->toDateString())
+            ->where('worked_on', '<=', $today->toDateString())
+            ->sum('minutes');
+
+        return [
+            'today_minutes' => $todayMinutes,
+            'today_label' => $this->hm($todayMinutes),
+            'week_minutes' => $weekMinutes,
+            'week_label' => $this->hm($weekMinutes),
+            'entries' => (clone $base)->whereDate('worked_on', $today)->count(),
+            'url' => route('my.timesheet'),
+        ];
+    }
+
+    private function teamHours($today): array
+    {
+        $rows = TimesheetEntry::query()->counted()->whereDate('worked_on', $today);
+
+        $minutes = (int) (clone $rows)->sum('minutes');
+
+        return [
+            'today_minutes' => $minutes,
+            'today_label' => $this->hm($minutes),
+            'people' => (clone $rows)->distinct()->count('user_id'),
+        ];
+    }
+
+    private function shoots(User $user, $today): array
+    {
+        $query = Shoot::query()
+            ->with('client:id,name')
+            ->where('status', '!=', Shoot::STATUS_CANCELLED)
+            ->where('starts_at', '>=', $today)
+            ->where('starts_at', '<', $today->copy()->addDay())
+            ->ordered();
+
+        $seesAll = $user->can('shoots.view');
+
+        if (! $seesAll) {
+            $query->whereHas('crew', fn ($q) => $q->where('user_id', $user->id));
+        }
+
+        $shoots = $query->limit(10)->get();
+
+        return [
+            'count' => $shoots->count(),
+            'items' => $shoots->map(fn (Shoot $shoot) => [
+                'title' => $shoot->title ?: ($shoot->client?->name ?? 'Shoot'),
+                'client' => $shoot->client?->name,
+                'time' => $shoot->starts_at?->format('g:i A'),
+                'location' => $shoot->location,
+                'status' => $shoot->isInProgress() ? 'live' : $shoot->status,
+            ])->values()->all(),
+            'url' => $seesAll ? route('shoots.index') : route('my.dashboard'),
+        ];
+    }
+
+    private function todos(User $user, $today): array
+    {
+        $open = Todo::query()
+            ->where('user_id', $user->id)
+            ->open()
+            ->onDay($today)
+            ->orderByRaw('due_on is null')
+            ->orderBy('due_on');
+
+        $count = (clone $open)->count();
+
+        return [
+            'count' => $count,
+            'overdue' => (clone $open)->whereNotNull('due_on')->where('due_on', '<', $today->toDateString())->count(),
+            'items' => (clone $open)->limit(3)->pluck('title')->all(),
+            'url' => $user->logsWork() ? route('my.todos') : null,
+        ];
+    }
+
+    private function reels(): array
+    {
+        /*
+         * Same freshness rule the dashboard's own Reel Planner tab uses: a
+         * sync only when the cache is past fifteen minutes old, and never two
+         * at once. A Notion outage must not take the rest of the widget down
+         * with it, so the board is served from whatever is cached.
+         */
+        try {
+            NotionSyncRunner::ensureFresh();
+        } catch (Throwable $e) {
+            report($e);
+        }
+
+        $board = ContentDashboard::todayReelBoard();
+        $board['url'] = route('content-dashboard.index');
+
+        return $board;
+    }
+
+    private function hm(int $minutes): string
+    {
+        $h = intdiv($minutes, 60);
+        $m = $minutes % 60;
+
+        return $h > 0 ? ($m > 0 ? "{$h}h {$m}m" : "{$h}h") : "{$m}m";
+    }
+}
