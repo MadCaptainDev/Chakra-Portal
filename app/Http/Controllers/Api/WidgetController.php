@@ -51,7 +51,7 @@ class WidgetController extends Controller
         $data['todos'] = $this->todos($user, $today);
 
         if ($user->isAdmin()) {
-            $data['reels'] = $this->reels();
+            $data['reels'] = $this->reels($request->boolean('fresh'));
         }
 
         return response()->json($data);
@@ -143,8 +143,21 @@ class WidgetController extends Controller
         ];
     }
 
-    private function reels(): array
+    private function reels(bool $fresh): array
     {
+        /*
+         * ?fresh=1 is the Refresh button on the full list opened from the
+         * widget -- a person in the app, waiting and happy to, not a widget
+         * refresh with seconds to spare. So that one syncs first, then reads.
+         */
+        if ($fresh) {
+            try {
+                NotionSyncRunner::syncIfOlderThan(60);
+            } catch (Throwable $e) {
+                report($e);
+            }
+        }
+
         /*
          * Served from the cache straight away, and the dashboard's own
          * freshness rule (sync when past fifteen minutes, never two at once)

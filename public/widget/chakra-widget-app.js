@@ -55,8 +55,7 @@ async function run(opts) {
    */
   const view = typeof args !== "undefined" && args.queryParameters ? args.queryParameters.view : null;
   if (!opts.runsInWidget && !data.error && (view === "reels" || view === "shoots")) {
-    if (view === "reels" && data.reels) await reelsList(data);
-    else await shootsList(data);
+    await presentList(view === "reels" && data.reels ? "reels" : "shoots", data, opts);
     return;
   }
 
@@ -89,9 +88,9 @@ async function load(opts) {
   const cachePath = fm.joinPath(fm.cacheDirectory(), "chakra-widget.json");
 
   try {
-    const req = new Request(opts.apiUrl);
+    const req = new Request(opts.apiUrl + (opts.fresh ? "?fresh=1" : ""));
     req.headers = { Authorization: "Bearer " + opts.token, Accept: "application/json" };
-    req.timeoutInterval = 25;
+    req.timeoutInterval = opts.fresh ? 60 : 25;
     const json = await req.loadJSON();
 
     if (req.response.statusCode === 401) return { error: "Key revoked. Make a new widget script on your Profile page." };
@@ -402,18 +401,69 @@ function tapUrl(view) {
   }
 }
 
-async function reelsList(d) {
-  const r = d.reels;
-  const items = sortReels(r.items);
+/*
+ * One table for the whole visit. Refresh re-fetches with ?fresh=1 (which
+ * makes the portal pull from Notion first), then empties and refills this
+ * same table, so the list redraws in place instead of closing.
+ */
+async function presentList(view, data, opts) {
   const table = new UITable();
   table.showSeparators = true;
+  let busy = false;
 
+  const refresh = async (current) => {
+    if (busy) return;
+    busy = true;
+    fill(current);
+
+    const fresh = await load(Object.assign({}, opts, { fresh: true }));
+    busy = false;
+    fill(fresh.error ? Object.assign({}, current, { stale: true }) : fresh);
+  };
+
+  const fill = (d) => {
+    table.removeAllRows();
+    const afterHead = () => refreshRow(table, d, busy, () => refresh(d));
+    if (view === "reels" && d.reels) reelsRows(table, d, afterHead);
+    else shootsRows(table, d, afterHead);
+    table.reload();
+  };
+
+  fill(data);
+  await table.present(true);
+}
+
+function refreshRow(table, d, busy, onTap) {
+  const row = new UITableRow();
+  row.height = 50;
+  row.dismissOnSelect = false;
+  if (!busy) row.onSelect = onTap;
+
+  const cell = row.addText(
+    busy ? "Refreshing…" : "↻  Refresh",
+    busy ? "Getting the latest from Notion" : (d.stale ? "Offline · last update " : "Updated ") + d.generated_at,
+  );
+  cell.titleColor = busy ? C.dim : C.accent;
+  cell.titleFont = Font.semiboldSystemFont(15);
+  cell.subtitleFont = Font.systemFont(12);
+  table.addRow(row);
+}
+
+function listHead(table, title, subtitle) {
   const head = new UITableRow();
   head.height = 76;
-  const title = head.addText("Reel Planner — " + d.date_label, r.total_posting + " due · " + r.counts.posted + " posted");
-  title.titleFont = Font.boldSystemFont(20);
-  title.subtitleFont = Font.systemFont(14);
+  const cell = head.addText(title, subtitle);
+  cell.titleFont = Font.boldSystemFont(20);
+  cell.subtitleFont = Font.systemFont(14);
   table.addRow(head);
+}
+
+function reelsRows(table, d, afterHead) {
+  const r = d.reels;
+  const items = sortReels(r.items);
+
+  listHead(table, "Reel Planner — " + d.date_label, r.total_posting + " due · " + r.counts.posted + " posted");
+  afterHead();
 
   if (items.length === 0) {
     const empty = new UITableRow();
@@ -457,20 +507,13 @@ async function reelsList(d) {
   });
 
   openRow(table, "Open the Reel Planner in the portal", r.url);
-  await table.present(true);
 }
 
-async function shootsList(d) {
+function shootsRows(table, d, afterHead) {
   const s = d.shoots;
-  const table = new UITable();
-  table.showSeparators = true;
 
-  const head = new UITableRow();
-  head.height = 76;
-  const title = head.addText("Shoots — " + d.date_label, s.count + (s.count === 1 ? " shoot today" : " shoots today"));
-  title.titleFont = Font.boldSystemFont(20);
-  title.subtitleFont = Font.systemFont(14);
-  table.addRow(head);
+  listHead(table, "Shoots — " + d.date_label, s.count + (s.count === 1 ? " shoot today" : " shoots today"));
+  afterHead();
 
   if (s.count === 0) {
     const empty = new UITableRow();
@@ -497,7 +540,6 @@ async function shootsList(d) {
   });
 
   openRow(table, "Open Shoots in the portal", s.url);
-  await table.present(true);
 }
 
 function openRow(table, label, url) {

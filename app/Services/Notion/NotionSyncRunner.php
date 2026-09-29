@@ -85,13 +85,24 @@ class NotionSyncRunner
      */
     public static function ensureFresh(): void
     {
+        self::syncIfOlderThan(self::STALE_MINUTES * 60);
+    }
+
+    /**
+     * The same guarded sync with a shorter threshold -- the phone widget's
+     * Refresh button asks for "now", and a minute is what stops somebody
+     * tapping it repeatedly from queuing sync after sync. Shares the lock
+     * with ensureFresh(), so the two can never run at once.
+     */
+    public static function syncIfOlderThan(int $seconds): void
+    {
         if (! NotionSetting::current()->api_key) {
             return;
         }
 
         $syncedAt = self::lastSyncedAt();
 
-        if ($syncedAt !== null && $syncedAt->gt(now()->subMinutes(self::STALE_MINUTES))) {
+        if ($syncedAt !== null && $syncedAt->gt(now()->subSeconds($seconds))) {
             return;
         }
 
