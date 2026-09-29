@@ -93,6 +93,44 @@ class PhoneWidgetTest extends TestCase
         $this->assertSame(1, $data['reels']['counts']['to_be_edited']);
     }
 
+    public function test_the_date_arrows_ask_for_another_days_reels_and_shoots(): void
+    {
+        $admin = User::factory()->create();
+        $token = WidgetToken::issue($admin, 'iPhone')['plain'];
+        $tomorrow = today()->addDay();
+
+        ContentItem::factory()->create([
+            'source' => ContentItem::SOURCE_REEL,
+            'status' => 'To Be Edited',
+            'published_date' => $tomorrow->toDateString(),
+        ]);
+        Shoot::create(['title' => 'Tomorrow', 'starts_at' => $tomorrow->copy()->addHours(9), 'status' => Shoot::STATUS_PLANNED]);
+
+        $data = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/widget/today?date='.$tomorrow->toDateString())->assertOk()->json();
+
+        $this->assertFalse($data['day']['is_today']);
+        $this->assertSame($tomorrow->toDateString(), $data['day']['date']);
+        $this->assertSame(today()->toDateString(), $data['day']['prev']);
+        $this->assertSame(1, $data['reels']['total_posting']);
+        $this->assertSame('Tomorrow', $data['shoots']['items'][0]['title']);
+
+        // Today is unchanged without the parameter.
+        $this->assertSame(0, $this->today($token)->json('reels.total_posting'));
+    }
+
+    public function test_a_bad_or_far_away_date_falls_back_to_today(): void
+    {
+        $token = WidgetToken::issue(User::factory()->create(), 'iPhone')['plain'];
+
+        foreach (['nonsense', '2026-02-30', today()->addYear()->toDateString()] as $date) {
+            $this->withHeader('Authorization', 'Bearer '.$token)
+                ->getJson('/api/widget/today?date='.$date)
+                ->assertOk()
+                ->assertJsonPath('day.is_today', true);
+        }
+    }
+
     public function test_a_revoked_key_stops_working(): void
     {
         $user = User::factory()->employee()->create();

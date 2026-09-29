@@ -43,6 +43,9 @@ const REEL_STATUS = [
 
 async function run(opts) {
   const family = opts.family || "large";
+  // A tap on a widget arrow opens this script with ?view=…&date=…
+  const query = typeof args !== "undefined" && args.queryParameters ? args.queryParameters : {};
+  if (!opts.runsInWidget && query.date) opts.date = query.date;
   const data = await load(opts);
 
   let mode = String(opts.parameter || "").trim().toLowerCase();
@@ -88,7 +91,8 @@ async function load(opts) {
   const cachePath = fm.joinPath(fm.cacheDirectory(), "chakra-widget.json");
 
   try {
-    const req = new Request(opts.apiUrl + (opts.fresh ? "?fresh=1" : ""));
+    const params = [opts.fresh ? "fresh=1" : null, opts.date ? "date=" + encodeURIComponent(opts.date) : null].filter(Boolean);
+    const req = new Request(opts.apiUrl + (params.length ? "?" + params.join("&") : ""));
     req.headers = { Authorization: "Bearer " + opts.token, Accept: "application/json" };
     req.timeoutInterval = opts.fresh ? 60 : 25;
     const json = await req.loadJSON();
@@ -96,10 +100,11 @@ async function load(opts) {
     if (req.response.statusCode === 401) return { error: "Key revoked. Make a new widget script on your Profile page." };
     if (req.response.statusCode !== 200) throw new Error("HTTP " + req.response.statusCode);
 
-    fm.writeString(cachePath, JSON.stringify(json));
+    // Only today is the offline copy; another day must never stand in for it.
+    if (!opts.date) fm.writeString(cachePath, JSON.stringify(json));
     return json;
   } catch (e) {
-    if (fm.fileExists(cachePath)) {
+    if (!opts.date && fm.fileExists(cachePath)) {
       const cached = JSON.parse(fm.readString(cachePath));
       cached.stale = true;
       return cached;
@@ -112,7 +117,7 @@ async function load(opts) {
 
 function reelsWidget(d, family) {
   const r = d.reels;
-  const w = frame(d, "REEL PLANNER", tapUrl("reels") || r.url);
+  const w = frame(d, "REEL PLANNER", tapUrl("reels") || r.url, family === "small" ? null : "reels");
   const total = r.total_posting;
   const posted = r.counts.posted || 0;
   const items = sortReels(r.items);
@@ -246,7 +251,7 @@ function sortReels(items) {
 
 function shootsWidget(d, family) {
   const s = d.shoots;
-  const w = frame(d, "SHOOTS TODAY", tapUrl("shoots") || s.url);
+  const w = frame(d, "SHOOTS TODAY", tapUrl("shoots") || s.url, family === "small" ? null : "shoots");
 
   if (family === "small") {
     bigNumber(w, s.count, 40);
@@ -393,9 +398,9 @@ function todayWidget(d, family) {
 // ================================================================ full lists (tap a widget)
 
 // Runs this same script inside Scriptable, which then shows the full list.
-function tapUrl(view) {
+function tapUrl(view, date) {
   try {
-    return "scriptable:///run/" + encodeURIComponent(Script.name()) + "?view=" + view;
+    return "scriptable:///run/" + encodeURIComponent(Script.name()) + "?view=" + view + (date ? "&date=" + date : "");
   } catch (e) {
     return null;
   }
@@ -410,20 +415,30 @@ async function presentList(view, data, opts) {
   const table = new UITable();
   table.showSeparators = true;
   let busy = false;
+  let date = opts.date || null;
 
-  const refresh = async (current) => {
+  // Refresh (fresh: true) and the day buttons (a new date) both land here.
+  const reload = async (current, extra) => {
     if (busy) return;
-    busy = true;
+    busy = extra.fresh ? "Getting the latest from Notion" : "Loading " + (extra.date === dayOf(current).today ? "today" : "that day");
     fill(current);
 
-    const fresh = await load(Object.assign({}, opts, { fresh: true }));
+    const next = await load(Object.assign({}, opts, { date: date, fresh: false }, extra));
     busy = false;
-    fill(fresh.error ? Object.assign({}, current, { stale: true }) : fresh);
+    if (next.error) {
+      fill(Object.assign({}, current, { stale: true }));
+      return;
+    }
+    if (extra.date !== undefined) date = extra.date;
+    fill(next);
   };
 
   const fill = (d) => {
     table.removeAllRows();
-    const afterHead = () => refreshRow(table, d, busy, () => refresh(d));
+    const afterHead = () => {
+      dayNavRow(table, d, busy, (to) => reload(d, { date: to }));
+      refreshRow(table, d, busy, () => reload(d, { fresh: true }));
+    };
     if (view === "reels" && d.reels) reelsRows(table, d, afterHead);
     else shootsRows(table, d, afterHead);
     table.reload();
@@ -440,13 +455,52 @@ function refreshRow(table, d, busy, onTap) {
   if (!busy) row.onSelect = onTap;
 
   const cell = row.addText(
-    busy ? "Refreshing…" : "↻  Refresh",
-    busy ? "Getting the latest from Notion" : (d.stale ? "Offline · last update " : "Updated ") + d.generated_at,
+    busy ? "Loading…" : "↻  Refresh",
+    busy ? busy : (d.stale ? "Offline · last update " : "Updated ") + d.generated_at,
   );
   cell.titleColor = busy ? C.dim : C.accent;
   cell.titleFont = Font.semiboldSystemFont(15);
   cell.subtitleFont = Font.systemFont(12);
   table.addRow(row);
+}
+
+// ‹ Previous day · Today · Next day › -- three buttons on one row.
+function dayNavRow(table, d, busy, go) {
+  const day = dayOf(d);
+  if (!day.prev) return;
+
+  const row = new UITableRow();
+  row.height = 50;
+  row.dismissOnSelect = false;
+
+  const prev = row.addButton("‹  " + shortDay(day.prev));
+  prev.leftAligned();
+  prev.widthWeight = 36;
+  prev.onTap = () => { if (!busy) go(day.prev); };
+
+  const now = row.addButton(day.is_today ? "Today" : "Back to today");
+  now.centerAligned();
+  now.widthWeight = 28;
+  now.onTap = () => { if (!busy && !day.is_today) go(day.today); };
+
+  const next = row.addButton(shortDay(day.next) + "  ›");
+  next.rightAligned();
+  next.widthWeight = 36;
+  next.onTap = () => { if (!busy) go(day.next); };
+
+  table.addRow(row);
+}
+
+// Older cached copies predate `day`; they are always today, with no arrows.
+function dayOf(d) {
+  const day = d.day || { date: d.date, label: d.date_label, is_today: true };
+  return Object.assign({ today: d.date }, day);
+}
+
+function shortDay(iso) {
+  const [y, m, dd] = iso.split("-").map(Number);
+  const dt = new Date(y, m - 1, dd);
+  return dt.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
 }
 
 function listHead(table, title, subtitle) {
@@ -462,7 +516,7 @@ function reelsRows(table, d, afterHead) {
   const r = d.reels;
   const items = sortReels(r.items);
 
-  listHead(table, "Reel Planner — " + d.date_label, r.total_posting + " due · " + r.counts.posted + " posted");
+  listHead(table, "Reel Planner — " + dayOf(d).label, r.total_posting + " due · " + r.counts.posted + " posted");
   afterHead();
 
   if (items.length === 0) {
@@ -512,7 +566,7 @@ function reelsRows(table, d, afterHead) {
 function shootsRows(table, d, afterHead) {
   const s = d.shoots;
 
-  listHead(table, "Shoots — " + d.date_label, s.count + (s.count === 1 ? " shoot today" : " shoots today"));
+  listHead(table, "Shoots — " + dayOf(d).label, s.count + (s.count === 1 ? " shoot" : " shoots") + (dayOf(d).is_today ? " today" : ""));
   afterHead();
 
   if (s.count === 0) {
@@ -554,7 +608,12 @@ function openRow(table, label, url) {
 
 // ================================================================ pieces
 
-function frame(d, title, url) {
+/*
+ * `nav` (medium and large only -- iOS gives a small widget one tap target)
+ * puts ‹ date › in the header. Each arrow is its own tap target opening the
+ * full list for that day; the widget itself always shows today.
+ */
+function frame(d, title, url, nav) {
   const w = new ListWidget();
   w.setPadding(16, 16, 12, 16);
   if (url) w.url = url;
@@ -563,9 +622,29 @@ function frame(d, title, url) {
   head.centerAlignContent();
   text(head, title, 10, C.accent, true);
   head.addSpacer();
-  text(head, d.date_label, 10, C.faint);
+
+  const day = dayOf(d);
+  if (nav && day.prev && tapUrl(nav)) {
+    arrow(head, "‹", tapUrl(nav, day.prev));
+    head.addSpacer(6);
+    text(head, day.label, 10, C.dim, true);
+    head.addSpacer(6);
+    arrow(head, "›", tapUrl(nav, day.next));
+  } else {
+    text(head, d.date_label, 10, C.faint);
+  }
+
   w.addSpacer(8);
   return w;
+}
+
+function arrow(stack, glyph, url) {
+  const a = stack.addStack();
+  a.url = url;
+  a.backgroundColor = C.card;
+  a.cornerRadius = 9;
+  a.setPadding(1, 8, 2, 8);
+  text(a, glyph, 13, C.accent, true);
 }
 
 function footer(w, d) {

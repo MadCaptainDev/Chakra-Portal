@@ -221,9 +221,10 @@ class ContentDashboard
      *
      * @return array{date: string, total_posting: int, counts: array{to_be_edited: int, edit_in_progress: int, under_review: int, posted: int}, items: list<array{title: string, editor: string, status: string}>}
      */
-    public static function todayReelBoard(): array
+    public static function todayReelBoard(?Carbon $day = null): array
     {
-        $today = now();
+        // Any day, for the phone widget's date arrows; today otherwise.
+        $today = $day ?? now();
 
         $items = ContentItem::query()->visible()
             ->where('source', ContentItem::SOURCE_REEL)

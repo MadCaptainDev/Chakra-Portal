@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Notion\NotionSyncRunner;
 use App\Support\ContentDashboard;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
 use Throwable;
 
@@ -47,11 +48,26 @@ class WidgetController extends Controller
             $data['team_hours'] = $this->teamHours($today);
         }
 
-        $data['shoots'] = $this->shoots($user, $today);
+        /*
+         * ?date= is the widget's ‹ › arrows: shoots and the Reel Planner for
+         * another day. Hours and to-dos stay today's -- "hours logged on a
+         * day that has not happened" means nothing. Kept within three months
+         * either way; anything else, or anything unparseable, is today.
+         */
+        $day = $this->requestedDay($request) ?? $today;
+        $data['day'] = [
+            'date' => $day->toDateString(),
+            'label' => $day->format('D, j M'),
+            'is_today' => $day->isSameDay($today),
+            'prev' => $day->copy()->subDay()->toDateString(),
+            'next' => $day->copy()->addDay()->toDateString(),
+        ];
+
+        $data['shoots'] = $this->shoots($user, $day);
         $data['todos'] = $this->todos($user, $today);
 
         if ($user->isAdmin()) {
-            $data['reels'] = $this->reels($request->boolean('fresh'));
+            $data['reels'] = $this->reels($request->boolean('fresh'), $day);
         }
 
         return response()->json($data);
@@ -143,7 +159,28 @@ class WidgetController extends Controller
         ];
     }
 
-    private function reels(bool $fresh): array
+    private function requestedDay(Request $request): ?Carbon
+    {
+        $raw = $request->query('date');
+
+        if (! is_string($raw) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
+            return null;
+        }
+
+        try {
+            $day = Carbon::createFromFormat('!Y-m-d', $raw);
+        } catch (Throwable) {
+            return null;
+        }
+
+        if (! $day || $day->toDateString() !== $raw || abs($day->diffInDays(now()->startOfDay())) > 92) {
+            return null;
+        }
+
+        return $day;
+    }
+
+    private function reels(bool $fresh, Carbon $day): array
     {
         /*
          * ?fresh=1 is the Refresh button on the full list opened from the
@@ -174,7 +211,7 @@ class WidgetController extends Controller
             }
         });
 
-        $board = ContentDashboard::todayReelBoard();
+        $board = ContentDashboard::todayReelBoard($day);
         $board['url'] = route('content-dashboard.index');
 
         return $board;
