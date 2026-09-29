@@ -188,7 +188,7 @@ function shootList(stack, d, max) {
   d.shoots.items.slice(0, max).forEach((s) => {
     const r = stack.addStack();
     r.centerAlignContent();
-    label(r, s.time || "—", 10, s.status === "live" ? C.green : C.accent, true);
+    label(r, s.time || "Today", 10, s.status === "live" ? C.green : C.accent, true);
     r.addSpacer(5);
     const t = r.addText(s.title + (s.status === "live" ? " · LIVE" : ""));
     t.font = Font.systemFont(11);

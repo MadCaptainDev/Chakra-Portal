@@ -112,7 +112,11 @@ class WidgetController extends Controller
             'items' => $shoots->map(fn (Shoot $shoot) => [
                 'title' => $shoot->title ?: ($shoot->client?->name ?? 'Shoot'),
                 'client' => $shoot->client?->name,
-                'time' => $shoot->starts_at?->format('g:i A'),
+                // Shoots imported from Notion carry a date and no time, which
+                // lands as midnight -- "12:00 AM" would be a wrong call time.
+                'time' => $shoot->starts_at && $shoot->starts_at->format('H:i') !== '00:00'
+                    ? $shoot->starts_at->format('g:i A')
+                    : null,
                 'location' => $shoot->location,
                 'status' => $shoot->isInProgress() ? 'live' : $shoot->status,
             ])->values()->all(),
@@ -142,16 +146,20 @@ class WidgetController extends Controller
     private function reels(): array
     {
         /*
-         * Same freshness rule the dashboard's own Reel Planner tab uses: a
-         * sync only when the cache is past fifteen minutes old, and never two
-         * at once. A Notion outage must not take the rest of the widget down
-         * with it, so the board is served from whatever is cached.
+         * Served from the cache straight away, and the dashboard's own
+         * freshness rule (sync when past fifteen minutes, never two at once)
+         * runs after the response has gone. A sync takes up to twenty
+         * seconds, and iOS gives a widget refresh far less than that -- so
+         * this refresh shows the board as of the last sync and the next one,
+         * minutes later, shows the result of this one.
          */
-        try {
-            NotionSyncRunner::ensureFresh();
-        } catch (Throwable $e) {
-            report($e);
-        }
+        app()->terminating(function () {
+            try {
+                NotionSyncRunner::ensureFresh();
+            } catch (Throwable $e) {
+                report($e);
+            }
+        });
 
         $board = ContentDashboard::todayReelBoard();
         $board['url'] = route('content-dashboard.index');
