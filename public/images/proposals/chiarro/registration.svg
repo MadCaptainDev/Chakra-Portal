@@ -7,50 +7,72 @@
   <rect x="440" y="52" width="320" height="20" rx="10" fill="#FFFFFF"/>
   <text x="600" y="66" font-size="11" fill="#9CA3AF" text-anchor="middle">ChiArRo · Employee Registration &amp; Verification</text>
 
-  <!-- left: registration form -->
+  <!-- left: multi-step registration form -->
   <rect x="72" y="104" width="500" height="536" rx="16" fill="#F9FAFB" stroke="#E5E7EB"/>
-  <text x="96" y="140" font-size="16" font-weight="700" fill="#111827">Register as a Domestic Employee</text>
-  <text x="96" y="160" font-size="11" fill="#6B7280">Takes about 5 minutes, from your phone</text>
+  <text x="96" y="136" font-size="16" font-weight="700" fill="#111827">Register as a Domestic Employee</text>
+  <text x="96" y="155" font-size="11" fill="#6B7280">A short questionnaire, from your phone — no app to install</text>
+
+  <rect x="96" y="166" width="360" height="22" rx="11" fill="#E4F2F7"/>
+  <text x="276" y="181" font-size="10" font-weight="700" fill="#2F6E84" text-anchor="middle">STEP 3 OF 5 · COOK — CATEGORY QUESTIONS</text>
 
   <g font-size="11" fill="#6B7280">
-    <text x="96" y="192">Full name</text>
-    <rect x="96" y="200" width="220" height="34" rx="8" fill="#FFFFFF" stroke="#D1D5DB"/>
-    <text x="112" y="221" font-size="13" fill="#111827">Lakshmi Narayanan</text>
+    <text x="96" y="208">Full name</text>
+    <rect x="96" y="216" width="220" height="32" rx="8" fill="#FFFFFF" stroke="#D1D5DB"/>
+    <text x="112" y="237" font-size="13" fill="#111827">Lakshmi Narayanan</text>
 
-    <text x="332" y="192">Mobile number</text>
-    <rect x="332" y="200" width="140" height="34" rx="8" fill="#FFFFFF" stroke="#D1D5DB"/>
-    <text x="348" y="221" font-size="13" fill="#111827">98xxx xxx45</text>
+    <text x="332" y="208">Mobile number</text>
+    <rect x="332" y="216" width="140" height="32" rx="8" fill="#FFFFFF" stroke="#D1D5DB"/>
+    <text x="348" y="237" font-size="13" fill="#111827">98xxx xxx45</text>
 
-    <text x="96" y="252">Category</text>
-    <rect x="96" y="260" width="220" height="34" rx="8" fill="#FFFFFF" stroke="#D1D5DB"/>
-    <text x="112" y="281" font-size="13" fill="#111827">Cook</text>
-    <path d="M296 273 l6 6 6-6" fill="none" stroke="#9CA3AF" stroke-width="2"/>
+    <text x="96" y="262">Category</text>
+    <rect x="96" y="270" width="220" height="32" rx="8" fill="#FFFFFF" stroke="#D1D5DB"/>
+    <text x="112" y="291" font-size="13" fill="#111827">Cook</text>
+    <path d="M296 283 l6 6 6-6" fill="none" stroke="#9CA3AF" stroke-width="2"/>
 
-    <text x="332" y="252">City</text>
-    <rect x="332" y="260" width="140" height="34" rx="8" fill="#FFFFFF" stroke="#D1D5DB"/>
-    <text x="348" y="281" font-size="13" fill="#111827">Trichy</text>
-
-    <text x="96" y="312">Experience</text>
-    <rect x="96" y="320" width="376" height="34" rx="8" fill="#FFFFFF" stroke="#D1D5DB"/>
-    <text x="112" y="341" font-size="13" fill="#111827">6 years · North &amp; South Indian cooking</text>
+    <text x="332" y="262">City</text>
+    <rect x="332" y="270" width="140" height="32" rx="8" fill="#FFFFFF" stroke="#D1D5DB"/>
+    <text x="348" y="291" font-size="13" fill="#111827">Trichy</text>
   </g>
 
-  <text x="96" y="388" font-size="12" font-weight="600" fill="#374151">Identity document</text>
-  <rect x="96" y="398" width="376" height="72" rx="10" fill="#FFFFFF" stroke="#D1D5DB" stroke-dasharray="5 4"/>
-  <rect x="112" y="414" width="40" height="40" rx="6" fill="#E4F2F7"/>
-  <rect x="120" y="424" width="24" height="18" rx="2" fill="#3D8CA6"/>
-  <text x="164" y="432" font-size="12" font-weight="600" fill="#111827">aadhaar_front.jpg</text>
-  <text x="164" y="448" font-size="10" fill="#9CA3AF">Uploaded · pending admin check</text>
+  <text x="96" y="318" font-size="11" font-weight="600" fill="#374151">Which cuisines do you cook?</text>
+  <g font-size="10.5" font-weight="600">
+    <rect x="96" y="326" width="108" height="26" rx="13" fill="#3D8CA6"/><text x="150" y="343" fill="#FFFFFF" text-anchor="middle">North Indian</text>
+    <rect x="210" y="326" width="108" height="26" rx="13" fill="#3D8CA6"/><text x="264" y="343" fill="#FFFFFF" text-anchor="middle">South Indian</text>
+    <rect x="324" y="326" width="90" height="26" rx="13" fill="#FFFFFF" stroke="#D1D5DB"/><text x="369" y="343" fill="#9CA3AF" text-anchor="middle">Chinese</text>
+  </g>
 
-  <rect x="96" y="488" width="376" height="52" rx="10" fill="#F0FDF4"/>
-  <circle cx="118" cy="514" r="10" fill="#34D399"/>
-  <path d="M113 514 l4 4 8-8" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="138" y="510" font-size="11" font-weight="700" fill="#15803D">Verified via WhatsApp OTP</text>
-  <text x="138" y="526" font-size="10" fill="#166534">+91 98xxx xxx45</text>
+  <text x="96" y="374" font-size="11" font-weight="600" fill="#374151">Comfortable cooking non-vegetarian food?</text>
+  <g font-size="11" font-weight="600">
+    <rect x="96" y="382" width="76" height="28" rx="8" fill="#F0FDF4" stroke="#15803D"/><text x="134" y="401" fill="#15803D" text-anchor="middle">Yes</text>
+    <rect x="180" y="382" width="76" height="28" rx="8" fill="#FFFFFF" stroke="#D1D5DB"/><text x="218" y="401" fill="#9CA3AF" text-anchor="middle">No</text>
+  </g>
 
-  <rect x="96" y="566" width="376" height="44" rx="10" fill="#3D8CA6"/>
-  <text x="284" y="593" font-size="13" font-weight="600" fill="#FFFFFF" text-anchor="middle">Submit for verification</text>
-  <text x="284" y="626" font-size="10" fill="#9CA3AF" text-anchor="middle">You'll be notified on WhatsApp once approved</text>
+  <g font-size="11" fill="#6B7280">
+    <text x="96" y="428">Years of experience</text>
+    <rect x="96" y="436" width="158" height="32" rx="8" fill="#FFFFFF" stroke="#D1D5DB"/>
+    <text x="112" y="457" font-size="13" fill="#111827">6 years</text>
+
+    <text x="270" y="428">Available from</text>
+    <rect x="270" y="436" width="202" height="32" rx="8" fill="#FFFFFF" stroke="#D1D5DB"/>
+    <text x="286" y="457" font-size="13" fill="#111827">15 Oct 2026</text>
+  </g>
+
+  <text x="96" y="486" font-size="11" font-weight="600" fill="#374151">Identity document</text>
+  <rect x="96" y="494" width="376" height="56" rx="10" fill="#FFFFFF" stroke="#D1D5DB" stroke-dasharray="5 4"/>
+  <rect x="110" y="506" width="32" height="32" rx="6" fill="#E4F2F7"/>
+  <rect x="118" y="514" width="16" height="14" rx="2" fill="#3D8CA6"/>
+  <text x="152" y="520" font-size="11" font-weight="600" fill="#111827">aadhaar_front.jpg</text>
+  <text x="152" y="534" font-size="9.5" fill="#9CA3AF">Uploaded · pending admin check</text>
+
+  <rect x="96" y="562" width="376" height="40" rx="10" fill="#F0FDF4"/>
+  <circle cx="116" cy="582" r="9" fill="#34D399"/>
+  <path d="M111 582 l3.5 3.5 7-7" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="134" y="580" font-size="10.5" font-weight="700" fill="#15803D">Verified via WhatsApp OTP</text>
+  <text x="134" y="593" font-size="9.5" fill="#166534">+91 98xxx xxx45</text>
+
+  <rect x="96" y="612" width="376" height="20" rx="10" fill="none"/>
+  <rect x="96" y="612" width="376" height="8" rx="4" fill="#F3F4F6"/>
+  <rect x="96" y="612" width="300" height="8" rx="4" fill="#3D8CA6"/>
 
   <!-- right: admin verification queue -->
   <rect x="596" y="104" width="532" height="536" rx="16" fill="#FFFFFF" stroke="#E5E7EB"/>
@@ -64,27 +86,27 @@
     <text x="660" y="206" font-size="13" font-weight="700" fill="#B45309" text-anchor="middle">LN</text>
     <text x="696" y="196" font-size="14" font-weight="700" fill="#111827">Lakshmi Narayanan</text>
     <text x="696" y="214" font-size="11" fill="#6B7280">Cook · Trichy · 6 yrs experience</text>
-    <text x="696" y="230" font-size="11" fill="#B45309">ID uploaded, not yet checked</text>
+    <text x="696" y="230" font-size="11" fill="#B45309">All 5 steps complete · ID pending review</text>
     <rect x="900" y="188" width="86" height="30" rx="8" fill="#15803D"/><text x="943" y="207" font-size="11" font-weight="600" fill="#FFFFFF" text-anchor="middle">Verify</text>
-    <rect x="994" y="188" width="86" height="30" rx="8" fill="#FFFFFF" stroke="#D1D5DB"/><text x="1037" y="207" font-size="11" font-weight="600" fill="#6B7280" text-anchor="middle">View ID</text>
+    <rect x="994" y="188" width="86" height="30" rx="8" fill="#FFFFFF" stroke="#D1D5DB"/><text x="1037" y="207" font-size="11" font-weight="600" fill="#6B7280" text-anchor="middle">View answers</text>
 
     <rect x="620" y="270" width="484" height="94" rx="12" fill="#F9FAFB"/>
     <circle cx="660" cy="306" r="22" fill="#3D8CA6" opacity="0.15"/>
     <text x="660" y="312" font-size="13" font-weight="700" fill="#2F6E84" text-anchor="middle">RK</text>
     <text x="696" y="302" font-size="14" font-weight="700" fill="#111827">Rajesh Kumar</text>
     <text x="696" y="320" font-size="11" fill="#6B7280">Driver · Chennai · 9 yrs experience</text>
-    <text x="696" y="336" font-size="11" fill="#6B7280">ID uploaded, not yet checked</text>
+    <text x="696" y="336" font-size="11" fill="#6B7280">All 5 steps complete · ID pending review</text>
     <rect x="900" y="294" width="86" height="30" rx="8" fill="#15803D"/><text x="943" y="313" font-size="11" font-weight="600" fill="#FFFFFF" text-anchor="middle">Verify</text>
-    <rect x="994" y="294" width="86" height="30" rx="8" fill="#FFFFFF" stroke="#D1D5DB"/><text x="1037" y="313" font-size="11" font-weight="600" fill="#6B7280" text-anchor="middle">View ID</text>
+    <rect x="994" y="294" width="86" height="30" rx="8" fill="#FFFFFF" stroke="#D1D5DB"/><text x="1037" y="313" font-size="11" font-weight="600" fill="#6B7280" text-anchor="middle">View answers</text>
 
     <rect x="620" y="376" width="484" height="94" rx="12" fill="#F9FAFB"/>
     <circle cx="660" cy="412" r="22" fill="#67BCD4" opacity="0.2"/>
     <text x="660" y="418" font-size="13" font-weight="700" fill="#2F6E84" text-anchor="middle">SM</text>
     <text x="696" y="408" font-size="14" font-weight="700" fill="#111827">Saroja Mani</text>
     <text x="696" y="426" font-size="11" fill="#6B7280">Elder Care · Madurai · 4 yrs experience</text>
-    <text x="696" y="442" font-size="11" fill="#6B7280">ID uploaded, not yet checked</text>
+    <text x="696" y="442" font-size="11" fill="#6B7280">All 6 steps complete · ID pending review</text>
     <rect x="900" y="400" width="86" height="30" rx="8" fill="#15803D"/><text x="943" y="419" font-size="11" font-weight="600" fill="#FFFFFF" text-anchor="middle">Verify</text>
-    <rect x="994" y="400" width="86" height="30" rx="8" fill="#FFFFFF" stroke="#D1D5DB"/><text x="1037" y="419" font-size="11" font-weight="600" fill="#6B7280" text-anchor="middle">View ID</text>
+    <rect x="994" y="400" width="86" height="30" rx="8" fill="#FFFFFF" stroke="#D1D5DB"/><text x="1037" y="419" font-size="11" font-weight="600" fill="#6B7280" text-anchor="middle">View answers</text>
   </g>
 
   <rect x="620" y="496" width="484" height="120" rx="12" fill="#F2F9FC" stroke="#E4F2F7"/>
@@ -94,4 +116,6 @@
   <text x="684" y="548" font-size="13" font-weight="700" fill="#111827">Priya Selvam — Nanny, Coimbatore</text>
   <text x="684" y="564" font-size="11" fill="#6B7280">Verified 3 minutes ago by Admin</text>
   <text x="684" y="586" font-size="11" font-weight="600" fill="#15803D">Now visible to employers searching this city</text>
+
+  <text x="644" y="606" font-size="10" fill="#9CA3AF">Each category has its own questions — Admin can add a category, or edit its questions, at any time.</text>
 </svg>
