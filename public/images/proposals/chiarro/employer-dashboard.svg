@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="Poppins, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="720" rx="24" fill="#EAF4F8"/>
+  <rect x="46" y="48" width="1120" height="640" rx="18" fill="#132A38" opacity="0.08"/>
+  <rect x="40" y="40" width="1120" height="640" rx="18" fill="#FFFFFF"/>
+  <path d="M58 40h1084a18 18 0 0 1 18 18v26H40V58a18 18 0 0 1 18-18z" fill="#F3F4F6"/>
+  <circle cx="66" cy="62" r="6" fill="#F87171"/><circle cx="86" cy="62" r="6" fill="#FBBF24"/><circle cx="106" cy="62" r="6" fill="#34D399"/>
+  <rect x="440" y="52" width="320" height="20" rx="10" fill="#FFFFFF"/>
+  <text x="600" y="66" font-size="11" fill="#9CA3AF" text-anchor="middle">ChiArRo · Employer Dashboard</text>
+
+  <!-- sidebar -->
+  <path d="M40 84h210v596H58a18 18 0 0 1-18-18z" fill="#132A38"/>
+  <circle cx="74" cy="118" r="14" fill="#3D8CA6"/>
+  <text x="74" y="123" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">SN</text>
+  <text x="96" y="115" font-size="14" font-weight="700" fill="#FFFFFF">Sundar Nair</text>
+  <text x="96" y="131" font-size="11" fill="#67BCD4">Employer account</text>
+
+  <rect x="56" y="164" width="178" height="38" rx="9" fill="#3D8CA6"/>
+  <text x="76" y="188" font-size="13" font-weight="600" fill="#FFFFFF">Dashboard</text>
+  <g font-size="13" fill="#ABDAE7">
+    <text x="76" y="236">My Package</text>
+    <text x="76" y="276">Requests</text>
+    <text x="76" y="316">Candidates</text>
+    <text x="76" y="356">Payments</text>
+    <text x="76" y="396">Support</text>
+  </g>
+  <rect x="196" y="263" width="26" height="18" rx="9" fill="#F59E0B"/>
+  <text x="209" y="276" font-size="11" font-weight="700" fill="#132A38" text-anchor="middle">2</text>
+
+  <!-- header -->
+  <text x="280" y="128" font-size="22" font-weight="700" fill="#111827">Welcome back, Sundar</text>
+  <text x="280" y="150" font-size="12" fill="#6B7280">Your active package and requests, in one place</text>
+  <rect x="1004" y="106" width="124" height="38" rx="10" fill="#3D8CA6"/>
+  <text x="1066" y="130" font-size="13" font-weight="600" fill="#FFFFFF" text-anchor="middle">+ New Request</text>
+
+  <!-- package card -->
+  <rect x="280" y="170" width="848" height="88" rx="14" fill="#132A38"/>
+  <text x="304" y="200" font-size="11" fill="#8ACCE0">CURRENT PACKAGE</text>
+  <text x="304" y="228" font-size="20" font-weight="700" fill="#FFFFFF">Growth</text>
+  <rect x="380" y="212" width="110" height="24" rx="12" fill="#1E3A4A"/>
+  <text x="435" y="228" font-size="11" font-weight="600" fill="#67BCD4" text-anchor="middle">Priority matching</text>
+  <line x1="560" y1="192" x2="560" y2="238" stroke="#284250"/>
+  <text x="584" y="206" font-size="11" fill="#8ACCE0">Requests used this month</text>
+  <text x="584" y="232" font-size="18" font-weight="700" fill="#FFFFFF">3 of 5</text>
+  <rect x="700" y="222" width="180" height="8" rx="4" fill="#284250"/>
+  <rect x="700" y="222" width="108" height="8" rx="4" fill="#67BCD4"/>
+  <line x1="920" y1="192" x2="920" y2="238" stroke="#284250"/>
+  <text x="944" y="206" font-size="11" fill="#8ACCE0">Renews</text>
+  <text x="944" y="232" font-size="14" font-weight="700" fill="#FFFFFF">18 Oct 2026</text>
+  <rect x="1044" y="204" width="64" height="32" rx="8" fill="#3D8CA6"/>
+  <text x="1076" y="224" font-size="10" font-weight="600" fill="#FFFFFF" text-anchor="middle">Upgrade</text>
+
+  <!-- requests list -->
+  <rect x="280" y="276" width="500" height="384" rx="12" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="300" y="306" font-size="14" font-weight="700" fill="#111827">My requests</text>
+
+  <g font-size="12">
+    <rect x="300" y="326" width="460" height="70" rx="10" fill="#F0FDF4"/>
+    <text x="316" y="350" font-weight="700" fill="#111827">Cook, full-time</text>
+    <text x="316" y="368" font-size="11" fill="#6B7280">Requested 24 Sep · Trichy</text>
+    <rect x="672" y="338" width="72" height="22" rx="11" fill="#15803D"/><text x="708" y="353" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">Matched</text>
+    <text x="316" y="386" font-size="11" font-weight="600" fill="#15803D">2 candidates shared — view below</text>
+
+    <rect x="300" y="404" width="460" height="70" rx="10" fill="#FFFBEB"/>
+    <text x="316" y="428" font-weight="700" fill="#111827">Elder care, live-in</text>
+    <text x="316" y="446" font-size="11" fill="#6B7280">Requested 27 Sep · Trichy</text>
+    <rect x="672" y="416" width="72" height="22" rx="11" fill="#F59E0B"/><text x="708" y="431" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">Pending</text>
+    <text x="316" y="464" font-size="11" fill="#B45309">Admin is reviewing verified profiles</text>
+
+    <rect x="300" y="482" width="460" height="70" rx="10" fill="#F9FAFB"/>
+    <text x="316" y="506" font-weight="700" fill="#111827">Driver, part-time</text>
+    <text x="316" y="524" font-size="11" fill="#6B7280">Requested 12 Sep · Trichy</text>
+    <rect x="672" y="494" width="72" height="22" rx="11" fill="#9CA3AF"/><text x="708" y="509" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle">Closed</text>
+    <text x="316" y="542" font-size="11" fill="#6B7280">Hired 15 Sep</text>
+  </g>
+
+  <!-- candidates panel -->
+  <rect x="796" y="276" width="332" height="384" rx="12" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="816" y="306" font-size="14" font-weight="700" fill="#111827">Candidates for "Cook, full-time"</text>
+  <rect x="816" y="322" width="292" height="22" rx="11" fill="#F0FDF4"/>
+  <text x="962" y="337" font-size="10" font-weight="600" fill="#15803D" text-anchor="middle">Sent to you on WhatsApp too</text>
+
+  <g>
+    <rect x="816" y="356" width="292" height="130" rx="12" fill="#F9FAFB"/>
+    <circle cx="852" cy="392" r="22" fill="#F59E0B" opacity="0.18"/>
+    <text x="852" y="398" font-size="12" font-weight="700" fill="#B45309" text-anchor="middle">LN</text>
+    <text x="884" y="390" font-size="13" font-weight="700" fill="#111827">Lakshmi Narayanan</text>
+    <rect x="884" y="398" width="60" height="18" rx="9" fill="#DCFCE7"/><text x="914" y="411" font-size="9" font-weight="700" fill="#15803D" text-anchor="middle">Verified</text>
+    <text x="884" y="428" font-size="11" fill="#6B7280">Cook · 6 yrs · Trichy</text>
+    <text x="884" y="444" font-size="11" fill="#6B7280">North &amp; South Indian</text>
+    <rect x="832" y="454" width="256" height="24" rx="8" fill="#3D8CA6"/>
+    <text x="960" y="470" font-size="10" font-weight="600" fill="#FFFFFF" text-anchor="middle">Shortlist</text>
+
+    <rect x="816" y="496" width="292" height="130" rx="12" fill="#F9FAFB"/>
+    <circle cx="852" cy="532" r="22" fill="#67BCD4" opacity="0.2"/>
+    <text x="852" y="538" font-size="12" font-weight="700" fill="#2F6E84" text-anchor="middle">MV</text>
+    <text x="884" y="530" font-size="13" font-weight="700" fill="#111827">Meena Velu</text>
+    <rect x="884" y="538" width="60" height="18" rx="9" fill="#DCFCE7"/><text x="914" y="551" font-size="9" font-weight="700" fill="#15803D" text-anchor="middle">Verified</text>
+    <text x="884" y="568" font-size="11" fill="#6B7280">Cook · 4 yrs · Trichy</text>
+    <text x="884" y="584" font-size="11" fill="#6B7280">Vegetarian specialist</text>
+    <rect x="832" y="594" width="256" height="24" rx="8" fill="#FFFFFF" stroke="#3D8CA6"/>
+    <text x="960" y="610" font-size="10" font-weight="600" fill="#3D8CA6" text-anchor="middle">Shortlist</text>
+  </g>
+</svg>

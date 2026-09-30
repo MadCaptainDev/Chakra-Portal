@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" width="1200" height="620" font-family="Poppins, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#67BCD4"/>
+    </marker>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F2F9FC"/><stop offset="1" stop-color="#E4F2F7"/>
+    </linearGradient>
+    <linearGradient id="core" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1E4A5C"/><stop offset="1" stop-color="#132A38"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="620" rx="24" fill="url(#bg)"/>
+  <text x="600" y="56" font-size="13" font-weight="600" fill="#3D8CA6" text-anchor="middle" letter-spacing="2">FROM REGISTRATION TO A VERIFIED PLACEMENT</text>
+
+  <!-- Employee column -->
+  <rect x="52" y="102" width="260" height="126" rx="16" fill="#FFFFFF" stroke="#E4F2F7"/>
+  <circle cx="98" cy="146" r="24" fill="#E4F2F7"/>
+  <circle cx="98" cy="138" r="8" fill="#3D8CA6"/><path d="M82 164 a16 16 0 0 1 32 0" fill="#3D8CA6"/>
+  <text x="134" y="140" font-size="15" font-weight="700" fill="#111827">Employee registers</text>
+  <text x="134" y="160" font-size="11" fill="#6B7280">Category, skills, city,</text>
+  <text x="134" y="176" font-size="11" fill="#6B7280">ID document, WhatsApp OTP</text>
+  <rect x="76" y="196" width="212" height="20" rx="10" fill="#FFFBEB"/>
+  <text x="182" y="210" font-size="10" font-weight="600" fill="#B45309" text-anchor="middle">Waiting for verification</text>
+
+  <rect x="52" y="392" width="260" height="126" rx="16" fill="#FFFFFF" stroke="#DCFCE7"/>
+  <circle cx="98" cy="436" r="24" fill="#DCFCE7"/>
+  <path d="M87 436 L95 444 L110 428" fill="none" stroke="#15803D" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="134" y="430" font-size="15" font-weight="700" fill="#111827">Verified by Admin</text>
+  <text x="134" y="450" font-size="11" fill="#6B7280">Profile eligible to be</text>
+  <text x="134" y="466" font-size="11" fill="#6B7280">shared with employers</text>
+  <rect x="76" y="486" width="212" height="20" rx="10" fill="#F0FDF4"/>
+  <text x="182" y="500" font-size="10" font-weight="600" fill="#15803D" text-anchor="middle">Now visible in the database</text>
+
+  <!-- Core -->
+  <rect x="432" y="120" width="336" height="380" rx="22" fill="url(#core)"/>
+  <circle cx="482" cy="170" r="22" fill="#3D8CA6"/>
+  <path d="M470 170 l8 8 16-16" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="516" y="166" font-size="17" font-weight="700" fill="#FFFFFF">ChiArRo Admin</text>
+  <text x="516" y="185" font-size="11" fill="#8ACCE0">Verification &amp; matching</text>
+
+  <g font-size="12.5" font-weight="600">
+    <rect x="460" y="212" width="280" height="42" rx="10" fill="#1E3A4A"/>
+    <circle cx="482" cy="233" r="6" fill="#F59E0B"/>
+    <text x="498" y="238" fill="#FFFFFF">WhatsApp alert: new registration</text>
+
+    <rect x="460" y="264" width="280" height="42" rx="10" fill="#1E3A4A"/>
+    <circle cx="482" cy="285" r="6" fill="#67BCD4"/>
+    <text x="498" y="290" fill="#FFFFFF">ID checked, profile verified</text>
+
+    <rect x="460" y="316" width="280" height="42" rx="10" fill="#1E3A4A"/>
+    <circle cx="482" cy="337" r="6" fill="#F59E0B"/>
+    <text x="498" y="342" fill="#FFFFFF">WhatsApp alert: new request</text>
+
+    <rect x="460" y="368" width="280" height="42" rx="10" fill="#1E3A4A"/>
+    <circle cx="482" cy="389" r="6" fill="#34D399"/>
+    <text x="498" y="394" fill="#FFFFFF">Candidates matched &amp; shared</text>
+  </g>
+  <text x="600" y="440" font-size="11" fill="#8ACCE0" text-anchor="middle">Every step logged — nothing decided off-platform</text>
+  <rect x="460" y="452" width="280" height="34" rx="10" fill="#132A38" stroke="#2F6E84"/>
+  <text x="600" y="473" font-size="11" font-weight="600" fill="#67BCD4" text-anchor="middle">One admin screen, not a WhatsApp inbox</text>
+
+  <!-- Employer column -->
+  <rect x="888" y="102" width="260" height="126" rx="16" fill="#FFFFFF" stroke="#E4F2F7"/>
+  <circle cx="934" cy="146" r="24" fill="#E4F2F7"/>
+  <rect x="923" y="134" width="22" height="18" rx="3" fill="none" stroke="#3D8CA6" stroke-width="3"/>
+  <line x1="930" y1="130" x2="930" y2="138" stroke="#3D8CA6" stroke-width="3" stroke-linecap="round"/>
+  <line x1="938" y1="130" x2="938" y2="138" stroke="#3D8CA6" stroke-width="3" stroke-linecap="round"/>
+  <text x="970" y="140" font-size="15" font-weight="700" fill="#111827">Employer registers</text>
+  <text x="970" y="160" font-size="11" fill="#6B7280">Picks a package,</text>
+  <text x="970" y="176" font-size="11" fill="#6B7280">pays online, submits a request</text>
+  <rect x="912" y="196" width="212" height="20" rx="10" fill="#F2F9FC"/>
+  <text x="1018" y="210" font-size="10" font-weight="600" fill="#2F6E84" text-anchor="middle">Request sent to Admin</text>
+
+  <rect x="888" y="392" width="260" height="126" rx="16" fill="#FFFFFF" stroke="#FEF3C7"/>
+  <circle cx="934" cy="436" r="24" fill="#FEF3C7"/>
+  <path d="M922 442 L922 432 A12 12 0 0 1 946 432 L946 442 L949 446 L919 446 Z" fill="#F59E0B"/>
+  <circle cx="934" cy="449" r="3" fill="#F59E0B"/>
+  <text x="970" y="430" font-size="15" font-weight="700" fill="#111827">Notified &amp; reviews</text>
+  <text x="970" y="450" font-size="11" fill="#6B7280">Sees candidate details in the</text>
+  <text x="970" y="466" font-size="11" fill="#6B7280">web app and on WhatsApp</text>
+  <rect x="912" y="486" width="212" height="20" rx="10" fill="#FFFBEB"/>
+  <text x="1018" y="500" font-size="10" font-weight="600" fill="#B45309" text-anchor="middle">Request closed once hired</text>
+
+  <!-- connectors -->
+  <g fill="none" stroke="#67BCD4" stroke-width="3" stroke-dasharray="7 7" marker-end="url(#arrow)">
+    <path d="M312 165 C370 165 380 200 432 218"/>
+    <path d="M432 400 C380 400 370 435 312 455"/>
+    <path d="M888 165 C830 165 820 200 768 218"/>
+    <path d="M768 400 C820 400 830 435 888 455"/>
+  </g>
+  <text x="600" y="556" font-size="12" font-weight="600" fill="#284250" text-anchor="middle">Employees never see employer requests, and employers never browse the raw database —</text>
+  <text x="600" y="576" font-size="12" font-weight="600" fill="#284250" text-anchor="middle">Admin is the one point of control between the two, on every single match.</text>
+</svg>

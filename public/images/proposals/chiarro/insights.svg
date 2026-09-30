@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="Poppins, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="720" rx="24" fill="#EAF4F8"/>
+  <rect x="46" y="48" width="1120" height="640" rx="18" fill="#132A38" opacity="0.08"/>
+  <rect x="40" y="40" width="1120" height="640" rx="18" fill="#FFFFFF"/>
+  <path d="M58 40h1084a18 18 0 0 1 18 18v26H40V58a18 18 0 0 1 18-18z" fill="#F3F4F6"/>
+  <circle cx="66" cy="62" r="6" fill="#F87171"/><circle cx="86" cy="62" r="6" fill="#FBBF24"/><circle cx="106" cy="62" r="6" fill="#34D399"/>
+  <rect x="440" y="52" width="320" height="20" rx="10" fill="#FFFFFF"/>
+  <text x="600" y="66" font-size="11" fill="#9CA3AF" text-anchor="middle">ChiArRo · Admin Insights</text>
+
+  <text x="72" y="128" font-size="22" font-weight="700" fill="#111827">Platform Insights</text>
+  <text x="72" y="150" font-size="12" fill="#6B7280">September 2026 · all cities</text>
+  <rect x="968" y="106" width="160" height="38" rx="10" fill="#F9FAFB" stroke="#E5E7EB"/>
+  <text x="1048" y="130" font-size="12" font-weight="600" fill="#374151" text-anchor="middle">This month</text>
+
+  <g>
+    <rect x="72" y="170" width="248" height="96" rx="12" fill="#F2F9FC" stroke="#E4F2F7"/>
+    <text x="92" y="196" font-size="12" fill="#6B7280">Registered employees</text>
+    <text x="92" y="238" font-size="30" font-weight="700" fill="#2F6E84">612</text>
+    <text x="180" y="238" font-size="11" font-weight="600" fill="#15803D">+48 this month</text>
+
+    <rect x="336" y="170" width="248" height="96" rx="12" fill="#F0FDF4" stroke="#DCFCE7"/>
+    <text x="356" y="196" font-size="12" fill="#6B7280">Verified &amp; listable</text>
+    <text x="356" y="238" font-size="30" font-weight="700" fill="#15803D">78%</text>
+    <text x="440" y="238" font-size="11" fill="#6B7280">of registrations</text>
+
+    <rect x="600" y="170" width="248" height="96" rx="12" fill="#F9FAFB" stroke="#E5E7EB"/>
+    <text x="620" y="196" font-size="12" fill="#6B7280">Active employers</text>
+    <text x="620" y="238" font-size="30" font-weight="700" fill="#111827">94</text>
+    <text x="684" y="238" font-size="11" fill="#6B7280">with a paid package</text>
+
+    <rect x="864" y="170" width="264" height="96" rx="12" fill="#FFFBEB" stroke="#FEF3C7"/>
+    <text x="884" y="196" font-size="12" fill="#6B7280">Requests awaiting match</text>
+    <text x="884" y="238" font-size="30" font-weight="700" fill="#B45309">11</text>
+    <text x="930" y="238" font-size="11" fill="#6B7280">oldest: 2 days</text>
+  </g>
+
+  <!-- donut: categories -->
+  <rect x="72" y="284" width="360" height="372" rx="12" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="92" y="314" font-size="14" font-weight="700" fill="#111827">Employees by category</text>
+  <g transform="translate(96 340) scale(3.6)">
+    <circle cx="21" cy="21" r="15.915" fill="none" stroke="#F3F4F6" stroke-width="6"/>
+    <circle cx="21" cy="21" r="15.915" fill="none" stroke="#3D8CA6" stroke-width="6" stroke-dasharray="30 70" stroke-dashoffset="25"/>
+    <circle cx="21" cy="21" r="15.915" fill="none" stroke="#67BCD4" stroke-width="6" stroke-dasharray="22 78" stroke-dashoffset="-5"/>
+    <circle cx="21" cy="21" r="15.915" fill="none" stroke="#F59E0B" stroke-width="6" stroke-dasharray="18 82" stroke-dashoffset="-27"/>
+    <circle cx="21" cy="21" r="15.915" fill="none" stroke="#284250" stroke-width="6" stroke-dasharray="16 84" stroke-dashoffset="-45"/>
+    <circle cx="21" cy="21" r="15.915" fill="none" stroke="#ABDAE7" stroke-width="6" stroke-dasharray="14 86" stroke-dashoffset="-61"/>
+  </g>
+  <g font-size="11.5" fill="#374151">
+    <rect x="240" y="356" width="10" height="10" rx="2" fill="#3D8CA6"/><text x="256" y="365">Cooks</text><text x="416" y="365" font-weight="700" text-anchor="end">30%</text>
+    <rect x="240" y="380" width="10" height="10" rx="2" fill="#67BCD4"/><text x="256" y="389">Maids</text><text x="416" y="389" font-weight="700" text-anchor="end">22%</text>
+    <rect x="240" y="404" width="10" height="10" rx="2" fill="#F59E0B"/><text x="256" y="413">Drivers</text><text x="416" y="413" font-weight="700" text-anchor="end">18%</text>
+    <rect x="240" y="428" width="10" height="10" rx="2" fill="#284250"/><text x="256" y="437">Nannies</text><text x="416" y="437" font-weight="700" text-anchor="end">16%</text>
+    <rect x="240" y="452" width="10" height="10" rx="2" fill="#ABDAE7"/><text x="256" y="461">Elder care</text><text x="416" y="461" font-weight="700" text-anchor="end">14%</text>
+  </g>
+  <line x1="92" y1="494" x2="412" y2="494" stroke="#F3F4F6"/>
+  <text x="92" y="520" font-size="11" fill="#6B7280">Also tracked: Security, Gardener —</text>
+  <text x="92" y="536" font-size="11" fill="#6B7280">categories are editable by Admin, not fixed in code.</text>
+
+  <!-- funnel -->
+  <rect x="448" y="284" width="332" height="372" rx="12" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="468" y="314" font-size="14" font-weight="700" fill="#111827">Registered to placed</text>
+  <g font-size="11" font-weight="600" fill="#FFFFFF" text-anchor="middle">
+    <rect x="468" y="336" width="292" height="44" rx="8" fill="#284250"/><text x="614" y="356">Registered</text><text x="614" y="372" font-size="13" font-weight="700">612</text>
+    <rect x="490" y="390" width="248" height="44" rx="8" fill="#2F6E84"/><text x="614" y="410">Verified</text><text x="614" y="426" font-size="13" font-weight="700">478</text>
+    <rect x="512" y="444" width="204" height="44" rx="8" fill="#3D8CA6"/><text x="614" y="464">Requested by an employer</text><text x="614" y="480" font-size="13" font-weight="700">156</text>
+    <rect x="534" y="498" width="160" height="44" rx="8" fill="#67BCD4"/><text x="614" y="518" fill="#132A38">Placed</text><text x="614" y="534" font-size="13" font-weight="700" fill="#132A38">92</text>
+  </g>
+  <text x="614" y="576" font-size="11" fill="#6B7280" text-anchor="middle">59% of requested candidates</text>
+  <text x="614" y="592" font-size="11" fill="#6B7280" text-anchor="middle">were placed with an employer</text>
+
+  <!-- city breakdown -->
+  <rect x="796" y="284" width="332" height="372" rx="12" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="816" y="314" font-size="14" font-weight="700" fill="#111827">Requests by city</text>
+  <g font-size="12">
+    <text x="816" y="346" fill="#374151">Trichy</text>
+    <rect x="816" y="354" width="292" height="10" rx="5" fill="#F3F4F6"/><rect x="816" y="354" width="234" height="10" rx="5" fill="#3D8CA6"/>
+    <text x="816" y="386" fill="#374151">Chennai</text>
+    <rect x="816" y="394" width="292" height="10" rx="5" fill="#F3F4F6"/><rect x="816" y="394" width="156" height="10" rx="5" fill="#67BCD4"/>
+    <text x="816" y="426" fill="#374151">Coimbatore</text>
+    <rect x="816" y="434" width="292" height="10" rx="5" fill="#F3F4F6"/><rect x="816" y="434" width="98" height="10" rx="5" fill="#ABDAE7"/>
+    <text x="816" y="466" fill="#374151">Madurai</text>
+    <rect x="816" y="474" width="292" height="10" rx="5" fill="#F3F4F6"/><rect x="816" y="474" width="64" height="10" rx="5" fill="#E4F2F7"/>
+  </g>
+  <rect x="816" y="510" width="292" height="106" rx="10" fill="#FFFBEB"/>
+  <text x="832" y="534" font-size="11" font-weight="700" fill="#B45309">Package revenue this month</text>
+  <text x="832" y="566" font-size="24" font-weight="700" fill="#111827">₹2,84,000</text>
+  <text x="832" y="586" font-size="11" fill="#6B7280">Across Starter, Growth and Enterprise</text>
+  <text x="832" y="602" font-size="11" fill="#6B7280">Illustrative figure — real pricing set by ChiArRo</text>
+</svg>
