@@ -413,6 +413,9 @@ export function initShowreel(stage) {
     const covers = all('[data-sr-set] img').slice(0, 10);
     const ready = Promise.all([
         document.fonts?.ready ?? Promise.resolve(),
+        // The logo's face (home/_logo) is a web font; ask for it by name, as
+        // fonts.ready can settle before the stylesheet has even asked.
+        document.fonts?.load?.('400 1em Anton').catch(() => {}) ?? Promise.resolve(),
         ...covers.map((img) => (img.complete ? Promise.resolve() : new Promise((resolve) => {
             img.addEventListener('load', resolve, { once: true });
             img.addEventListener('error', resolve, { once: true });

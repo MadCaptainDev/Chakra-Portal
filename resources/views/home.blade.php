@@ -83,6 +83,10 @@
 
     @push('styles')
         <link rel="canonical" href="{{ url('/') }}">
+        {{-- Anton: the heavy condensed face of the logo's lettering (home/_logo). --}}
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
         <style>
             @keyframes sr-spin { to { transform: rotate(360deg); } }
             .sr-spin { animation: sr-spin 40s linear infinite; }
@@ -109,11 +113,7 @@
             .sr-stage:not(.sr-ready) [data-scene]:not([data-scene="end"]) { visibility: hidden; }
             .sr-js:not(.sr-ready) [data-scene="end"] { visibility: hidden; }
 
-            [data-sr-row], [data-sr-word], [data-sr-logo], [data-sr="logo"] img { will-change: transform; }
-
-            /* The logo file is small (114×60): enlarged, crisp blocks read as
-               the logo; smoothing would only blur it. */
-            [data-sr="logo"] img { image-rendering: pixelated; }
+            [data-sr-row], [data-sr-word], [data-sr-logo], [data-sr="logo"] > svg { will-change: transform; }
 
             @media (prefers-reduced-motion: reduce) {
                 .sr-spin, .sr-spin-rev, .sr-spin-slow, .sr-bob, .sr-marquee, .sr-cue-dot { animation: none; }
@@ -211,28 +211,11 @@
                     </svg>
                 </div>
 
-                {{-- The real logo (images/chakra-logo.png), cut into its three
-                     parts with clip-path so each can move on its own: CHAKRA
-                     lands from the top right, PRODUCTIONS from the bottom left,
-                     each with a shake, then the camera arrives in a lightning
-                     flash. The camera is black art, so a light behind it is
-                     what makes it read on the navy. The crops are in the
-                     logo's own pixels (114×60). --}}
+                {{-- The logo, drawn as vectors (home/_logo): CHAKRA lands from
+                     the top right, PRODUCTIONS from the bottom left, each with
+                     a shake, then the camera arrives in a lightning flash. --}}
                 <div class="relative flex flex-col items-center">
-                    <div data-sr="logo" class="relative w-[min(88vw,560px)] aspect-[114/60]">
-                        <div data-sr="camera-light" class="absolute left-[60%] -top-[18%] w-[46%] h-[80%] rounded-full bg-[radial-gradient(circle,rgba(228,242,247,0.95)_0%,rgba(103,188,212,0.55)_38%,rgba(103,188,212,0)_70%)] blur-md"></div>
-                        <svg data-sr="bolt" viewBox="0 0 40 90" class="absolute left-[72%] -top-[62%] w-[14%] h-[78%] text-white drop-shadow-[0_0_12px_rgba(171,218,231,0.95)]">
-                            <path d="M24 0 L6 48 H20 L12 90 L36 36 H22 L32 0 Z" fill="currentColor" />
-                        </svg>
-                        <img data-sr="camera" src="{{ asset('images/chakra-logo.png') }}" alt="" draggable="false"
-                             class="absolute inset-0 w-full h-full" style="clip-path: inset(0 0 52% 65%); transform-origin: 82% 25%">
-                        <img data-sr="camera-legs" src="{{ asset('images/chakra-logo.png') }}" alt="" draggable="false"
-                             class="absolute inset-0 w-full h-full" style="clip-path: inset(88% 2% 0 66%)">
-                        <img data-sr="logo-productions" src="{{ asset('images/chakra-logo.png') }}" alt="" draggable="false"
-                             class="absolute inset-0 w-full h-full" style="clip-path: inset(52.5% 0 10% 0)">
-                        <img data-sr="logo-chakra" src="{{ asset('images/chakra-logo.png') }}" alt="" draggable="false"
-                             class="absolute inset-0 w-full h-full" style="clip-path: inset(10% 34% 47.5% 0)">
-                    </div>
+                    @include('home._logo')
                     <p data-sr="tag" class="mt-[3vh] text-[clamp(1rem,4.6vw,1.5rem)] font-extrabold uppercase tracking-[0.35em] pl-[0.35em] text-brand-300">
                         Digital Chaos
                     </p>
