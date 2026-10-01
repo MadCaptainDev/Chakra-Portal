@@ -100,9 +100,10 @@ export function initShowreel(stage) {
      * a short damped shake, and the whole logo jolts with it. Then lightning
      * strikes and the camera flickers on behind its own light.
      */
-    // A damped shake after a landing at `at`: alternating offsets that halve.
-    const shake = (at, amount, unit = 'vw') => [0.05, 0.1, 0.15, 0.2, 0.26]
-        .map((dt, i) => [at + dt, (i === 4 ? 0 : (i % 2 ? -1 : 1) * amount / Math.pow(2, i)) + unit, ease.linear]);
+    // A damped shake after a landing at `at`: still until then (so nothing
+    // drifts towards the first offset), then alternating offsets that halve.
+    const shake = (at, amount, unit = 'vw') => [[at, '0' + unit, ease.linear], ...[0.05, 0.1, 0.15, 0.2, 0.26]
+        .map((dt, i) => [at + dt, (i === 4 ? 0 : (i % 2 ? -1 : 1) * amount / Math.pow(2, i)) + unit, ease.linear])];
     const CHAKRA_LANDS = 0.7;
     const PRODUCTIONS_LANDS = 1.05;
     const STRIKE = 1.3;
