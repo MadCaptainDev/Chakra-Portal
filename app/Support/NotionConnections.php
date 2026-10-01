@@ -119,15 +119,23 @@ class NotionConnections
             ->whereNotNull('title')->where('title', '!=', '')
             ->orderByDesc('published_date')
             ->get(['venture', 'title'])
-            ->groupBy('venture')
+            ->groupBy(fn ($item) => mb_strtolower($item->venture))
             ->map(fn ($items) => $items->pluck('title')->map(fn ($t) => Str::limit(Str::squish($t), 70))->unique()->take(3)->values()->all());
 
         // A venture that is connected but has no content (renamed in Notion,
         // say) still belongs on its account, so it is listed too.
-        $names = $rows->keys()->merge($mappedTo->keys())->unique();
+        //
+        // Names are compared ignoring case, as MySQL compares them: "Thillai
+        // pets" IS the connected "Thillai Pets" -- the dashboard already
+        // counts it -- and must not be shown as waiting.
+        $names = $rows->keys()->merge($mappedTo->keys())->unique(fn ($n) => mb_strtolower($n));
+        $mappedLower = $mappedTo->mapWithKeys(fn ($id, $venture) => [mb_strtolower($venture) => $id]);
+        $ignoredLower = array_map('mb_strtolower', $ignored);
+        $rowsLower = $rows->groupBy(fn ($group, $venture) => mb_strtolower($venture), true)->map->flatten(1);
 
-        return $names->map(function (string $name) use ($rows, $samples, $mappedTo, $ignored) {
-            $group = $rows->get($name, collect());
+        return $names->map(function (string $name) use ($rowsLower, $samples, $mappedLower, $ignoredLower) {
+            $key = mb_strtolower($name);
+            $group = collect($rowsLower->get($key, []));
             $last = $group->max('last_date');
 
             return [
@@ -135,9 +143,9 @@ class NotionConnections
                 'items' => (int) $group->sum('items'),
                 'sources' => $group->pluck('source')->unique()->values()->all(),
                 'last_date' => $last ? \Illuminate\Support\Carbon::parse($last)->format('j M Y') : null,
-                'samples' => $samples->get($name, []),
-                'account_id' => $mappedTo->get($name),
-                'ignored' => in_array($name, $ignored, true),
+                'samples' => $samples->get($key, []),
+                'account_id' => $mappedLower->get($key),
+                'ignored' => in_array($key, $ignoredLower, true),
             ];
         })->sortByDesc('items')->values()->all();
     }
@@ -154,8 +162,9 @@ class NotionConnections
             ->whereNotNull('client')->where('client', '!=', '')
             ->groupBy('client', 'client_id')
             ->get()
-            ->groupBy('client')
-            ->map(function (Collection $rows, string $name) use ($ignored) {
+            ->groupBy(fn ($row) => mb_strtolower($row->client))
+            ->map(function (Collection $rows) use ($ignored) {
+                $name = $rows->first()->client;
                 $mapped = $rows->whereNotNull('client_id');
                 $unmapped = (int) $rows->whereNull('client_id')->sum('shoots');
                 // The client most of its shoots are filed under is what the
@@ -169,7 +178,7 @@ class NotionConnections
                     'unmapped' => $unmapped,
                     'split' => $mapped->count() > 1 || ($main && $unmapped > 0),
                     'breakdown' => $mapped->map(fn ($r) => ['client_id' => $r->client_id, 'shoots' => (int) $r->shoots])->values()->all(),
-                    'ignored' => in_array($name, $ignored, true),
+                    'ignored' => in_array(mb_strtolower($name), array_map('mb_strtolower', $ignored), true),
                 ];
             })
             ->sortByDesc('shoots')
@@ -271,7 +280,10 @@ class NotionConnections
                 $shared = array_values(array_intersect($words, $entry['tokens']));
                 $knownWords = array_unique(array_merge(...array_map([self::class, 'tokens'], $entry['names'] ?: [''])));
 
-                if ($shared && (count($shared) === count($words) || count($shared) === count($knownWords))) {
+                // Words other clients also use ("sva") say little on their own.
+                $distinctive = array_filter($shared, fn ($w) => count($owners[$w] ?? []) === 1);
+
+                if ($shared && $distinctive && (count($shared) === count($words) || count($shared) === count($knownWords))) {
                     $score = 2;
                     $reason = 'Same words: '.implode(', ', $shared);
                 } elseif ($shared) {

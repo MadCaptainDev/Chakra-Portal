@@ -201,4 +201,30 @@ class NotionConnectionsTest extends TestCase
         $this->assertContains($silks->id, array_column($gd, 'client_id'));
         $this->assertNotSame('strong', $gd[1]['strength'] ?? 'weak');
     }
+
+    public function test_a_venture_differing_only_in_capitals_is_already_connected(): void
+    {
+        // MySQL compares these as equal, so the dashboard already counts it;
+        // the screen must not ask about it again.
+        $account = ContentAccount::create(['client_id' => Client::create(['name' => 'Thillai Pets Clinic'])->id, 'name' => 'Thillai Pets Clinic']);
+        ContentAccountVenture::create(['content_account_id' => $account->id, 'venture' => 'Thillai Pets']);
+        ContentItem::factory()->count(2)->create(['venture' => 'Thillai pets', 'status' => 'Published']);
+
+        $state = NotionConnections::state();
+
+        $this->assertSame(0, $state['stats']['ventures_waiting']);
+        $this->assertSame($account->id, collect($state['ventures'])->first(fn ($v) => strtolower($v['name']) === 'thillai pets')['account_id']);
+    }
+
+    public function test_a_word_two_clients_share_is_only_a_weak_suggestion(): void
+    {
+        Client::create(['name' => 'SVA Silks and Readymades']);
+        Client::create(['name' => 'SVA Gold and Diamonds']);
+        $this->shoot('SVA');
+
+        $suggestions = collect(NotionConnections::state()['shootNames'])->firstWhere('name', 'SVA')['suggestions'];
+
+        $this->assertCount(2, $suggestions);
+        $this->assertSame(['weak', 'weak'], array_column($suggestions, 'strength'));
+    }
 }
