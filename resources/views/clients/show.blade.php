@@ -428,6 +428,62 @@
         </x-card>
         @endcan
 
+        {{-- ——— Script approval link ———
+             The one-at-a-time script queue (Client\ScriptApprovalController,
+             PublicScriptApprovalController) on a link instead of a login, for
+             the same reason the brief and proposals have one: most clients
+             never sign into the portal. Only shown once the studio has turned
+             the section on for this client -- a link to a queue that is not
+             part of their portal would be confusing on both sides of it. --}}
+        @can('scripts.approve')
+        @if ($client->portalSectionEnabled('scripts'))
+        <x-card class="p-4 sm:p-6 border border-white/10">
+            <h3 class="font-semibold text-white">Script approval link</h3>
+            <p class="mt-1 text-sm text-brand-100/70">
+                Lets {{ $client->name }} review a script sent to them and approve it or send it back with a
+                note, one at a time, without signing in.
+            </p>
+
+            @if ($client->script_approval_token)
+                <div x-data="{ copied: false }" class="mt-4 space-y-2">
+                    <input type="text" readonly value="{{ $client->scriptApprovalPublicUrl() }}" x-ref="scriptLinkUrl"
+                           class="w-full bg-white/5 border-white/15 text-white rounded-md min-h-[44px] text-xs font-mono"
+                           @focus="$el.select()">
+                    <div class="flex flex-wrap gap-2">
+                        <x-btn type="button" size="sm"
+                               @click="navigator.clipboard?.writeText($refs.scriptLinkUrl.value).then(() => { copied = true; setTimeout(() => copied = false, 2000) }).catch(() => $refs.scriptLinkUrl.select())">
+                            <span x-show="!copied">Copy link</span>
+                            <span x-show="copied" x-cloak>Copied</span>
+                        </x-btn>
+                        <x-btn :href="$client->scriptApprovalPublicUrl()" variant="secondary" size="sm" target="_blank" rel="noopener">Open</x-btn>
+                    </div>
+                </div>
+                <p class="mt-3 text-xs text-brand-100/60">
+                    Created {{ $client->script_approval_token_issued_at?->diffForHumans() }}.
+                </p>
+                <div class="mt-3 flex flex-wrap gap-2">
+                    <form method="POST" action="{{ route('clients.scripts.link', $client) }}"
+                          onsubmit="return confirm('Make a new link? The current one stops working immediately.');">
+                        @csrf
+                        <x-btn type="submit" variant="ghost" size="sm">New link</x-btn>
+                    </form>
+                    <form method="POST" action="{{ route('clients.scripts.link.revoke', $client) }}"
+                          onsubmit="return confirm('Close this link? {{ $client->name }} will no longer be able to open it.');">
+                        @csrf
+                        @method('DELETE')
+                        <x-btn type="submit" variant="ghost" size="sm" class="!text-red-300">Close link</x-btn>
+                    </form>
+                </div>
+            @else
+                <form method="POST" action="{{ route('clients.scripts.link', $client) }}" class="mt-4">
+                    @csrf
+                    <x-primary-button>Create link</x-primary-button>
+                </form>
+            @endif
+        </x-card>
+        @endif
+        @endcan
+
         </div>
 
         <div x-show="tab === 'team'" x-cloak class="space-y-6">

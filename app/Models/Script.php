@@ -167,6 +167,19 @@ class Script extends Model
         $query->where('writer_id', $writer->id);
     }
 
+    /**
+     * One client's one-at-a-time approval queue, oldest sent first. Shared by
+     * the authenticated portal (Client\ScriptApprovalController) and the
+     * no-login link (PublicScriptApprovalController) so the two screens
+     * cannot disagree about which script is "next".
+     */
+    public function scopePendingClientReview(Builder $query, int $clientId): void
+    {
+        $query->where('client_id', $clientId)
+            ->where('status', self::STATUS_CLIENT_REVIEW)
+            ->orderBy('sent_to_client_at');
+    }
+
     public function statusLabel(): string
     {
         return self::STATUSES[$this->status] ?? ucfirst(str_replace('_', ' ', (string) $this->status));

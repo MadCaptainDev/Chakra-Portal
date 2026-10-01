@@ -118,19 +118,57 @@ class ScriptApprovalTest extends TestCase
 
     // -- The client's queue --------------------------------------------------
 
-    public function test_a_client_sees_only_the_oldest_sent_script(): void
+    public function test_a_client_sees_every_pending_scripts_title(): void
     {
         $client = $this->client();
-        $older = $this->script($client, ['title' => 'Older', 'status' => Script::STATUS_CLIENT_REVIEW, 'sent_to_client_at' => now()->subDay()]);
+        $this->script($client, ['title' => 'Older', 'status' => Script::STATUS_CLIENT_REVIEW, 'sent_to_client_at' => now()->subDay()]);
         $this->script($client, ['title' => 'Newer', 'status' => Script::STATUS_CLIENT_REVIEW, 'sent_to_client_at' => now()]);
 
         $response = $this->actingAs($this->loginFor($client))->get(route('client.scripts'))
             ->assertOk()
             ->assertSee('Older')
-            ->assertDontSee('Newer');
+            ->assertSee('Newer');
 
-        $this->assertTrue($response->viewData('script')->is($older));
-        $this->assertSame(1, $response->viewData('waitingCount'));
+        $this->assertCount(2, $response->viewData('scripts'));
+    }
+
+    public function test_a_client_can_open_one_script_and_read_its_content(): void
+    {
+        $client = $this->client();
+        $script = $this->script($client, ['status' => Script::STATUS_CLIENT_REVIEW, 'sent_to_client_at' => now()]);
+        $script->sections()->create(['heading' => 'Hook', 'body' => '<p>The actual words of the script.</p>', 'position' => 0]);
+
+        $this->actingAs($this->loginFor($client))->get(route('client.scripts.show', $script))
+            ->assertOk()
+            ->assertSee('The actual words of the script', false);
+    }
+
+    public function test_a_client_can_comment_without_deciding(): void
+    {
+        $client = $this->client();
+        $script = $this->script($client, ['status' => Script::STATUS_CLIENT_REVIEW, 'sent_to_client_at' => now()]);
+        $login = $this->loginFor($client);
+
+        $this->actingAs($login)
+            ->post(route('client.scripts.comment', $script), ['body' => 'Who is the voice artist for this?'])
+            ->assertRedirect(route('client.scripts.show', $script).'#comments');
+
+        $comment = $script->comments()->sole();
+        $this->assertSame('Who is the voice artist for this?', $comment->body);
+        $this->assertSame($login->id, $comment->user_id);
+
+        // A comment is not a decision -- the script stays in the queue.
+        $this->assertSame(Script::STATUS_CLIENT_REVIEW, $script->fresh()->status);
+    }
+
+    public function test_another_clients_script_page_404s(): void
+    {
+        $mine = $this->client();
+        $theirs = $this->client(['name' => 'Other Brand', 'notion_venture' => 'Other']);
+        $script = $this->script($theirs, ['status' => Script::STATUS_CLIENT_REVIEW, 'sent_to_client_at' => now()]);
+
+        $this->actingAs($this->loginFor($mine))->get(route('client.scripts.show', $script))
+            ->assertNotFound();
     }
 
     public function test_a_client_with_nothing_waiting_sees_the_empty_state(): void

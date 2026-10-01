@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Str;
 
 class Client extends Model
 {
@@ -128,6 +129,7 @@ class Client extends Model
         'is_active' => 'boolean',
         'forecast_alert_depletion_date' => 'date',
         'forecast_alert_sent_at' => 'datetime',
+        'script_approval_token_issued_at' => 'datetime',
     ];
 
     public function isOccasion(): bool
@@ -233,6 +235,40 @@ class Client extends Model
             array_keys(self::PORTAL_SECTIONS),
             self::PORTAL_SECTIONS_OFF_BY_DEFAULT
         ));
+    }
+
+    /**
+     * A no-login link to this client's script approval queue -- same
+     * convention as ClientBrief::issuePublicToken()/Proposal::issuePublicToken():
+     * long and random rather than derived from the client id, one live token
+     * at a time, and reissuing replaces it outright so a link sent to the
+     * wrong number can simply be killed.
+     */
+    public function issueScriptApprovalToken(): string
+    {
+        $token = Str::random(48);
+
+        $this->forceFill([
+            'script_approval_token' => $token,
+            'script_approval_token_issued_at' => now(),
+        ])->save();
+
+        return $token;
+    }
+
+    public function revokeScriptApprovalToken(): void
+    {
+        $this->forceFill([
+            'script_approval_token' => null,
+            'script_approval_token_issued_at' => null,
+        ])->save();
+    }
+
+    public function scriptApprovalPublicUrl(): ?string
+    {
+        return $this->script_approval_token
+            ? route('client.scripts.public', $this->script_approval_token)
+            : null;
     }
 
     /**

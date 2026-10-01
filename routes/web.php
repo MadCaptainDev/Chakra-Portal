@@ -21,6 +21,7 @@ use App\Http\Controllers\Client\SocialController as ClientSocialController;
 use App\Http\Controllers\Client\WorkController as ClientWorkController;
 use App\Http\Controllers\ClientAdvanceController;
 use App\Http\Controllers\ClientBriefLinkController;
+use App\Http\Controllers\ClientScriptApprovalLinkController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientCredentialController;
 use App\Http\Controllers\ClientLoginController;
@@ -73,6 +74,7 @@ use App\Http\Controllers\PublicBriefController;
 use App\Http\Controllers\PublicInvoiceController;
 use App\Http\Controllers\PublicPortfolioController;
 use App\Http\Controllers\PublicProposalController;
+use App\Http\Controllers\PublicScriptApprovalController;
 use App\Http\Controllers\PublicQuotationController;
 use App\Http\Controllers\PushSettingController;
 use App\Http\Controllers\PushTokenController;
@@ -189,6 +191,27 @@ Route::middleware('throttle:30,1')->group(function () {
     Route::post('p/{token}/comments', [PublicProposalController::class, 'comment'])
         ->withoutMiddleware(ValidateCsrfToken::class)
         ->name('proposals.public.comment');
+
+    /*
+     * A client's script approval queue on a no-login link -- same rule as
+     * brief/{token} and p/{token}: the token in the path is the only
+     * credential, so there is no {client} to tamper with and a wrong token is
+     * a 404. CSRF-exempt for the write actions for the same reason as the
+     * brief's autosave and the proposal's comment box: the session this
+     * request arrives with may be long gone by the time somebody actually
+     * taps Approve.
+     *
+     * URI is "review", not "scripts/approve" -- see the comment on the
+     * writing/ group above about Hostinger's edge WAF 403ing every path
+     * under /scripts/.
+     */
+    Route::get('review/{token}', [PublicScriptApprovalController::class, 'index'])->name('client.scripts.public');
+    Route::get('review/{token}/{script}', [PublicScriptApprovalController::class, 'show'])->name('client.scripts.public.show');
+    Route::withoutMiddleware(ValidateCsrfToken::class)->group(function () {
+        Route::post('review/{token}/{script}/approve', [PublicScriptApprovalController::class, 'approve'])->name('client.scripts.public.approve');
+        Route::post('review/{token}/{script}/request-changes', [PublicScriptApprovalController::class, 'requestChanges'])->name('client.scripts.public.request-changes');
+        Route::post('review/{token}/{script}/comment', [PublicScriptApprovalController::class, 'comment'])->name('client.scripts.public.comment');
+    });
 });
 
 // Public enquiry form. Throttled because it is unauthenticated and sends mail.
@@ -387,47 +410,65 @@ Route::middleware('auth')->group(function () {
  * scopeBindings() makes {section} resolve only within its {script}, so a
  * section id from another script is a 404 rather than something the controller
  * has to remember to check.
+ *
+ * URI segment is "writing", not "scripts", even though every route name,
+ * controller and view still says Script -- Hostinger's edge WAF returns a
+ * flat 403 for any path starting /scripts/, before the request ever reaches
+ * Laravel (confirmed by curl: /scripts/208 and /scripts/create both 403 at
+ * the edge, while /scripts alone and /scripts-import-keep, which contain no
+ * literal "/scripts/", pass through). That took every script detail, edit
+ * and create page down in production with no trace in this app's own logs.
+ * Renaming the URI is the only fix available -- there is no access to the
+ * host's WAF rules to change instead.
  */
 Route::middleware(['auth', 'module:scripts,view'])->scopeBindings()->group(function () {
-    Route::get('scripts', [ScriptController::class, 'index'])->name('scripts.index');
+    Route::get('writing', [ScriptController::class, 'index'])->name('scripts.index');
 
     // Before the {script} route, or "create"/"import-keep" bind as a script id.
-    Route::get('scripts/create', [ScriptController::class, 'create'])
+    Route::get('writing/create', [ScriptController::class, 'create'])
         ->middleware('module:scripts,create')->name('scripts.create');
-    Route::post('scripts', [ScriptController::class, 'store'])
+    Route::post('writing', [ScriptController::class, 'store'])
         ->middleware('module:scripts,create')->name('scripts.store');
 
     Route::middleware('module:scripts,create')->group(function () {
-        Route::get('scripts-import-keep', [GoogleKeepImportController::class, 'create'])->name('scripts.import-keep.create');
-        Route::post('scripts-import-keep', [GoogleKeepImportController::class, 'store'])->name('scripts.import-keep.store');
+        Route::get('writing/import-keep', [GoogleKeepImportController::class, 'create'])->name('scripts.import-keep.create');
+        Route::post('writing/import-keep', [GoogleKeepImportController::class, 'store'])->name('scripts.import-keep.store');
     });
 
-    Route::get('scripts/{script}', [ScriptController::class, 'show'])->name('scripts.show');
+    Route::get('writing/{script}', [ScriptController::class, 'show'])->name('scripts.show');
 
-    Route::post('scripts/{script}/comments', [ScriptCommentController::class, 'store'])
+    Route::post('writing/{script}/comments', [ScriptCommentController::class, 'store'])
         ->middleware('module:scripts,comment')->name('scripts.comments.store');
 
-    Route::get('scripts/{script}/edit', [ScriptController::class, 'edit'])
+    Route::get('writing/{script}/edit', [ScriptController::class, 'edit'])
         ->middleware('module:scripts,edit')->name('scripts.edit');
-    Route::put('scripts/{script}', [ScriptController::class, 'update'])
+    Route::put('writing/{script}', [ScriptController::class, 'update'])
         ->middleware('module:scripts,edit')->name('scripts.update');
-    Route::delete('scripts/{script}', [ScriptController::class, 'destroy'])
+    Route::delete('writing/{script}', [ScriptController::class, 'destroy'])
         ->middleware('module:scripts,delete')->name('scripts.destroy');
 
-    // Puts the script in its client's one-at-a-time approval queue -- see
+    // Puts the script in its client's approval queue -- see
     // Script::markSentToClient() and Client\ScriptApprovalController. Its own
     // ability rather than riding on "edit": a writer who can rewrite a script
     // should not necessarily be the one deciding it is finished enough to put
     // in front of the client.
-    Route::post('scripts/{script}/send-to-client', [ScriptController::class, 'sendToClient'])
+    Route::post('writing/{script}/send-to-client', [ScriptController::class, 'sendToClient'])
         ->middleware('module:scripts,approve')->name('scripts.send-to-client');
+
+    // Issuing/closing a client's no-login script approval link -- a client
+    // concern, not a {script} one, so it lives on {client} rather than
+    // nested under one script the way send-to-client is.
+    Route::post('clients/{client}/scripts/link', [ClientScriptApprovalLinkController::class, 'issue'])
+        ->middleware('module:scripts,approve')->name('clients.scripts.link');
+    Route::delete('clients/{client}/scripts/link', [ClientScriptApprovalLinkController::class, 'revoke'])
+        ->middleware('module:scripts,approve')->name('clients.scripts.link.revoke');
 
     // The editor's own endpoints. All JSON, all behind the edit ability.
     Route::middleware('module:scripts,edit')->group(function () {
-        Route::post('scripts/{script}/sections', [ScriptSectionController::class, 'store'])->name('scripts.sections.store');
-        Route::post('scripts/{script}/sections/reorder', [ScriptSectionController::class, 'reorder'])->name('scripts.sections.reorder');
-        Route::patch('scripts/{script}/sections/{section}', [ScriptSectionController::class, 'update'])->name('scripts.sections.update');
-        Route::delete('scripts/{script}/sections/{section}', [ScriptSectionController::class, 'destroy'])->name('scripts.sections.destroy');
+        Route::post('writing/{script}/sections', [ScriptSectionController::class, 'store'])->name('scripts.sections.store');
+        Route::post('writing/{script}/sections/reorder', [ScriptSectionController::class, 'reorder'])->name('scripts.sections.reorder');
+        Route::patch('writing/{script}/sections/{section}', [ScriptSectionController::class, 'update'])->name('scripts.sections.update');
+        Route::delete('writing/{script}/sections/{section}', [ScriptSectionController::class, 'destroy'])->name('scripts.sections.destroy');
     });
 });
 
@@ -506,12 +547,15 @@ Route::middleware(['auth', 'client'])->prefix('client')->name('client.')->group(
     Route::post('brief/submit', [ClientBriefController::class, 'submit'])->name('brief.submit')->middleware('portal:brief');
 
     /*
-     * Script approvals, one at a time. {script} is a plain int, not a route
-     * model binding -- ClientScriptApprovalController resolves it through
-     * this client's own query, same reasoning as the invoice routes above:
-     * another client's script id must 404 rather than ever be loaded.
+     * Script approvals: every script titled waiting on this client, and each
+     * one's own page to read it and decide. {script} is a plain int, not a
+     * route model binding -- ClientScriptApprovalController resolves it
+     * through this client's own query, same reasoning as the invoice routes
+     * above: another client's script id must 404 rather than ever be loaded.
      */
     Route::get('scripts', [ClientScriptApprovalController::class, 'index'])->name('scripts')->middleware('portal:scripts');
+    Route::get('scripts/{script}', [ClientScriptApprovalController::class, 'show'])->name('scripts.show')->middleware('portal:scripts');
+    Route::post('scripts/{script}/comment', [ClientScriptApprovalController::class, 'comment'])->name('scripts.comment')->middleware('portal:scripts');
     Route::post('scripts/{script}/approve', [ClientScriptApprovalController::class, 'approve'])->name('scripts.approve')->middleware('portal:scripts');
     Route::post('scripts/{script}/request-changes', [ClientScriptApprovalController::class, 'requestChanges'])->name('scripts.request-changes')->middleware('portal:scripts');
 });
