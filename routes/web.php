@@ -1411,6 +1411,12 @@ Route::middleware(['auth', 'admin', 'recurring.catchup', 'instagram.catchup', 'r
     Route::post('content-accounts', [ContentAccountController::class, 'store'])->name('content-accounts.store');
     Route::delete('content-accounts/{contentAccount}', [ContentAccountController::class, 'destroy'])->name('content-accounts.destroy');
     Route::post('content-accounts/auto-map-shoots', [ContentAccountController::class, 'autoMapShoots'])->name('content-accounts.auto-map-shoots');
+    // The Notion ↔ Clients screen's instant actions (each returns the fresh state).
+    Route::post('content-accounts/connect-venture', [ContentAccountController::class, 'connectVenture'])->name('content-accounts.connect-venture');
+    Route::post('content-accounts/create-and-connect', [ContentAccountController::class, 'createAndConnect'])->name('content-accounts.create-and-connect');
+    Route::post('content-accounts/ignore', [ContentAccountController::class, 'ignore'])->name('content-accounts.ignore');
+    Route::patch('content-accounts/{contentAccount}/quick', [ContentAccountController::class, 'quickUpdate'])->name('content-accounts.quick-update');
+    Route::post('content-accounts/connect-shoot-client', [ContentAccountController::class, 'connectShootClient'])->name('content-accounts.connect-shoot-client');
 
     Route::get('brief-questions', [BriefQuestionController::class, 'index'])->name('brief-questions.index');
     Route::post('brief-questions', [BriefQuestionController::class, 'store'])->name('brief-questions.store');

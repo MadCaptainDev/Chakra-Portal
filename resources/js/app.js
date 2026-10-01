@@ -6,6 +6,7 @@ import { proposalComment } from './proposal.js';
 import { proposalEditor, registerEditDirective } from './proposal-editor.js';
 import { installBanner } from './install.js';
 import { videoChecker } from './video-check.js';
+import { notionConnections } from './notion-connections.js';
 
 window.Alpine = Alpine;
 
@@ -29,6 +30,9 @@ Alpine.data('installBanner', installBanner);
 
 // The Video Checker page -- see resources/js/video-check.js.
 Alpine.data('videoChecker', videoChecker);
+
+// The Notion ↔ Clients screen -- see resources/js/notion-connections.js.
+Alpine.data('notionConnections', notionConnections);
 
 Alpine.start();
 

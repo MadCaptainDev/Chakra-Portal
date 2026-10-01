@@ -168,8 +168,23 @@ class NotionShootImporter
     {
         $lookup = [];
 
+        // A person's earlier answer for the same name comes first: once
+        // "Suryas" has been filed under Surya's, a Suryas shoot synced next
+        // week is too, instead of arriving with no client. Where a name has
+        // been filed under more than one client, the one most of its shoots
+        // are under is taken as the answer.
+        NotionShoot::query()
+            ->selectRaw('client, client_id, count(*) as shoots')
+            ->whereNotNull('client_id')->whereNotNull('client')
+            ->groupBy('client', 'client_id')
+            ->orderByDesc('shoots')
+            ->get()
+            ->each(function ($row) use (&$lookup) {
+                $lookup[$this->fold($row->client)] ??= $row->client_id;
+            });
+
         foreach (Client::all() as $client) {
-            $lookup[$this->fold($client->name)] = $client->id;
+            $lookup[$this->fold($client->name)] ??= $client->id;
 
             if (filled($client->notion_venture)) {
                 $lookup[$this->fold($client->notion_venture)] ??= $client->id;

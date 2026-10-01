@@ -29,7 +29,7 @@
             'ai.edit' => 'Assistant',
             'push.edit' => 'Notifications',
             'competitor-settings.edit' => 'Competitor Analysis',
-            'content-accounts.edit' => 'Content Accounts',
+            'content-accounts.edit' => 'Notion ↔ Clients',
             'brief-questions.index' => 'Brief Questions',
             'invoice-template.edit' => 'PDF Template',
         ];

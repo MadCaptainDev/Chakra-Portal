@@ -163,11 +163,16 @@ class ContentAccountTest extends TestCase
     {
         ContentItem::factory()->count(3)->create(['venture' => 'PR', 'status' => 'Published']);
 
-        $this->actingAs($this->admin())
+        $state = $this->actingAs($this->admin())
             ->get(route('content-accounts.edit'))
             ->assertOk()
-            ->assertSee('PR')
-            ->assertSee('Unmapped ventures');
+            ->assertSee('To connect')
+            ->viewData('state');
+
+        $pr = collect($state['ventures'])->firstWhere('name', 'PR');
+        $this->assertSame(3, $pr['items']);
+        $this->assertNull($pr['account_id']);
+        $this->assertSame(1, $state['stats']['ventures_waiting']);
     }
 
     /**
@@ -195,16 +200,14 @@ class ContentAccountTest extends TestCase
         $response->assertSeeInOrder(['Thillai pets', $targetable['youtube']], false);
     }
 
-    public function test_an_account_under_an_inactive_client_is_flagged_in_the_optgroup(): void
+    public function test_an_inactive_client_is_marked_as_such(): void
     {
         $client = $this->client('Retired Co');
         $client->update(['is_active' => false]);
         ContentAccount::create(['client_id' => $client->id, 'name' => 'Retired Account']);
-        ContentItem::factory()->create(['venture' => 'Retired venture', 'status' => 'Published']);
 
-        $this->actingAs($this->admin())
-            ->get(route('content-accounts.edit'))
-            ->assertOk()
-            ->assertSee('Retired Co (Inactive)', false);
+        $state = $this->actingAs($this->admin())->get(route('content-accounts.edit'))->assertOk()->viewData('state');
+
+        $this->assertFalse(collect($state['clients'])->firstWhere('name', 'Retired Co')['active']);
     }
 }
