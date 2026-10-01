@@ -17,7 +17,11 @@
  * Someone who asked their device for less motion gets the last frame, still.
  */
 
-export const DURATION = 15;
+// The film: a 3.2s opening that plays by itself, then 13s played by scrolling.
+export const DURATION = 16.2;
+
+// How much later everything after the opening runs than it was first timed.
+const SHIFT = 1.2;
 
 const ease = {
     linear: (p) => p,
@@ -75,59 +79,81 @@ export function initShowreel(stage) {
     const tracks = [];
     const counters = [];
 
+    // Added to every keyframe time from here on: 0 for the opening, SHIFT after.
+    let shift = 0;
+
     function animate(el, props, { depth = 0, extra = null } = {}) {
         if (!el) return;
         const compiled = {};
-        for (const [prop, frames] of Object.entries(props)) compiled[prop] = compile(prop, frames);
+        for (const [prop, frames] of Object.entries(props)) {
+            compiled[prop] = compile(prop, frames.map(([time, ...rest]) => [time + shift, ...rest]));
+        }
         const moves = ['x', 'y', 'scale', 'rotate'].some((p) => compiled[p]) || depth || extra;
         tracks.push({ el, props: compiled, depth, extra, moves });
     }
 
-    // ---- 1 · the wheel and the name ------------------------------------
-    animate(one('[data-sr="glow"]'), {
-        opacity: [[0, 0], [0.9, 1]],
-        scale: [[0, 0.6], [2.2, 1, ease.out]],
-    }, { depth: -1.4, extra: (e) => ({ x: Math.sin(e * 0.21) * 40, y: Math.cos(e * 0.17) * 30 }) });
-
-    animate(one('[data-sr="ring"]'), {
-        opacity: [[0.1, 0], [0.9, 1], [2.3, 1], [2.9, 0], [12.5, 0], [13.4, 0.35]],
-        scale: [[0.1, 0.55], [1.2, 1, ease.out], [2.3, 1.06], [2.9, 4.5, ease.in], [12.5, 0.6], [13.6, 1.5, ease.out]],
-    }, { depth: 0.4 });
-
+    // ---- 1 · the logo, in the dark, then the light -----------------------
     /*
-     * The logo assembles itself. CHAKRA flies in from the top right and
-     * PRODUCTIONS from the bottom left; each lands hard -- overshoots, then
-     * a short damped shake, and the whole logo jolts with it. Then lightning
-     * strikes and the camera flickers on behind its own light.
+     * A black, letterboxed opening. CHAKRA slams in from the top right and
+     * PRODUCTIONS from the bottom left -- motion-blurred in flight, landing
+     * hard: a damped shake, the whole logo jolting, a ring of light where
+     * each lands. Lightning strikes and the black camera is backlit into
+     * view. Then the bars open, the black lifts and the colour floods in
+     * under a projector beam, a streak of light crosses the logo, and the
+     * tagline settles. It holds there (INTRO) until the visitor scrolls.
      */
     // A damped shake after a landing at `at`: still until then (so nothing
     // drifts towards the first offset), then alternating offsets that halve.
     const shake = (at, amount, unit = 'vw') => [[at, '0' + unit, ease.linear], ...[0.05, 0.1, 0.15, 0.2, 0.26]
         .map((dt, i) => [at + dt, (i === 4 ? 0 : (i % 2 ? -1 : 1) * amount / Math.pow(2, i)) + unit, ease.linear])];
-    const CHAKRA_LANDS = 0.7;
-    const PRODUCTIONS_LANDS = 1.05;
-    const STRIKE = 1.3;
+    const CHAKRA_LANDS = 0.75;
+    const PRODUCTIONS_LANDS = 1.2;
+    const STRIKE = 1.5;
+    const COLOUR = 1.8; // the black starts to lift
+
+    animate(one('[data-sr="blackout"]'), { opacity: [[0, 1], [COLOUR, 1], [COLOUR + 0.95, 0, ease.inOut]] });
+    animate(one('[data-sr="bar-top"]'), { y: [[0, '0%'], [COLOUR, '0%'], [COLOUR + 1.0, '-100%', ease.inOut]] });
+    animate(one('[data-sr="bar-bottom"]'), { y: [[0, '0%'], [COLOUR, '0%'], [COLOUR + 1.0, '100%', ease.inOut]] });
+
+    animate(one('[data-sr="glow"]'), {
+        opacity: [[COLOUR, 0], [COLOUR + 1.0, 1]],
+        scale: [[COLOUR, 0.6], [COLOUR + 1.4, 1, ease.out]],
+    }, { depth: -1.4, extra: (e) => ({ x: Math.sin(e * 0.21) * 40, y: Math.cos(e * 0.17) * 30 }) });
+
+    for (const name of ['beam', 'dust']) {
+        animate(one(`[data-sr="${name}"]`), { opacity: [[COLOUR + 0.1, 0], [COLOUR + 0.9, 1], [3.35, 1], [3.9, 0]] });
+    }
 
     animate(one('[data-sr="logo-chakra"]'), {
-        opacity: [[0.15, 0], [0.3, 1]],
-        x: [[0.15, '70vw'], [CHAKRA_LANDS, '0vw', ease.out], ...shake(CHAKRA_LANDS, 1.6)],
-        y: [[0.15, '-50vh'], [CHAKRA_LANDS, '0vh', ease.out], ...shake(CHAKRA_LANDS, 1.2, 'vh')],
-        rotate: [[0.15, 14], [CHAKRA_LANDS, 0, ease.out], ...shake(CHAKRA_LANDS, 3, '')],
+        opacity: [[0.2, 0], [0.32, 1]],
+        x: [[0.2, '75vw'], [CHAKRA_LANDS, '0vw', ease.out], ...shake(CHAKRA_LANDS, 1.6)],
+        y: [[0.2, '-55vh'], [CHAKRA_LANDS, '0vh', ease.out], ...shake(CHAKRA_LANDS, 1.2, 'vh')],
+        rotate: [[0.2, 16], [CHAKRA_LANDS, 0, ease.out], ...shake(CHAKRA_LANDS, 3, '')],
+        blur: [[0.2, 14], [CHAKRA_LANDS, 0, ease.out]],
     });
 
     animate(one('[data-sr="logo-productions"]'), {
-        opacity: [[0.45, 0], [0.6, 1]],
-        x: [[0.45, '-70vw'], [PRODUCTIONS_LANDS, '0vw', ease.out], ...shake(PRODUCTIONS_LANDS, 1.6)],
-        y: [[0.45, '50vh'], [PRODUCTIONS_LANDS, '0vh', ease.out], ...shake(PRODUCTIONS_LANDS, 1.2, 'vh')],
-        rotate: [[0.45, -14], [PRODUCTIONS_LANDS, 0, ease.out], ...shake(PRODUCTIONS_LANDS, -3, '')],
+        opacity: [[0.6, 0], [0.72, 1]],
+        x: [[0.6, '-75vw'], [PRODUCTIONS_LANDS, '0vw', ease.out], ...shake(PRODUCTIONS_LANDS, 1.6)],
+        y: [[0.6, '55vh'], [PRODUCTIONS_LANDS, '0vh', ease.out], ...shake(PRODUCTIONS_LANDS, 1.2, 'vh')],
+        rotate: [[0.6, -16], [PRODUCTIONS_LANDS, 0, ease.out], ...shake(PRODUCTIONS_LANDS, -3, '')],
+        blur: [[0.6, 14], [PRODUCTIONS_LANDS, 0, ease.out]],
     });
 
-    // The whole logo jolts on each landing, and pushes out when the film moves on.
+    // A ring of light bursts out where each word lands.
+    for (const [name, at] of [['chakra', CHAKRA_LANDS], ['productions', PRODUCTIONS_LANDS]]) {
+        animate(one(`[data-sr="impact-${name}-ring"]`), {
+            opacity: [[at - 0.01, 0], [at + 0.02, 0.9, ease.linear], [at + 0.55, 0, ease.out]],
+            scale: [[at - 0.01, 0.2], [at + 0.55, 2.2, ease.out]],
+        });
+    }
+
+    // The whole logo jolts on each impact, and pushes out when the film moves on.
     animate(one('[data-sr="logo"]'), {
         x: [[0, 0], ...shake(CHAKRA_LANDS, 7, 'px'), ...shake(PRODUCTIONS_LANDS, -9, 'px'), ...shake(STRIKE, 5, 'px')],
         y: [[0, 0], ...shake(CHAKRA_LANDS, 5, 'px'), ...shake(PRODUCTIONS_LANDS, 6, 'px'), ...shake(STRIKE, -4, 'px')],
-        opacity: [[2.15, 1], [2.6, 0]],
-        scale: [[2.15, 1], [2.65, 1.5, ease.in]],
+        opacity: [[3.35, 1], [3.85, 0]],
+        scale: [[3.35, 1], [3.9, 1.5, ease.in]],
     }, { depth: 0.5 });
 
     // Lightning: the bolt cracks twice, the stage flashes white with it.
@@ -135,25 +161,37 @@ export function initShowreel(stage) {
         opacity: [[STRIKE - 0.02, 0], [STRIKE, 1, ease.linear], [STRIKE + 0.08, 0, ease.linear], [STRIKE + 0.12, 0.9, ease.linear], [STRIKE + 0.24, 0, ease.linear]],
     });
     animate(one('[data-sr="flash"]'), {
-        opacity: [[STRIKE - 0.02, 0], [STRIKE + 0.02, 0.7, ease.linear], [STRIKE + 0.1, 0.05, ease.linear], [STRIKE + 0.14, 0.4, ease.linear], [STRIKE + 0.4, 0, ease.out]],
+        opacity: [[STRIKE - 0.02, 0], [STRIKE + 0.02, 0.75, ease.linear], [STRIKE + 0.1, 0.05, ease.linear], [STRIKE + 0.14, 0.45, ease.linear], [STRIKE + 0.45, 0, ease.out]],
     });
 
-    // The camera flickers on like a struck light, its backlight behind it.
+    // The black camera, backlit: it flickers into view against its own light.
     const flicker = [[STRIKE, 0], [STRIKE + 0.04, 1, ease.linear], [STRIKE + 0.1, 0.15, ease.linear], [STRIKE + 0.15, 1, ease.linear], [STRIKE + 0.22, 0.35, ease.linear], [STRIKE + 0.3, 1, ease.linear]];
     animate(one('[data-sr="camera"]'), {
         opacity: flicker,
-        scale: [[STRIKE, 1.3], [STRIKE + 0.35, 1, ease.outBack]],
+        scale: [[STRIKE, 1.25], [STRIKE + 0.35, 1, ease.outBack]],
     });
-    animate(one('[data-sr="camera-legs"]'), { opacity: flicker });
     animate(one('[data-sr="camera-light"]'), {
-        opacity: [[STRIKE, 0], [STRIKE + 0.06, 1, ease.linear], [STRIKE + 0.12, 0.3, ease.linear], [STRIKE + 0.2, 0.9, ease.linear], [STRIKE + 0.6, 0.7]],
+        opacity: [[STRIKE, 0], [STRIKE + 0.06, 1, ease.linear], [STRIKE + 0.12, 0.3, ease.linear], [STRIKE + 0.2, 1, ease.linear], [COLOUR + 0.9, 0.75]],
         scale: [[STRIKE, 0.6], [STRIKE + 0.4, 1, ease.out]],
     });
 
-    animate(one('[data-sr="tag"]'), {
-        opacity: [[1.55, 0], [1.9, 1], [2.2, 1], [2.5, 0]],
-        tracking: [[1.55, '0.9em'], [1.95, '0.35em', ease.out]],
+    // A streak of light crosses the logo as the colour comes in.
+    animate(one('[data-sr="streak"]'), {
+        opacity: [[COLOUR + 0.2, 0], [COLOUR + 0.4, 1], [COLOUR + 0.75, 1], [COLOUR + 0.95, 0]],
+        x: [[COLOUR + 0.2, '-55vw'], [COLOUR + 0.95, '55vw', ease.inOut]],
     });
+
+    animate(one('[data-sr="tag"]'), {
+        opacity: [[2.55, 0], [3.0, 1], [3.35, 1], [3.7, 0]],
+        tracking: [[2.55, '1em'], [3.05, '0.35em', ease.out]],
+    });
+
+    // "Scroll to play": shown while the film waits at the end of its intro.
+    animate(one('[data-sr="cue"]'), { opacity: [[2.75, 0], [3.2, 1], [3.45, 1], [3.85, 0]] });
+
+    // Everything after the intro was timed for a 2-second opening; the
+    // cinematic one runs 1.2s longer, so the rest of the film starts later.
+    shift = SHIFT;
 
     // ---- 2 · the work ----------------------------------------------------
     animate(one('[data-sr="work"]'), {
@@ -184,7 +222,7 @@ export function initShowreel(stage) {
         });
 
         const number = el.querySelector('[data-sr-count]');
-        if (number) counters.push(counter(number, s + 0.05, s + 1.5));
+        if (number) counters.push(counter(number, s + 0.05 + shift, s + 1.5 + shift));
     });
 
     // ---- 4 · the clients ---------------------------------------------------
@@ -220,8 +258,6 @@ export function initShowreel(stage) {
         opacity: [[13.85, 0], [14.3, 1]],
         y: [[13.85, 16], [14.3, 0, ease.out]],
     });
-    // "Scroll to play": shown while the film waits at the end of its intro.
-    animate(one('[data-sr="cue"]'), { opacity: [[1.5, 0], [2.0, 1], [2.3, 1], [2.7, 0]] });
 
     // ---- the rows ----------------------------------------------------------
     const rows = all('[data-sr-row]').map((el) => ({
@@ -235,7 +271,7 @@ export function initShowreel(stage) {
     }));
 
     // Arriving fast, then cruising: a camera pulling back into the work.
-    const rush = compile('scale', [[0, 5], [2.25, 5], [4.3, 1, ease.out]]);
+    const rush = compile('scale', [[0, 5], [2.25 + SHIFT, 5], [4.3 + SHIFT, 1, ease.out]]);
 
     // The rows are tilted and wider than the stage, so each needs enough
     // copies of its covers to never show an end while it loops.
@@ -264,6 +300,10 @@ export function initShowreel(stage) {
             const get = (prop, fallback) => (props[prop] ? sample(props[prop], t) : fallback);
 
             if (props.opacity) el.style.opacity = get('opacity').n.toFixed(3);
+            if (props.blur) {
+                const b = get('blur').n;
+                el.style.filter = b > 0.05 ? `blur(${b.toFixed(2)}px)` : '';
+            }
             if (props.tracking) {
                 const v = get('tracking');
                 el.style.letterSpacing = v.n.toFixed(3) + v.unit;
@@ -295,7 +335,7 @@ export function initShowreel(stage) {
         counters.forEach((c) => c(t));
 
         if (progress) progress.style.transform = `scaleX(${(t / DURATION).toFixed(4)})`;
-        if (ctas) ctas.style.pointerEvents = t >= 13.9 ? 'auto' : 'none';
+        if (ctas) ctas.style.pointerEvents = t >= 13.9 + SHIFT ? 'auto' : 'none';
     }
 
     // ---- the track: scrolling is the film's clock --------------------------
@@ -305,7 +345,7 @@ export function initShowreel(stage) {
      * plays by itself and holds at INTRO, and the rest of the film is spread
      * over the scroll. Scrolling back rewinds it.
      */
-    const INTRO = 2.0;
+    const INTRO = 3.2;
     const TRACK_SCREENS = 6.2;
     const track = stage.closest('[data-showreel-track]');
     const svh = window.CSS?.supports?.('height', '1svh');

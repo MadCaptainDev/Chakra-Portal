@@ -5,11 +5,13 @@
     the stage is pinned while a tall track scrolls past it, and the track's
     progress is the film's clock (resources/js/showreel.js). The name plays
     by itself; scrolling plays the rest, and scrolling back rewinds it.
-      0–2.0s    the wheel (chakra) and the name -- plays on its own
-      2.0–6.3   three parallax rows of real reels, "Reels that stop the scroll."
-      6.3–9.6   the numbers, counted from the database
-      9.6–12.7  client logos, flying in at different depths
-      12.7–15   the call to action
+      0–3.2s    the opening, on its own: black and letterboxed, the logo
+                lands piece by piece, lightning backlights the camera, then
+                the bars open and the colour floods in -- "Digital Chaos"
+      3.2–7.5   three parallax rows of real reels, "Reels that stop the scroll."
+      7.5–10.8  the numbers, counted from the database
+      10.8–13.9 client logos, flying in at different depths
+      13.9–16.2 the call to action
     Then the landing page: work, what we make, services and process, the
     team, clients, and the enquiry form.
 
@@ -83,15 +85,10 @@
 
     @push('styles')
         <link rel="canonical" href="{{ url('/') }}">
-        {{-- Anton: the heavy condensed face of the logo's lettering (home/_logo). --}}
-        <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
         <style>
-            @keyframes sr-spin { to { transform: rotate(360deg); } }
-            .sr-spin { animation: sr-spin 40s linear infinite; }
-            .sr-spin-rev { animation: sr-spin 26s linear infinite reverse; }
-            .sr-spin-slow { animation: sr-spin 90s linear infinite; }
+            /* Dust in the projector beam: drifting up, glinting as it turns. */
+            @keyframes sr-dust { 0% { transform: translate3d(0, 0, 0); opacity: 0; } 20% { opacity: .8; } 50% { opacity: .25; } 80% { opacity: .7; } 100% { transform: translate3d(14px, -60px, 0); opacity: 0; } }
+            .sr-dust { animation: sr-dust 4.2s ease-in-out infinite; box-shadow: 0 0 6px rgba(171, 218, 231, .9); }
             @keyframes sr-bob { 0%, 100% { transform: translateY(-5px); } 50% { transform: translateY(5px); } }
             .sr-bob { animation: sr-bob 4.5s ease-in-out infinite; }
             @keyframes sr-marquee { to { transform: translateX(-50%); } }
@@ -113,10 +110,10 @@
             .sr-stage:not(.sr-ready) [data-scene]:not([data-scene="end"]) { visibility: hidden; }
             .sr-js:not(.sr-ready) [data-scene="end"] { visibility: hidden; }
 
-            [data-sr-row], [data-sr-word], [data-sr-logo], [data-sr="logo"] > svg { will-change: transform; }
+            [data-sr-row], [data-sr-word], [data-sr-logo], [data-sr="logo"] > img { will-change: transform, filter; }
 
             @media (prefers-reduced-motion: reduce) {
-                .sr-spin, .sr-spin-rev, .sr-spin-slow, .sr-bob, .sr-marquee, .sr-cue-dot { animation: none; }
+                .sr-dust, .sr-bob, .sr-marquee, .sr-cue-dot { animation: none; }
             }
         </style>
     @endpush
@@ -194,35 +191,40 @@
             <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_45%,rgba(8,20,28,0.85)_100%)]" aria-hidden="true"></div>
             <div class="sr-grain pointer-events-none absolute inset-0" aria-hidden="true"></div>
 
-            {{-- 1 · The wheel and the name. --}}
-            <div data-scene="intro" class="absolute inset-0 flex flex-col items-center justify-center text-center px-6 pt-10 pointer-events-none" aria-hidden="true">
-                <div data-sr="ring" class="absolute inset-0 m-auto w-[min(86vmin,640px)] h-[min(86vmin,640px)] text-brand-400">
-                    <svg viewBox="0 0 200 200" class="sr-spin absolute inset-0 w-full h-full">
-                        <circle cx="100" cy="100" r="97" fill="none" stroke="currentColor" stroke-width="0.5" stroke-dasharray="1.5 3.5" opacity="0.7" />
-                    </svg>
-                    <svg viewBox="0 0 200 200" class="sr-spin-rev absolute inset-0 w-full h-full">
-                        <circle cx="100" cy="100" r="86" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="46 10" opacity="0.45" />
-                    </svg>
-                    <svg viewBox="0 0 200 200" class="sr-spin-slow absolute inset-0 w-full h-full">
-                        @for ($i = 0; $i < 24; $i++)
-                            <line x1="100" y1="30" x2="100" y2="54" stroke="currentColor" stroke-width="0.6" opacity="0.35" transform="rotate({{ $i * 15 }} 100 100)" />
-                        @endfor
-                        <circle cx="100" cy="100" r="70" fill="none" stroke="currentColor" stroke-width="0.4" opacity="0.4" />
-                    </svg>
+            {{-- The opening is black: this covers the ground, the light and
+                 the rows until the logo is in, then lifts so colour floods in. --}}
+            <div data-sr="blackout" class="absolute inset-0 bg-black opacity-0" aria-hidden="true"></div>
+
+            {{-- 1 · The logo, in the dark, then the light. --}}
+            <div data-scene="intro" class="absolute inset-0 flex flex-col items-center justify-center text-center px-4 pt-10 pointer-events-none" aria-hidden="true">
+                {{-- A projector's beam from above, with dust drifting in it. --}}
+                <div data-sr="beam" class="absolute left-1/2 top-0 -ml-[60vmax] w-[120vmax] h-full bg-[radial-gradient(ellipse_32%_95%_at_50%_0%,rgba(171,218,231,0.26)_0%,rgba(103,188,212,0.10)_45%,transparent_75%)]"></div>
+                <div data-sr="dust" class="absolute inset-0 overflow-hidden">
+                    @foreach ([[12, 30, 2, 0], [22, 62, 3, 1.4], [31, 18, 2, 2.6], [38, 78, 2, 0.8], [44, 40, 3, 3.1], [50, 70, 2, 1.9], [56, 24, 2, 0.4], [61, 55, 3, 2.2], [67, 82, 2, 1.1], [73, 35, 2, 2.9], [79, 66, 3, 0.6], [86, 20, 2, 1.7], [47, 88, 2, 3.4], [28, 48, 2, 2.0]] as [$left, $top, $size, $delay])
+                        <span class="sr-dust absolute rounded-full bg-brand-100" style="left: {{ $left }}%; top: {{ $top }}%; width: {{ $size }}px; height: {{ $size }}px; animation-delay: -{{ $delay }}s"></span>
+                    @endforeach
                 </div>
 
-                {{-- The logo, drawn as vectors (home/_logo): CHAKRA lands from
-                     the top right, PRODUCTIONS from the bottom left, each with
-                     a shake, then the camera arrives in a lightning flash. --}}
                 <div class="relative flex flex-col items-center">
                     @include('home._logo')
-                    <p data-sr="tag" class="mt-[3vh] text-[clamp(1rem,4.6vw,1.5rem)] font-extrabold uppercase tracking-[0.35em] pl-[0.35em] text-brand-300">
-                        Digital Chaos
+                    <p data-sr="tag" class="mt-[3.5vh] text-[clamp(1rem,4.8vw,1.6rem)] font-extrabold uppercase tracking-[0.35em] pl-[0.35em] text-white">
+                        Digital <span class="text-brand-400">Chaos</span>
                     </p>
+                </div>
+
+                {{-- An anamorphic streak of light across the logo as the colour arrives. --}}
+                <div data-sr="streak" class="absolute left-0 right-0 top-1/2 -mt-px h-[2px] opacity-0">
+                    <div class="mx-auto h-full w-[70%] bg-gradient-to-r from-transparent via-brand-100 to-transparent shadow-[0_0_18px_4px_rgba(171,218,231,0.7)]"></div>
                 </div>
 
                 {{-- The lightning's flash, over the whole stage. --}}
                 <div data-sr="flash" class="absolute inset-0 bg-white opacity-0"></div>
+            </div>
+
+            {{-- Cinema bars: the opening is letterboxed, and they open as the colour comes in. --}}
+            <div data-scene="bars" class="absolute inset-0 z-10 pointer-events-none" aria-hidden="true">
+                <div data-sr="bar-top" class="absolute inset-x-0 top-0 h-[12vh] bg-black"></div>
+                <div data-sr="bar-bottom" class="absolute inset-x-0 bottom-0 h-[12vh] bg-black"></div>
             </div>
 
             {{-- 2 · The work, named. --}}
