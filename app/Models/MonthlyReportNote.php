@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Str;
 use Illuminate\Support\Carbon;
 
 /**
@@ -17,6 +19,13 @@ class MonthlyReportNote extends Model
     /** Submitted by SeedMonthlyReportReadyTemplate, sent by NotifyReportsReady. */
     public const WHATSAPP_TEMPLATE = 'monthly_report_ready';
 
+    /**
+     * "Send via WhatsApp" on the report screen, to anyone outside the
+     * 24-hour window: a link to the PDF (/r/{token}) in an approved template.
+     * Submitted by SeedMonthlyReportLinkTemplate.
+     */
+    public const WHATSAPP_LINK_TEMPLATE = 'monthly_report_link_v1';
+
     protected $fillable = [
         'client_id',
         'month',
@@ -29,6 +38,7 @@ class MonthlyReportNote extends Model
     protected $casts = [
         'month' => 'date',
         'whatsapp_sent_at' => 'datetime',
+        'shared_sections' => 'array',
         'ready_notified_at' => 'datetime',
     ];
 
@@ -40,6 +50,30 @@ class MonthlyReportNote extends Model
     public function updatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by_id');
+    }
+
+    /** Every WhatsApp send of this report, newest first, with its delivery status. */
+    public function whatsappLogs(): MorphMany
+    {
+        return $this->morphMany(WhatsappSendLog::class, 'loggable')->latest();
+    }
+
+    /**
+     * The unguessable token behind /r/{token}, made the first time the
+     * report is shared. Not fillable: nobody posts one.
+     */
+    public function ensurePublicToken(): string
+    {
+        if ($this->public_token === null) {
+            $this->forceFill(['public_token' => Str::random(48)])->save();
+        }
+
+        return $this->public_token;
+    }
+
+    public function publicUrl(): string
+    {
+        return route('reports.public-pdf', $this->ensurePublicToken());
     }
 
     /**

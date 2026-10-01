@@ -608,11 +608,27 @@ class MonthlyReportTest extends TestCase
         ]);
     }
 
+    /** The number wrote to the studio a moment ago: WhatsApp's 24-hour window is open. */
+    private function messagedRecently(string $waId): void
+    {
+        \App\Models\WhatsappWebhookEvent::forceCreate([
+            'object' => 'whatsapp_business_account',
+            'field' => 'messages',
+            'type' => \App\Models\WhatsappWebhookEvent::TYPE_MESSAGE,
+            'dedupe_key' => 'test-'.$waId,
+            'wa_id' => $waId,
+            'occurred_at' => now()->subHour(),
+            'received_at' => now()->subHour(),
+            'payload' => [],
+        ]);
+    }
+
     public function test_sending_the_report_uploads_the_pdf_and_sends_it_as_a_document(): void
     {
         $this->configuredWhatsapp();
         $client = $this->client();
         $this->connectedAccount($client);
+        $this->messagedRecently('919876543210');
 
         Http::fake([
             'graph.facebook.com/*/media' => Http::response(['id' => 'media-1']),
@@ -684,5 +700,80 @@ class MonthlyReportTest extends TestCase
             ->assertSessionHas('error', 'Message failed to send because more than 24 hours have passed.');
 
         $this->assertNull(MonthlyReportNote::where('client_id', $client->id)->first()?->whatsapp_sent_at);
+    }
+
+    public function test_outside_the_24_hour_window_it_sends_the_link_template_instead_of_the_file(): void
+    {
+        $this->configuredWhatsapp();
+        $client = $this->client('Zira Bridal Studio');
+        $this->connectedAccount($client);
+
+        Http::fake(['graph.facebook.com/*/messages' => Http::response(['messages' => [['id' => 'wamid.LINK1']]])]);
+
+        $this->actingAs($this->staff(['view', 'edit']))
+            ->post(route('instagram.report.whatsapp', $client), ['phone' => '9876543210', 'month' => now()->format('Y-m'), 'sections' => ['follower_growth']])
+            ->assertSessionHas('status', fn (string $status) => str_contains($status, 'link'));
+
+        $note = MonthlyReportNote::where('client_id', $client->id)->firstOrFail();
+
+        // No file upload; a template whose button carries the report's token.
+        Http::assertNotSent(fn ($request) => str_ends_with($request->url(), '/media'));
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/messages')
+            && $request->data()['type'] === 'template'
+            && $request->data()['template']['name'] === MonthlyReportNote::WHATSAPP_LINK_TEMPLATE
+            && $request->data()['template']['components'][1]['parameters'][0]['text'] === $note->public_token);
+
+        $this->assertSame(['follower_growth'], $note->shared_sections);
+        $log = $note->whatsappLogs()->sole();
+        $this->assertSame('wamid.LINK1', $log->wamid);
+        $this->assertSame('sent', $log->status);
+    }
+
+    public function test_metas_later_delivery_status_updates_the_send_and_explains_a_failure(): void
+    {
+        $note = MonthlyReportNote::forClientAndMonth($this->client(), now()->startOfMonth());
+        $note->save();
+        $delivered = $note->whatsappLogs()->create(['phone' => '9876543210', 'template' => 'document', 'status' => 'sent', 'wamid' => 'wamid.OK']);
+        $failed = $note->whatsappLogs()->create(['phone' => '7094126823', 'template' => 'document', 'status' => 'sent', 'wamid' => 'wamid.NO']);
+
+        $status = fn (string $id, string $status, array $errors = []) => ['object' => 'whatsapp_business_account', 'entry' => [['changes' => [[
+            'field' => 'messages',
+            'value' => ['statuses' => [array_filter(['id' => $id, 'status' => $status, 'timestamp' => (string) now()->timestamp, 'recipient_id' => '91x', 'errors' => $errors])]],
+        ]]]]];
+
+        \App\Models\WhatsappWebhookEvent::ingest($status('wamid.OK', 'delivered'));
+        \App\Models\WhatsappWebhookEvent::ingest($status('wamid.OK', 'sent')); // late, out of order: ignored
+        \App\Models\WhatsappWebhookEvent::ingest($status('wamid.NO', 'failed', [['code' => 131047, 'title' => 'Re-engagement message']]));
+
+        $this->assertSame('delivered', $delivered->refresh()->status);
+        $this->assertSame('failed', $failed->refresh()->status);
+        $this->assertStringContainsString('24 hours', $failed->error);
+    }
+
+    public function test_the_report_link_opens_the_pdf_and_an_unknown_one_is_a_404(): void
+    {
+        $client = $this->client();
+        $this->connectedAccount($client);
+        $note = MonthlyReportNote::forClientAndMonth($client, now()->startOfMonth());
+        $note->save();
+
+        $response = $this->get('/r/'.$note->ensurePublicToken());
+        $response->assertOk();
+        $this->assertSame('application/pdf', $response->headers->get('Content-Type'));
+
+        $this->get('/r/not-a-real-token')->assertNotFound();
+    }
+
+    public function test_while_the_link_template_awaits_approval_the_error_says_so_plainly(): void
+    {
+        $this->configuredWhatsapp();
+        $client = $this->client();
+        $this->connectedAccount($client);
+
+        Http::fake(['graph.facebook.com/*' => Http::response(['error' => ['message' => '(#132001) Template name does not exist in the translation']], 404)]);
+
+        $this->actingAs($this->staff(['view', 'edit']))
+            ->post(route('instagram.report.whatsapp', $client), ['phone' => '9876543210', 'month' => now()->format('Y-m')])
+            ->assertSessionHas('error', fn (string $error) => str_contains($error, 'waiting for Meta'));
     }
 }

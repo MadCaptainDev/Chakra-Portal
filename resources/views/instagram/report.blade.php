@@ -188,14 +188,9 @@
                             <p class="text-xs font-semibold uppercase tracking-wider text-brand-100/60 mb-2">
                                 Send via WhatsApp
                             </p>
-                            @if ($note->whatsapp_sent_at)
-                                <p class="text-xs text-emerald-300 mb-2">
-                                    Last sent {{ $note->whatsapp_sent_at->format('d M Y, g:i A') }}.
-                                </p>
-                            @endif
                             <form method="POST" action="{{ route('instagram.report.whatsapp', $client) }}"
                                   class="flex flex-col sm:flex-row sm:items-start gap-3"
-                                  onsubmit="return confirm('Send the currently ticked sections as a PDF to this number on WhatsApp?');">
+                                  onsubmit="return confirm('Send the currently ticked sections of this report to this number on WhatsApp?');">
                                 @csrf
                                 <input type="hidden" name="month" value="{{ $monthParam }}">
                                 @foreach ($enabledSections as $key)
@@ -208,11 +203,22 @@
                                         placeholder="e.g. 9876543210" required />
                                     <x-input-error :messages="$errors->get('phone')" class="mt-2" />
                                     <p class="mt-1 text-[11px] text-brand-100/50">
-                                        Sends the ticked sections above as a PDF attachment. Only reaches a number that has messaged the studio in the last 24 hours.
+                                        If this number messaged the studio in the last 24 hours, the PDF goes as an attachment.
+                                        Otherwise WhatsApp only allows an approved message, so it gets a button that opens the PDF.
                                     </p>
                                 </div>
                                 <x-primary-button class="mt-1 sm:mt-6">Send</x-primary-button>
                             </form>
+
+                            {{-- What actually happened to each send: "sent" is only WhatsApp
+                                 accepting it; delivered, read or failed (with why) follows
+                                 from Meta within seconds -- see WhatsappSendLog::applyStatus(). --}}
+                            @if ($note->exists && $note->whatsappLogs->isNotEmpty())
+                                <div class="mt-4">
+                                    <p class="text-xs font-semibold uppercase tracking-wider text-brand-100/60 mb-2">Sent so far</p>
+                                    <x-whatsapp-log-table :logs="$note->whatsappLogs" />
+                                </div>
+                            @endif
                         </div>
                     </div>
                 </details>

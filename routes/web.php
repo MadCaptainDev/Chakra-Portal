@@ -72,6 +72,7 @@ use App\Http\Controllers\ProposalCommentController;
 use App\Http\Controllers\ProposalController;
 use App\Http\Controllers\PublicBriefController;
 use App\Http\Controllers\PublicInvoiceController;
+use App\Http\Controllers\PublicMonthlyReportController;
 use App\Http\Controllers\PublicPortfolioController;
 use App\Http\Controllers\PublicProposalController;
 use App\Http\Controllers\PublicScriptApprovalController;
@@ -232,6 +233,11 @@ Route::get('i/{token}', [PublicInvoiceController::class, 'pdf'])->name('invoices
 // Same convention as i/{token} above, for the "Send via WhatsApp" link on a
 // quotation's show page (see QuotationController::sendWhatsapp()).
 Route::get('q/{token}', [PublicQuotationController::class, 'pdf'])->name('quotations.public-pdf');
+
+// Same convention, for a monthly Instagram report sent as a link -- the way
+// it reaches someone outside WhatsApp's 24-hour window (see
+// MonthlyReportController::sendWhatsapp()).
+Route::get('r/{token}', [PublicMonthlyReportController::class, 'pdf'])->name('reports.public-pdf');
 
 /*
  * Shared account area — admins and employees both manage their own profile.

@@ -123,6 +123,13 @@ class WhatsappWebhookEvent extends Model
                 }
 
                 foreach (Arr::get($value, 'statuses', []) as $status) {
+                    // The send it is about learns how it went (WhatsappSendLog).
+                    WhatsappSendLog::applyStatus(
+                        Arr::get($status, 'id'),
+                        Arr::get($status, 'status'),
+                        WhatsappSendLog::explain(Arr::get($status, 'errors', [])),
+                    );
+
                     $stored += self::store([
                         'object' => $object,
                         'field' => $field,

@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Client;
 use App\Models\MonthlyReportNote;
 use App\Models\SocialAccount;
+use App\Models\WhatsappSendLog;
+use App\Services\DocumentWhatsappNotifier;
 use App\Services\Instagram\InstagramSyncRunner;
 use App\Services\MonthlyReportData;
 use App\Services\MonthlyReportDocumentRenderer;
 use App\Services\MonthlyReportNoteWriter;
 use App\Services\WhatsappSender;
+use App\Support\WhatsappServiceWindow;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -169,14 +172,22 @@ class MonthlyReportController extends Controller
     }
 
     /**
-     * Renders the currently-selected sections into a PDF and sends it as a
-     * WhatsApp document -- to whatever number is typed in, not necessarily
-     * the client's own on file, same reasoning as InvoiceController::sendWhatsapp():
-     * there is no one "the" recipient to lock this to. Free-form (see
-     * WhatsappSender::sendDocument()'s own doc block), so this only ever
-     * reaches a number within 24 hours of it last messaging the studio.
+     * Sends the report on WhatsApp -- to whatever number is typed in, not
+     * necessarily the client's own on file (same reasoning as
+     * InvoiceController::sendWhatsapp()).
+     *
+     * How depends on WhatsApp's 24-hour rule. A number that messaged the
+     * studio in the last 24 hours gets the PDF itself, attached. Anyone else
+     * can only receive an approved template, so they get
+     * WHATSAPP_LINK_TEMPLATE with an "Open report" button to /r/{token} --
+     * attaching the file there is exactly what used to fail, minutes after
+     * the screen had already said "sent".
+     *
+     * Either way the send is logged (WhatsappSendLog), and Meta's delivery
+     * status updates that row as it arrives, so the screen shows whether it
+     * was actually delivered, read, or why it failed.
      */
-    public function sendWhatsapp(Request $request, Client $client, MonthlyReportDocumentRenderer $renderer): RedirectResponse
+    public function sendWhatsapp(Request $request, Client $client, MonthlyReportDocumentRenderer $renderer, DocumentWhatsappNotifier $notifier): RedirectResponse
     {
         $account = $this->instagramFor($client);
 
@@ -194,34 +205,59 @@ class MonthlyReportController extends Controller
 
         $month = $this->parseMonth($validated['month']);
         $enabledSections = $this->validSectionKeys((array) $request->input('sections', []));
+        $back = redirect()->route('instagram.report', ['client' => $client, 'month' => $validated['month']]);
 
-        $pdfContents = Pdf::loadHTML($renderer->render($client, $account, $month, $enabledSections))
-            ->setPaper('a4')
-            ->output();
-        $filename = $client->name.' — '.$month->format('F Y').' report.pdf';
+        // The note carries the link and its send history, so it has to exist.
+        $note = MonthlyReportNote::forClientAndMonth($client, $month);
+        $note->forceFill(['shared_sections' => $enabledSections])->save();
 
         try {
-            WhatsappSender::make()->sendDocument(
-                $validated['phone'],
-                $pdfContents,
-                $filename,
-                $client->name.'\'s '.$month->format('F Y').' Instagram report.',
-            );
+            if (WhatsappServiceWindow::isOpen($validated['phone'])) {
+                $pdfContents = Pdf::loadHTML($renderer->render($client, $account, $month, $enabledSections))
+                    ->setPaper('a4')
+                    ->output();
+
+                $result = WhatsappSender::make()->sendDocument(
+                    $validated['phone'],
+                    $pdfContents,
+                    $client->name.' — '.$month->format('F Y').' report.pdf',
+                    $client->name.'\'s '.$month->format('F Y').' Instagram report.',
+                );
+
+                $note->whatsappLogs()->create([
+                    'phone' => $validated['phone'],
+                    'template' => 'document',
+                    'status' => WhatsappSendLog::STATUS_SENT,
+                    'wamid' => $result['wamid'] ?? null,
+                    'sent_by' => $request->user()?->id,
+                ]);
+                $how = 'the PDF attached';
+            } else {
+                $notifier->send(
+                    document: $note,
+                    phone: $validated['phone'],
+                    template: MonthlyReportNote::WHATSAPP_LINK_TEMPLATE,
+                    bodyParameters: [$client->name, $month->format('F Y')],
+                    buttonUrlParameter: $note->ensurePublicToken(),
+                    sentByUserId: $request->user()?->id,
+                );
+                $how = 'a link to the PDF (that number has not messaged the studio in 24 hours, so WhatsApp will not take the file itself)';
+            }
         } catch (RuntimeException $e) {
-            // Meta's own reason (outside the 24h window, number not
-            // reachable, ...) is the useful part -- surfaced as-is rather
-            // than a generic "failed to send".
-            return redirect()->route('instagram.report', ['client' => $client, 'month' => $validated['month']])
-                ->with('error', $e->getMessage());
+            // Until Meta approves the link template, the only way through is
+            // the 24-hour window -- said plainly, not as Meta's error code.
+            $message = str_contains($e->getMessage(), '132001') || str_contains(strtolower($e->getMessage()), 'does not exist')
+                ? 'The report template is still waiting for Meta\'s approval, so for now a report can only go to a number that messaged the studio in the last 24 hours. Try again once it is approved.'
+                : $e->getMessage();
+
+            return $back->with('error', $message);
         }
 
-        MonthlyReportNote::forClientAndMonth($client, $month)
-            ->forceFill(['whatsapp_sent_at' => now()])
-            ->save();
+        $note->forceFill(['whatsapp_sent_at' => now()])->save();
 
-        return redirect()->route('instagram.report', ['client' => $client, 'month' => $validated['month']])
-            ->with('status', "Sent to {$validated['phone']} on WhatsApp.");
+        return $back->with('status', "Sent to {$validated['phone']} as {$how}. Delivery shows below in a few seconds.");
     }
+
 
     /**
      * The month this report covers. A monthly report is written after the
