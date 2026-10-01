@@ -63,7 +63,27 @@
 </head>
 <body class="antialiased bg-brand-900 text-white" x-data="{ menuOpen: false }">
 
-    <header class="sticky top-0 z-40 bg-brand-900/90 backdrop-blur border-b border-white/10">
+    {{-- Over the homepage's full-screen film the header floats, transparent,
+         and turns solid once the film is scrolled past (data-film-end marks
+         where it ends) or the menu opens. Everywhere else it is the usual
+         sticky bar. --}}
+    @if (request()->routeIs('home', 'showreel'))
+        <header x-data="{
+                    solid: false,
+                    watch() {
+                        const end = document.querySelector('[data-film-end]');
+                        const check = () => { this.solid = end ? end.getBoundingClientRect().top <= 80 : window.scrollY > 10; };
+                        check();
+                        window.addEventListener('scroll', check, { passive: true });
+                        window.addEventListener('resize', check);
+                    },
+                }"
+                x-init="watch()"
+                :class="solid || menuOpen ? 'bg-brand-900/90 backdrop-blur border-white/10' : 'bg-gradient-to-b from-brand-900/80 to-transparent border-transparent'"
+                class="fixed inset-x-0 top-0 z-40 border-b border-transparent transition-colors duration-300">
+    @else
+        <header class="sticky top-0 z-40 bg-brand-900/90 backdrop-blur border-b border-white/10">
+    @endif
         <div class="max-w-7xl mx-auto px-5 sm:px-8">
             <div class="flex items-center justify-between h-16 sm:h-20">
                 <a href="{{ $onHome ? '#top' : route('home') }}" class="flex items-center shrink-0">

@@ -1,9 +1,16 @@
-{{-- One reel in the work wall under the film, linking to its case study. --}}
+{{-- One piece in the homepage's work wall, linking to its case study. A
+     piece with no cover yet gets a branded tile rather than an empty box. --}}
 <a href="{{ $work['url'] }}"
    class="group block relative rounded-2xl overflow-hidden ring-1 ring-white/10 bg-brand-800 shadow-xl shadow-black/30 hover:ring-brand-400/50 transition">
     <div class="aspect-[9/16]">
-        <img src="{{ $work['cover'] }}" alt="{{ $work['title'] }}" loading="lazy" decoding="async"
-             class="w-full h-full object-cover transition duration-700 group-hover:scale-105">
+        @if ($work['cover'])
+            <img src="{{ $work['cover'] }}" alt="{{ $work['title'] }}" loading="lazy" decoding="async"
+                 class="w-full h-full object-cover transition duration-700 group-hover:scale-105">
+        @else
+            <div class="w-full h-full bg-gradient-to-br from-brand-700 via-brand-800 to-brand-900 flex items-center justify-center">
+                <img src="{{ asset('images/chakra-watermark.png') }}" alt="" class="w-1/3 opacity-20">
+            </div>
+        @endif
     </div>
     <div class="absolute inset-0 bg-gradient-to-t from-brand-900/95 via-brand-900/10 to-transparent"></div>
 
@@ -20,6 +27,6 @@
                 {{ $work['client'] ?? $work['category'] }}
             </p>
         @endif
-        <p class="mt-1 text-sm sm:text-base font-semibold leading-snug text-white line-clamp-2">{{ $work['title'] }}</p>
+        <p class="mt-1 text-[13px] sm:text-base font-semibold leading-snug text-white line-clamp-3 sm:line-clamp-2">{{ $work['title'] }}</p>
     </div>
 </a>

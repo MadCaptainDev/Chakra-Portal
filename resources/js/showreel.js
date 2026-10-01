@@ -6,7 +6,7 @@
  * No animation library -- a keyframe player this small is cheaper than one.
  * Every element is in the page already; this only moves it, using transforms
  * and opacity so the browser can hand the work to the GPU. Time is a number
- * that can be set (skip, replay), not a chain of callbacks, so any moment of
+ * that can be set (from a scroll position), not a chain of callbacks, so any moment of
  * the film can be drawn on its own.
  *
  * Three kinds of motion:
@@ -181,7 +181,8 @@ export function initShowreel(stage) {
         opacity: [[13.85, 0], [14.3, 1]],
         y: [[13.85, 16], [14.3, 0, ease.out]],
     });
-    animate(one('[data-sr="cue"]'), { opacity: [[14.4, 0], [14.9, 1]] });
+    // "Scroll to play": shown while the film waits at the end of its intro.
+    animate(one('[data-sr="cue"]'), { opacity: [[1.5, 0], [2.0, 1], [2.3, 1], [2.7, 0]] });
 
     // ---- the rows ----------------------------------------------------------
     const rows = all('[data-sr-row]').map((el) => ({
@@ -216,9 +217,6 @@ export function initShowreel(stage) {
     // ---- drawing -------------------------------------------------------------
     const pointer = { x: 0, y: 0, tx: 0, ty: 0 };
     const progress = one('[data-sr-progress]');
-    const clock = one('[data-sr-clock]');
-    const skip = one('[data-sr-skip]');
-    const replay = one('[data-sr-replay]');
     const scale = () => Math.max(0.55, stage.offsetWidth / 1000);
 
     function draw(t, elapsed) {
@@ -258,16 +256,36 @@ export function initShowreel(stage) {
         counters.forEach((c) => c(t));
 
         if (progress) progress.style.transform = `scaleX(${(t / DURATION).toFixed(4)})`;
-        if (clock) clock.textContent = '0:' + String(Math.min(DURATION, Math.floor(t))).padStart(2, '0');
         if (ctas) ctas.style.pointerEvents = t >= 13.9 ? 'auto' : 'none';
+    }
 
-        const finished = t >= DURATION;
-        if (skip) skip.hidden = finished;
-        if (replay) replay.hidden = !finished;
+    // ---- the track: scrolling is the film's clock --------------------------
+    /*
+     * The stage is sticky inside a tall track. How far the track has been
+     * scrolled through is how far the film has played: the intro (the name)
+     * plays by itself and holds at INTRO, and the rest of the film is spread
+     * over the scroll. Scrolling back rewinds it.
+     */
+    const INTRO = 2.0;
+    const TRACK_SCREENS = 6.2;
+    const track = stage.closest('[data-showreel-track]');
+    const svh = window.CSS?.supports?.('height', '1svh');
+
+    function sizeTrack() {
+        if (!track) return;
+        track.style.height = svh ? `${TRACK_SCREENS * 100}svh` : `${Math.round(window.innerHeight * TRACK_SCREENS)}px`;
+    }
+
+    function scrolled() {
+        if (!track) return 0;
+        const rect = track.getBoundingClientRect();
+        const room = rect.height - stage.offsetHeight;
+        return room > 0 ? Math.min(1, Math.max(0, -rect.top / room)) : 0;
     }
 
     // ---- the clock -----------------------------------------------------------
     let t = 0;
+    let auto = 0;
     let elapsed = 0;
     let last = null;
     let raf = null;
@@ -276,10 +294,18 @@ export function initShowreel(stage) {
     function tick(now) {
         const dt = last === null ? 0 : Math.min(0.05, (now - last) / 1000);
         last = now;
-        t = Math.min(DURATION, t + dt);
         elapsed += dt;
 
-        // The pointer is chased, not followed, so the layers glide.
+        auto = Math.min(INTRO, auto + dt);
+        const p = scrolled();
+        const target = Math.max(auto, p > 0 ? INTRO + p * (DURATION - INTRO) : 0);
+
+        // Chased, not jumped to: a flick of the finger plays smoothly rather
+        // than cutting, and the film settles where the scroll stops.
+        t += (target - t) * Math.min(1, dt * 6);
+        if (Math.abs(target - t) < 0.002) t = target;
+
+        // The pointer is chased the same way, so the layers glide.
         pointer.x += (pointer.tx - pointer.x) * Math.min(1, dt * 4);
         pointer.y += (pointer.ty - pointer.y) * Math.min(1, dt * 4);
 
@@ -303,18 +329,6 @@ export function initShowreel(stage) {
         raf = null;
     }
 
-    skip?.addEventListener('click', () => {
-        t = DURATION;
-        if (reduce) draw(t, elapsed);
-    });
-    replay?.addEventListener('click', () => {
-        t = 0;
-        if (reduce) {
-            t = DURATION;
-            draw(t, elapsed);
-        }
-    });
-
     // ---- start ---------------------------------------------------------------
     layoutRows();
     let resizeTimer;
@@ -322,16 +336,19 @@ export function initShowreel(stage) {
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(() => {
             layoutRows();
-            if (reduce) draw(t, elapsed);
+            if (!reduce && !svh) sizeTrack();
+            if (reduce) draw(DURATION, elapsed);
         }, 150);
     });
 
+    // Less motion asked for: no long track, just the last frame, still.
     if (reduce) {
-        t = DURATION;
-        draw(t, elapsed);
+        draw(DURATION, elapsed);
         stage.classList.add('sr-ready');
         return;
     }
+
+    sizeTrack();
 
     if (finePointer) {
         stage.addEventListener('pointermove', (event) => {
@@ -345,8 +362,7 @@ export function initShowreel(stage) {
         });
     }
 
-    // Only spend frames while the film is on screen and the tab is open; the
-    // film waits where it is rather than playing to nobody.
+    // Only spend frames while the film is on screen and the tab is open.
     new IntersectionObserver(([entry]) => {
         visible = entry.isIntersecting;
         visible ? run() : pause();
@@ -365,12 +381,16 @@ export function initShowreel(stage) {
     ]);
 
     Promise.race([ready, new Promise((resolve) => setTimeout(resolve, 2500))]).then(() => {
-        draw(0, 0);
+        // Arriving part-way down (a refresh, a back button) starts the film
+        // where the scroll already is, not from the top.
+        const p = scrolled();
+        t = p > 0 ? INTRO + p * (DURATION - INTRO) : 0;
+        auto = p > 0 ? INTRO : 0;
+        draw(t, 0);
         stage.classList.add('sr-ready');
         run();
     });
 }
-
 // A number that counts up from zero between two moments, keeping the shape
 // of what the server wrote: "12.6M+" counts 0.0 → 12.6 and keeps "M+".
 function counter(el, start, end) {
@@ -404,17 +424,29 @@ function counter(el, start, end) {
 // ------------------------------------------------------------------ the page
 
 /*
- * Scroll parallax for the landing page under the film. [data-parallax] moves
- * vertically by a factor of its distance from the middle of the screen;
- * [data-scroll-x] slides sideways as its section passes. Measured from the
- * parent, which does not move, so the motion never feeds back into itself.
+ * Scroll parallax for the landing page under the film.
+ *
+ * [data-parallax="N"] drifts vertically by up to N pixels either way as its
+ * section crosses the screen: -N when the section enters at the bottom, +N
+ * as it leaves at the top. Bounded on purpose -- a factor of the distance
+ * grows with the section, and on a long work wall that pushed a column up
+ * over its own heading. Phones get a gentler version (60%).
+ * [data-parallax-lg] is the same, on wide screens only: on a phone those
+ * elements sit in a sideways-swiping row, where moving them up and down
+ * would only clip them.
+ * [data-scroll-x="f"] slides sideways by f × how far its section has moved.
+ *
+ * Everything is measured from the parent, which does not move, so the
+ * motion never feeds back into itself.
  */
 export function initScrollParallax() {
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
 
-    const vertical = Array.from(document.querySelectorAll('[data-parallax]'))
-        .map((el) => ({ el, factor: parseFloat(el.dataset.parallax) || 0 }))
-        .filter((item) => item.factor !== 0);
+    const wide = window.matchMedia?.('(min-width: 1024px)');
+    const vertical = [
+        ...Array.from(document.querySelectorAll('[data-parallax]')).map((el) => ({ el, amount: parseFloat(el.dataset.parallax) || 0, wideOnly: false })),
+        ...Array.from(document.querySelectorAll('[data-parallax-lg]')).map((el) => ({ el, amount: parseFloat(el.dataset.parallaxLg) || 0, wideOnly: true })),
+    ].filter((item) => item.amount !== 0);
     const sideways = Array.from(document.querySelectorAll('[data-scroll-x]'))
         .map((el) => ({ el, factor: parseFloat(el.dataset.scrollX) || 0 }));
 
@@ -425,11 +457,19 @@ export function initScrollParallax() {
     function update() {
         queued = false;
         const vh = window.innerHeight;
+        const isWide = wide ? wide.matches : true;
+        const gentle = isWide ? 1 : 0.6;
 
-        for (const { el, factor } of vertical) {
+        for (const { el, amount, wideOnly } of vertical) {
+            if (wideOnly && !isWide) {
+                el.style.transform = '';
+                continue;
+            }
             const rect = el.parentElement.getBoundingClientRect();
             if (rect.bottom < -vh || rect.top > vh * 2) continue;
-            const offset = (rect.top + rect.height / 2 - vh / 2) * factor;
+            // 0 as the section's top enters at the bottom, 1 as its bottom leaves at the top.
+            const p = Math.min(1, Math.max(0, (vh - rect.top) / (vh + rect.height)));
+            const offset = (p - 0.5) * 2 * amount * gentle;
             el.style.transform = `translate3d(0, ${offset.toFixed(1)}px, 0)`;
         }
 

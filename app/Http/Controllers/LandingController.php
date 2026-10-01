@@ -2,46 +2,25 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\PortfolioCategory;
-use App\Models\PortfolioItem;
-use App\Models\TeamMember;
+use App\Support\HomePage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
 /**
- * The public landing page.
+ * The public homepage: the scroll-driven showreel film, then the landing page
+ * (resources/views/home.blade.php, data from App\Support\HomePage).
  *
- * Signed-in staff never see it -- they go to whichever home their role has.
+ * Signed-in staff never see it -- they go to whichever home their role has;
+ * /showreel shows them the same page.
  */
 class LandingController extends Controller
 {
-    /** How many pieces the landing page shows before "See all work". */
-    private const SHOWREEL_LIMIT = 6;
-
     public function __invoke(): View|RedirectResponse
     {
         if (auth()->check()) {
             return redirect()->route(auth()->user()->homeRoute());
         }
 
-        $categories = PortfolioCategory::visible()->ordered()->get();
-
-        $items = PortfolioItem::visible()
-            ->with('category')
-            ->ordered()
-            ->get()
-            ->reject(fn (PortfolioItem $item) => $item->portfolio_category_id
-                && ! $categories->contains('id', $item->portfolio_category_id))
-            // Featured work leads, then whatever the sort order says.
-            ->sortByDesc(fn (PortfolioItem $item) => $item->is_featured ? 1 : 0)
-            ->take(self::SHOWREEL_LIMIT)
-            ->values();
-
-        return view('landing', [
-            'portfolioCategories' => $categories,
-            'portfolioItems' => $items,
-            'hasMorePortfolio' => PortfolioItem::visible()->count() > $items->count(),
-            'teamMembers' => TeamMember::visible()->ordered()->get(),
-        ]);
+        return view('home', HomePage::data());
     }
 }

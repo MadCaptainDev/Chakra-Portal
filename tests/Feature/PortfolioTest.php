@@ -230,15 +230,15 @@ class PortfolioTest extends TestCase
 
     public function test_the_landing_page_offers_see_more_only_when_there_is_more(): void
     {
-        // Six is exactly what the landing page shows, so there is nothing more
+        // Twelve is exactly what the landing page shows, so there is nothing more
         // to see and the button would be a lie.
-        foreach (range(1, 6) as $index) {
+        foreach (range(1, 12) as $index) {
             PortfolioItem::create(['title' => 'Piece '.$index, 'is_visible' => true]);
         }
 
         $this->get('/')->assertOk()->assertDontSee('See more');
 
-        PortfolioItem::create(['title' => 'Piece 7', 'is_visible' => true]);
+        PortfolioItem::create(['title' => 'Piece 13', 'is_visible' => true]);
 
         $this->get('/')->assertOk()->assertSee('See more');
     }

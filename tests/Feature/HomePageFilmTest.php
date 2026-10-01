@@ -2,22 +2,22 @@
 
 namespace Tests\Feature;
 
-use App\Http\Controllers\ShowreelController;
 use App\Models\Client;
 use App\Models\ContentItem;
-use App\Models\Enquiry;
 use App\Models\PortfolioItem;
+use App\Models\TeamMember;
+use App\Models\User;
+use App\Support\HomePage;
 use App\Support\ImageVariant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
-class ShowreelTest extends TestCase
+class HomePageFilmTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const FOLDER = 'uploads/showreel-test';
+    private const FOLDER = 'uploads/homepage-test';
 
     /** @var list<string> small copies made during a test, removed after it */
     private array $variants = [];
@@ -86,7 +86,7 @@ class ShowreelTest extends TestCase
             'status' => 'Published',
         ]);
 
-        $page = $this->get('/showreel')->assertOk();
+        $page = $this->get('/')->assertOk();
 
         // The work, biggest hit first, and only what is published.
         $page->assertSeeInOrder(['Hospital Awareness Reel', 'Celebrity Makeup Reel'])
@@ -122,26 +122,46 @@ class ShowreelTest extends TestCase
 
     public function test_compact_numbers_are_always_rounded_down(): void
     {
-        $this->assertSame('4.9M', ShowreelController::compact(4_927_492));
-        $this->assertSame('12.6M', ShowreelController::compact(12_647_771));
-        $this->assertSame('1M', ShowreelController::compact(1_000_000));
-        $this->assertSame('116K', ShowreelController::compact(116_501));
-        $this->assertSame('999', ShowreelController::compact(999));
+        $this->assertSame('4.9M', HomePage::compact(4_927_492));
+        $this->assertSame('12.6M', HomePage::compact(12_647_771));
+        $this->assertSame('1M', HomePage::compact(1_000_000));
+        $this->assertSame('116K', HomePage::compact(116_501));
+        $this->assertSame('999', HomePage::compact(999));
     }
 
-    public function test_an_enquiry_from_the_showreel_is_filed_under_it(): void
+    public function test_the_homepage_is_the_film_and_keeps_the_enquiry_form(): void
     {
-        Notification::fake();
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('data-showreel-track', false)
+            ->assertSee('Scroll to play')
+            ->assertDontSee('Skip')
+            ->assertSee(route('enquiry.store'), false)
+            ->assertSee('Send enquiry')
+            ->assertSee('Manapparai');
+    }
 
-        $this->get('/showreel')->assertSee(route('home', ['from' => 'showreel']).'#contact', false);
+    public function test_staff_preview_the_homepage_at_showreel(): void
+    {
+        $this->actingAs(User::factory()->create())
+            ->get('/showreel')
+            ->assertOk()
+            ->assertSee('data-showreel-track', false)
+            ->assertSee('<link rel="canonical" href="'.url('/').'">', false);
+    }
 
-        $this->post(route('enquiry.store'), [
-            'name' => 'Meera Raj',
-            'email' => 'meera@example.test',
-            'message' => 'Saw the showreel, we need reels for a launch.',
-            'source' => 'showreel',
-        ]);
+    public function test_the_team_area_shows_the_crew_until_people_are_published(): void
+    {
+        $this->get('/')
+            ->assertSee('The crew')
+            ->assertSee('Editors who cut')
+            ->assertDontSee('Who you work with');
 
-        $this->assertSame('Showreel page', Enquiry::firstOrFail()->sourceLabel());
+        TeamMember::create(['name' => 'Kavya R', 'role' => 'Editor', 'is_visible' => true, 'sort_order' => 1]);
+
+        $this->get('/')
+            ->assertSee('Who you work with')
+            ->assertSee('Kavya R')
+            ->assertDontSee('Editors who cut');
     }
 }
