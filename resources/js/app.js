@@ -114,14 +114,16 @@ window.chakraPush = {
 };
 
 /*
- * The showreel landing page's film and scroll parallax
+ * The homepage's film, its "How we work" steps and its scroll parallax
  * (resources/js/showreel.js). Same reasoning as push.js above: one page
  * uses it, so it is its own chunk, fetched only where the stage exists.
  */
 const showreelStage = document.querySelector('[data-showreel]');
 if (showreelStage) {
-    import('./showreel.js').then(({ initShowreel, initScrollParallax }) => {
+    import('./showreel.js').then(({ initShowreel, initProcess, initScrollParallax }) => {
         initShowreel(showreelStage);
+        const process = document.querySelector('[data-process]');
+        if (process) initProcess(process);
         initScrollParallax();
     });
 }

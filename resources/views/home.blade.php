@@ -48,8 +48,6 @@
         ['Publishing & scheduling', 'We can take it all the way to posted and scheduled, not just hand over a folder of files.'],
     ];
 
-    // The pipeline every piece of content moves through in the studio.
-    $process = ['Idea', 'Script', 'Shoot', 'Edit', 'Review', 'Publish'];
 
     // Until people are added in Team Page, the crew is described by what it
     // does -- the same pipeline -- rather than by invented faces.
@@ -96,6 +94,9 @@
             .sr-marquee:hover { animation-play-state: paused; }
             @keyframes sr-cue { 0%, 100% { transform: translateY(0); opacity: 1; } 50% { transform: translateY(7px); opacity: .5; } }
             .sr-cue-dot { animation: sr-cue 1.6s ease-in-out infinite; }
+            /* The REC light in How we work. */
+            @keyframes pr-blink { 50% { fill-opacity: 0.15; } }
+            .pr-blink { animation: pr-blink 1.1s steps(1) infinite; }
 
             /* Film grain: a static noise tile, blended over everything. */
             .sr-grain {
@@ -113,7 +114,7 @@
             [data-sr-row], [data-sr-word], [data-sr-logo], [data-sr="logo"] > img { will-change: transform, filter; }
 
             @media (prefers-reduced-motion: reduce) {
-                .sr-dust, .sr-bob, .sr-marquee, .sr-cue-dot { animation: none; }
+                .sr-dust, .sr-bob, .sr-marquee, .sr-cue-dot, .pr-blink { animation: none; }
             }
         </style>
     @endpush
@@ -387,20 +388,10 @@
                 @endforeach
             </div>
         </div>
-
-        <div id="process" class="scroll-mt-20 max-w-7xl mx-auto px-5 sm:px-8 mt-14 sm:mt-20">
-            <p class="text-brand-300 text-xs font-semibold uppercase tracking-[0.25em] mb-3">How we work</p>
-            <h3 class="text-2xl sm:text-3xl font-bold max-w-2xl leading-tight">Six steps, and you see it at every one.</h3>
-            <ol class="mt-8 grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3">
-                @foreach ($process as $step)
-                    <li data-parallax="{{ ($loop->index % 2 ? -1 : 1) * 12 }}" class="rounded-xl bg-white/5 border border-white/10 px-3 py-4 text-center">
-                        <span class="block text-brand-400 text-xl sm:text-2xl font-extrabold leading-none">{{ $loop->iteration }}</span>
-                        <span class="mt-2 block text-sm font-semibold">{{ $step }}</span>
-                    </li>
-                @endforeach
-            </ol>
-        </div>
     </section>
+
+    {{-- How we work: the six steps, animated by scroll (home/_process). --}}
+    @include('home._process')
 
     {{-- The team. From Team Page once people are published there; until
          then, the crew described by the work it does. --}}

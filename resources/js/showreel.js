@@ -573,3 +573,168 @@ export function initScrollParallax() {
     window.addEventListener('resize', queue);
     update();
 }
+
+// ------------------------------------------------------------------ how we work
+
+/*
+ * The six steps (resources/views/home/_process.blade.php), played by scroll.
+ *
+ * The stage is pinned while its track scrolls past; the track's progress is
+ * split evenly between the steps. Within a step, its own progress drives the
+ * illustration -- each element says what it does (data-a) and when (data-at,
+ * a fraction of the step) -- and the words cross-fade between steps. The
+ * first 80% of a step's scroll plays it; the rest holds it finished, so a
+ * step is never left half-drawn as the next one comes in.
+ */
+export function initProcess(section) {
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const track = section.querySelector('[data-pr-track]');
+    const stage = section.querySelector('[data-pr-stage]');
+    const arts = Array.from(section.querySelectorAll('[data-pr-art]'));
+    const texts = Array.from(section.querySelectorAll('[data-pr-text]'));
+    const bars = Array.from(section.querySelectorAll('[data-pr-bar]'));
+    const labels = Array.from(section.querySelectorAll('[data-pr-label]'));
+    const nums = Array.from(section.querySelectorAll('[data-pr-num]'));
+    const blobs = Array.from(section.querySelectorAll('[data-pr-blob]'));
+    const count = arts.length;
+    if (!track || !stage || !count) return;
+
+    const SCREENS_PER_STEP = 0.75;
+    const svh = window.CSS?.supports?.('height', '1svh');
+    const sizeTrack = () => {
+        const screens = 1 + count * SCREENS_PER_STEP;
+        track.style.height = svh ? `${screens * 100}svh` : `${Math.round(window.innerHeight * screens)}px`;
+    };
+
+    // Every animated element, with its timing and what it needs to move.
+    const items = arts.map((art) => Array.from(art.querySelectorAll('[data-a]')).map((el) => {
+        const [from, to] = (el.dataset.at || '0,1').split(',').map(Number);
+        const item = { el, type: el.dataset.a, from, to, dx: parseFloat(el.dataset.dx) || 0 };
+        if (item.type === 'draw') el.style.strokeDasharray = '1';
+        if (['pop', 'grow', 'scalex'].includes(item.type)) {
+            el.style.transformBox = 'fill-box';
+            el.style.transformOrigin = item.type === 'scalex' ? 'left center' : 'center';
+        }
+        return item;
+    }));
+    const pens = arts.map((art) => Array.from(art.querySelectorAll('[data-pen]')));
+
+    const clamp = (v) => Math.min(1, Math.max(0, v));
+
+    function apply({ el, type, from, to, dx }, local) {
+        const q = clamp((local - from) / Math.max(0.0001, to - from));
+        const e = ease.out(q);
+        const s = el.style;
+        switch (type) {
+            case 'draw': s.strokeDashoffset = (1 - q).toFixed(4); break;
+            case 'fade': s.opacity = q.toFixed(3); break;
+            case 'pop': s.opacity = Math.min(1, q * 2).toFixed(3); s.transform = `scale(${(0.3 + 0.7 * ease.outBack(q)).toFixed(4)})`; break;
+            case 'rise': s.opacity = q.toFixed(3); s.transform = `translateY(${((1 - e) * 28).toFixed(2)}px)`; break;
+            case 'slide': s.opacity = q.toFixed(3); s.transform = `translateX(${((1 - e) * -60).toFixed(2)}px)`; break;
+            case 'grow': s.transform = `scaleY(${Math.max(0.001, e).toFixed(4)})`; break;
+            case 'scalex': s.transform = `scaleX(${Math.max(0.001, q).toFixed(4)})`; break;
+            case 'move': s.transform = `translateX(${(ease.inOut(q) * dx).toFixed(2)}px)`; break;
+            case 'clap': s.transform = `rotate(${(-32 * (1 - ease.in(q))).toFixed(2)}deg)`; break;
+            case 'flash': s.opacity = (Math.sin(Math.PI * q) * 0.8).toFixed(3); break;
+            case 'float': s.opacity = (q > 0 ? Math.sin(Math.PI * q) : 0).toFixed(3); s.transform = `translate(${(Math.sin(q * 6) * 10).toFixed(2)}px, ${(-q * 150).toFixed(2)}px)`; break;
+            default: break;
+        }
+    }
+
+    // The pen sits at the tip of whichever line is being written, and rests
+    // at the end of the last one once the writing is done.
+    function placePen(i, local) {
+        const pen = arts[i].querySelector('[data-a="pen"]');
+        const lines = pens[i];
+        if (!pen || !lines.length) return;
+        let target = lines[lines.length - 1];
+        let q = 1;
+        for (const line of lines) {
+            const [from, to] = line.dataset.at.split(',').map(Number);
+            if (local < to) {
+                target = line;
+                q = clamp((local - from) / (to - from));
+                break;
+            }
+        }
+        try {
+            const length = target.getTotalLength();
+            const point = target.getPointAtLength(length * q);
+            pen.style.transform = `translate(${point.x.toFixed(2)}px, ${point.y.toFixed(2)}px)`;
+            const writing = local > 0.18 && local < 0.82;
+            pen.style.opacity = writing || local >= 0.82 ? '1' : '0';
+        } catch (e) {
+            pen.style.opacity = '0';
+        }
+    }
+
+    let current = -1;
+
+    function render(progress) {
+        const f = progress * count;
+        const index = Math.min(count - 1, Math.floor(f));
+
+        arts.forEach((art, i) => {
+            // Before its turn a step is unplayed, after it finished.
+            const local = i < index ? 1 : i > index ? 0 : clamp((f - i) / 0.8);
+            art.setAttribute('opacity', i === index ? '1' : '0');
+            if (i === index || Math.abs(i - index) === 1) {
+                items[i].forEach((item) => apply(item, reduce ? 1 : local));
+                placePen(i, reduce ? 1 : local);
+            }
+            if (bars[i]) bars[i].style.transform = `scaleX(${i < index ? 1 : i > index ? 0 : clamp(f - i).toFixed(3)})`;
+        });
+
+        if (index !== current) {
+            current = index;
+            texts.forEach((text, i) => {
+                text.classList.toggle('opacity-0', i !== index);
+                text.classList.toggle('translate-y-4', i > index);
+                text.classList.toggle('-translate-y-4', i < index);
+            });
+            labels.forEach((label, i) => {
+                label.classList.toggle('text-white', i === index);
+                label.classList.toggle('text-brand-100/40', i !== index);
+            });
+        }
+
+        // Parallax: each step's giant number slides through as its step
+        // passes, the lights drift at their own rates.
+        if (!reduce) {
+            nums.forEach((num, i) => {
+                const d = f - (i + 0.5);
+                num.style.opacity = Math.max(0, 1 - Math.abs(d) * 1.4).toFixed(3);
+                num.style.transform = `translate3d(0, calc(-50% + ${(-d * 38).toFixed(2)}vh), 0)`;
+            });
+            blobs.forEach((blob) => {
+                const k = parseFloat(blob.dataset.prBlob) || 0;
+                blob.style.transform = `translate3d(${(progress * k * 30).toFixed(2)}vw, ${(progress * k * -25).toFixed(2)}vh, 0)`;
+            });
+        }
+    }
+
+    function progressNow() {
+        const rect = track.getBoundingClientRect();
+        const room = rect.height - stage.offsetHeight;
+        return room > 0 ? clamp(-rect.top / room) : 0;
+    }
+
+    let queued = false;
+    const queue = () => {
+        if (!queued) {
+            queued = true;
+            requestAnimationFrame(() => {
+                queued = false;
+                render(progressNow());
+            });
+        }
+    };
+
+    sizeTrack();
+    render(progressNow());
+    window.addEventListener('scroll', queue, { passive: true });
+    window.addEventListener('resize', () => {
+        if (!svh) sizeTrack();
+        queue();
+    });
+}
