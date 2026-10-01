@@ -36,6 +36,10 @@
         'to_be_edited' => 'bg-amber-400/15 text-amber-200',
         'edit_in_progress' => 'bg-amber-400/15 text-amber-200',
         'under_review' => 'bg-indigo-400/15 text-indigo-200',
+        // Script::STATUS_CLIENT_REVIEW -- sitting in the client's own
+        // approval queue, same hue as "under_review" above since it is the
+        // same kind of waiting, just on the other side of the handoff.
+        'client_review' => 'bg-indigo-400/15 text-indigo-200',
         'video_ready' => 'bg-teal-400/15 text-teal-200',
         'scheduled' => 'bg-sky-400/15 text-sky-200',
         'published' => 'bg-emerald-400/15 text-emerald-200',
@@ -103,6 +107,7 @@
         'to_be_edited' => 'To Be Edited',
         'edit_in_progress' => 'Edit In Progress',
         'under_review' => 'Under Review',
+        'client_review' => 'Client Review',
         'video_ready' => 'Video Ready',
         'scheduled' => 'Scheduled',
         'published' => 'Published',

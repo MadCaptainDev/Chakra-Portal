@@ -7,6 +7,10 @@
     $isAdmin = $user?->isAdmin();
     $isClient = $user?->isClient();
 
+    // Whose portal this is, for the client branch below: their name on the
+    // section label, and their section list deciding which rows it has.
+    $client = $isClient ? $user?->client : null;
+
     // Admin Permission groups start collapsed unless the current route lives in them.
     // Keys match Str::slug of Permission group labels (see x-nav-section).
     $adminOpenGroups = collect(Permission::grouped())
@@ -74,36 +78,63 @@
 
     <nav class="flex-1 px-3 py-3 overflow-y-auto">
     @if ($isClient)
-        {{-- Eight links and no profile. A client has nothing to configure
-             here beyond their own social connection, and an "Account"
-             section with one dead item in it is worse than none. The
-             middleware is what enforces this; the nav is cosmetic. --}}
-        <x-nav-section label="{{ $user?->client?->name ?? 'Your account' }}">
+        {{-- Overview and no profile. A client has nothing to configure here
+             beyond their own social connection, and an "Account" section
+             with one dead item in it is worse than none.
+
+             Everything below Overview is the studio's choice per client
+             (Client::PORTAL_SECTIONS, set on the client's own record), so
+             two clients signing in do not necessarily see the same seven
+             rows. Overview itself is not on that list: it is where signing
+             in lands, so it cannot be one of the ones turned off.
+
+             The `portal:` middleware on each route is what enforces this;
+             the nav is cosmetic, same as everywhere else in this file. --}}
+        <x-nav-section label="{{ $client?->name ?? 'Your account' }}">
             <x-sidebar-link icon="home" :href="route('client.dashboard')" :active="request()->routeIs('client.dashboard')">
                 Overview
             </x-sidebar-link>
-            <x-sidebar-link icon="template" :href="route('client.brief')" :active="request()->routeIs('client.brief*')">
-                Brand Brief
-            </x-sidebar-link>
+            @if ($client?->portalSectionEnabled('brief'))
+                <x-sidebar-link icon="template" :href="route('client.brief')" :active="request()->routeIs('client.brief*')">
+                    Brand Brief
+                </x-sidebar-link>
+            @endif
 
-            <x-sidebar-link icon="document" :href="route('client.invoices')" :active="request()->routeIs('client.invoices*')">
-                Invoices
-            </x-sidebar-link>
-            <x-sidebar-link icon="sparkles" :href="route('client.work')" :active="request()->routeIs('client.work')">
-                Work Delivered
-            </x-sidebar-link>
-            <x-sidebar-link icon="calendar" :href="route('client.content-calendar')" :active="request()->routeIs('client.content-calendar')">
-                Content Calendar
-            </x-sidebar-link>
-            <x-sidebar-link icon="briefcase" :href="route('client.portfolio')" :active="request()->routeIs('client.portfolio')">
-                Your Work
-            </x-sidebar-link>
-            <x-sidebar-link icon="camera" :href="route('client.shoots')" :active="request()->routeIs('client.shoots')">
-                Shoots
-            </x-sidebar-link>
-            <x-sidebar-link icon="globe" :href="route('client.social')" :active="request()->routeIs('client.social')">
-                Social
-            </x-sidebar-link>
+            @if ($client?->portalSectionEnabled('invoices'))
+                <x-sidebar-link icon="document" :href="route('client.invoices')" :active="request()->routeIs('client.invoices*')">
+                    Invoices
+                </x-sidebar-link>
+            @endif
+            @if ($client?->portalSectionEnabled('work'))
+                <x-sidebar-link icon="sparkles" :href="route('client.work')" :active="request()->routeIs('client.work')">
+                    Work Delivered
+                </x-sidebar-link>
+            @endif
+            @if ($client?->portalSectionEnabled('content-calendar'))
+                <x-sidebar-link icon="calendar" :href="route('client.content-calendar')" :active="request()->routeIs('client.content-calendar')">
+                    Content Calendar
+                </x-sidebar-link>
+            @endif
+            @if ($client?->portalSectionEnabled('portfolio'))
+                <x-sidebar-link icon="briefcase" :href="route('client.portfolio')" :active="request()->routeIs('client.portfolio')">
+                    Your Work
+                </x-sidebar-link>
+            @endif
+            @if ($client?->portalSectionEnabled('shoots'))
+                <x-sidebar-link icon="camera" :href="route('client.shoots')" :active="request()->routeIs('client.shoots')">
+                    Shoots
+                </x-sidebar-link>
+            @endif
+            @if ($client?->portalSectionEnabled('social'))
+                <x-sidebar-link icon="globe" :href="route('client.social')" :active="request()->routeIs('client.social')">
+                    Social
+                </x-sidebar-link>
+            @endif
+            @if ($client?->portalSectionEnabled('scripts'))
+                <x-sidebar-link icon="document" :href="route('client.scripts')" :active="request()->routeIs('client.scripts*')">
+                    Script Approvals
+                </x-sidebar-link>
+            @endif
         </x-nav-section>
     @elseif (! $isAdmin)
         {{-- Employees get timesheet, calendar, and their own profile. The admin

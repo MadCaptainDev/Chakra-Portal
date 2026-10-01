@@ -14,6 +14,7 @@ use App\Http\Controllers\Client\InstagramInsightsController as ClientInstagramIn
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\Client\MonthlyReportController as ClientMonthlyReportController;
 use App\Http\Controllers\Client\PortfolioController as ClientPortfolioController;
+use App\Http\Controllers\Client\ScriptApprovalController as ClientScriptApprovalController;
 use App\Http\Controllers\Client\ShootController as ClientShootController;
 use App\Http\Controllers\Client\ShootRequestController as ClientShootRequestController;
 use App\Http\Controllers\Client\SocialController as ClientSocialController;
@@ -413,6 +414,14 @@ Route::middleware(['auth', 'module:scripts,view'])->scopeBindings()->group(funct
     Route::delete('scripts/{script}', [ScriptController::class, 'destroy'])
         ->middleware('module:scripts,delete')->name('scripts.destroy');
 
+    // Puts the script in its client's one-at-a-time approval queue -- see
+    // Script::markSentToClient() and Client\ScriptApprovalController. Its own
+    // ability rather than riding on "edit": a writer who can rewrite a script
+    // should not necessarily be the one deciding it is finished enough to put
+    // in front of the client.
+    Route::post('scripts/{script}/send-to-client', [ScriptController::class, 'sendToClient'])
+        ->middleware('module:scripts,approve')->name('scripts.send-to-client');
+
     // The editor's own endpoints. All JSON, all behind the edit ability.
     Route::middleware('module:scripts,edit')->group(function () {
         Route::post('scripts/{script}/sections', [ScriptSectionController::class, 'store'])->name('scripts.sections.store');
@@ -437,28 +446,44 @@ Route::middleware(['auth', 'module:scripts,view'])->scopeBindings()->group(funct
  * to tamper with. See App\Http\Controllers\Client\Concerns\ResolvesClient.
  */
 Route::middleware(['auth', 'client'])->prefix('client')->name('client.')->group(function () {
+    /*
+     * `portal:<section>` is the studio's per-client choice about which of
+     * these screens this particular client has at all -- see
+     * Client::PORTAL_SECTIONS and EnsurePortalSectionEnabled. Every route
+     * below carries one except the dashboard, which is where a client
+     * lands on sign-in and so cannot be turned off.
+     *
+     * Named on each route rather than grouped by section: several sections
+     * are one route, and the two that are not (Shoots' request, Social's
+     * connect/disconnect and the two Instagram screens) read more clearly
+     * saying which section they belong to than nested inside a group that
+     * says it once.
+     */
     Route::get('/', [ClientDashboardController::class, 'index'])->name('dashboard');
-    Route::get('invoices', [ClientInvoiceController::class, 'index'])->name('invoices');
-    Route::get('invoices/{invoice}/pdf', [ClientInvoiceController::class, 'pdf'])->name('invoices.pdf');
-    Route::get('work', [ClientWorkController::class, 'index'])->name('work');
-    Route::get('shoots', [ClientShootController::class, 'index'])->name('shoots');
-    Route::post('shoots/request', [ClientShootRequestController::class, 'store'])->name('shoots.request');
+    Route::get('invoices', [ClientInvoiceController::class, 'index'])->name('invoices')->middleware('portal:invoices');
+    Route::get('invoices/{invoice}/pdf', [ClientInvoiceController::class, 'pdf'])->name('invoices.pdf')->middleware('portal:invoices');
+    Route::get('work', [ClientWorkController::class, 'index'])->name('work')->middleware('portal:work');
+    Route::get('shoots', [ClientShootController::class, 'index'])->name('shoots')->middleware('portal:shoots');
+    Route::post('shoots/request', [ClientShootRequestController::class, 'store'])->name('shoots.request')->middleware('portal:shoots');
 
-    Route::get('content-calendar', [ClientContentCalendarController::class, 'index'])->name('content-calendar');
-    Route::get('portfolio', [ClientPortfolioController::class, 'index'])->name('portfolio');
+    Route::get('content-calendar', [ClientContentCalendarController::class, 'index'])->name('content-calendar')->middleware('portal:content-calendar');
+    Route::get('portfolio', [ClientPortfolioController::class, 'index'])->name('portfolio')->middleware('portal:portfolio');
 
-    Route::get('social', [ClientSocialController::class, 'index'])->name('social');
-    Route::post('social/instagram/connect', [ClientInstagramConnectionController::class, 'connect'])->name('instagram.connect');
-    Route::delete('social/instagram', [ClientInstagramConnectionController::class, 'destroy'])->name('instagram.disconnect');
+    Route::get('social', [ClientSocialController::class, 'index'])->name('social')->middleware('portal:social');
+    Route::post('social/instagram/connect', [ClientInstagramConnectionController::class, 'connect'])->name('instagram.connect')->middleware('portal:social');
+    Route::delete('social/instagram', [ClientInstagramConnectionController::class, 'destroy'])->name('instagram.disconnect')->middleware('portal:social');
 
     // Read-only self-service versions of the staff Instagram Insights and
     // Monthly Report screens -- see Client\InstagramInsightsController and
     // Client\MonthlyReportController for exactly what's stripped out of
     // each (Sync now, portfolio actions, the section checklist, the note
     // editor, WhatsApp delivery) and why.
-    Route::get('instagram/insights', [ClientInstagramInsightsController::class, 'show'])->name('instagram.insights');
-    Route::get('instagram/report', [ClientMonthlyReportController::class, 'show'])->name('instagram.report');
-    Route::get('instagram/report/pdf', [ClientMonthlyReportController::class, 'pdf'])->name('instagram.report.pdf');
+    //
+    // Both hang off Social, which is the only screen that links to them
+    // and the only sidebar row either has -- see Client::PORTAL_SECTIONS.
+    Route::get('instagram/insights', [ClientInstagramInsightsController::class, 'show'])->name('instagram.insights')->middleware('portal:social');
+    Route::get('instagram/report', [ClientMonthlyReportController::class, 'show'])->name('instagram.report')->middleware('portal:social');
+    Route::get('instagram/report/pdf', [ClientMonthlyReportController::class, 'pdf'])->name('instagram.report.pdf')->middleware('portal:social');
 
     /*
      * The brand brief. Static segments and no {client}, by design and for the
@@ -476,9 +501,19 @@ Route::middleware(['auth', 'client'])->prefix('client')->name('client.')->group(
      * is not also PUT. A hidden field rewritten by JavaScript would restore the
      * verb at the cost of making the submit path depend on script running.
      */
-    Route::get('brief', [ClientBriefController::class, 'edit'])->name('brief');
-    Route::post('brief', [ClientBriefController::class, 'update'])->name('brief.update');
-    Route::post('brief/submit', [ClientBriefController::class, 'submit'])->name('brief.submit');
+    Route::get('brief', [ClientBriefController::class, 'edit'])->name('brief')->middleware('portal:brief');
+    Route::post('brief', [ClientBriefController::class, 'update'])->name('brief.update')->middleware('portal:brief');
+    Route::post('brief/submit', [ClientBriefController::class, 'submit'])->name('brief.submit')->middleware('portal:brief');
+
+    /*
+     * Script approvals, one at a time. {script} is a plain int, not a route
+     * model binding -- ClientScriptApprovalController resolves it through
+     * this client's own query, same reasoning as the invoice routes above:
+     * another client's script id must 404 rather than ever be loaded.
+     */
+    Route::get('scripts', [ClientScriptApprovalController::class, 'index'])->name('scripts')->middleware('portal:scripts');
+    Route::post('scripts/{script}/approve', [ClientScriptApprovalController::class, 'approve'])->name('scripts.approve')->middleware('portal:scripts');
+    Route::post('scripts/{script}/request-changes', [ClientScriptApprovalController::class, 'requestChanges'])->name('scripts.request-changes')->middleware('portal:scripts');
 });
 
 /*
@@ -1041,6 +1076,7 @@ Route::middleware(['auth', 'module:client-advances,view'])->group(function () {
     Route::delete('client-advances/{clientAdvance}', [ClientAdvanceController::class, 'destroy'])
         ->middleware('module:client-advances,delete')->name('client-advances.destroy');
 });
+
 Route::middleware(['auth', 'module:expenses,view'])->group(function () {
     // Combined month overview.
     Route::get('expenses', [ExpenseController::class, 'index'])->name('expenses.index');

@@ -23,6 +23,14 @@
     <x-slot name="header">
         <x-page-header :title="$script->title" eyebrow="Script" :subtitle="$script->clientLabel() ?: 'No client set'">
             <x-slot name="actions">
+                @can('scripts.approve')
+                    @if ($script->canSendToClient() && $script->client?->portalSectionEnabled('scripts'))
+                        <form method="POST" action="{{ route('scripts.send-to-client', $script) }}">
+                            @csrf
+                            <x-btn type="submit" icon="mail">Send to client</x-btn>
+                        </form>
+                    @endif
+                @endcan
                 @can('scripts.edit')
                     <x-btn :href="route('scripts.edit', $script)" icon="pencil">Edit</x-btn>
                 @endcan

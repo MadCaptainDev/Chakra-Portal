@@ -151,6 +151,25 @@ class ScriptController extends Controller
     }
 
     /**
+     * Puts the script in its client's one-at-a-time approval queue. 404s
+     * rather than redirecting with an error for the two ways this can be
+     * reached wrong (no client on the script, or the client's portal doesn't
+     * have the section) -- both mean the button should never have been on
+     * the page, which is also why the view only shows it when
+     * canSendToClient() and the section are both true.
+     */
+    public function sendToClient(Script $script): RedirectResponse
+    {
+        abort_unless($script->canSendToClient(), 404);
+        abort_unless($script->client?->portalSectionEnabled('scripts'), 404);
+
+        $script->markSentToClient();
+
+        return redirect()->route('scripts.show', $script)
+            ->with('status', 'Sent to '.$script->clientLabel().' for approval.');
+    }
+
+    /**
      * Everything both the create and edit forms need.
      *
      * Retired terms are kept in the picker of a script already using one, so

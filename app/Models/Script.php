@@ -23,6 +23,9 @@ class Script extends Model
 
     public const STATUS_READY = 'ready';
 
+    /** Sitting in this client's one-at-a-time approval queue -- see markSentToClient(). */
+    public const STATUS_CLIENT_REVIEW = 'client_review';
+
     public const STATUS_COMPLETED = 'completed';
 
     public const STATUS_ARCHIVED = 'archived';
@@ -33,6 +36,7 @@ class Script extends Model
         self::STATUS_INTERNAL_REVIEW => 'Internal Review',
         self::STATUS_CHANGES_REQUIRED => 'Changes Required',
         self::STATUS_READY => 'Ready',
+        self::STATUS_CLIENT_REVIEW => 'Client Review',
         self::STATUS_COMPLETED => 'Completed',
         self::STATUS_ARCHIVED => 'Archived',
     ];
@@ -85,6 +89,7 @@ class Script extends Model
         'due_on' => 'date',
         'target_seconds' => 'integer',
         'last_edited_at' => 'datetime',
+        'sent_to_client_at' => 'datetime',
     ];
 
     public function client(): BelongsTo
@@ -216,5 +221,52 @@ class Script extends Model
             'last_edited_by_id' => $user->id,
             'last_edited_at' => now(),
         ])->save();
+    }
+
+    /**
+     * Whether a "Send to client" button has anything to do. Ready is the
+     * ordinary path; Changes Required is also allowed because that is where
+     * a script lands after the client asks for a rewrite, and the writer
+     * needs a way to put the fixed version back in front of them without the
+     * studio first bouncing it through Ready again.
+     */
+    public function canSendToClient(): bool
+    {
+        return $this->client_id !== null
+            && in_array($this->status, [self::STATUS_READY, self::STATUS_CHANGES_REQUIRED], true);
+    }
+
+    /**
+     * Puts this in the client's one-at-a-time approval queue
+     * (Client\ScriptApprovalController::index() reads sent_to_client_at to
+     * decide whose turn is next).
+     */
+    public function markSentToClient(): void
+    {
+        $this->forceFill([
+            'status' => self::STATUS_CLIENT_REVIEW,
+            'sent_to_client_at' => now(),
+        ])->save();
+    }
+
+    /** The client signed off in their own portal -- nothing left but delivery. */
+    public function approveByClient(): void
+    {
+        $this->forceFill(['status' => self::STATUS_COMPLETED])->save();
+    }
+
+    /**
+     * Back to the writer, with the client's own note attached to the same
+     * thread the studio's internal comments live on -- one place to read
+     * everything anyone has said about this script, not two.
+     */
+    public function requestChangesByClient(User $client, string $note): void
+    {
+        $this->forceFill(['status' => self::STATUS_CHANGES_REQUIRED])->save();
+
+        $this->comments()->create([
+            'user_id' => $client->id,
+            'body' => $note,
+        ]);
     }
 }

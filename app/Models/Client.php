@@ -40,6 +40,47 @@ class Client extends Model
     ];
 
     /**
+     * Every screen in the client portal the studio can decide one client
+     * does not get, keyed by the part of its route name that follows
+     * `client.` -- so a section is named the same thing in the sidebar, in
+     * the route definition that guards it, and on the settings checklist,
+     * instead of three lists that can drift apart.
+     *
+     * Overview is deliberately absent and is not an oversight: it is where
+     * a client lands the moment they sign in, so "turned off" would have
+     * nowhere to send them. Instagram Insights and the monthly report are
+     * absent for a different reason -- they are reached from Social and
+     * have no sidebar row of their own, so they ride on `social` rather
+     * than being a section a studio has to think about separately.
+     */
+    public const PORTAL_SECTIONS = [
+        'brief' => 'Brand Brief',
+        'invoices' => 'Invoices',
+        'work' => 'Work Delivered',
+        'content-calendar' => 'Content Calendar',
+        'portfolio' => 'Your Work',
+        'shoots' => 'Shoots',
+        'social' => 'Social',
+        'scripts' => 'Script Approvals',
+    ];
+
+    /**
+     * What a client does not get until somebody says otherwise.
+     *
+     * Your Work is the case-study gallery -- the marketing-facing pieces
+     * the studio has published about a job, not the work delivered to the
+     * client, which is its own section. Most clients have none linked, so
+     * for most of them that row led to an empty page; it is on for the
+     * clients whose gallery the studio actually wants them looking at, and
+     * off for everyone else.
+     *
+     * Script Approvals is off for the same shape of reason: most clients
+     * never see a script before it's shot, and the studio only wants the
+     * extra sign-off step for the ones where it has asked for it.
+     */
+    public const PORTAL_SECTIONS_OFF_BY_DEFAULT = ['portfolio', 'scripts'];
+
+    /**
      * Regular: full social media management -- Instagram connected,
      * targets set, Forecast tracks them, monthly reports go out. Occasion:
      * a bounded job (shoot-only, edit-only, or a one-off event like a
@@ -70,6 +111,7 @@ class Client extends Model
         'phone',
         'whatsapp_portal_enabled',
         'report_sections_disabled',
+        'portal_sections_disabled',
         'notion_venture',
         'industry_id',
         'client_type',
@@ -82,6 +124,7 @@ class Client extends Model
     protected $casts = [
         'whatsapp_portal_enabled' => 'boolean',
         'report_sections_disabled' => 'array',
+        'portal_sections_disabled' => 'array',
         'is_active' => 'boolean',
         'forecast_alert_depletion_date' => 'date',
         'forecast_alert_sent_at' => 'datetime',
@@ -146,6 +189,49 @@ class Client extends Model
         return array_values(array_filter(
             array_keys(self::REPORT_SECTIONS),
             fn (string $key) => $this->reportSectionEnabled($key)
+        ));
+    }
+
+    /**
+     * Whether this client's portal includes one section.
+     *
+     * The stored value is a list of what is *off*, same convention as
+     * report_sections_disabled, but null resolves differently: there it
+     * means "everything", here it means "nobody has chosen yet", and
+     * PORTAL_SECTIONS_OFF_BY_DEFAULT answers instead. A client who
+     * predates this setting and one created this morning therefore get
+     * the same portal, with nothing backfilled for either.
+     */
+    public function portalSectionEnabled(string $key): bool
+    {
+        return ! in_array($key, $this->portal_sections_disabled ?? self::PORTAL_SECTIONS_OFF_BY_DEFAULT, true);
+    }
+
+    /**
+     * Every PORTAL_SECTIONS key this client's portal shows -- the rows
+     * their sidebar has, and what the studio's checklist pre-ticks.
+     *
+     * @return list<string>
+     */
+    public function enabledPortalSections(): array
+    {
+        return array_values(array_filter(
+            array_keys(self::PORTAL_SECTIONS),
+            fn (string $key) => $this->portalSectionEnabled($key)
+        ));
+    }
+
+    /**
+     * What a client nobody has chosen for gets -- what the *new* client
+     * form pre-ticks, where there is no record to ask yet.
+     *
+     * @return list<string>
+     */
+    public static function defaultPortalSections(): array
+    {
+        return array_values(array_diff(
+            array_keys(self::PORTAL_SECTIONS),
+            self::PORTAL_SECTIONS_OFF_BY_DEFAULT
         ));
     }
 
