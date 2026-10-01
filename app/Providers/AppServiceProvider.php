@@ -56,6 +56,7 @@ class AppServiceProvider extends ServiceProvider
         // The Video Checker's routes (see that file). loadRoutesFrom skips
         // this when routes are cached, so route:cache still picks them up.
         $this->loadRoutesFrom(base_path('routes/video-check.php'));
+        $this->loadRoutesFrom(base_path('routes/showreel.php'));
 
         /*
          * Admins pass everything. Returning null rather than false on the

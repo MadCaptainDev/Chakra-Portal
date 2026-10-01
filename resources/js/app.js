@@ -114,6 +114,19 @@ window.chakraPush = {
 };
 
 /*
+ * The showreel landing page's film and scroll parallax
+ * (resources/js/showreel.js). Same reasoning as push.js above: one page
+ * uses it, so it is its own chunk, fetched only where the stage exists.
+ */
+const showreelStage = document.querySelector('[data-showreel]');
+if (showreelStage) {
+    import('./showreel.js').then(({ initShowreel, initScrollParallax }) => {
+        initShowreel(showreelStage);
+        initScrollParallax();
+    });
+}
+
+/*
  * Top-of-page navigation bar. Every screen here is server-rendered Blade,
  * not a SPA -- there is nothing else telling the person that the tap they
  * just made is doing anything, right through the gap between the request

@@ -34,6 +34,7 @@ class PublicLayout extends Component
             'enquirySource' => match (true) {
                 request()->routeIs('portfolio.detail') => 'case-study',
                 request()->routeIs('portfolio') => 'portfolio',
+                request()->routeIs('showreel') => 'showreel',
                 default => 'landing',
             },
         ]);

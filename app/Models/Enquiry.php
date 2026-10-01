@@ -22,6 +22,7 @@ class Enquiry extends Model
         'landing' => 'Landing page',
         'portfolio' => 'Portfolio grid',
         'case-study' => 'Case study',
+        'showreel' => 'Showreel page',
     ];
 
     protected $fillable = [
