@@ -94,26 +94,64 @@ export function initShowreel(stage) {
         scale: [[0.1, 0.55], [1.2, 1, ease.out], [2.3, 1.06], [2.9, 4.5, ease.in], [12.5, 0.6], [13.6, 1.5, ease.out]],
     }, { depth: 0.4 });
 
-    animate(one('[data-sr="mark"]'), {
-        opacity: [[0.2, 0], [0.8, 1], [2.15, 1], [2.55, 0]],
-        y: [[0.2, 40], [0.95, 0, ease.outBack]],
-        scale: [[2.15, 1], [2.6, 1.5, ease.in]],
-    }, { depth: 0.7 });
+    /*
+     * The logo assembles itself. CHAKRA flies in from the top right and
+     * PRODUCTIONS from the bottom left; each lands hard -- overshoots, then
+     * a short damped shake, and the whole logo jolts with it. Then lightning
+     * strikes and the camera flickers on behind its own light.
+     */
+    // A damped shake after a landing at `at`: alternating offsets that halve.
+    const shake = (at, amount, unit = 'vw') => [0.05, 0.1, 0.15, 0.2, 0.26]
+        .map((dt, i) => [at + dt, (i === 4 ? 0 : (i % 2 ? -1 : 1) * amount / Math.pow(2, i)) + unit, ease.linear]);
+    const CHAKRA_LANDS = 0.7;
+    const PRODUCTIONS_LANDS = 1.05;
+    const STRIKE = 1.3;
 
-    all('[data-sr-letter]').forEach((el, i) => {
-        const s = 0.5 + i * 0.07;
-        const out = 2.15 + i * 0.03;
-        animate(el, { y: [[s, '115%'], [s + 0.55, '0%', ease.outExpo], [out, '0%'], [out + 0.45, '-115%', ease.in]] });
+    animate(one('[data-sr="logo-chakra"]'), {
+        opacity: [[0.15, 0], [0.3, 1]],
+        x: [[0.15, '70vw'], [CHAKRA_LANDS, '0vw', ease.out], ...shake(CHAKRA_LANDS, 1.6)],
+        y: [[0.15, '-50vh'], [CHAKRA_LANDS, '0vh', ease.out], ...shake(CHAKRA_LANDS, 1.2, 'vh')],
+        rotate: [[0.15, 14], [CHAKRA_LANDS, 0, ease.out], ...shake(CHAKRA_LANDS, 3, '')],
     });
 
-    animate(one('[data-sr="sub"]'), {
-        opacity: [[1.0, 0], [1.5, 1], [2.2, 1], [2.55, 0]],
-        tracking: [[1.0, '1.1em'], [1.9, '0.45em', ease.out]],
+    animate(one('[data-sr="logo-productions"]'), {
+        opacity: [[0.45, 0], [0.6, 1]],
+        x: [[0.45, '-70vw'], [PRODUCTIONS_LANDS, '0vw', ease.out], ...shake(PRODUCTIONS_LANDS, 1.6)],
+        y: [[0.45, '50vh'], [PRODUCTIONS_LANDS, '0vh', ease.out], ...shake(PRODUCTIONS_LANDS, 1.2, 'vh')],
+        rotate: [[0.45, -14], [PRODUCTIONS_LANDS, 0, ease.out], ...shake(PRODUCTIONS_LANDS, -3, '')],
+    });
+
+    // The whole logo jolts on each landing, and pushes out when the film moves on.
+    animate(one('[data-sr="logo"]'), {
+        x: [[0, 0], ...shake(CHAKRA_LANDS, 7, 'px'), ...shake(PRODUCTIONS_LANDS, -9, 'px'), ...shake(STRIKE, 5, 'px')],
+        y: [[0, 0], ...shake(CHAKRA_LANDS, 5, 'px'), ...shake(PRODUCTIONS_LANDS, 6, 'px'), ...shake(STRIKE, -4, 'px')],
+        opacity: [[2.15, 1], [2.6, 0]],
+        scale: [[2.15, 1], [2.65, 1.5, ease.in]],
+    }, { depth: 0.5 });
+
+    // Lightning: the bolt cracks twice, the stage flashes white with it.
+    animate(one('[data-sr="bolt"]'), {
+        opacity: [[STRIKE - 0.02, 0], [STRIKE, 1, ease.linear], [STRIKE + 0.08, 0, ease.linear], [STRIKE + 0.12, 0.9, ease.linear], [STRIKE + 0.24, 0, ease.linear]],
+    });
+    animate(one('[data-sr="flash"]'), {
+        opacity: [[STRIKE - 0.02, 0], [STRIKE + 0.02, 0.7, ease.linear], [STRIKE + 0.1, 0.05, ease.linear], [STRIKE + 0.14, 0.4, ease.linear], [STRIKE + 0.4, 0, ease.out]],
+    });
+
+    // The camera flickers on like a struck light, its backlight behind it.
+    const flicker = [[STRIKE, 0], [STRIKE + 0.04, 1, ease.linear], [STRIKE + 0.1, 0.15, ease.linear], [STRIKE + 0.15, 1, ease.linear], [STRIKE + 0.22, 0.35, ease.linear], [STRIKE + 0.3, 1, ease.linear]];
+    animate(one('[data-sr="camera"]'), {
+        opacity: flicker,
+        scale: [[STRIKE, 1.3], [STRIKE + 0.35, 1, ease.outBack]],
+    });
+    animate(one('[data-sr="camera-legs"]'), { opacity: flicker });
+    animate(one('[data-sr="camera-light"]'), {
+        opacity: [[STRIKE, 0], [STRIKE + 0.06, 1, ease.linear], [STRIKE + 0.12, 0.3, ease.linear], [STRIKE + 0.2, 0.9, ease.linear], [STRIKE + 0.6, 0.7]],
+        scale: [[STRIKE, 0.6], [STRIKE + 0.4, 1, ease.out]],
     });
 
     animate(one('[data-sr="tag"]'), {
-        opacity: [[1.4, 0], [1.9, 1], [2.2, 1], [2.5, 0]],
-        y: [[1.4, 14], [1.9, 0, ease.out], [2.2, 0], [2.5, -10]],
+        opacity: [[1.55, 0], [1.9, 1], [2.2, 1], [2.5, 0]],
+        tracking: [[1.55, '0.9em'], [1.95, '0.35em', ease.out]],
     });
 
     // ---- 2 · the work ----------------------------------------------------
