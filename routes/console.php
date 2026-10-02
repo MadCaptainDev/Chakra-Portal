@@ -104,3 +104,10 @@ Schedule::command('shoots:send-missing-content-alerts')->dailyAt('09:00')->timez
  * failure.
  */
 Schedule::command('whatsapp:morning-brief')->dailyAt('07:30')->timezone(config('app.timezone'));
+
+/*
+ * Nine at night: who entered today's timesheet and who did not, on each
+ * admin's WhatsApp. Falls back to the timesheet_daily_v1 template when the
+ * 24-hour window is closed -- see SendTimesheetReport.
+ */
+Schedule::command('whatsapp:timesheet-report')->dailyAt('21:00')->timezone(config('app.timezone'));
