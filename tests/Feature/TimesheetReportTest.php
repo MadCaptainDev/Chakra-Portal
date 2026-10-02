@@ -57,6 +57,11 @@ class TimesheetReportTest extends TestCase
         $this->assertStringContainsString("Not entered (1)*\n• Nitis", $text);
         $this->assertStringContainsString('• Sanjai — 7h 30m', $text);
         $this->assertStringNotContainsString('Owner', $text);
+        // Gokul logged yesterday; Sanjai and Nitis are genuinely behind on it.
+        $this->assertStringContainsString(
+            'Still missing '.today()->subDay()->format('D j M').': Nitis, Sanjai',
+            $text,
+        );
 
         $params = $report->templateParameters();
         $this->assertSame(['2', '3', 'Sanjai (7h 30m), Gokul (1h)', 'Nitis'], array_slice($params, 1));

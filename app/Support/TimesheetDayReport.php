@@ -99,6 +99,15 @@ class TimesheetDayReport
             $lines[] = 'Everyone is in. 👏';
         }
 
+        // The team mostly enters a day the next morning, so tonight's "not
+        // entered" is often just "not yet". Yesterday's names still missing
+        // by now are the ones actually behind.
+        $before = self::for($this->day->copy()->subDay());
+        if ($before->missing !== []) {
+            $lines[] = '';
+            $lines[] = '⚠️ Still missing '.$before->day->format('D j M').': '.implode(', ', $before->missing);
+        }
+
         return implode("\n", $lines);
     }
 

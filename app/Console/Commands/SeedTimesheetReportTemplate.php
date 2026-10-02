@@ -26,7 +26,7 @@ class SeedTimesheetReportTemplate extends Command
                 'name' => TimesheetDayReport::TEMPLATE,
                 'category' => 'UTILITY',
                 'language' => 'en_US',
-                'body' => "Timesheet for {{1}}: {{2}} of {{3}} people entered their hours.\n\nEntered: {{4}}\n\nNot entered: {{5}}",
+                'body' => "Hi, here is the timesheet for {{1}}: {{2}} of {{3}} people entered their hours.\n\nEntered: {{4}}\n\nNot entered: {{5}}\n\nReply to this message to get the full list every night.",
                 'body_example' => ['Fri 2 Oct', '4', '6', 'Sanjai (7h 30m), Gokul (6h)', 'Nitis, Annamalai'],
                 'footer' => 'Chakra Groups',
             ]);
