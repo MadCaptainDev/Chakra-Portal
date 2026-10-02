@@ -638,6 +638,7 @@ class MonthlyReportTest extends TestCase
         $response = $this->actingAs($this->staff(['view', 'edit']))->post(route('instagram.report.whatsapp', $client), [
             'phone' => '9876543210',
             'month' => now()->format('Y-m'),
+            'method' => 'pdf',
         ]);
 
         $response->assertRedirect();
@@ -775,5 +776,47 @@ class MonthlyReportTest extends TestCase
         $this->actingAs($this->staff(['view', 'edit']))
             ->post(route('instagram.report.whatsapp', $client), ['phone' => '9876543210', 'month' => now()->format('Y-m')])
             ->assertSessionHas('error', fn (string $error) => str_contains($error, 'waiting for Meta'));
+    }
+
+    public function test_a_pdf_is_refused_for_a_number_that_cannot_take_one_and_nothing_is_sent(): void
+    {
+        $this->configuredWhatsapp();
+        $client = $this->client();
+        $this->connectedAccount($client);
+        Http::fake();
+
+        $this->actingAs($this->staff(['view', 'edit']))
+            ->post(route('instagram.report.whatsapp', $client), ['phone' => '9876543210', 'month' => now()->format('Y-m'), 'method' => 'pdf'])
+            ->assertSessionHas('error', fn (string $error) => str_contains($error, 'link'));
+
+        Http::assertNothingSent();
+    }
+
+    public function test_the_share_link_is_made_on_demand_and_remembers_the_sections(): void
+    {
+        $client = $this->client('Zira Bridal Studio');
+        $this->connectedAccount($client);
+
+        $response = $this->actingAs($this->staff(['view', 'edit']))
+            ->postJson(route('instagram.report.link', $client), ['month' => now()->format('Y-m'), 'sections' => ['follower_growth']])
+            ->assertOk();
+
+        $note = MonthlyReportNote::where('client_id', $client->id)->sole();
+        $this->assertSame(route('reports.public-pdf', $note->public_token), $response->json('url'));
+        $this->assertStringContainsString($response->json('url'), $response->json('text'));
+        $this->assertSame(['follower_growth'], $note->shared_sections);
+    }
+
+    public function test_the_report_page_has_the_send_card_with_both_ways(): void
+    {
+        $client = $this->client();
+        $this->connectedAccount($client);
+
+        $this->actingAs($this->staff(['view', 'edit']))
+            ->get(route('instagram.report', $client))
+            ->assertOk()
+            ->assertSee('Send this report on WhatsApp')
+            ->assertSee('Works any time')
+            ->assertSee('Open Report');
     }
 }

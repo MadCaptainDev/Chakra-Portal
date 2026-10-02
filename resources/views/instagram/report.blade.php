@@ -144,9 +144,9 @@
                  just off screen. --}}
             @if (! $selfService)
             <x-card padding="md" data-chrome x-show="! isClient">
-                <details {{ $errors->has('phone') ? 'open' : '' }}>
+                <details>
                     <summary class="cursor-pointer text-sm font-semibold text-white select-none">
-                        Report sections &amp; delivery
+                        Report sections
                     </summary>
 
                     <div class="mt-4 space-y-5">
@@ -184,44 +184,165 @@
                             </div>
                         </form>
 
-                        <div class="pt-4 border-t border-white/10">
-                            <p class="text-xs font-semibold uppercase tracking-wider text-brand-100/60 mb-2">
-                                Send via WhatsApp
-                            </p>
-                            <form method="POST" action="{{ route('instagram.report.whatsapp', $client) }}"
-                                  class="flex flex-col sm:flex-row sm:items-start gap-3"
-                                  onsubmit="return confirm('Send the currently ticked sections of this report to this number on WhatsApp?');">
-                                @csrf
-                                <input type="hidden" name="month" value="{{ $monthParam }}">
-                                @foreach ($enabledSections as $key)
-                                    <input type="hidden" name="sections[]" value="{{ $key }}">
-                                @endforeach
-                                <div class="flex-1">
-                                    <x-input-label for="phone" value="WhatsApp number" />
-                                    <x-text-input id="phone" name="phone" type="text" class="mt-1 w-full"
-                                        value="{{ old('phone', $client->phone) }}"
-                                        placeholder="e.g. 9876543210" required />
-                                    <x-input-error :messages="$errors->get('phone')" class="mt-2" />
-                                    <p class="mt-1 text-[11px] text-brand-100/50">
-                                        If this number messaged the studio in the last 24 hours, the PDF goes as an attachment.
-                                        Otherwise WhatsApp only allows an approved message, so it gets a button that opens the PDF.
-                                    </p>
-                                </div>
-                                <x-primary-button class="mt-1 sm:mt-6">Send</x-primary-button>
-                            </form>
-
-                            {{-- What actually happened to each send: "sent" is only WhatsApp
-                                 accepting it; delivered, read or failed (with why) follows
-                                 from Meta within seconds -- see WhatsappSendLog::applyStatus(). --}}
-                            @if ($note->exists && $note->whatsappLogs->isNotEmpty())
-                                <div class="mt-4">
-                                    <p class="text-xs font-semibold uppercase tracking-wider text-brand-100/60 mb-2">Sent so far</p>
-                                    <x-whatsapp-log-table :logs="$note->whatsappLogs" />
-                                </div>
-                            @endif
-                        </div>
                     </div>
                 </details>
+            </x-card>
+
+            {{-- Send on WhatsApp. Two ways, because WhatsApp has two rules:
+                 a link (the approved monthly_report_link template with an
+                 "Open Report" button) reaches anyone at any time; the PDF
+                 file itself only reaches a number that messaged the studio
+                 in the last 24 hours. The preview shows exactly what the
+                 client will see, and the history below shows what actually
+                 happened to each send (delivered / read / failed, from Meta). --}}
+            @php
+                $monthLabel = $month->format('F Y');
+                $linkText = "Hi, {$client->name}'s {$monthLabel} Instagram report is ready. Tap below to open or download the PDF.";
+                $pdfName = $client->name.' — '.$monthLabel.' report.pdf';
+            @endphp
+            <x-card padding="md" data-chrome x-show="! isClient"
+                    x-data="{
+                        phone: @js(old('phone', $client->phone)),
+                        clientPhone: @js($client->phone),
+                        windowOpen: @js($whatsappWindowOpen ?? false),
+                        method: @js(old('method', 'link')),
+                        link: null, linkText: null, busy: false, copied: false,
+                        get sameNumber() { return (this.phone || '').replace(/\D/g, '').slice(-10) === (this.clientPhone || '').replace(/\D/g, '').slice(-10); },
+                        get pdfAllowed() { return ! this.sameNumber || this.windowOpen; },
+                        async getLink() {
+                            if (this.link) return this.link;
+                            this.busy = true;
+                            try {
+                                const body = new FormData(this.$refs.sendForm);
+                                const r = await fetch(@js(route('instagram.report.link', $client)), { method: 'POST', body, headers: { Accept: 'application/json' } });
+                                const data = await r.json();
+                                this.link = data.url; this.linkText = data.text;
+                                return this.link;
+                            } finally { this.busy = false; }
+                        },
+                        async copyLink() { await navigator.clipboard.writeText(await this.getLink()); this.copied = true; setTimeout(() => this.copied = false, 2000); },
+                        async preview() { const w = window.open('', '_blank'); w.location = await this.getLink(); },
+                        async fromMyPhone() {
+                            const w = window.open('', '_blank');
+                            await this.getLink();
+                            const digits = (this.phone || '').replace(/\D/g, '');
+                            const to = digits.length === 10 ? '91' + digits : digits;
+                            w.location = 'https://wa.me/' + to + '?text=' + encodeURIComponent(this.linkText);
+                        },
+                    }"
+                    x-init="if (method === 'pdf' && ! pdfAllowed) method = 'link'">
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                        <h3 class="text-base font-bold text-white">Send this report on WhatsApp</h3>
+                        <p class="mt-0.5 text-sm text-brand-100/60">
+                            {{ $monthLabel }} · {{ count($enabledSections) }} {{ Str::plural('section', count($enabledSections)) }}
+                            @if (! empty($whatsappFrom)) · from {{ $whatsappFrom }} @endif
+                        </p>
+                    </div>
+                </div>
+
+                <form x-ref="sendForm" method="POST" action="{{ route('instagram.report.whatsapp', $client) }}" class="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
+                    @csrf
+                    <input type="hidden" name="month" value="{{ $monthParam }}">
+                    @foreach ($enabledSections as $key)
+                        <input type="hidden" name="sections[]" value="{{ $key }}">
+                    @endforeach
+
+                    <div class="space-y-5">
+                        <div>
+                            <x-input-label for="phone" value="WhatsApp number" />
+                            <input id="phone" name="phone" type="tel" x-model="phone" @input="link = null" required placeholder="e.g. 98765 43210"
+                                   class="mt-1 w-full min-h-[46px] rounded-xl border-white/15 bg-brand-900/50 text-base text-white placeholder:text-brand-100/35 focus:border-brand-400 focus:ring-brand-400">
+                            <x-input-error :messages="$errors->get('phone')" class="mt-2" />
+                            <p class="mt-1 text-xs text-brand-100/50" x-show="sameNumber && clientPhone">{{ $client->name }}'s number on file.</p>
+                        </div>
+
+                        <fieldset>
+                            <legend class="text-sm font-medium text-brand-100/80">Send it as</legend>
+                            <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                                <label class="relative flex cursor-pointer flex-col gap-1 rounded-xl p-4 ring-1 transition"
+                                       :class="method === 'link' ? 'bg-brand-400/10 ring-brand-400' : 'bg-white/[0.03] ring-white/10 hover:ring-white/25'">
+                                    <input type="radio" name="method" value="link" x-model="method" class="sr-only">
+                                    <span class="flex items-center gap-2 font-semibold text-white">
+                                        <svg class="h-4 w-4 text-brand-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.8 10.2a4 4 0 010 5.6l-3 3a4 4 0 01-5.6-5.6l1.5-1.5m6.5-1.5a4 4 0 010-5.6l3-3a4 4 0 015.6 5.6l-1.5 1.5" /></svg>
+                                        Link
+                                        <span class="ml-auto rounded-full bg-emerald-400/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-200">Works any time</span>
+                                    </span>
+                                    <span class="text-xs leading-relaxed text-brand-100/60">A message with an Open Report button. They tap it to view or download the PDF.</span>
+                                </label>
+
+                                <label class="relative flex flex-col gap-1 rounded-xl p-4 ring-1 transition"
+                                       :class="! pdfAllowed ? 'cursor-not-allowed opacity-60 bg-white/[0.02] ring-white/10' : (method === 'pdf' ? 'cursor-pointer bg-brand-400/10 ring-brand-400' : 'cursor-pointer bg-white/[0.03] ring-white/10 hover:ring-white/25')">
+                                    <input type="radio" name="method" value="pdf" x-model="method" :disabled="! pdfAllowed" class="sr-only">
+                                    <span class="flex items-center gap-2 font-semibold text-white">
+                                        <svg class="h-4 w-4 text-brand-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l5 5v13H7a2 2 0 01-2-2V5a2 2 0 012-2zm7 0v5h5" /></svg>
+                                        PDF file
+                                        <span x-show="sameNumber && windowOpen" class="ml-auto rounded-full bg-emerald-400/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-200">Available now</span>
+                                        <span x-show="sameNumber && ! windowOpen" class="ml-auto rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-200">Not right now</span>
+                                    </span>
+                                    <span class="text-xs leading-relaxed text-brand-100/60" x-show="! sameNumber || windowOpen">The file itself, attached. Only if this number messaged {{ $whatsappFrom ?? 'the studio' }} in the last 24 hours.</span>
+                                    <span class="text-xs leading-relaxed text-amber-200/80" x-show="sameNumber && ! windowOpen">They have not messaged {{ $whatsappFrom ?? 'the studio' }} in the last 24 hours, so WhatsApp will not take a file. Send the link.</span>
+                                </label>
+                            </div>
+                        </fieldset>
+
+                        <div class="flex flex-col gap-2 sm:flex-row">
+                            <button type="submit" :disabled="busy"
+                                    class="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-5 text-sm font-bold text-[#0B141A] hover:bg-[#20bd5a] transition disabled:opacity-50"
+                                    onclick="return confirm('Send this report to this number on WhatsApp?');">
+                                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2a8.2 8.2 0 01-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.6.1a6.7 6.7 0 01-3.3-2.9c-.2-.4.2-.4.7-1.3a.4.4 0 000-.4l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 00-.7.3 3 3 0 00-.9 2.2 5.2 5.2 0 001.1 2.7 11.8 11.8 0 004.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 001.8-1.3 2.2 2.2 0 00.1-1.2c0-.1-.2-.2-.5-.3z" /></svg>
+                                <span x-text="method === 'pdf' ? 'Send PDF on WhatsApp' : 'Send link on WhatsApp'"></span>
+                            </button>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" @click="copyLink()" :disabled="busy"
+                                    class="inline-flex min-h-[40px] items-center gap-2 rounded-lg px-3 text-sm font-semibold ring-1 ring-white/15 text-brand-100 hover:bg-white/5">
+                                <span x-text="copied ? 'Copied ✓' : 'Copy link'"></span>
+                            </button>
+                            <button type="button" @click="preview()" :disabled="busy"
+                                    class="inline-flex min-h-[40px] items-center gap-2 rounded-lg px-3 text-sm font-semibold ring-1 ring-white/15 text-brand-100 hover:bg-white/5">Preview PDF</button>
+                            <button type="button" @click="fromMyPhone()" :disabled="busy || ! phone"
+                                    class="inline-flex min-h-[40px] items-center gap-2 rounded-lg px-3 text-sm font-semibold ring-1 ring-white/15 text-brand-100 hover:bg-white/5"
+                                    title="Opens WhatsApp on this device with the message and link ready, to send from your own account">Send from my phone</button>
+                        </div>
+                    </div>
+
+                    {{-- What they will see. --}}
+                    <div class="rounded-2xl bg-[#0B141A] p-4 ring-1 ring-white/10">
+                        <p class="mb-3 text-center text-[11px] text-white/40">Preview — what {{ $client->name }} receives</p>
+                        <div class="max-w-[300px] rounded-xl rounded-tl-none bg-[#1F2C34] text-[13px] text-[#E9EDEF] shadow">
+                            <template x-if="method === 'link'">
+                                <div>
+                                    <p class="px-3 pt-2.5 pb-1 leading-snug">{{ $linkText }}</p>
+                                    <p class="px-3 pb-2 text-[11px] text-white/45">Chakra Groups</p>
+                                    <div class="flex items-center justify-center gap-1.5 border-t border-white/10 py-2.5 text-[13px] font-semibold text-[#53BDEB]">
+                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 4h6v6m0-6L10 14M18 13v6a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h6" /></svg>
+                                        Open Report
+                                    </div>
+                                </div>
+                            </template>
+                            <template x-if="method === 'pdf'">
+                                <div class="p-1.5">
+                                    <div class="flex items-center gap-3 rounded-lg bg-[#2A3942] p-3">
+                                        <span class="flex h-10 w-8 items-center justify-center rounded bg-red-500 text-[9px] font-bold text-white">PDF</span>
+                                        <span class="min-w-0 text-[12px] leading-tight">{{ $pdfName }}</span>
+                                    </div>
+                                    <p class="px-1.5 pt-1.5 pb-1">{{ $client->name }}'s {{ $monthLabel }} Instagram report.</p>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </form>
+
+                {{-- What actually happened to each send: "sent" is only WhatsApp
+                     accepting it; delivered, read or failed (with why) follows
+                     from Meta within seconds -- see WhatsappSendLog::applyStatus(). --}}
+                @if ($note->exists && $note->whatsappLogs->isNotEmpty())
+                    <div class="mt-6">
+                        <p class="text-xs font-semibold uppercase tracking-wider text-brand-100/60 mb-2">Sent so far</p>
+                        <x-whatsapp-log-table :logs="$note->whatsappLogs" />
+                    </div>
+                @endif
             </x-card>
             @endif
 

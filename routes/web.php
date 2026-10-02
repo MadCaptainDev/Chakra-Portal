@@ -707,6 +707,9 @@ Route::middleware(['auth', 'module:clients,view'])->scopeBindings()->group(funct
         ->middleware('module:clients,edit')->name('instagram.report.sections');
     Route::post('clients/{client}/instagram/report/whatsapp', [MonthlyReportController::class, 'sendWhatsapp'])
         ->middleware(['module:clients,edit', 'throttle:10,1'])->name('instagram.report.whatsapp');
+    // The report's share link, made on demand for Copy / Preview / Send from my phone.
+    Route::post('clients/{client}/instagram/report/link', [MonthlyReportController::class, 'shareLink'])
+        ->middleware('module:clients,edit')->name('instagram.report.link');
 
     // Stored logins. scopeBindings() means a credential belonging to another
     // client 404s on the binding, before the controller runs.

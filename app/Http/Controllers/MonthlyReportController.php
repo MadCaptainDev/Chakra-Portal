@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\MonthlyReportNote;
 use App\Models\SocialAccount;
 use App\Models\WhatsappSendLog;
+use App\Models\WhatsappSetting;
 use App\Services\DocumentWhatsappNotifier;
 use App\Services\Instagram\InstagramSyncRunner;
 use App\Services\MonthlyReportData;
@@ -14,6 +15,7 @@ use App\Services\MonthlyReportNoteWriter;
 use App\Services\WhatsappSender;
 use App\Support\WhatsappServiceWindow;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -75,6 +77,10 @@ class MonthlyReportController extends Controller
             'until' => $until,
             'note' => MonthlyReportNote::forClientAndMonth($client, $month),
             'enabledSections' => $enabledSections,
+            // The send panel: can the client's own number take a file right
+            // now (WhatsApp's 24-hour window), and which number it comes from.
+            'whatsappWindowOpen' => filled($client->phone) && WhatsappServiceWindow::isOpen($client->phone),
+            'whatsappFrom' => WhatsappSetting::current()->display_phone_number,
         ] + MonthlyReportData::forRange($client, $account, $since, $until));
     }
 
@@ -199,20 +205,27 @@ class MonthlyReportController extends Controller
         $validated = $request->validate([
             'phone' => ['required', 'string', 'min:10', 'max:20', 'regex:/^[0-9+\-\s()]+$/'],
             'month' => ['required', 'date_format:Y-m'],
+            'method' => ['nullable', 'in:link,pdf'],
         ], [
             'phone.regex' => 'That doesn\'t look like a phone number.',
         ]);
 
         $month = $this->parseMonth($validated['month']);
         $enabledSections = $this->validSectionKeys((array) $request->input('sections', []));
+        $method = $validated['method'] ?? 'link';
+        $windowOpen = WhatsappServiceWindow::isOpen($validated['phone']);
         $back = redirect()->route('instagram.report', ['client' => $client, 'month' => $validated['month']]);
 
         // The note carries the link and its send history, so it has to exist.
         $note = MonthlyReportNote::forClientAndMonth($client, $month);
         $note->forceFill(['shared_sections' => $enabledSections])->save();
 
+        if ($method === 'pdf' && ! $windowOpen) {
+            return $back->with('error', 'WhatsApp will not deliver a PDF file to this number: it has not messaged the studio in the last 24 hours. Send it as a link instead -- that works any time.');
+        }
+
         try {
-            if (WhatsappServiceWindow::isOpen($validated['phone'])) {
+            if ($method === 'pdf') {
                 $pdfContents = Pdf::loadHTML($renderer->render($client, $account, $month, $enabledSections))
                     ->setPaper('a4')
                     ->output();
@@ -241,7 +254,7 @@ class MonthlyReportController extends Controller
                     buttonUrlParameter: $note->ensurePublicToken(),
                     sentByUserId: $request->user()?->id,
                 );
-                $how = 'a link to the PDF (that number has not messaged the studio in 24 hours, so WhatsApp will not take the file itself)';
+                $how = 'a link to the PDF';
             }
         } catch (RuntimeException $e) {
             // Until Meta approves the link template, the only way through is
@@ -258,6 +271,28 @@ class MonthlyReportController extends Controller
         return $back->with('status', "Sent to {$validated['phone']} as {$how}. Delivery shows below in a few seconds.");
     }
 
+
+    /**
+     * The report's link (/r/{token}) for Copy, Preview and Send from my
+     * phone on the send panel -- made on demand, so opening a report never
+     * creates anything; remembers the ticked sections, so the link shows
+     * what was shared.
+     */
+    public function shareLink(Request $request, Client $client): JsonResponse
+    {
+        $validated = $request->validate(['month' => ['required', 'date_format:Y-m']]);
+        $month = $this->parseMonth($validated['month']);
+
+        $note = MonthlyReportNote::forClientAndMonth($client, $month);
+        $note->forceFill(['shared_sections' => $this->validSectionKeys((array) $request->input('sections', []))])->save();
+
+        $url = $note->publicUrl();
+
+        return response()->json([
+            'url' => $url,
+            'text' => "Hi, {$client->name}'s {$month->format('F Y')} Instagram report is ready. Open or download the PDF here: {$url}",
+        ]);
+    }
 
     /**
      * The month this report covers. A monthly report is written after the
