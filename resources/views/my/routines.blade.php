@@ -5,7 +5,29 @@
     </x-slot>
 
     <div class="max-w-3xl space-y-6">
-        @if ($tasks->isEmpty())
+        @foreach ($inboxChecks as $check)
+            <a href="{{ route('inbox-desk.index') }}"
+               class="group flex items-center gap-4 rounded-2xl p-4 ring-1 transition
+                      {{ $check['late'] > 0 ? 'bg-amber-400/10 ring-amber-400/30' : 'bg-gradient-to-br from-brand-400/15 to-white/5 ring-white/10' }}
+                      hover:ring-white/25">
+                <span class="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-fuchsia-500 via-rose-500 to-amber-400 text-white flex items-center justify-center">
+                    <x-icon name="inbox" class="w-5 h-5" />
+                </span>
+                <span class="min-w-0 flex-1">
+                    <span class="block font-semibold text-white">{{ $check['title'] }}</span>
+                    <span class="block text-xs mt-0.5 {{ $check['late'] > 0 ? 'text-amber-200' : 'text-brand-100/70' }}">
+                        {{ $check['left'] }} {{ Str::plural('check', $check['left']) }} left
+                        @if ($check['late'] > 0) &middot; {{ $check['late'] }} late @endif
+                        &middot; open the Inbox Check
+                    </span>
+                </span>
+                <x-icon name="chevron-right" class="w-5 h-5 text-brand-100/50 group-hover:text-white shrink-0" />
+            </a>
+        @endforeach
+
+        @if ($tasks->isEmpty() && $inboxChecks->isNotEmpty())
+            {{-- Only the Inbox Check is owed; nothing else to say. --}}
+        @elseif ($tasks->isEmpty())
             <x-card padding="sm">
                 <p class="text-sm text-brand-100/60">Nothing due. You are all caught up.</p>
             </x-card>

@@ -34,11 +34,24 @@ class RoutineController extends Controller
         $duties = RoutineDutyList::group($this->visibleOpenOccurrences($request)->get());
         $due = $duties->filter(fn (array $d) => $d['oldest']->due_on->lte($today))->values();
 
+        // Per-account duties (Instagram DMs/comments) are done on the Inbox
+        // Check, tile by tile -- listing them here as well would be a second
+        // checklist for the same rows. They get one card pointing there.
+        [$accountScoped, $plain] = $due->partition(fn (array $d) => (bool) $d['routine']?->isAccountScoped());
+
         return view('my.routines', [
             // Fifteen venture accounts under one routine read as one task
             // with a checklist, not fifteen identical cards -- see
             // RoutineDutyList::nest().
-            'tasks' => RoutineDutyList::nest($due),
+            'tasks' => RoutineDutyList::nest($plain->values()),
+            'inboxChecks' => $accountScoped
+                ->groupBy(fn (array $d) => $d['routine']->id)
+                ->map(fn ($rows) => [
+                    'title' => $rows->first()['routine']->title,
+                    'left' => $rows->count(),
+                    'late' => $rows->where('is_overdue', true)->count(),
+                ])
+                ->values(),
             'upcoming' => $this->upcomingFor($request),
             'today' => $today,
         ]);

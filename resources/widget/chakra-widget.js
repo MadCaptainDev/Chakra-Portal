@@ -6,6 +6,7 @@
 //   shoots  Today's shoots
 //   hours   Hours logged today
 //   todos   Open to-dos
+//   inbox   Instagram DM & comment checks -- today
 //   today   Everything, in one summary
 //
 // The key below is read-only: it can only fetch this summary. Revoke it from

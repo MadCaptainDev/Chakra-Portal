@@ -149,6 +149,12 @@
             <x-sidebar-link icon="refresh" :href="route('my.routines')" :active="request()->routeIs('my.routines*')">
                 My Routines
             </x-sidebar-link>
+            {{-- Only for whoever is on an Instagram check routine. --}}
+            @if ($user && app(\App\Services\InboxDesk::class)->hasAccess($user))
+                <x-sidebar-link icon="inbox" :href="route('inbox-desk.index')" :active="request()->routeIs('inbox-desk.*')">
+                    Inbox Check
+                </x-sidebar-link>
+            @endif
             <x-sidebar-link icon="clock" :href="route('my.timesheet')" :active="request()->routeIs('my.timesheet*')">
                 My Timesheet
             </x-sidebar-link>

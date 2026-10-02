@@ -7,6 +7,7 @@ use App\Models\Shoot;
 use App\Models\TimesheetEntry;
 use App\Models\Todo;
 use App\Models\User;
+use App\Services\InboxDesk;
 use App\Services\Notion\NotionSyncRunner;
 use App\Support\ContentDashboard;
 use Illuminate\Http\JsonResponse;
@@ -65,6 +66,13 @@ class WidgetController extends Controller
 
         $data['shoots'] = $this->shoots($user, $day);
         $data['todos'] = $this->todos($user, $today);
+
+        // Instagram DMs/comments -- for whoever checks them, and for admins
+        // watching it happen. Always today's: it is a live tally, not a plan.
+        $desk = app(InboxDesk::class);
+        if ($desk->hasAccess($user)) {
+            $data['inbox'] = $desk->widget($user);
+        }
 
         if ($user->isAdmin()) {
             $data['reels'] = $this->reels($request->boolean('fresh'), $day);

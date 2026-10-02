@@ -68,6 +68,9 @@
             ['shoots', "Today's shoots"],
             $user->logsWork() || $user->isAdmin() ? ['hours', $user->logsWork() ? 'Hours you logged today' : "The team's hours today"] : null,
             ['todos', 'Your open to-dos'],
+            app(\App\Services\InboxDesk::class)->hasAccess($user)
+                ? ['inbox', 'Instagram DM & comment checks — live tally, account by account']
+                : null,
             ['today', 'Everything in one summary'],
         ]) as [$param, $what])
             <div class="flex items-center gap-3 px-4 py-2.5 border-t border-white/10">

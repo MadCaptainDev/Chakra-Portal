@@ -10,6 +10,7 @@
 //   shoots  Today's shoots
 //   hours   Hours logged today
 //   todos   Open to-dos
+//   inbox   Instagram DM & comment checks -- today
 //   today   Everything, one summary
 // Left empty: reels for admins, today for everyone else.
 //
@@ -80,6 +81,7 @@ async function run(opts) {
   else if (mode === "shoots") widget = shootsWidget(data, family);
   else if (mode === "hours") widget = hoursWidget(data, family);
   else if (mode === "todos") widget = todosWidget(data, family);
+  else if (mode === "inbox") widget = inboxWidget(data, family);
   else widget = todayWidget(data, family);
 
   widget.backgroundColor = C.bg;
@@ -375,6 +377,128 @@ function todosWidget(d, family) {
   return w;
 }
 
+// ================================================================ inbox check
+
+/*
+ * Instagram DMs and comments, account by account -- the Inbox Check screen
+ * on the home screen. A tap opens that screen in the portal, where the
+ * ticking happens; the widget is the tally.
+ */
+function inboxWidget(d, family) {
+  const ib = d.inbox;
+  if (!ib) return message("Inbox Check", "No Instagram accounts are assigned to you.");
+
+  const w = frame(d, "INBOX CHECK", ib.url);
+  const allDone = ib.total > 0 && ib.left === 0;
+  const fraction = ib.total ? ib.done / ib.total : 0;
+  const headline = allDone ? "All clear" : ib.total === 0 ? "Nothing due" : String(ib.left);
+  const sub = allDone ? "every inbox checked" : ib.total === 0 ? "no checks today" : (ib.left === 1 ? "check left" : "checks left");
+
+  if (family === "small") {
+    bigNumber(w, headline, allDone ? 26 : 40).textColor = allDone ? C.green : C.text;
+    text(w, sub, 11, C.dim);
+    w.addSpacer(8);
+    progress(w, fraction, 124, 6);
+    w.addSpacer(5);
+    text(w, ib.done + " of " + ib.total + " done", 10, allDone ? C.green : C.dim, true);
+    if (ib.late) text(w, ib.late + " late", 10, C.amber, true);
+    w.addSpacer();
+    footer(w, d);
+    return w;
+  }
+
+  if (family === "medium") {
+    const row = w.addStack();
+    row.topAlignContent();
+
+    const left = row.addStack();
+    left.layoutVertically();
+    left.size = new Size(104, 0);
+    bigNumber(left, headline, allDone ? 24 : 38).textColor = allDone ? C.green : C.text;
+    text(left, sub, 11, C.dim);
+    left.addSpacer(8);
+    progress(left, fraction, 96, 5);
+    left.addSpacer(4);
+    text(left, ib.done + "/" + ib.total + " done", 10, C.dim, true);
+    if (ib.late) text(left, ib.late + " late", 10, C.amber, true);
+
+    row.addSpacer(12);
+
+    const right = row.addStack();
+    right.layoutVertically();
+    inboxRows(right, ib, 4, false);
+
+    w.addSpacer();
+    footer(w, d);
+    return w;
+  }
+
+  // Large: the tally, the chips, every account.
+  const hero = w.addStack();
+  hero.bottomAlignContent();
+  bigNumber(hero, headline, allDone ? 32 : 42).textColor = allDone ? C.green : C.text;
+  hero.addSpacer(8);
+  const heroLabel = hero.addStack();
+  heroLabel.layoutVertically();
+  text(heroLabel, sub, 13, C.text, true);
+  text(heroLabel, allDone ? "for today" : "on " + ib.accounts_left + (ib.accounts_left === 1 ? " account" : " accounts"), 13, C.dim);
+  heroLabel.addSpacer(allDone ? 2 : 6);
+  hero.addSpacer();
+  const tally = hero.addStack();
+  tally.layoutVertically();
+  text(tally, ib.done + "/" + ib.total, 20, allDone ? C.green : C.text, true).rightAlignText();
+  text(tally, "done", 11, C.dim).rightAlignText();
+  tally.addSpacer(6);
+
+  w.addSpacer(10);
+  progress(w, fraction, 286, 6);
+  w.addSpacer(12);
+
+  inboxRows(w, ib, 6, true);
+
+  w.addSpacer();
+  if (ib.last) {
+    text(w, "Last: " + ib.last.text + " · " + ib.last.at, 9, C.dim);
+    w.addSpacer(2);
+  }
+  footer(w, d);
+  return w;
+}
+
+function inboxRows(stack, ib, max, roomy) {
+  if (ib.accounts.length === 0) {
+    emptyLine(stack, "No accounts today");
+    return;
+  }
+  ib.accounts.slice(0, max).forEach((a, i) => {
+    if (i) stack.addSpacer(roomy ? 7 : 5);
+    const row = stack.addStack();
+    row.centerAlignContent();
+    dot(row, a.left === 0 ? C.green : a.late ? C.amber : C.accent, 6);
+    row.addSpacer(7);
+    text(row, a.handle, roomy ? 13 : 12, a.left === 0 ? C.dim : C.text, a.left > 0);
+    row.addSpacer();
+    a.checks.forEach((c, j) => {
+      if (j) row.addSpacer(4);
+      checkPill(row, c, roomy);
+    });
+  });
+  if (ib.accounts.length > max) {
+    stack.addSpacer(4);
+    text(stack, "+" + (ib.accounts.length - max) + " more", 10, C.faint);
+  }
+}
+
+// "✓ DMs" when done, "DMs 4" with new chats waiting, plain when open.
+function checkPill(row, c, roomy) {
+  const label = roomy ? c.short : c.short.slice(0, 1);
+  if (c.state === "done") return pill(row, "✓ " + label, C.green);
+  if (c.state === "none") return pill(row, label, C.faint);
+  if (c.state === "skipped") return pill(row, "– " + label, C.dim);
+  const color = c.late ? C.amber : C.accent;
+  return pill(row, c.new ? label + " " + c.new : label, color);
+}
+
 // ================================================================ everything
 
 function todayWidget(d, family) {
@@ -391,6 +515,7 @@ function todayWidget(d, family) {
     [C.accent, d.shoots.count + (d.shoots.count === 1 ? " shoot" : " shoots")],
     d.reels ? [C.amber, d.reels.total_posting + " reels due · " + d.reels.counts.posted + " posted"] : null,
     [d.todos.overdue ? C.red : C.teal, d.todos.count + " to-dos" + (d.todos.overdue ? " · " + d.todos.overdue + " overdue" : "")],
+    d.inbox ? [d.inbox.total && d.inbox.left === 0 ? C.green : d.inbox.late ? C.amber : C.violet, d.inbox.total && d.inbox.left === 0 ? "Inbox check done" : d.inbox.left + " inbox checks left"] : null,
   ].filter(Boolean);
 
   lines.forEach(([color, label], i) => {

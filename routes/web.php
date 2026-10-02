@@ -43,6 +43,7 @@ use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\GoogleKeepImportController;
+use App\Http\Controllers\InboxDeskController;
 use App\Http\Controllers\InsightsController;
 use App\Http\Controllers\InstagramConnectionController;
 use App\Http\Controllers\InstagramInsightsController;
@@ -856,6 +857,19 @@ Route::middleware(['auth', 'module:taxonomy,view'])->group(function () {
         Route::put('master-data/{taxonomyTerm}', [TaxonomyTermController::class, 'update'])->name('taxonomy.update');
         Route::delete('master-data/{taxonomyTerm}', [TaxonomyTermController::class, 'destroy'])->name('taxonomy.destroy');
     });
+});
+
+/*
+ * Inbox Check -- Instagram DMs and comments, account by account. Not behind
+ * a module permission: who sees what is decided per routine by InboxDesk
+ * (permitted people, or admins), the same rule My Routines uses, so the
+ * person doing the duty needs no extra grant to reach it.
+ */
+Route::middleware(['auth', 'routines.catchup'])->prefix('inbox-check')->name('inbox-desk.')->group(function () {
+    Route::get('/', [InboxDeskController::class, 'index'])->name('index');
+    Route::get('state', [InboxDeskController::class, 'state'])->name('state');
+    Route::post('{occurrence}/check', [InboxDeskController::class, 'check'])->whereNumber('occurrence')->name('check');
+    Route::post('{occurrence}/undo', [InboxDeskController::class, 'undo'])->whereNumber('occurrence')->name('undo');
 });
 
 /*

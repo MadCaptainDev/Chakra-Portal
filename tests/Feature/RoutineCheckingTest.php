@@ -291,17 +291,22 @@ class RoutineCheckingTest extends TestCase
 
         $myRoutines = $this->actingAs($employee)->get(route('my.routines'));
         $myRoutines->assertOk();
-        // Once as the due task's own headline, once more in "Coming up"
-        // (tomorrow's occurrence, a separate section) -- not a third time,
-        // which is what one card per account would produce.
+        // Once as the card pointing at the Inbox Check, once more in "Coming
+        // up" (tomorrow's occurrence, a separate section) -- not a third
+        // time, which is what one card per account would produce. The
+        // accounts themselves are ticked on the Inbox Check, not here.
         $this->assertSame(
             2,
             substr_count($myRoutines->getContent(), 'Checking Venture Messages'),
             'the routine title should appear once as the task headline, not once per account',
         );
-        foreach (['Venture A', 'Venture B', 'Venture C'] as $name) {
-            $myRoutines->assertSee($name);
-        }
+        $myRoutines->assertSee(route('inbox-desk.index'))->assertSee('3 checks left');
+
+        $desk = $this->actingAs($employee)->getJson(route('inbox-desk.state'))->assertOk();
+        $this->assertSame(
+            ['Venture A', 'Venture B', 'Venture C'],
+            array_column($desk->json('routines.0.accounts'), 'handle'),
+        );
 
         $checking = $this->actingAs($admin)->get(route('routines.checking'));
         $checking->assertOk();

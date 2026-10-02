@@ -33,7 +33,7 @@
             if ($module === 'invoices' && request()->routeIs('recurring.*')) {
                 return true;
             }
-            if ($module === 'routines' && request()->routeIs('routines.calendar')) {
+            if ($module === 'routines' && request()->routeIs('routines.calendar', 'inbox-desk.*')) {
                 return true;
             }
             if ($module === 'saas-products' && request()->routeIs('developer.*')) {
@@ -84,6 +84,14 @@
             @if ($module === 'invoices' && Route::has('recurring.index') && auth()->user()?->can('invoices.manage'))
                 <x-sidebar-link icon="refresh" :href="route('recurring.index')" :active="request()->routeIs('recurring.*')">
                     Recurring
+                </x-sidebar-link>
+            @endif
+
+            {{-- Admins reach the Inbox Check from here; employees on the
+                 routine get it under My work instead. --}}
+            @if ($module === 'routines' && $isAdmin && Route::has('inbox-desk.index'))
+                <x-sidebar-link icon="inbox" :href="route('inbox-desk.index')" :active="request()->routeIs('inbox-desk.*')">
+                    Inbox Check
                 </x-sidebar-link>
             @endif
 

@@ -7,6 +7,7 @@ import { proposalEditor, registerEditDirective } from './proposal-editor.js';
 import { installBanner } from './install.js';
 import { videoChecker } from './video-check.js';
 import { notionConnections } from './notion-connections.js';
+import { inboxDesk } from './inbox-desk.js';
 
 window.Alpine = Alpine;
 
@@ -33,6 +34,9 @@ Alpine.data('videoChecker', videoChecker);
 
 // The Notion ↔ Clients screen -- see resources/js/notion-connections.js.
 Alpine.data('notionConnections', notionConnections);
+
+// The Inbox Check screen -- see resources/js/inbox-desk.js.
+Alpine.data('inboxDesk', inboxDesk);
 
 Alpine.start();
 
