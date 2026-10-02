@@ -817,6 +817,8 @@ class MonthlyReportTest extends TestCase
             ->assertOk()
             ->assertSee('Send this report on WhatsApp')
             ->assertSee('Works any time')
-            ->assertSee('Open Report');
+            ->assertSee('Open Report')
+            // Blade directives must be compiled, never reach the browser as text.
+            ->assertDontSee('@js(', false);
     }
 }

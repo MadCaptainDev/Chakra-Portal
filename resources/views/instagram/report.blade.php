@@ -200,8 +200,11 @@
                 $linkText = "Hi, {$client->name}'s {$monthLabel} Instagram report is ready. Tap below to open or download the PDF.";
                 $pdfName = $client->name.' — '.$monthLabel.' report.pdf';
             @endphp
-            <x-card padding="md" data-chrome x-show="! isClient"
-                    x-data="{
+            {{-- x-data sits on a plain div, not on <x-card>: Blade does not
+                 compile @js() inside a component tag's attributes, and the raw
+                 text left Alpine unable to start this card at all. --}}
+            <x-card padding="md" data-chrome x-show="! isClient">
+            <div x-data="{
                         phone: @js(old('phone', $client->phone)),
                         clientPhone: @js($client->phone),
                         windowOpen: @js($whatsappWindowOpen ?? false),
@@ -343,6 +346,7 @@
                         <x-whatsapp-log-table :logs="$note->whatsappLogs" />
                     </div>
                 @endif
+            </div>
             </x-card>
             @endif
 
