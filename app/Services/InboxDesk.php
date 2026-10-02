@@ -31,8 +31,12 @@ use Illuminate\Support\Facades\DB;
  */
 class InboxDesk
 {
-    /** A webhook feed quieter than this is treated as not set up for the account. */
-    private const ACTIVITY_FEED_DAYS = 30;
+    /**
+     * A webhook feed quieter than this is treated as not set up for the
+     * account. Comment webhooks have been known to stop arriving without any
+     * error; two weeks of silence must not keep showing "Nothing new".
+     */
+    private const ACTIVITY_FEED_DAYS = 14;
 
     public function __construct(
         private readonly RoutineCompleter $completer,
