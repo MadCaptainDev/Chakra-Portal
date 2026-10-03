@@ -29,16 +29,15 @@ class HomePage
 
     public static function data(): array
     {
-        $published = PortfolioItem::published()
+        $published = self::featuredFirst(PortfolioItem::published()
             ->with(['category', 'client'])
             ->get()
-            // Biggest hits first, then featured, then the admin's own order.
+            // Biggest hits first, then the admin's own order.
             ->sortBy([
                 fn ($a, $b) => (int) $b->views <=> (int) $a->views,
-                fn ($a, $b) => (int) $b->is_featured <=> (int) $a->is_featured,
                 fn ($a, $b) => $a->sort_order <=> $b->sort_order,
             ])
-            ->values();
+            ->values());
 
         $cards = $published->map(fn (PortfolioItem $item) => [
             'title' => $item->title,
@@ -70,6 +69,27 @@ class HomePage
                     : null,
             ]),
         ];
+    }
+
+    /**
+     * Featured pieces lead, dealt out one category at a time -- every
+     * category's best featured piece, then every category's second -- so a
+     * single viral category cannot fill the wall on its own. Everything not
+     * featured follows in the order it came in (biggest hits first).
+     */
+    private static function featuredFirst(Collection $byViews): Collection
+    {
+        [$featured, $rest] = $byViews->partition(fn (PortfolioItem $item) => $item->is_featured);
+
+        $rounds = $featured
+            ->groupBy(fn (PortfolioItem $item) => $item->portfolio_category_id ?? 0)
+            ->flatMap(fn (Collection $items) => $items->values()->map(fn (PortfolioItem $item, int $round) => [$round, $item]))
+            // Stable sort: inside a round, categories keep the order of
+            // their best piece, which is views order.
+            ->sortBy(fn (array $pair) => $pair[0])
+            ->map(fn (array $pair) => $pair[1]);
+
+        return $rounds->concat($rest)->values();
     }
 
     /**

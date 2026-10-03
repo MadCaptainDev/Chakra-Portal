@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Client;
 use App\Models\ContentItem;
+use App\Models\PortfolioCategory;
 use App\Models\PortfolioItem;
 use App\Models\TeamMember;
 use App\Models\User;
@@ -109,6 +110,29 @@ class HomePageFilmTest extends TestCase
         $this->assertFileExists($file);
         $this->assertSame('image/webp', getimagesize($file)['mime']);
         $this->assertSame(320, getimagesize($file)[0]);
+    }
+
+    public function test_featured_work_leads_dealt_out_one_category_at_a_time(): void
+    {
+        $health = PortfolioCategory::create(['name' => 'Healthcare', 'slug' => 'healthcare', 'is_visible' => true]);
+        $pets = PortfolioCategory::create(['name' => 'Pets', 'slug' => 'pets', 'is_visible' => true]);
+
+        $piece = fn (string $title, PortfolioCategory $category, int $views, bool $featured) => PortfolioItem::create([
+            'title' => $title, 'is_visible' => true, 'portfolio_category_id' => $category->id,
+            'views' => $views, 'is_featured' => $featured,
+        ]);
+
+        $piece('Health A', $health, 5_000_000, true);
+        $piece('Health B', $health, 3_000_000, true);
+        $piece('Health C', $health, 2_000_000, false);
+        $piece('Pets A', $pets, 60_000, true);
+        $piece('Pets B', $pets, 30_000, true);
+
+        $titles = HomePage::data()['works']->pluck('title')->all();
+
+        // A viral category no longer fills the wall: each category's best
+        // featured piece, then each one's second, then the unfeatured rest.
+        $this->assertSame(['Health A', 'Pets A', 'Health B', 'Pets B', 'Health C'], $titles);
     }
 
     public function test_a_missing_or_unreadable_image_falls_back_to_the_original(): void
