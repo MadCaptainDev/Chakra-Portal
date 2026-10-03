@@ -94,10 +94,6 @@
             .sr-marquee:hover { animation-play-state: paused; }
             @keyframes sr-cue { 0%, 100% { transform: translateY(0); opacity: 1; } 50% { transform: translateY(7px); opacity: .5; } }
             .sr-cue-dot { animation: sr-cue 1.6s ease-in-out infinite; }
-            /* The REC light in How we work. */
-            @keyframes pr-blink { 50% { fill-opacity: 0.15; } }
-            .pr-blink { animation: pr-blink 1.1s steps(1) infinite; }
-
             /* Film grain: a static noise tile, blended over everything. */
             .sr-grain {
                 background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
@@ -114,7 +110,7 @@
             [data-sr-row], [data-sr-word], [data-sr-logo], [data-sr="logo"] > img { will-change: transform, filter; }
 
             @media (prefers-reduced-motion: reduce) {
-                .sr-dust, .sr-bob, .sr-marquee, .sr-cue-dot, .pr-blink { animation: none; }
+                .sr-dust, .sr-bob, .sr-marquee, .sr-cue-dot { animation: none; }
             }
         </style>
     @endpush
@@ -370,28 +366,11 @@
         </section>
     @endif
 
-    {{-- What we do, and how. Swipeable cards on a phone, a grid on a desk. --}}
-    <section id="services" class="scroll-mt-20 py-16 sm:py-24">
-        <div class="max-w-7xl mx-auto px-5 sm:px-8">
-            <p class="text-brand-300 text-xs font-semibold uppercase tracking-[0.25em] mb-3">What we do</p>
-            <h2 class="text-3xl sm:text-4xl font-bold max-w-2xl leading-tight">Everything between the brief and the upload.</h2>
-        </div>
+    {{-- What we do: tap a service, watch it work (home/_services). --}}
+    @include('home._services')
 
-        <div class="mt-10 max-w-7xl mx-auto lg:px-8">
-            <div class="{{ $cardScroller }} lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:px-0">
-                @foreach ($services as [$title, $description])
-                    <div class="snap-start shrink-0 w-[78%] sm:w-[46%] lg:w-auto rounded-2xl bg-white/5 border border-white/10 p-6 hover:border-brand-400/40 transition-colors">
-                        <span class="text-brand-400/60 text-sm font-extrabold">{{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}</span>
-                        <h3 class="mt-2 font-semibold text-lg">{{ $title }}</h3>
-                        <p class="mt-2 text-sm text-brand-100/65 leading-relaxed">{{ $description }}</p>
-                    </div>
-                @endforeach
-            </div>
-        </div>
-    </section>
-
-    {{-- How we work: the six steps, animated by scroll (home/_process). --}}
-    @include('home._process')
+    {{-- How we work: where the hours go, from our own records (home/_hours). --}}
+    @include('home._hours')
 
     {{-- The team. From Team Page once people are published there; until
          then, the crew described by the work it does. --}}

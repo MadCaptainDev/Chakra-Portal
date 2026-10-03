@@ -8,6 +8,7 @@ import { installBanner } from './install.js';
 import { videoChecker } from './video-check.js';
 import { notionConnections } from './notion-connections.js';
 import { inboxDesk } from './inbox-desk.js';
+import { serviceExplorer, hoursPipeline } from './home-studio.js';
 
 window.Alpine = Alpine;
 
@@ -37,6 +38,10 @@ Alpine.data('notionConnections', notionConnections);
 
 // The Inbox Check screen -- see resources/js/inbox-desk.js.
 Alpine.data('inboxDesk', inboxDesk);
+
+// The homepage's What we do and How we work -- see resources/js/home-studio.js.
+Alpine.data('serviceExplorer', serviceExplorer);
+Alpine.data('hoursPipeline', hoursPipeline);
 
 Alpine.start();
 
@@ -122,16 +127,14 @@ window.chakraPush = {
 };
 
 /*
- * The homepage's film, its "How we work" steps and its scroll parallax
+ * The homepage's film and its scroll parallax
  * (resources/js/showreel.js). Same reasoning as push.js above: one page
  * uses it, so it is its own chunk, fetched only where the stage exists.
  */
 const showreelStage = document.querySelector('[data-showreel]');
 if (showreelStage) {
-    import('./showreel.js').then(({ initShowreel, initProcess, initScrollParallax }) => {
+    import('./showreel.js').then(({ initShowreel, initScrollParallax }) => {
         initShowreel(showreelStage);
-        const process = document.querySelector('[data-process]');
-        if (process) initProcess(process);
         initScrollParallax();
     });
 }

@@ -60,6 +60,7 @@ class HomePage
             'clients' => self::clients($published),
             'stats' => self::stats(),
             'categories' => PortfolioCategory::visible()->ordered()->pluck('name'),
+            'studio' => StudioNumbers::get(),
             'team' => TeamMember::visible()->ordered()->get()->map(fn (TeamMember $member) => [
                 'name' => $member->name,
                 'role' => $member->role,
