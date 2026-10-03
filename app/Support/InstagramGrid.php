@@ -10,8 +10,8 @@ use Throwable;
 
 /**
  * The client Instagram grids on the homepage's "Stills & static" tab: the
- * latest posts of the accounts we run, as a profile grid you can flip
- * between.
+ * latest photo and carousel posts (no reels) of the accounts we run, as a
+ * profile you can flip between.
  *
  * Instagram's image URLs are signed and expire within days, so the images
  * are copied into public/uploads/home-grid by `home:refresh-grid` (daily,
@@ -88,7 +88,8 @@ class InstagramGrid
             $items = SocialMediaItem::query()
                 ->where('social_account_id', $account->id)
                 ->when($since, fn ($q) => $q->where('posted_at', '>=', $since))
-                ->whereIn('media_product_type', [SocialMediaItem::PRODUCT_FEED, SocialMediaItem::PRODUCT_REELS])
+                // Stills only: photos and carousels, never reels.
+                ->where('media_product_type', SocialMediaItem::PRODUCT_FEED)
                 ->newestFirst()
                 ->limit(self::PER_ACCOUNT)
                 ->get();
@@ -110,7 +111,7 @@ class InstagramGrid
                 $posts[] = [
                     'id' => $item->id,
                     'image' => $image,
-                    'type' => $item->isReel() ? 'reel' : ($item->media_type === SocialMediaItem::TYPE_CAROUSEL ? 'carousel' : 'photo'),
+                    'type' => $item->media_type === SocialMediaItem::TYPE_CAROUSEL ? 'carousel' : 'photo',
                     'url' => $item->permalink,
                 ];
             }

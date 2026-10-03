@@ -282,54 +282,111 @@
                         </div>
                     </div></template>
 
-                    {{-- 05 · Stills & static: the real grids of the accounts we
-                         run, as an Instagram profile, switchable. --}}
-                    <template x-if="active === 4"><div class="absolute inset-0 flex flex-col sm:flex-row gap-3 sm:gap-5 p-3 sm:p-6 bg-white text-neutral-900">
+                    {{-- 05 · Stills & static: the photo and carousel posts of
+                         the accounts we run, in an Instagram-style profile.
+                         Tap the username to switch accounts, like the app's
+                         own account switcher; the profile scrolls. --}}
+                    <template x-if="active === 4"><div class="absolute inset-0 flex items-center justify-center p-3 sm:p-5">
                         @if ($grid)
-                            <div class="shrink-0 sm:w-40 flex sm:flex-col gap-3">
-                                <div class="flex sm:grid sm:grid-cols-2 gap-2 sm:gap-3 overflow-x-auto [scrollbar-width:none]" role="group" aria-label="Accounts">
-                                    @foreach ($grid as $a => $profile)
-                                        <button type="button" @click="pickAccount({{ $a }})" :aria-pressed="(account === {{ $a }}).toString()" class="shrink-0 flex flex-col items-center gap-1">
-                                            <span :class="account === {{ $a }} ? 'opacity-100 scale-105' : 'opacity-60'" class="block w-11 h-11 sm:w-14 sm:h-14 rounded-full p-[2px] bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600 transition">
-                                                <span class="block w-full h-full rounded-full bg-white p-[2px]">
-                                                    @if ($profile['avatar'])
-                                                        <img src="{{ asset($profile['avatar']) }}" alt="" class="w-full h-full rounded-full object-cover" loading="lazy">
-                                                    @else
-                                                        <span class="block w-full h-full rounded-full bg-neutral-200"></span>
-                                                    @endif
-                                                </span>
-                                            </span>
-                                            <span class="max-w-[4.5rem] truncate text-[9px] font-semibold text-neutral-600">{{ $profile['username'] }}</span>
-                                        </button>
-                                    @endforeach
+                            <div class="relative h-full aspect-[9/17] max-w-full rounded-[1.75rem] bg-white text-neutral-900 ring-[6px] ring-neutral-900 shadow-2xl overflow-hidden flex flex-col text-[11px]">
+                                {{-- Top bar: the username is the switcher. --}}
+                                <div class="shrink-0 flex items-center justify-between gap-2 px-3 pt-3 pb-2">
+                                    <button type="button" @click="switcher = !switcher" :aria-expanded="switcher.toString()" class="flex items-center gap-1 min-w-0 font-bold text-[13px]">
+                                        @foreach ($grid as $a => $profile)
+                                            <span x-show="account === {{ $a }}" @if ($a) style="display: none" @endif class="truncate">{{ $profile['username'] }}</span>
+                                        @endforeach
+                                        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0 transition-transform" :class="switcher ? 'rotate-180' : ''" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                                    </button>
+                                    <span class="flex items-center gap-3 shrink-0" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8M8 12h8"/></svg>
+                                        <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+                                    </span>
                                 </div>
-                                @foreach ($grid as $a => $profile)
-                                    <div x-show="account === {{ $a }}" @if ($a) style="display: none" @endif class="hidden sm:block">
-                                        <p class="text-sm font-bold truncate">{{ $profile['username'] }}</p>
-                                        @if ($profile['name'])<p class="text-xs text-neutral-500 truncate">{{ $profile['name'] }}</p>@endif
-                                        <span class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 ring-1 ring-emerald-200 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-emerald-700"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Real posts</span>
-                                    </div>
-                                @endforeach
-                            </div>
 
-                            <div class="flex-1 min-h-0 flex items-center justify-center">
+                                {{-- The account switcher sheet. --}}
+                                <div x-show="switcher" x-transition.opacity style="display: none" class="absolute inset-0 z-20 bg-black/40 flex items-end" @click.self="switcher = false">
+                                    <div class="w-full rounded-t-2xl bg-white p-3 space-y-1">
+                                        <span class="block mx-auto mb-2 w-8 h-1 rounded-full bg-neutral-300"></span>
+                                        @foreach ($grid as $a => $profile)
+                                            <button type="button" @click="pickAccount({{ $a }})" class="w-full flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-neutral-100 text-left">
+                                                @if ($profile['avatar'])
+                                                    <img src="{{ asset($profile['avatar']) }}" alt="" class="w-8 h-8 rounded-full object-cover" loading="lazy">
+                                                @else
+                                                    <span class="w-8 h-8 rounded-full bg-neutral-200"></span>
+                                                @endif
+                                                <span class="flex-1 min-w-0 font-semibold truncate">{{ $profile['username'] }}</span>
+                                                <span class="w-4 h-4 rounded-full border-2 flex items-center justify-center" :class="account === {{ $a }} ? 'border-sky-500' : 'border-neutral-300'">
+                                                    <span x-show="account === {{ $a }}" class="w-2 h-2 rounded-full bg-sky-500"></span>
+                                                </span>
+                                            </button>
+                                        @endforeach
+                                    </div>
+                                </div>
+
+                                {{-- The profile, scrolling. --}}
                                 @foreach ($grid as $a => $profile)
                                     <template x-if="account === {{ $a }}">
-                                        <div class="h-full max-w-full aspect-[3/4] grid grid-cols-3 grid-rows-3 gap-[2px]">
-                                            @foreach (array_slice($profile['posts'], 0, 9) as $p => $post)
-                                                <a href="{{ $post['url'] }}" target="_blank" rel="noopener" class="wd-pop group relative block overflow-hidden bg-neutral-200" style="animation-delay: {{ $p * 0.07 }}s">
-                                                    <img src="{{ asset($post['image']) }}" alt="Post by {{ $profile['username'] }}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy">
-                                                    @if ($post['type'] !== 'photo')
-                                                        <svg viewBox="0 0 24 24" class="absolute right-1 top-1 w-3.5 h-3.5 drop-shadow" fill="#fff" aria-hidden="true">
-                                                            @if ($post['type'] === 'reel')<path d="M4 4h16v16H4zM4 9h16M9 4l3 5M15 4l3 5" fill="none" stroke="#fff" stroke-width="2"/><path d="M10 12.5v5l4-2.5z"/>@else<path d="M7 3h13v13H7z"/><path d="M4 7v13h13" fill="none" stroke="#fff" stroke-width="2"/>@endif
-                                                        </svg>
-                                                    @endif
-                                                    <span class="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors"></span>
-                                                </a>
-                                            @endforeach
+                                        <div class="flex-1 min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                                            <div class="px-3 flex items-center gap-4">
+                                                <span class="shrink-0 w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600">
+                                                    <span class="block w-full h-full rounded-full bg-white p-[2px]">
+                                                        @if ($profile['avatar'])
+                                                            <img src="{{ asset($profile['avatar']) }}" alt="" class="w-full h-full rounded-full object-cover">
+                                                        @else
+                                                            <span class="block w-full h-full rounded-full bg-neutral-200"></span>
+                                                        @endif
+                                                    </span>
+                                                </span>
+                                                <div class="min-w-0">
+                                                    @if ($profile['name'])<p class="font-semibold text-[12px] truncate">{{ $profile['name'] }}</p>@endif
+                                                    <p class="text-neutral-500 truncate">Managed by Chakra Productions</p>
+                                                </div>
+                                            </div>
+                                            <div class="px-3 mt-3 grid grid-cols-2 gap-1.5 font-semibold" aria-hidden="true">
+                                                <span class="rounded-lg bg-sky-500 text-white text-center py-1.5">Follow</span>
+                                                <span class="rounded-lg bg-neutral-100 text-center py-1.5">Message</span>
+                                            </div>
+
+                                            {{-- Tabs: posts selected. --}}
+                                            <div class="sticky top-0 z-10 mt-3 grid grid-cols-3 bg-white border-b border-neutral-200" aria-hidden="true">
+                                                <span class="flex justify-center py-2 border-b-2 border-neutral-900"><svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg></span>
+                                                <span class="flex justify-center py-2 text-neutral-400"><svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M3 8h18M8 3l3 5M14 3l3 5"/><path d="m10 12 5 3-5 3z" fill="currentColor"/></svg></span>
+                                                <span class="flex justify-center py-2 text-neutral-400"><svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="12" cy="10" r="3"/><path d="M7 19c1-3 9-3 10 0"/></svg></span>
+                                            </div>
+
+                                            <div class="grid grid-cols-3 gap-[2px]">
+                                                @foreach ($profile['posts'] as $p => $post)
+                                                    <a href="{{ $post['url'] }}" target="_blank" rel="noopener" class="wd-pop group relative block aspect-[3/4] overflow-hidden bg-neutral-200" style="animation-delay: {{ $p * 0.06 }}s">
+                                                        <img src="{{ asset($post['image']) }}" alt="Post by {{ $profile['username'] }}" class="w-full h-full object-cover" loading="lazy">
+                                                        @if ($post['type'] === 'carousel')
+                                                            <svg viewBox="0 0 24 24" class="absolute right-1 top-1 w-3.5 h-3.5 drop-shadow" aria-hidden="true"><path d="M7 3h13v13H7z" fill="#fff"/><path d="M4 7v13h13" fill="none" stroke="#fff" stroke-width="2"/></svg>
+                                                        @endif
+                                                        <span class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors"></span>
+                                                    </a>
+                                                @endforeach
+                                            </div>
                                         </div>
                                     </template>
                                 @endforeach
+
+                                {{-- Bottom bar. --}}
+                                <div class="shrink-0 flex items-center justify-around py-2 border-t border-neutral-200" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11 12 3l9 8v10h-6v-6H9v6H3z"/></svg>
+                                    <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+                                    <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8M8 12h8"/></svg>
+                                    <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m10 9 5 3-5 3z" fill="currentColor"/></svg>
+                                    @foreach ($grid as $a => $profile)
+                                        <span x-show="account === {{ $a }}" @if ($a) style="display: none" @endif class="w-5 h-5 rounded-full ring-2 ring-neutral-900 overflow-hidden bg-neutral-200">
+                                            @if ($profile['avatar'])<img src="{{ asset($profile['avatar']) }}" alt="" class="w-full h-full object-cover">@endif
+                                        </span>
+                                    @endforeach
+                                </div>
+                            </div>
+
+                            {{-- A hint beside the phone, on a desk. --}}
+                            <div class="hidden sm:flex flex-col gap-2 ml-5 max-w-[10rem] text-sm text-brand-100/70">
+                                <p class="font-semibold text-white">Tap the name to switch accounts.</p>
+                                <p>Posts and carousels we designed and shot for the brands we run. Tap one to open it on Instagram.</p>
                             </div>
                         @else
                             <div class="m-auto grid grid-cols-3 gap-1 w-full max-w-xs" aria-hidden="true">
@@ -379,7 +436,7 @@
                                 <p class="text-[10px] uppercase tracking-widest text-brand-300 font-semibold">Monthly report</p>
                                 <p class="text-sm sm:text-base font-bold">Every account we run, month by month</p>
                             </div>
-                            <span class="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-emerald-400/10 ring-1 ring-emerald-400/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-300"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Real data</span>
+                            <span class="shrink-0 text-[10px] text-brand-100/45">Real data, shown as shares</span>
                         </div>
 
                         <div class="grid grid-cols-2 gap-2 sm:gap-3">

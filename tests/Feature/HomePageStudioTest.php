@@ -152,7 +152,8 @@ class HomePageStudioTest extends TestCase
             ->assertSee('61% of our hours')
             ->assertDontSee('1,742')
             ->assertDontSee('2,707')
-            ->assertDontSee('Not a slide of promises');
+            ->assertDontSee('Not a slide of promises')
+            ->assertDontSee('Real posts');
     }
 
     public function test_the_grid_only_lists_posts_whose_files_exist(): void

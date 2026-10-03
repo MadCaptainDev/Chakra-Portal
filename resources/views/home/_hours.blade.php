@@ -48,7 +48,6 @@
         @keyframes hw-travel { from { left: 0%; } to { left: 100%; } }
         @keyframes hw-fan { from { transform: rotate(0deg) translateY(20px); opacity: 0; } to { transform: rotate(var(--r)) translateY(0); opacity: 1; } }
         @keyframes hw-scan { 0%, 100% { transform: translate(0, 0); } 33% { transform: translate(60px, 30px); } 66% { transform: translate(-20px, 60px); } }
-        @keyframes hw-live { 50% { opacity: .35; } }
 
         .hw-in { animation: hw-in .5s cubic-bezier(.2,.8,.2,1) both; }
         .hw-grow { transform-origin: bottom; animation: hw-grow .8s cubic-bezier(.2,.8,.2,1) both; }
@@ -59,7 +58,6 @@
         .hw-fan { animation: hw-fan .6s cubic-bezier(.2,.8,.2,1) both; transform: rotate(var(--r)); }
         .hw-scan { animation: hw-scan 5s ease-in-out infinite; }
         .hw-fill { transform-origin: left; animation: hw-grow-x var(--d, 8s) linear both; }
-        .hw-live { animation: hw-live 1.4s ease-in-out infinite; }
 
         @media (prefers-reduced-motion: reduce) {
             [class*="hw-"] { animation: none !important; }
@@ -67,9 +65,9 @@
     </style>
 @endpush
 
-{{-- "Real data", wherever a chart is drawn from the records. --}}
+{{-- "Real data", said plainly wherever a chart is drawn from the records. --}}
 @php
-    $realData = '<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/10 ring-1 ring-emerald-400/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-300"><span class="hw-live w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Real data</span>';
+    $realData = '<span class="text-[11px] text-brand-100/45">Real data, shown as shares</span>';
 @endphp
 
 <section id="process" x-data="hoursPipeline(@js($growth))" class="relative scroll-mt-20 py-16 sm:py-24 bg-brand-800/40 border-y border-white/10 overflow-hidden" aria-labelledby="process-heading">

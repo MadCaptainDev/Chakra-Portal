@@ -100,8 +100,10 @@ export function serviceExplorer(count, report) {
         graded: false,
         gradeTouched: false,
 
-        // Stills: whose Instagram grid is showing.
+        // Stills: whose Instagram profile is showing, and whether the
+        // account switcher sheet is open.
         account: 0,
+        switcher: false,
 
         // Reports: which metric the monthly bars show.
         metric: 'views',
@@ -119,6 +121,7 @@ export function serviceExplorer(count, report) {
         show(i) {
             this.active = i;
             if (i === EDIT_TAB) this.graded = false;
+            this.switcher = false;
             if (i === REPORT_TAB) {
                 this.metric = 'views';
                 this.$nextTick(() => countUp(this.$refs.stage, 1200));
@@ -133,6 +136,7 @@ export function serviceExplorer(count, report) {
 
         pickAccount(i) {
             this.account = i;
+            this.switcher = false;
             this.stopAuto();
         },
 
