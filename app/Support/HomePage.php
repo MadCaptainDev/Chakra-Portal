@@ -130,7 +130,7 @@ class HomePage
             ->get()
             ->filter(fn (Client $client) => is_file(public_path($client->logo_path)))
             ->map(fn (Client $client) => [
-                'name' => Str::squish($client->name),
+                'name' => Str::squish($client->publicName()),
                 'logo' => ImageVariant::url($client->logo_path, 320, 200),
             ])
             ->values();

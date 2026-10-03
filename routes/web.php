@@ -667,6 +667,9 @@ Route::middleware(['auth', 'module:clients,view'])->scopeBindings()->group(funct
         ->middleware('module:clients,edit')->name('clients.edit');
     Route::match(['put', 'patch'], 'clients/{client}', [ClientController::class, 'update'])
         ->middleware('module:clients,edit')->name('clients.update');
+    // The name the public website shows -- its own small form, beside the main one.
+    Route::patch('clients/{client}/display-name', [ClientController::class, 'updateDisplayName'])
+        ->middleware('module:clients,edit')->name('clients.display-name');
     Route::delete('clients/{client}', [ClientController::class, 'destroy'])
         ->middleware('module:clients,delete')->name('clients.destroy');
 

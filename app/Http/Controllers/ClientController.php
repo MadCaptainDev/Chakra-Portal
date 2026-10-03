@@ -174,6 +174,23 @@ class ClientController extends Controller
         return redirect()->route('clients.index')->with('status', 'Client updated.');
     }
 
+    /**
+     * The name the website shows. Kept out of ClientRequest on purpose: it
+     * is a separate small form on the edit page, so changing what the
+     * public sees can never touch the billing name, and vice versa.
+     */
+    public function updateDisplayName(Request $request, Client $client): RedirectResponse
+    {
+        $data = $request->validate([
+            'display_name' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $name = trim((string) ($data['display_name'] ?? ''));
+        $client->forceFill(['display_name' => $name === '' || $name === $client->name ? null : $name])->save();
+
+        return redirect()->route('clients.edit', $client)->with('status', 'Website name saved.');
+    }
+
     public function destroy(Client $client): RedirectResponse
     {
         $logo = $client->logo_path;

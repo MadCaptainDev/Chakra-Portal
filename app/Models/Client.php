@@ -132,6 +132,17 @@ class Client extends Model
         'script_approval_token_issued_at' => 'datetime',
     ];
 
+    /**
+     * The name the public website shows -- the portfolio, the homepage. The
+     * books (invoices, quotations, reports) keep using name; display_name
+     * only exists for a brand that trades under a different name than the
+     * one it is billed under.
+     */
+    public function publicName(): string
+    {
+        return filled($this->display_name) ? $this->display_name : $this->name;
+    }
+
     public function isOccasion(): bool
     {
         return $this->client_type === self::CLIENT_TYPE_OCCASION;

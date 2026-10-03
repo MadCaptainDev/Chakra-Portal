@@ -185,7 +185,8 @@ class PortfolioItem extends Model
      */
     public function clientLabel(): ?string
     {
-        return $this->client?->name ?: ($this->client_name ?: null);
+        // The public name: a portfolio is the studio's shop window, not its books.
+        return $this->client?->publicName() ?: ($this->client_name ?: null);
     }
 
     /**
