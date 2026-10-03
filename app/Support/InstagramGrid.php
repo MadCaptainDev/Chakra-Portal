@@ -91,12 +91,17 @@ class InstagramGrid
                 // Stills only: photos and carousels, never reels.
                 ->where('media_product_type', SocialMediaItem::PRODUCT_FEED)
                 ->newestFirst()
-                ->limit(self::PER_ACCOUNT)
+                // Spares: a post deleted on Instagram can no longer be fetched.
+                ->limit(self::PER_ACCOUNT * 2)
                 ->get();
 
             $posts = [];
 
             foreach ($items as $item) {
+                if (count($posts) >= self::PER_ACCOUNT) {
+                    break;
+                }
+
                 $image = $oldPosts->get($item->id)['image'] ?? null;
 
                 if (! $image || ! is_file(public_path($image))) {
