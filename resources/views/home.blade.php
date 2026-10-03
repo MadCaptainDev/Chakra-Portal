@@ -46,6 +46,7 @@
         ['Editing & post', 'Cut, colour, sound and captions. Consistent output whether it is one film or a monthly slate.'],
         ['Stills & static', 'Photography and designed posts for the grid, shot alongside the video so it all matches.'],
         ['Publishing & scheduling', 'We can take it all the way to posted and scheduled, not just hand over a folder of files.'],
+        ['Reports & analysis', 'Views, reach, shares and saves, month by month, so you can see what is working and we know what to make more of.'],
     ];
 
 

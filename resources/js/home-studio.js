@@ -70,10 +70,15 @@ function autoTabs(count, every) {
             }, this.every);
         },
 
-        // pick(i): the visitor chose. show(): either of us did.
-        pick(i) {
+        // The visitor has taken over: no more advancing on its own.
+        stopAuto() {
             this.auto = false;
             clearInterval(this.timer);
+        },
+
+        // pick(i): the visitor chose. show(): either of us did.
+        pick(i) {
+            this.stopAuto();
             this.show(i, true);
         },
 
@@ -83,12 +88,70 @@ function autoTabs(count, every) {
     };
 }
 
-export function serviceExplorer(count) {
+// Indices of the tabs with something to play with (home.blade.php's $services).
+const EDIT_TAB = 3;
+const REPORT_TAB = 6;
+
+export function serviceExplorer(count, report) {
     return {
-        ...autoTabs(count, 6000),
+        ...autoTabs(count, 6500),
+
+        // Editing: log footage or the grade. Flips by itself until touched.
+        graded: false,
+        gradeTouched: false,
+
+        // Stills: whose Instagram grid is showing.
+        account: 0,
+
+        // Reports: which metric the monthly bars show.
+        metric: 'views',
+        months: report?.months ?? [],
 
         init() {
             whenSeen(this.$el, () => this.startAuto());
+            if (!reduceMotion()) {
+                setInterval(() => {
+                    if (this.active === EDIT_TAB && !this.gradeTouched && !document.hidden) this.graded = !this.graded;
+                }, 2200);
+            }
+        },
+
+        show(i) {
+            this.active = i;
+            if (i === EDIT_TAB) this.graded = false;
+            if (i === REPORT_TAB) {
+                this.metric = 'views';
+                this.$nextTick(() => countUp(this.$refs.stage, 1200));
+            }
+        },
+
+        setGrade(on) {
+            this.gradeTouched = true;
+            this.graded = on;
+            this.stopAuto();
+        },
+
+        pickAccount(i) {
+            this.account = i;
+            this.stopAuto();
+        },
+
+        pickMetric(metric) {
+            this.metric = metric;
+            this.stopAuto();
+        },
+
+        // A month's bar, as a percentage of the best month for this metric.
+        bar(month) {
+            const max = Math.max(1, ...this.months.map((m) => m[this.metric] ?? 0));
+            return Math.max(2, ((month[this.metric] ?? 0) / max) * 100);
+        },
+
+        // 7,001,864 → "7M"; 452,054 → "452K". Floored, like the server.
+        compact(n) {
+            if (n >= 1e6) return `${Math.floor(n / 1e5) / 10}M`;
+            if (n >= 1e3) return `${Math.floor(n / 1e3)}K`;
+            return String(n);
         },
     };
 }
@@ -121,19 +184,19 @@ export function hoursPipeline(growth) {
         },
 
         get max() {
-            return Math.max(1, ...this.points.map((p) => p.value));
+            return Math.max(1, ...this.points.map((p) => p.pct));
         },
 
         x(i) {
             return this.pad + (i / Math.max(1, this.points.length - 1)) * (this.w - this.pad * 2);
         },
 
-        y(value) {
-            return this.h - this.pad - (value / this.max) * (this.h - this.pad * 2);
+        y(pct) {
+            return this.h - this.pad - (pct / this.max) * (this.h - this.pad * 2);
         },
 
         get line() {
-            return this.points.map((p, i) => `${i ? 'L' : 'M'}${this.x(i).toFixed(1)} ${this.y(p.value).toFixed(1)}`).join(' ');
+            return this.points.map((p, i) => `${i ? 'L' : 'M'}${this.x(i).toFixed(1)} ${this.y(p.pct).toFixed(1)}`).join(' ');
         },
 
         get area() {
@@ -142,7 +205,7 @@ export function hoursPipeline(growth) {
         },
 
         get current() {
-            return this.points[this.cursor] ?? { date: '', value: 0 };
+            return this.points[this.cursor] ?? { date: '', pct: 0 };
         },
 
         // Pointer or finger anywhere over the chart: the nearest reading.
@@ -152,14 +215,15 @@ export function hoursPipeline(growth) {
             const clientX = event.touches ? event.touches[0].clientX : event.clientX;
             const fraction = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
             this.cursor = Math.round(fraction * (this.points.length - 1));
-            if (this.auto) {
-                this.auto = false;
-                clearInterval(this.timer);
-            }
+            this.stopAuto();
         },
 
-        views(n) {
-            return Math.floor(n).toLocaleString('en-US');
+        // A reading as a multiple of the first one: the page has shares, not views.
+        times(point) {
+            const first = this.points[0]?.pct || 0;
+            if (!first) return '';
+            const n = point.pct / first;
+            return `×${n >= 10 ? Math.floor(n) : Math.floor(n * 10) / 10}`;
         },
     };
 }

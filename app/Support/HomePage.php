@@ -61,6 +61,7 @@ class HomePage
             'stats' => self::stats(),
             'categories' => PortfolioCategory::visible()->ordered()->pluck('name'),
             'studio' => StudioNumbers::get(),
+            'grid' => InstagramGrid::read(),
             'team' => TeamMember::visible()->ordered()->get()->map(fn (TeamMember $member) => [
                 'name' => $member->name,
                 'role' => $member->role,
