@@ -1,6 +1,8 @@
 <x-public-layout
-    title="Work — Chakra Productions"
-    description="Films, series and short-form work from Chakra Productions, by category.">
+    :title="$seo['title']"
+    :description="$seo['description']"
+    :canonical="$seo['canonical']"
+    :schema="$seo['schema']">
 
     <section class="border-b border-white/10">
         <div class="max-w-7xl mx-auto px-5 sm:px-8 py-16 sm:py-20">
@@ -9,6 +11,7 @@
                 Everything we have made, in one place.
             </h1>
             <p class="mt-5 text-lg text-brand-100/70 max-w-2xl leading-relaxed">
+                Reels, YouTube and social media work for brands across Trichy, Manapparai and Tamil Nadu.
                 Pick a category to narrow it down, then tap any still to play the film.
             </p>
         </div>

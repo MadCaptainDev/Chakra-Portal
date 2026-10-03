@@ -15,9 +15,18 @@ use Illuminate\View\View;
  */
 class PublicLayout extends Component
 {
+    /**
+     * @param  string|null  $canonical  defaults to this URL without its query string
+     * @param  string|null  $image  the share card; defaults to the studio's 1200x630 one
+     * @param  list<array>  $schema  schema.org objects, one <script type="application/ld+json"> each
+     */
     public function __construct(
         public ?string $title = null,
         public ?string $description = null,
+        public ?string $canonical = null,
+        public ?string $image = null,
+        public string $ogType = 'website',
+        public array $schema = [],
     ) {}
 
     public function render(): View

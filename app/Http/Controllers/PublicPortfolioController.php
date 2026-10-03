@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PortfolioCategory;
 use App\Models\PortfolioItem;
+use App\Support\Seo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -37,12 +38,18 @@ class PublicPortfolioController extends Controller
 
         // Deep links like /portfolio?category=weddings open on that tab.
         $requested = (string) $request->query('category', '');
-        $active = $categories->firstWhere('slug', $requested)?->slug ?? 'all';
+        $activeModel = $categories->firstWhere('slug', $requested);
+        $active = $activeModel?->slug ?? 'all';
+
+        // A category tab is its own landing page for search ("healthcare
+        // marketing Trichy"), so it gets its own title, canonical and list.
+        $listed = $activeModel ? $items->where('portfolio_category_id', $activeModel->id) : $items;
 
         return view('portfolio-public', [
             'categories' => $categories,
             'items' => $items,
             'activeCategory' => $active,
+            'seo' => Seo::portfolioMeta($activeModel) + ['schema' => Seo::portfolioSchema($listed, $activeModel)],
         ]);
     }
 
@@ -85,6 +92,7 @@ class PublicPortfolioController extends Controller
         return view('portfolio-detail', [
             'item' => $portfolioItem,
             'related' => $related,
+            'seo' => Seo::caseStudy($portfolioItem),
         ]);
     }
 }

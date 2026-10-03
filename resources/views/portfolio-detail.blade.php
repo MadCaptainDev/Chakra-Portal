@@ -123,8 +123,12 @@
 @endphp
 
 <x-public-layout
-    :title="$item->title.' — Chakra Productions'"
-    :description="$item->summary ?: $item->description ?: 'A piece of work from Chakra Productions.'">
+    :title="$seo['title']"
+    :description="$seo['description']"
+    :canonical="$seo['canonical']"
+    :image="$seo['image']"
+    og-type="article"
+    :schema="$seo['schema']">
 
     {{-- ------------------------------------------------------------------ --}}
     {{-- Hero: the film, who it was for, and the headline numbers.           --}}

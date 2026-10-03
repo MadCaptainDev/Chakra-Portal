@@ -24,20 +24,17 @@
 --}}
 @php
     /*
-    | Contact details. Anything left null simply does not render.
+    | Contact details, from config/studio.php (and .env). Anything left
+    | empty simply does not render -- here or in the structured data.
     */
     $contact = [
-        'email' => null,      // 'hello@chakragroups.in'
-        'phone' => null,      // '+91 98765 43210'
-        'whatsapp' => null,   // '919876543210' - digits only, no + or spaces
-        'address' => null,    // 'Manapparai, Tamil Nadu'
+        'email' => config('studio.email'),
+        'phone' => config('studio.phone'),
+        'whatsapp' => config('studio.whatsapp'),
+        'address' => collect(config('studio.address'))->only(['street', 'locality', 'postal_code'])->filter()->implode(', ') ?: null,
     ];
 
-    $social = [
-        'Instagram' => null,  // 'https://instagram.com/...'
-        'YouTube' => null,    // 'https://youtube.com/@...'
-        'LinkedIn' => null,
-    ];
+    $social = config('studio.social');
 
     $services = [
         ['Short-form video', 'Reels, Shorts and stories cut for the feed - hook first, built to be watched with the sound off.'],
@@ -79,11 +76,12 @@
 @endphp
 
 <x-public-layout
-    title="Chakra Productions — Best Digital Marketing in Manapparai, Trichy and More"
-    description="Chakra Productions is a content and digital marketing studio serving Manapparai, Trichy and surrounding Tamil Nadu &mdash; short-form video, YouTube, scripting, editing, social media management and publishing, taken from idea to posted.">
+    title="Chakra Productions — Digital Marketing & Video Agency in Trichy, Manapparai"
+    description="Digital marketing agency in Trichy and Manapparai: Instagram reels, YouTube, scripting, shoots, editing and social media management, from idea to posted."
+    :canonical="url('/')"
+    :schema="[\App\Support\Seo::organization($services), \App\Support\Seo::website()]">
 
     @push('styles')
-        <link rel="canonical" href="{{ url('/') }}">
         <style>
             /* Dust in the projector beam: drifting up, glinting as it turns. */
             @keyframes sr-dust { 0% { transform: translate3d(0, 0, 0); opacity: 0; } 20% { opacity: .8; } 50% { opacity: .25; } 80% { opacity: .7; } 100% { transform: translate3d(14px, -60px, 0); opacity: 0; } }
@@ -116,29 +114,6 @@
         </style>
     @endpush
 
-    {{-- Local-business structured data -- tells Google which towns we serve. --}}
-    <script type="application/ld+json">
-        {!! json_encode([
-            '@context' => 'https://schema.org',
-            '@type' => 'MarketingAgency',
-            'name' => 'Chakra Productions',
-            'description' => 'Content and digital marketing studio: short-form video, YouTube, scripting, editing and social media publishing.',
-            'url' => url('/'),
-            'image' => asset('images/og-image.png'),
-            'areaServed' => [
-                ['@type' => 'City', 'name' => 'Manapparai'],
-                ['@type' => 'City', 'name' => 'Trichy'],
-                ['@type' => 'State', 'name' => 'Tamil Nadu'],
-            ],
-            ...($contact['address'] ? ['address' => [
-                '@type' => 'PostalAddress',
-                'addressLocality' => $contact['address'],
-                'addressCountry' => 'IN',
-            ]] : []),
-            ...array_filter(['email' => $contact['email'], 'telephone' => $contact['phone']]),
-        ], JSON_UNESCAPED_SLASHES) !!}
-    </script>
-
     {{-- ================================================================ the film --}}
     {{-- The track is one screen tall until the script makes it long enough to
          scroll the film through; the stage stays pinned while it does. --}}
@@ -151,7 +126,7 @@
                 })(document.currentScript.parentElement);
             </script>
 
-            <h1 class="sr-only">Chakra Productions — Digital Chaos. A video content studio.</h1>
+            <h1 class="sr-only">Chakra Productions — a digital marketing and video content studio in Trichy and Manapparai, Tamil Nadu.</h1>
             <p class="sr-only">
                 @foreach ($stats as $stat) {{ $stat['display'] }} {{ $stat['label'] }}. @endforeach
                 @if ($clients->isNotEmpty()) Brands we create for: {{ $clients->pluck('name')->join(', ') }}. @endif

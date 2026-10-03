@@ -39,22 +39,34 @@
          under roughly 200px a side, and they composite transparent PNGs onto
          black, so the small transparent logo showed as no preview at all. The
          explicit width/height let a scraper lay the card out before it has
-         finished fetching the file. --}}
+         finished fetching the file. A page with a picture of its own -- a case
+         study's cover -- shares that instead. --}}
+    <link rel="canonical" href="{{ $canonical ?? url()->current() }}">
+    <meta property="og:locale" content="en_IN">
     <meta property="og:title" content="{{ $title ?? 'Chakra Productions' }}">
     <meta property="og:description" content="{{ $description ?? 'A video content studio. Idea to posted.' }}">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="{{ url()->current() }}">
+    <meta property="og:type" content="{{ $ogType ?? 'website' }}">
+    <meta property="og:url" content="{{ $canonical ?? url()->current() }}">
     <meta property="og:site_name" content="Chakra Productions">
-    <meta property="og:image" content="{{ asset('images/og-image.png') }}">
-    <meta property="og:image:type" content="image/png">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="Chakra Productions — a video content studio.">
+    @if ($image ?? null)
+        <meta property="og:image" content="{{ $image }}">
+    @else
+        <meta property="og:image" content="{{ asset('images/og-image.png') }}">
+        <meta property="og:image:type" content="image/png">
+        <meta property="og:image:width" content="1200">
+        <meta property="og:image:height" content="630">
+        <meta property="og:image:alt" content="Chakra Productions — a video content studio.">
+    @endif
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{ $title ?? 'Chakra Productions' }}">
     <meta name="twitter:description" content="{{ $description ?? 'A video content studio. Idea to posted.' }}">
-    <meta name="twitter:image" content="{{ asset('images/og-image.png') }}">
+    <meta name="twitter:image" content="{{ ($image ?? null) ?: asset('images/og-image.png') }}">
+
+    {{-- schema.org structured data (App\Support\Seo), one object a script. --}}
+    @foreach ($schema ?? [] as $object)
+        <script type="application/ld+json">{!! json_encode($object, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) !!}</script>
+    @endforeach
 
     @include('partials.favicon')
 
@@ -133,9 +145,11 @@
 
     <footer class="border-t border-white/10">
         <div class="max-w-7xl mx-auto px-5 sm:px-8 py-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <p class="text-xs text-brand-100/40">
-                &copy; {{ date('Y') }} Chakra Productions. All rights reserved.
-            </p>
+            <div class="text-xs text-brand-100/40 space-y-1">
+                {{-- Where we are, in words: the same places the structured data names. --}}
+                <p>Digital marketing &amp; video production studio · {{ \App\Support\Seo::PLACES }}, Tamil Nadu</p>
+                <p>&copy; {{ date('Y') }} Chakra Productions. All rights reserved.</p>
+            </div>
             <div class="flex items-center gap-6">
                 {{-- Meta, Google and the app stores all want to find the privacy
                      policy from the site itself, not only from a pasted URL. --}}

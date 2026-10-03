@@ -75,6 +75,7 @@ use App\Http\Controllers\PublicBriefController;
 use App\Http\Controllers\PublicInvoiceController;
 use App\Http\Controllers\PublicMonthlyReportController;
 use App\Http\Controllers\PublicPortfolioController;
+use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\PublicProposalController;
 use App\Http\Controllers\PublicScriptApprovalController;
 use App\Http\Controllers\PublicQuotationController;
@@ -128,6 +129,9 @@ Route::get('/portfolio', [PublicPortfolioController::class, 'index'])->name('por
 // The case study for one piece. Named portfolio.detail rather than
 // portfolio.show because the portfolio.* names belong to the admin CRUD.
 Route::get('/portfolio/{portfolioItem}', [PublicPortfolioController::class, 'show'])->name('portfolio.detail');
+
+// Every public page for search engines -- see public/robots.txt.
+Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
 
 // Privacy policy. Public and outside every auth group on purpose: Meta, Google
 // and the app stores fetch this URL as an anonymous stranger, and a policy
