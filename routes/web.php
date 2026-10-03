@@ -977,6 +977,7 @@ Route::middleware(['auth', 'module:invoices,view', 'recurring.catchup'])->group(
         ->name('invoices.quantity-variables.preview');
     Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
     Route::post('invoices/download-pdfs', [InvoiceController::class, 'downloadPdfs'])->name('invoices.download-pdfs');
+    Route::get('invoices/export', [InvoiceController::class, 'export'])->name('invoices.export');
 
     /*
      * Declared before invoices/{invoice}: Laravel matches in declaration

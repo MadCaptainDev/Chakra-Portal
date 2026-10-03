@@ -9,6 +9,7 @@ use App\Models\Invoice;
 use App\Models\SaasProduct;
 use App\Services\DocumentWhatsappNotifier;
 use App\Services\InvoiceDocumentRenderer;
+use App\Support\InvoiceFilters;
 use App\Support\InvoiceQuantityVariable;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -21,6 +22,7 @@ use Illuminate\View\View;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 use ZipArchive;
 
@@ -28,73 +30,60 @@ class InvoiceController extends Controller
 {
     public function index(Request $request): View
     {
-        $search = $request->string('search')->toString();
-        $status = $request->string('status')->toString();
-        $type = $request->string('type')->toString();
-        $month = $this->resolveMonth($request->query('month'));
+        $filters = InvoiceFilters::fromRequest($request);
 
-        $listed = $this->listedInvoicesQuery($request, $month);
-
-        $monthTotal = (float) (clone $listed)->sum('total');
-
-        $invoices = $listed
+        $invoices = $filters->sorted()
             ->with(['client', 'payments', 'saasProduct'])
-            ->latest('invoice_date')
             ->paginate(20)
             ->withQueryString();
 
-        return view('invoices.index', compact('invoices', 'search', 'status', 'type', 'month', 'monthTotal'));
+        return view('invoices.index', [
+            'invoices' => $invoices,
+            'filters' => $filters,
+            'summary' => $filters->summary(),
+            // Only clients that have ever been invoiced -- a picker of every
+            // client would mostly offer empty lists.
+            'clients' => Client::query()->whereHas('invoices')->orderBy('name')->get(['id', 'name']),
+            'client' => $filters->clientId ? Client::find($filters->clientId, ['id', 'name']) : null,
+        ]);
     }
 
     /**
-     * The invoices the index actually lists for this month and filter set.
-     * Sum and table share this so the total is "what you see", not a
-     * separate unpaid+paid-only figure.
+     * The filtered list as CSV -- exactly the invoices the screen shows,
+     * every page of them, for the accountant or a client statement.
      */
-    private function listedInvoicesQuery(Request $request, Carbon $month)
+    public function export(Request $request): StreamedResponse
     {
-        $search = $request->string('search')->toString();
-        $status = $request->string('status')->toString();
-        $type = $request->string('type')->toString();
+        $filters = InvoiceFilters::fromRequest($request);
+        $client = $filters->clientId ? Client::find($filters->clientId) : null;
 
-        return Invoice::query()
-            ->whereDate('invoice_date', '>=', $month->copy()->startOfMonth()->toDateString())
-            ->whereDate('invoice_date', '<=', $month->copy()->endOfMonth()->toDateString())
-            ->when($search, function ($query, $search) {
-                $query->where(function ($inner) use ($search) {
-                    $inner->where('invoice_number', 'like', "%{$search}%")
-                        ->orWhereHas('client', fn ($q) => $q->where('name', 'like', "%{$search}%"));
-                });
-            })
-            ->when($status === 'overdue', fn ($query) => $query->overdue())
-            ->when($status === 'partial', fn ($query) => $query->partiallyPaid())
-            // "overdue" and "partial" are derived, not stored statuses.
-            ->when($status && ! in_array($status, ['overdue', 'partial'], true),
-                fn ($query) => $query->where('status', $status))
-            // The one filter Chakra App Studio actually asked for: pull its
-            // invoices apart from Chakra Production's on the same screen
-            // everyone already uses, rather than a second one. "studio" is
-            // all App Studio work; amc/development narrow to just one kind
-            // of it, since not every App Studio invoice is AMC.
-            ->when($type === 'studio', fn ($query) => $query->whereNotNull('saas_product_id'))
-            ->when($type === 'production', fn ($query) => $query->whereNull('saas_product_id'))
-            ->when($type === 'amc', fn ($query) => $query->where('saas_invoice_type', Invoice::STUDIO_TYPE_AMC))
-            ->when($type === 'development', fn ($query) => $query->where('saas_invoice_type', Invoice::STUDIO_TYPE_DEVELOPMENT));
+        $name = 'invoices-'.str($client?->name ?? 'all')->slug().'-'.str($filters->periodLabel())->slug().'.csv';
+
+        return response()->streamDownload(function () use ($filters) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['Invoice #', 'Client', 'Work', 'Invoice date', 'Due date', 'Status', 'Total', 'Paid', 'Balance due']);
+
+            $filters->sorted()->with(['client', 'payments'])->chunk(200, function ($invoices) use ($out) {
+                foreach ($invoices as $invoice) {
+                    fputcsv($out, [
+                        $invoice->invoice_number ?? 'Pending',
+                        $invoice->client?->name,
+                        $invoice->saas_product_id
+                            ? ($invoice->saas_invoice_type === Invoice::STUDIO_TYPE_AMC ? 'App Studio · AMC' : 'App Studio · Development')
+                            : 'Production',
+                        $invoice->invoice_date?->format('Y-m-d'),
+                        $invoice->due_date?->format('Y-m-d'),
+                        str($invoice->displayStatus())->replace('_', ' ')->title(),
+                        number_format((float) $invoice->total, 2, '.', ''),
+                        number_format($invoice->paidTotal(), 2, '.', ''),
+                        number_format($invoice->balanceDue(), 2, '.', ''),
+                    ]);
+                }
+            });
+
+            fclose($out);
+        }, $name, ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
-
-    private function resolveMonth(?string $value): Carbon
-    {
-        if (! $value) {
-            return now()->startOfMonth();
-        }
-
-        try {
-            return Carbon::parse(strlen($value) === 7 ? $value.'-01' : $value)->startOfMonth();
-        } catch (Throwable) {
-            return now()->startOfMonth();
-        }
-    }
-
     public function create(): View
     {
         $clients = Client::orderBy('name')->get();

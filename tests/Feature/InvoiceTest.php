@@ -89,8 +89,8 @@ class InvoiceTest extends TestCase
         $response = $this->actingAs($user)->get(route('invoices.index'));
 
         $response->assertOk();
-        $response->assertViewHas('monthTotal', 15000.0);
-        $response->assertSee('15,000.00 invoiced');
+        $response->assertViewHas('summary', fn (array $s) => $s['invoiced'] === 15000.0);
+        $response->assertSee('15,000.00');
         $response->assertSee('Sum');
     }
 
@@ -113,9 +113,9 @@ class InvoiceTest extends TestCase
         $response = $this->actingAs($user)->get(route('invoices.index', ['status' => 'unpaid']));
 
         $response->assertOk();
-        $response->assertViewHas('monthTotal', 10000.0);
-        $response->assertSee('10,000.00 invoiced');
-        $response->assertDontSee('14,000.00 invoiced');
+        $response->assertViewHas('summary', fn (array $s) => $s['invoiced'] === 10000.0);
+        $response->assertSee('₹10,000');
+        $response->assertDontSee('₹14,000');
     }
 
     public function test_pdf_download_returns_a_pdf(): void
