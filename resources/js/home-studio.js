@@ -25,7 +25,7 @@ export function countUp(root, duration = 1400) {
         const [, prefix, digits, suffix] = match;
         const target = parseFloat(digits.replace(/,/g, ''));
         const decimals = digits.includes('.') ? digits.split('.')[1].length : 0;
-        const format = (n) => n.toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+        const format = (n) => n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
         const start = performance.now();
 
         const tick = (now) => {
@@ -159,7 +159,7 @@ export function hoursPipeline(growth) {
         },
 
         views(n) {
-            return Math.floor(n).toLocaleString('en-IN');
+            return Math.floor(n).toLocaleString('en-US');
         },
     };
 }
