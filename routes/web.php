@@ -71,6 +71,7 @@ use App\Http\Controllers\PortfolioItemController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProposalCommentController;
 use App\Http\Controllers\ProposalController;
+use App\Http\Controllers\PublicAdReportController;
 use App\Http\Controllers\PublicBriefController;
 use App\Http\Controllers\PublicInvoiceController;
 use App\Http\Controllers\PublicMonthlyReportController;
@@ -243,6 +244,14 @@ Route::get('q/{token}', [PublicQuotationController::class, 'pdf'])->name('quotat
 // it reaches someone outside WhatsApp's 24-hour window (see
 // MonthlyReportController::sendWhatsapp()).
 Route::get('r/{token}', [PublicMonthlyReportController::class, 'pdf'])->name('reports.public-pdf');
+
+/*
+ * A month of paid-ads results (Meta Ads and the like) on a no-login link --
+ * see AdReport and the ad-reports:import command. Token-only, same as i/ and
+ * q/ above. Deliberately not "ads/{token}": ad blockers hide any address
+ * containing /ads/, and a client with one installed would see a blank page.
+ */
+Route::get('results/{token}', [PublicAdReportController::class, 'show'])->name('ad-reports.public');
 
 /*
  * Shared account area — admins and employees both manage their own profile.
