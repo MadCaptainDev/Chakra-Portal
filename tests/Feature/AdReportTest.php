@@ -336,6 +336,51 @@ class AdReportTest extends TestCase
         $this->assertSame($client->id, AdReport::firstOrFail()->client_id);
     }
 
+    private function whatsappConfigured(): void
+    {
+        \App\Models\WhatsappSetting::current()->update([
+            'access_token' => 'EAAG-test-token',
+            'phone_number_id' => '123456789',
+            'business_account_id' => '102290129340398',
+        ]);
+    }
+
+    public function test_sending_outside_the_window_uses_the_template_with_the_token(): void
+    {
+        $this->whatsappConfigured();
+        \Illuminate\Support\Facades\Http::fake(['graph.facebook.com/*' => \Illuminate\Support\Facades\Http::response(['messages' => [['id' => 'wamid.A1']]])]);
+
+        $client = Client::create(['name' => 'Thillai Pets Clinic', 'phone' => '+91 99523 92705']);
+        $report = $this->importer()->import($this->report(), $client->id);
+
+        $this->artisan('ad-reports:send', ['report' => $report->id])
+            ->expectsOutputToContain('Sent to 919952392705')
+            ->assertSuccessful();
+
+        \Illuminate\Support\Facades\Http::assertSent(function ($request) use ($report) {
+            $body = $request->data();
+
+            return $body['to'] === '919952392705'
+                && $body['template']['name'] === AdReport::WHATSAPP_TEMPLATE
+                && $body['template']['components'][0]['parameters'][0]['text'] === 'Thillai Pets Clinic'
+                && $body['template']['components'][0]['parameters'][1]['text'] === 'September 2026'
+                && $body['template']['components'][1]['parameters'][0]['text'] === $report->public_token;
+        });
+    }
+
+    public function test_a_switched_off_link_is_not_sent(): void
+    {
+        $this->whatsappConfigured();
+        \Illuminate\Support\Facades\Http::fake();
+
+        $client = Client::create(['name' => 'Thillai Pets Clinic', 'phone' => '9952392705']);
+        $report = $this->importer()->import($this->report(), $client->id);
+        $report->revokePublicToken();
+
+        $this->artisan('ad-reports:send', ['report' => $report->id])->assertFailed();
+        \Illuminate\Support\Facades\Http::assertNothingSent();
+    }
+
     public function test_the_command_refuses_a_broken_file(): void
     {
         $path = tempnam(sys_get_temp_dir(), 'adreport');

@@ -17,6 +17,14 @@ use Illuminate\Support\Str;
  */
 class AdReport extends Model
 {
+    /**
+     * The Meta template that carries the link outside WhatsApp's 24-hour
+     * window: its button is https://.../results/{{1}}, filled with the token.
+     * Must be approved before that path works -- see
+     * app:seed-ad-report-ready-template.
+     */
+    public const WHATSAPP_TEMPLATE = 'ad_report_ready_v1';
+
     /*
      * public_token, token_issued_at and first_viewed_at are not fillable: the
      * link is made and switched off by issuePublicToken() and
