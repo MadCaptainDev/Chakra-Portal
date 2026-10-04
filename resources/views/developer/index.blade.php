@@ -78,13 +78,26 @@
             </x-card>
 
             <x-card padding="md">
+                <h3 class="text-base font-semibold text-white">claude.ai, Claude Desktop or mobile — easiest</h3>
+                <p class="mt-1 text-sm text-brand-100/70">No token to copy: you sign in to the portal and press Allow.</p>
+                <ol class="mt-3 space-y-1.5 text-sm text-brand-100/80 list-decimal pl-5">
+                    <li>In Claude open <strong class="text-white">Settings → Connectors → Add custom connector</strong>.</li>
+                    <li>Name: <code class="text-brand-200">Chakra Portal</code>. URL: the one below. Leave the advanced settings empty.</li>
+                    <li>Click <strong class="text-white">Add</strong>, then <strong class="text-white">Connect</strong>. A portal page opens: sign in if asked, then press <strong class="text-white">Allow</strong>.</li>
+                    <li>In a chat, turn the connector on from the tools menu and ask away.</li>
+                </ol>
+                @include('developer._code', ['code' => $endpoint])
+                <p class="mt-2 text-xs text-brand-100/60">The connection appears on the Tokens tab as "… (connector)". Revoke it there to disconnect.</p>
+            </x-card>
+
+            <x-card padding="md">
                 <h3 class="text-base font-semibold text-white">Claude Code</h3>
                 <p class="mt-1 text-sm text-brand-100/70">Run once in a terminal. Then type <code class="text-brand-200">/mcp</code> in Claude Code to check it is connected.</p>
                 @include('developer._code', ['code' => $claudeCode])
             </x-card>
 
             <x-card padding="md">
-                <h3 class="text-base font-semibold text-white">Claude Desktop</h3>
+                <h3 class="text-base font-semibold text-white">Claude Desktop (config file, if you prefer a token)</h3>
                 <p class="mt-1 text-sm text-brand-100/70">Settings → Developer → Edit Config, paste into <code class="text-brand-200">claude_desktop_config.json</code>, then restart Claude. Needs Node.js installed.</p>
                 @include('developer._code', ['code' => $desktopJson])
             </x-card>

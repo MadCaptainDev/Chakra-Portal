@@ -36,9 +36,10 @@ class AuthenticateMcpToken
 
         if (! $token || ! $token->user) {
             // WWW-Authenticate because the specification says a 401 from an MCP
-            // server carries one, and clients read it to know what to send.
+            // server carries one. resource_metadata is how an OAuth-capable
+            // client (claude.ai connectors) finds the sign-in flow.
             return $this->refuse('A valid bearer token is required.', 401)
-                ->header('WWW-Authenticate', 'Bearer realm="Chakra Portal"');
+                ->header('WWW-Authenticate', 'Bearer realm="Chakra Portal", resource_metadata="'.route('mcp.oauth.protected-resource').'"');
         }
 
         $token->touchLastUsed();

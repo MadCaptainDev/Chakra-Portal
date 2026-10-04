@@ -69,7 +69,7 @@ class McpServerTest extends TestCase
     {
         $this->postJson(route('mcp'), ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'ping'])
             ->assertUnauthorized()
-            ->assertHeader('WWW-Authenticate', 'Bearer realm="Chakra Portal"');
+            ->assertHeader('WWW-Authenticate', 'Bearer realm="Chakra Portal", resource_metadata="'.route('mcp.oauth.protected-resource').'"');
     }
 
     public function test_a_made_up_token_is_refused(): void

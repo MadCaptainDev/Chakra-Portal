@@ -51,6 +51,7 @@ use App\Http\Controllers\InstagramSettingController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoiceTemplateController;
 use App\Http\Controllers\LandingController;
+use App\Http\Controllers\McpOAuthController;
 use App\Http\Controllers\McpTokenController;
 use App\Http\Controllers\MonthlyReportController;
 use App\Http\Controllers\My\CalendarController as MyCalendarController;
@@ -1513,3 +1514,30 @@ Route::middleware(['auth', 'admin', 'recurring.catchup', 'instagram.catchup', 'r
 });
 
 require __DIR__.'/auth.php';
+
+/*
+ * OAuth for the MCP server (see McpOAuthController), for apps that cannot
+ * take a pasted token: claude.ai's "Add custom connector", Claude Desktop
+ * connectors. Discovery and the two machine-to-machine POSTs are public and
+ * CSRF-exempt -- the apps call them server-side -- and throttled. The
+ * consent screen is behind `auth`, so signing in comes first.
+ */
+Route::middleware('throttle:60,1')->group(function () {
+    Route::get('.well-known/oauth-protected-resource', [McpOAuthController::class, 'protectedResource'])
+        ->name('mcp.oauth.protected-resource');
+    Route::get('.well-known/oauth-protected-resource/mcp', [McpOAuthController::class, 'protectedResource']);
+    Route::get('.well-known/oauth-authorization-server', [McpOAuthController::class, 'authorizationServer'])
+        ->name('mcp.oauth.metadata');
+    Route::get('.well-known/oauth-authorization-server/mcp', [McpOAuthController::class, 'authorizationServer']);
+
+    Route::withoutMiddleware(ValidateCsrfToken::class)->group(function () {
+        Route::post('oauth/register', [McpOAuthController::class, 'register'])
+            ->middleware('throttle:10,1')->name('mcp.oauth.register');
+        Route::post('oauth/token', [McpOAuthController::class, 'token'])->name('mcp.oauth.token');
+    });
+});
+
+Route::middleware('auth')->group(function () {
+    Route::get('oauth/authorize', [McpOAuthController::class, 'authorize'])->name('mcp.oauth.authorize');
+    Route::post('oauth/authorize', [McpOAuthController::class, 'decide'])->name('mcp.oauth.decide');
+});
