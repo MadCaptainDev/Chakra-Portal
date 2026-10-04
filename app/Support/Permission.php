@@ -348,6 +348,20 @@ class Permission
             'badge' => [WhatsappConversation::class, 'unreadCount'],
             'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
+
+        /*
+         * Connecting AI to the portal: MCP setup, tokens, the tool
+         * reference, the call log and the other APIs. `view` is the whole
+         * of it -- what a token can then do is still that person's own
+         * permissions, never more. Someone granted this sees only their own
+         * calls in the log; admins see everyone's.
+         */
+        'developer' => [
+            'label' => 'Developer',
+            'group' => 'Developer',
+            'icon' => 'desktop',
+            'abilities' => ['view'],
+        ],
     ];
 
     /**

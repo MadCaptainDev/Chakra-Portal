@@ -3,11 +3,22 @@
 use App\Http\Controllers\Api\WhatsappRoutineController;
 use App\Http\Controllers\Api\WidgetController;
 use App\Http\Controllers\WidgetTokenController;
+use App\Http\Middleware\AuthenticateMcpToken;
 use App\Http\Middleware\AuthenticateWidgetToken;
+use App\Http\Middleware\EnsureTokenOwnerIsAdmin;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware('api')->group(function () {
-    // Routines API - WhatsApp messaging for Claude Routines
+/*
+ * Routines API -- WhatsApp from the studio number for Claude Routines.
+ * Needs "Authorization: Bearer chakra_..." with an admin's MCP token
+ * (created on the Developer page); it was open to anyone before.
+ */
+Route::middleware([
+    'api',
+    AuthenticateMcpToken::class,
+    EnsureTokenOwnerIsAdmin::class,
+    'throttle:20,1',
+])->group(function () {
     Route::post('/routines/whatsapp/send', [WhatsappRoutineController::class, 'sendToAdmin']);
     Route::post('/routines/whatsapp/send-to', [WhatsappRoutineController::class, 'sendToNumber']);
 });

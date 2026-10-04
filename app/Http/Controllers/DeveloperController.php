@@ -2,22 +2,145 @@
 
 namespace App\Http\Controllers;
 
+use App\Mcp\Server;
+use App\Models\McpCallLog;
+use App\Tools\Tool;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 /**
- * The API reference for whoever is writing the client side of the backup +
- * license platform (routes/saas-api.php) -- an interactive Swagger UI, not
- * just prose. Deliberately its own top-level page under App Studio, not
- * nested inside any one SaaS product: the API shape is the same for every
- * product, and burying it in a product's own show page would mean nobody
- * finds it without already knowing which product to open first.
+ * The Developer space: everything needed to connect an AI client to the
+ * portal and keep an eye on what it does.
+ *
+ * The tool reference is built from Mcp\Server::toolsFor() at request time,
+ * never written out by hand, so it cannot drift from what a token actually
+ * gets -- and it shows each person only the tools their own permissions
+ * allow, exactly as tools/list does.
+ *
+ * The SaaS backup + license API keeps its own Swagger page (saasApi), still
+ * gated by SaaS Products.
  */
 class DeveloperController extends Controller
 {
-    public function index(): View
+    /**
+     * Older tools predate Tool::group(); this files them for the reference
+     * page without touching each class.
+     */
+    private const LEGACY_GROUPS = [
+        'whoami' => 'General',
+        'list_timesheet' => 'Timesheet & to-dos',
+        'log_timesheet_entry' => 'Timesheet & to-dos',
+        'list_todos' => 'Timesheet & to-dos',
+        'create_todo' => 'Timesheet & to-dos',
+        'set_todo_status' => 'Timesheet & to-dos',
+        'list_shoots' => 'Shoots',
+        'shoots_between' => 'Shoots',
+        'list_scripts' => 'Content',
+        'reel_planner_today' => 'Content',
+        'find_client' => 'Clients',
+        'invoice_lookup' => 'Finance',
+        'describe_data' => 'Studio data (admin)',
+        'run_query' => 'Studio data (admin)',
+    ];
+
+    public function index(Request $request, Server $server): View
     {
-        return view('developer.index');
+        $user = $request->user();
+
+        $tools = collect($server->toolsFor($user))->map(fn (Tool $tool) => [
+            'name' => $tool->name(),
+            'title' => $tool->title(),
+            'group' => $this->groupOf($tool),
+            'description' => $tool->description(),
+            'inputs' => $this->inputsOf($tool),
+            'read_only' => $tool->isReadOnly(),
+            'destructive' => $tool->isDestructive(),
+            'messages_client' => $tool->messagesClient(),
+            'admin_only' => $tool->requiresAdmin(),
+            'permission' => $tool->permission(),
+            'whatsapp_assistant' => ! $tool->mcpOnly(),
+        ]);
+
+        $logs = McpCallLog::query()
+            ->with(['user:id,name', 'token:id,name'])
+            ->when(! $user->isAdmin(), fn ($q) => $q->where('user_id', $user->id))
+            ->latest('created_at')
+            ->latest('id')
+            ->limit(100)
+            ->get();
+
+        $weekQuery = McpCallLog::query()
+            ->when(! $user->isAdmin(), fn ($q) => $q->where('user_id', $user->id))
+            ->where('created_at', '>=', now()->subDays(7));
+
+        $tab = in_array($request->query('tab'), ['connect', 'tokens', 'tools', 'activity', 'apis'], true)
+            ? $request->query('tab')
+            : (session('mcp_token_plain') || session('status') ? 'tokens' : 'connect');
+
+        return view('developer.index', [
+            'user' => $user,
+            'tab' => $tab,
+            'endpoint' => route('mcp'),
+            'serverVersion' => Server::VERSION,
+            'instructions' => Server::INSTRUCTIONS,
+            'tools' => $tools,
+            'toolGroups' => $tools->groupBy('group')->sortKeys(),
+            'mcpTokens' => $user->mcpTokens()->latest()->get(),
+            'logs' => $logs,
+            'week' => [
+                'calls' => (clone $weekQuery)->count(),
+                'failed' => (clone $weekQuery)->where('ok', false)->count(),
+                'avg_ms' => (int) (clone $weekQuery)->avg('duration_ms'),
+            ],
+            'canSeeSaasApi' => $user->can('saas-products.manage'),
+        ]);
+    }
+
+    public function saasApi(): View
+    {
+        return view('developer.saas-api');
+    }
+
+    private function groupOf(Tool $tool): string
+    {
+        if ($tool->group() !== 'General') {
+            return $tool->group();
+        }
+
+        if (isset(self::LEGACY_GROUPS[$tool->name()])) {
+            return self::LEGACY_GROUPS[$tool->name()];
+        }
+
+        // Proposals\*, and StudioFigures' figures, by where they live.
+        $namespace = Str::of(get_class($tool))->after('App\\Tools\\')->before('\\')->toString();
+
+        return match (true) {
+            $namespace === 'Proposals' => 'Proposals',
+            $tool->requiresAdmin() => 'Studio figures (admin)',
+            default => 'General',
+        };
+    }
+
+    /**
+     * The schema's properties as rows a person can read.
+     *
+     * @return list<array{name: string, type: string, required: bool, description: string}>
+     */
+    private function inputsOf(Tool $tool): array
+    {
+        $schema = $tool->schema();
+        $required = $schema['required'] ?? [];
+
+        return collect($schema['properties'] ?? [])->map(fn (array $prop, string $name) => [
+            'name' => $name,
+            'type' => isset($prop['enum'])
+                ? implode(' | ', $prop['enum'])
+                : (is_array($prop['type'] ?? null) ? implode(' | ', $prop['type']) : ($prop['type'] ?? 'any')),
+            'required' => in_array($name, $required, true),
+            'description' => (string) ($prop['description'] ?? ''),
+        ])->values()->all();
     }
 
     /**

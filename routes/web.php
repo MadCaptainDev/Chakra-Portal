@@ -1242,14 +1242,22 @@ Route::middleware(['auth', 'module:saas-products,view'])->group(function () {
         Route::post('saas-products/{saasProduct}/reissue-token', [SaasProductController::class, 'reissueToken'])->name('saas-products.reissue-token');
 
         /*
-         * The API reference, live -- its own top-level page, never nested
-         * inside a specific product's own screen. One Swagger document
-         * covers every SaaS product, so there is nothing product-specific
-         * to nest it under.
+         * The SaaS API reference, live. Reached from the Developer space's
+         * APIs tab, but gated by SaaS Products like before -- it is that
+         * module's API, and its tokens are that module's.
          */
-        Route::get('developer', [DeveloperController::class, 'index'])->name('developer.index');
+        Route::get('developer/saas-api', [DeveloperController::class, 'saasApi'])->name('developer.saas-api');
         Route::get('developer/openapi.json', [DeveloperController::class, 'openapi'])->name('developer.openapi');
     });
+});
+
+/*
+ * The Developer space: connecting Claude (or any MCP client) to the portal,
+ * tokens, every tool with its rules, the call log, and the other APIs.
+ * Its own module so it can be granted without SaaS Products.
+ */
+Route::middleware(['auth', 'module:developer,view'])->group(function () {
+    Route::get('developer', [DeveloperController::class, 'index'])->name('developer.index');
 });
 
 /*

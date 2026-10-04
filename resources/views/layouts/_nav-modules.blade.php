@@ -36,7 +36,7 @@
             if ($module === 'routines' && request()->routeIs('routines.calendar', 'inbox-desk.*')) {
                 return true;
             }
-            if ($module === 'saas-products' && request()->routeIs('developer.*')) {
+            if ($module === 'saas-products' && request()->routeIs('developer.saas-api')) {
                 return true;
             }
 
@@ -190,13 +190,12 @@
                 </x-sidebar-link>
             @endif
 
-            {{-- The Swagger/API reference lives on its own page (never nested
-                 inside a specific client or product), reached from here --
-                 "sidebar sub-heading in App Studio, named Developer" is the
-                 whole spec for where this goes. --}}
-            @if ($module === 'saas-products' && Route::has('developer.index') && auth()->user()?->can('saas-products.manage'))
-                <x-sidebar-link icon="desktop" :href="route('developer.index')" :active="request()->routeIs('developer.*')">
-                    Developer
+            {{-- The SaaS Swagger reference, still one click from App Studio
+                 for whoever runs SaaS products; the Developer space's APIs tab
+                 links it too. --}}
+            @if ($module === 'saas-products' && Route::has('developer.saas-api') && auth()->user()?->can('saas-products.manage'))
+                <x-sidebar-link icon="globe" :href="route('developer.saas-api')" :active="request()->routeIs('developer.saas-api')">
+                    SaaS API
                 </x-sidebar-link>
             @endif
         @endforeach

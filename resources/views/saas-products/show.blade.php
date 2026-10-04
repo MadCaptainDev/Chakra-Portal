@@ -196,9 +196,9 @@
                     </div>
                 </div>
 
-                @if (Route::has('developer.index'))
+                @if (Route::has('developer.saas-api'))
                     <p class="mt-4 text-xs text-brand-100/60">
-                        Full interactive reference, every endpoint: <a href="{{ route('developer.index') }}" class="font-semibold text-brand-300 hover:text-brand-200">Developer</a>.
+                        Full interactive reference, every endpoint: <a href="{{ route('developer.saas-api') }}" class="font-semibold text-brand-300 hover:text-brand-200">SaaS API reference</a>.
                     </p>
                 @endif
             </x-card>

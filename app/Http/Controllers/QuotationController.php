@@ -6,6 +6,7 @@ use App\Http\Requests\QuotationRequest;
 use App\Models\Client;
 use App\Models\CompanySetting;
 use App\Models\Quotation;
+use App\Services\Quotations\QuotationCreator;
 use App\Services\DocumentWhatsappNotifier;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
@@ -84,31 +85,17 @@ class QuotationController extends Controller
 
     public function store(QuotationRequest $request): RedirectResponse
     {
-        $quotation = DB::transaction(function () use ($request) {
-            $settings = CompanySetting::current();
-
-            $quotation = Quotation::create([
-                'quotation_number' => Quotation::nextQuotationNumber($settings->quotation_prefix),
-                'client_id' => $request->validated('client_id'),
-                'is_app_studio' => $request->boolean('is_app_studio'),
-                'quotation_date' => $request->validated('quotation_date'),
-                'valid_until' => $request->validated('valid_until'),
-                'intro_text' => $request->validated('intro_text'),
-                'notes' => $request->validated('notes'),
-                'discount_label' => $request->validated('discount_label'),
-                'discount_amount' => $request->validated('discount_amount'),
-                'status' => Quotation::STATUS_DRAFT,
-                'created_by' => $request->user()->id,
-            ]);
-
-            $this->syncItems($quotation, $request->validated('items'));
-
-            $quotation->load('items');
-            $quotation->recalculateTotals();
-            $quotation->save();
-
-            return $quotation;
-        });
+        $quotation = app(QuotationCreator::class)->create([
+            'client_id' => $request->validated('client_id'),
+            'is_app_studio' => $request->boolean('is_app_studio'),
+            'quotation_date' => $request->validated('quotation_date'),
+            'valid_until' => $request->validated('valid_until'),
+            'intro_text' => $request->validated('intro_text'),
+            'notes' => $request->validated('notes'),
+            'discount_label' => $request->validated('discount_label'),
+            'discount_amount' => $request->validated('discount_amount'),
+            'items' => $request->validated('items'),
+        ], $request->user()->id);
 
         return redirect()->route('quotations.show', $quotation)->with('status', 'Quotation created.');
     }
@@ -144,7 +131,7 @@ class QuotationController extends Controller
             ]);
 
             $quotation->items()->delete();
-            $this->syncItems($quotation, $request->validated('items'));
+            QuotationCreator::syncItems($quotation, $request->validated('items'));
 
             $quotation->load('items');
             $quotation->recalculateTotals();
@@ -263,19 +250,4 @@ class QuotationController extends Controller
     /**
      * @param  list<array{description: string, quantity: mixed, unit_price: mixed}>  $items
      */
-    private function syncItems(Quotation $quotation, array $items): void
-    {
-        foreach (array_values($items) as $index => $item) {
-            $quantity = (float) $item['quantity'];
-            $unitPrice = (float) $item['unit_price'];
-
-            $quotation->items()->create([
-                'description' => $item['description'],
-                'quantity' => $quantity,
-                'unit_price' => $unitPrice,
-                'line_total' => round($quantity * $unitPrice, 2),
-                'sort_order' => $index,
-            ]);
-        }
-    }
 }

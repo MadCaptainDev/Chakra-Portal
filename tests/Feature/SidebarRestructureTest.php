@@ -69,11 +69,11 @@ class SidebarRestructureTest extends TestCase
         $response->assertOk()->assertSeeInOrder([route('shoots.index'), route('equipment.index')]);
     }
 
-    public function test_developer_page_is_reachable_by_someone_who_can_manage_saas_products(): void
+    public function test_saas_api_page_is_reachable_by_someone_who_can_manage_saas_products(): void
     {
         $admin = $this->admin();
 
-        $this->actingAs($admin)->get(route('developer.index'))->assertOk();
+        $this->actingAs($admin)->get(route('developer.saas-api'))->assertOk();
 
         $response = $this->actingAs($admin)->get(route('developer.openapi'));
         $response->assertOk();
@@ -83,23 +83,23 @@ class SidebarRestructureTest extends TestCase
         ]]);
     }
 
-    public function test_developer_page_is_refused_to_an_ungranted_employee(): void
+    public function test_saas_api_page_is_refused_to_an_ungranted_employee(): void
     {
         $employee = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
 
-        $this->actingAs($employee)->get(route('developer.index'))->assertForbidden();
+        $this->actingAs($employee)->get(route('developer.saas-api'))->assertForbidden();
     }
 
-    public function test_the_developer_link_appears_under_app_studio_only_for_someone_who_can_manage_saas_products(): void
+    public function test_the_saas_api_link_appears_under_app_studio_only_for_someone_who_can_manage_saas_products(): void
     {
         $admin = $this->admin();
         $employee = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
         $employee->syncPermissions(['saas-products' => ['view']]);
 
-        $this->actingAs($admin)->get(route('dashboard'))->assertSee(route('developer.index'));
+        $this->actingAs($admin)->get(route('dashboard'))->assertSee(route('developer.saas-api'));
 
         // Granted view but not manage: sees the module, not the API reference.
-        $this->actingAs($employee->refresh())->get(route('my.dashboard'))->assertDontSee(route('developer.index'));
+        $this->actingAs($employee->refresh())->get(route('my.dashboard'))->assertDontSee(route('developer.saas-api'));
     }
 
     public function test_admin_sidebar_lists_permission_groups_settings_and_nav_filter(): void

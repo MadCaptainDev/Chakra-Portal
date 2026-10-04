@@ -105,6 +105,37 @@ abstract class Tool
     }
 
     /**
+     * Does calling this send a message to a real person outside the studio
+     * (a client on WhatsApp)?
+     *
+     * Reported to MCP clients as openWorldHint, and shown as a warning badge
+     * on the Developer page. A tool that says yes must also say, in its own
+     * description, that it should only run when the person asked for it.
+     */
+    public function messagesClient(): bool
+    {
+        return false;
+    }
+
+    /**
+     * A short human label for the tool -- what an MCP client shows in its
+     * approval prompt instead of the snake_case name.
+     */
+    public function title(): string
+    {
+        return ucfirst(str_replace('_', ' ', $this->name()));
+    }
+
+    /**
+     * Which area of the portal this tool belongs to, for grouping on the
+     * Developer page. Purely presentational.
+     */
+    public function group(): string
+    {
+        return 'General';
+    }
+
+    /**
      * The tool as the protocol describes it.
      *
      * @return array<string, mixed>
@@ -113,11 +144,16 @@ abstract class Tool
     {
         return [
             'name' => $this->name(),
+            'title' => $this->title(),
             'description' => $this->description(),
             'inputSchema' => $this->schema(),
             'annotations' => [
+                'title' => $this->title(),
                 'readOnlyHint' => $this->isReadOnly(),
                 'destructiveHint' => $this->isDestructive(),
+                // "Interacts with an open world of external entities" in the
+                // MCP spec's words -- here, it messages a real client.
+                'openWorldHint' => $this->messagesClient(),
             ],
         ];
     }
