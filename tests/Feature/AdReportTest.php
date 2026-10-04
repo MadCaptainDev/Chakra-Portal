@@ -236,8 +236,25 @@ class AdReportTest extends TestCase
             ->assertSee('Vaccination')
             ->assertSee('Best performer')
             ->assertSee('₹507')                          // budget, whole rupees
-            ->assertSee('Move budget to Vaccination')
+            ->assertSee('Grooming launched')
             ->assertSee('noindex', false);
+    }
+
+    public function test_the_client_page_leaves_out_the_studios_internal_notes(): void
+    {
+        $report = $this->importer()->import($this->report(), null);
+
+        $this->get(route('ad-reports.public', $report->public_token))
+            ->assertOk()
+            ->assertDontSee('Move budget to Vaccination')          // recommendations
+            ->assertDontSee('Grooming costs four times as much')   // issues
+            ->assertDontSee('Vaccination at ₹5 a chat')            // wins
+            ->assertDontSee('What stood out')
+            ->assertDontSee('KDrop')                               // who made changes
+            ->assertDontSee('Worth a look')                        // internal flags
+            ->assertDontSee('408316460599154');                    // ad account id
+
+        $this->assertSame('Move budget to Vaccination', $report->fresh()->data['recommendations'][0], 'still stored');
     }
 
     public function test_text_from_the_report_is_escaped(): void

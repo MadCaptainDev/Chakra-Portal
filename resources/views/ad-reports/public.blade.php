@@ -6,6 +6,11 @@
     an AI connector, so its text is treated as untrusted. Any field may be
     missing or null -- a null number prints as a dash, never as 0, because
     "not available" and "zero" mean different things to a client.
+
+    This is the CLIENT's view, so the report's internal parts are left out on
+    purpose: insights and recommendations (the studio's own read of what went
+    wrong and what to change), who made each change, the timeline's internal
+    flags, and the ad account ids. They stay in the stored JSON.
 --}}
 @php
     $d = $report->data;
@@ -13,7 +18,6 @@
     $summary = is_array($d['summary'] ?? null) ? $d['summary'] : [];
     $funds = is_array($d['funds'] ?? null) ? $d['funds'] : [];
     $campaigns = collect($d['campaigns'] ?? [])->filter(fn ($c) => is_array($c))->values();
-    $insights = is_array($d['insights'] ?? null) ? $d['insights'] : [];
 
     $money = fn ($v, int $dp = 2) => is_numeric($v) ? '₹'.number_format((float) $v, $dp) : '—';
     // Daily budgets are whole rupees in practice; no ".00" on those.
@@ -67,12 +71,8 @@
     $withCpr = $campaigns->filter(fn ($c) => is_numeric($c['cost_per_result'] ?? null) && (float) ($c['results'] ?? 0) > 0);
     $maxCpr = max([1.0, ...$withCpr->map(fn ($c) => (float) $c['cost_per_result'])->all()]);
 
-    $wins = $lines($insights['wins'] ?? []);
-    $issues = $lines($insights['issues'] ?? []);
-    $recommendations = $lines($d['recommendations'] ?? []);
     $budgetChanges = collect($d['budget_changes'] ?? [])->filter(fn ($b) => is_array($b))->values();
     $timeline = collect($d['timeline'] ?? [])->filter(fn ($t) => is_array($t))->values();
-    $accounts = collect($d['ad_accounts'] ?? [])->filter(fn ($a) => is_array($a))->values();
 @endphp
 
 <x-public-layout :title="$platform.' report — '.$clientName.' — '.$report->periodLabel()"
@@ -361,7 +361,7 @@
                     <div class="ar-scroll">
                         <table class="ar-table">
                             <thead>
-                                <tr><th>When</th><th>Ad set</th><th class="num">From</th><th class="num">To</th><th>By</th></tr>
+                                <tr><th>When</th><th>Ad set</th><th class="num">From</th><th class="num">To</th></tr>
                             </thead>
                             <tbody>
                                 @foreach ($budgetChanges as $b)
@@ -370,7 +370,6 @@
                                         <td>{{ $b['ad_set'] ?? '—' }}</td>
                                         <td class="num">{{ $budget($b['daily_budget_from'] ?? null) }}</td>
                                         <td class="num">{{ $budget($b['daily_budget_to'] ?? null) }}</td>
-                                        <td>{{ $b['by'] ?? '—' }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -382,60 +381,12 @@
                     <h3>Timeline</h3>
                     <ol class="ar-tl">
                         @foreach ($timeline as $t)
-                            <li @class(['is-flag' => ($t['flag'] ?? false) === true])>
+                            <li>
                                 <div class="ar-tl__date">
                                     {{ $date($t['date'] ?? null, 'j M') }}
-                                    @if (($t['flag'] ?? false) === true)
-                                        <span class="ar-pill ar-pill--flag">Worth a look</span>
-                                    @endif
                                 </div>
                                 <div>{{ $t['event'] ?? '' }}</div>
-                                @if (filled($t['by'] ?? null))
-                                    <div class="ar-tl__by">{{ $t['by'] }}</div>
-                                @endif
                             </li>
-                        @endforeach
-                    </ol>
-                @endif
-            </section>
-        @endif
-
-        {{-- ======================================= Insights & advice --}}
-        @if ($wins->isNotEmpty() || $issues->isNotEmpty() || $recommendations->isNotEmpty())
-            <section class="ar-sheet">
-                <h2>What stood out</h2>
-                <p class="ar-sheet__lead">Read from this month's numbers only.</p>
-
-                @if ($wins->isNotEmpty() || $issues->isNotEmpty())
-                    <div class="ar-cols">
-                        @if ($wins->isNotEmpty())
-                            <div class="ar-box ar-box--good">
-                                <h3>Worked well</h3>
-                                <ul>
-                                    @foreach ($wins as $line)
-                                        <li>{{ $line }}</li>
-                                    @endforeach
-                                </ul>
-                            </div>
-                        @endif
-                        @if ($issues->isNotEmpty())
-                            <div class="ar-box ar-box--warn">
-                                <h3>Needs attention</h3>
-                                <ul>
-                                    @foreach ($issues as $line)
-                                        <li>{{ $line }}</li>
-                                    @endforeach
-                                </ul>
-                            </div>
-                        @endif
-                    </div>
-                @endif
-
-                @if ($recommendations->isNotEmpty())
-                    <h3>What we recommend next</h3>
-                    <ol class="ar-recs">
-                        @foreach ($recommendations as $line)
-                            <li>{{ $line }}</li>
                         @endforeach
                     </ol>
                 @endif
@@ -448,22 +399,6 @@
             @if (filled($meta['generated_at'] ?? null)) · Generated {{ $date($meta['generated_at']) }} @endif
             @if (filled($meta['attribution'] ?? null))
                 <div>Results counted using {{ $meta['attribution'] }}.</div>
-            @endif
-
-            @if ($accounts->isNotEmpty())
-                <details>
-                    <summary>Ad accounts checked ({{ $accounts->count() }})</summary>
-                    <ul>
-                        @foreach ($accounts as $a)
-                            <li>
-                                {{ $a['ad_account_id'] ?? '—' }}
-                                — {{ $status($a['status'] ?? '') }}, {{ $money($a['spend'] ?? null) }} spent
-                                {{ ($a['included_in_report'] ?? false) === true ? '(in this report)' : '(not included)' }}
-                                @if (filled($a['note'] ?? null)) · {{ $a['note'] }} @endif
-                            </li>
-                        @endforeach
-                    </ul>
-                </details>
             @endif
         </footer>
     </div>
