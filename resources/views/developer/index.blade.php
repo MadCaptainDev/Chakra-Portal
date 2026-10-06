@@ -9,6 +9,7 @@
         'tokens' => ['label' => 'Tokens', 'count' => $mcpTokens->count()],
         'tools' => ['label' => 'Tools', 'count' => $tools->count()],
         'activity' => ['label' => 'Activity', 'count' => $week['calls']],
+        'limits' => ['label' => 'Limits'],
         'apis' => ['label' => 'APIs'],
     ];
 
@@ -281,6 +282,82 @@
                     @endforelse
                 </div>
             </x-card>
+        </div>
+
+        {{-- ───────────── Limits ───────────── --}}
+        <div x-show="tab === 'limits'" x-cloak class="space-y-5">
+            @if ($user->isAdmin())
+                <x-card padding="md">
+                    <h3 class="text-base font-semibold text-white">Limit what each person can do with AI</h3>
+                    <ul class="mt-2 space-y-1 text-sm text-brand-100/75 list-disc pl-5">
+                        <li><strong class="text-white">MCP access</strong> — off blocks every token and connector they have, at once. Turn it back on and they work again.</li>
+                        <li><strong class="text-white">Calls per day</strong> — tool calls allowed each day; resets at midnight. Empty = no limit.</li>
+                        <li><strong class="text-white">Read-only</strong> — the AI can look things up but not create or change anything.</li>
+                        <li><strong class="text-white">Can message clients</strong> — off hides every tool that sends a client a WhatsApp.</li>
+                    </ul>
+                    <p class="mt-2 text-xs text-brand-100/60">These sit on top of their portal permissions — they can only narrow, never widen. They also apply to admins, yourself included.</p>
+                </x-card>
+
+                @foreach ($limits as $row)
+                    @php($l = $row['limit'])
+                    <form method="POST" action="{{ route('developer.limits.update', $row['user']) }}"
+                          class="rounded-xl bg-white/5 ring-1 {{ $l->enabled ? 'ring-white/10' : 'ring-red-400/30' }} p-4">
+                        @csrf
+                        @method('PUT')
+                        <div class="flex flex-wrap items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <p class="font-semibold text-white">{{ $row['user']->name }}
+                                    @if ($row['user']->isAdmin())<span class="ml-1 text-[11px] px-2 py-0.5 rounded-full bg-violet-400/15 text-violet-200">Admin</span>@endif
+                                </p>
+                                <p class="mt-0.5 text-xs text-brand-100/60">
+                                    Today {{ $row['today'] }}{{ $l->daily_limit ? ' / '.$l->daily_limit : '' }} calls
+                                    · 7 days {{ $row['week'] }}
+                                    · {{ $row['tokens'] }} {{ \Illuminate\Support\Str::plural('token', $row['tokens']) }}
+                                </p>
+                            </div>
+                            @if (! $l->enabled)
+                                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-400/15 text-red-200">Blocked</span>
+                            @elseif ($l->daily_limit && $row['today'] >= $l->daily_limit)
+                                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-400/15 text-amber-200">Limit reached today</span>
+                            @endif
+                        </div>
+
+                        <div class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 items-end text-sm">
+                            <label class="flex items-center gap-2 min-h-[40px] text-brand-100/85">
+                                <input type="checkbox" name="enabled" value="1" @checked($l->enabled) class="w-4 h-4 rounded border-white/25 bg-white/5 text-brand-400">
+                                MCP access
+                            </label>
+                            <label class="flex items-center gap-2 min-h-[40px] text-brand-100/85">
+                                <input type="checkbox" name="read_only" value="1" @checked($l->read_only) class="w-4 h-4 rounded border-white/25 bg-white/5 text-brand-400">
+                                Read-only
+                            </label>
+                            <label class="flex items-center gap-2 min-h-[40px] text-brand-100/85">
+                                <input type="checkbox" name="can_message_clients" value="1" @checked($l->can_message_clients) class="w-4 h-4 rounded border-white/25 bg-white/5 text-brand-400">
+                                Can message clients
+                            </label>
+                            <label class="block text-brand-100/85">
+                                <span class="text-xs">Calls per day</span>
+                                <input type="number" name="daily_limit" min="1" max="100000" value="{{ $l->daily_limit }}" placeholder="No limit"
+                                       class="mt-1 w-full rounded-lg bg-white/5 border-white/10 text-sm text-white placeholder-brand-100/40 focus:border-brand-300 focus:ring-brand-300">
+                            </label>
+                        </div>
+                        <div class="mt-3 flex justify-end">
+                            <button type="submit" class="inline-flex items-center min-h-[36px] px-4 rounded-md bg-brand-400 text-brand-900 text-[11px] font-semibold uppercase tracking-wider hover:bg-brand-500 transition-colors">Save</button>
+                        </div>
+                    </form>
+                @endforeach
+            @else
+                <x-card padding="md">
+                    <h3 class="text-base font-semibold text-white">Your limits</h3>
+                    <p class="mt-1 text-sm text-brand-100/70">Set by an admin. Ask them if you need more.</p>
+                    <dl class="mt-4 grid gap-3 sm:grid-cols-2 text-sm">
+                        <div class="rounded-lg bg-white/5 p-3"><dt class="text-[11px] uppercase tracking-wider text-brand-200">MCP access</dt><dd class="mt-1 text-white">{{ $myLimit->enabled ? 'On' : 'Off' }}</dd></div>
+                        <div class="rounded-lg bg-white/5 p-3"><dt class="text-[11px] uppercase tracking-wider text-brand-200">Calls per day</dt><dd class="mt-1 text-white">{{ $myLimit->daily_limit ? $myLimit->callsToday().' used of '.$myLimit->daily_limit : 'No limit' }}</dd></div>
+                        <div class="rounded-lg bg-white/5 p-3"><dt class="text-[11px] uppercase tracking-wider text-brand-200">Read-only</dt><dd class="mt-1 text-white">{{ $myLimit->read_only ? 'Yes' : 'No' }}</dd></div>
+                        <div class="rounded-lg bg-white/5 p-3"><dt class="text-[11px] uppercase tracking-wider text-brand-200">Can message clients</dt><dd class="mt-1 text-white">{{ $myLimit->can_message_clients ? 'Yes' : 'No' }}</dd></div>
+                    </dl>
+                </x-card>
+            @endif
         </div>
 
         {{-- ───────────── APIs ───────────── --}}

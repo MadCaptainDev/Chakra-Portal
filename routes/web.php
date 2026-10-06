@@ -1259,6 +1259,10 @@ Route::middleware(['auth', 'module:saas-products,view'])->group(function () {
  */
 Route::middleware(['auth', 'module:developer,view'])->group(function () {
     Route::get('developer', [DeveloperController::class, 'index'])->name('developer.index');
+    // Per-person MCP limits. Admins only: this is what reins in everyone
+    // else, so a granted Developer viewer cannot loosen their own.
+    Route::put('developer/limits/{user}', [DeveloperController::class, 'updateLimits'])
+        ->middleware('admin')->name('developer.limits.update');
 });
 
 /*

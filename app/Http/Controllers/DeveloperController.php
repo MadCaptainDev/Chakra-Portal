@@ -4,9 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Mcp\Server;
 use App\Models\McpCallLog;
+use App\Models\McpToken;
+use App\Models\McpUserLimit;
+use App\Models\User;
 use App\Tools\Tool;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -14,7 +19,7 @@ use Illuminate\View\View;
  * The Developer space: everything needed to connect an AI client to the
  * portal and keep an eye on what it does.
  *
- * The tool reference is built from Mcp\Server::toolsFor() at request time,
+ * The tool reference is built from Mcp\Server::mcpToolsFor() at request time,
  * never written out by hand, so it cannot drift from what a token actually
  * gets -- and it shows each person only the tools their own permissions
  * allow, exactly as tools/list does.
@@ -49,7 +54,7 @@ class DeveloperController extends Controller
     {
         $user = $request->user();
 
-        $tools = collect($server->toolsFor($user))->map(fn (Tool $tool) => [
+        $tools = collect($server->mcpToolsFor($user))->map(fn (Tool $tool) => [
             'name' => $tool->name(),
             'title' => $tool->title(),
             'group' => $this->groupOf($tool),
@@ -75,7 +80,7 @@ class DeveloperController extends Controller
             ->when(! $user->isAdmin(), fn ($q) => $q->where('user_id', $user->id))
             ->where('created_at', '>=', now()->subDays(7));
 
-        $tab = in_array($request->query('tab'), ['connect', 'tokens', 'tools', 'activity', 'apis'], true)
+        $tab = in_array($request->query('tab'), ['connect', 'tokens', 'tools', 'activity', 'limits', 'apis'], true)
             ? $request->query('tab')
             : (session('mcp_token_plain') || session('status') ? 'tokens' : 'connect');
 
@@ -95,7 +100,54 @@ class DeveloperController extends Controller
                 'avg_ms' => (int) (clone $weekQuery)->avg('duration_ms'),
             ],
             'canSeeSaasApi' => $user->can('saas-products.manage'),
+            'myLimit' => McpUserLimit::for($user),
+            'limits' => $user->isAdmin() ? $this->limitsTable() : collect(),
         ]);
+    }
+
+    /**
+     * Every staff member's MCP limits and usage, for the admin's Limits tab.
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function limitsTable(): Collection
+    {
+        $limits = McpUserLimit::all()->keyBy('user_id');
+
+        $today = McpCallLog::query()->where('created_at', '>=', today())
+            ->selectRaw('user_id, COUNT(*) as n')->groupBy('user_id')->pluck('n', 'user_id');
+        $week = McpCallLog::query()->where('created_at', '>=', now()->subDays(7))
+            ->selectRaw('user_id, COUNT(*) as n')->groupBy('user_id')->pluck('n', 'user_id');
+        $tokens = McpToken::query()->selectRaw('user_id, COUNT(*) as n')->groupBy('user_id')->pluck('n', 'user_id');
+
+        return User::staff()->orderBy('name')->get()->map(fn (User $u) => [
+            'user' => $u,
+            'limit' => $limits[$u->id] ?? McpUserLimit::for($u),
+            'today' => (int) ($today[$u->id] ?? 0),
+            'week' => (int) ($week[$u->id] ?? 0),
+            'tokens' => (int) ($tokens[$u->id] ?? 0),
+        ]);
+    }
+
+    /** Save one person's limits (admins only, see routes/web.php). */
+    public function updateLimits(Request $request, User $user): RedirectResponse
+    {
+        abort_unless(in_array($user->role, [User::ROLE_ADMIN, User::ROLE_EMPLOYEE], true), 404);
+
+        $data = $request->validate([
+            'daily_limit' => ['nullable', 'integer', 'min:1', 'max:100000'],
+        ]);
+
+        McpUserLimit::updateOrCreate(['user_id' => $user->id], [
+            'enabled' => $request->boolean('enabled'),
+            'daily_limit' => $data['daily_limit'] ?? null,
+            'read_only' => $request->boolean('read_only'),
+            'can_message_clients' => $request->boolean('can_message_clients'),
+            'updated_by_id' => $request->user()->id,
+        ]);
+
+        return redirect()->route('developer.index', ['tab' => 'limits'])
+            ->with('status', "Saved MCP limits for {$user->name}.");
     }
 
     public function saasApi(): View

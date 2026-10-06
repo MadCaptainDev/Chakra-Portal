@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\McpOauthClient;
 use App\Models\McpToken;
+use App\Models\McpUserLimit;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -105,8 +106,8 @@ class McpOAuthController extends Controller
             return view('mcp.authorize-error', ['problem' => $problem]);
         }
 
-        if (! $this->mayConnect($request->user())) {
-            return view('mcp.authorize-error', ['problem' => 'Only studio staff can connect an AI app to the portal.']);
+        if ($refusal = $this->refusalFor($request->user())) {
+            return view('mcp.authorize-error', ['problem' => $refusal]);
         }
 
         return view('mcp.authorize', [
@@ -126,8 +127,8 @@ class McpOAuthController extends Controller
             return view('mcp.authorize-error', ['problem' => $problem]);
         }
 
-        if (! $this->mayConnect($request->user())) {
-            return view('mcp.authorize-error', ['problem' => 'Only studio staff can connect an AI app to the portal.']);
+        if ($refusal = $this->refusalFor($request->user())) {
+            return view('mcp.authorize-error', ['problem' => $refusal]);
         }
 
         $redirect = (string) $request->input('redirect_uri');
@@ -189,7 +190,7 @@ class McpOAuthController extends Controller
         $user = User::find($grant['user_id']);
         $client = McpOauthClient::where('client_id', $grant['client_id'])->first();
 
-        if (! $user || ! $client || ! $this->mayConnect($user)) {
+        if (! $user || ! $client || $this->refusalFor($user) !== null) {
             return $this->oauthError('invalid_grant', 'That account can no longer connect.', 400);
         }
 
@@ -232,9 +233,18 @@ class McpOAuthController extends Controller
         return [$client, null];
     }
 
-    private function mayConnect(?User $user): bool
+    /** Why this person may not connect an app, or null when they may. */
+    private function refusalFor(?User $user): ?string
     {
-        return $user !== null && in_array($user->role, [User::ROLE_ADMIN, User::ROLE_EMPLOYEE], true);
+        if ($user === null || ! in_array($user->role, [User::ROLE_ADMIN, User::ROLE_EMPLOYEE], true)) {
+            return 'Only studio staff can connect an AI app to the portal.';
+        }
+
+        if (! McpUserLimit::for($user)->enabled) {
+            return 'An admin has turned off AI app access for your account (Developer → Limits).';
+        }
+
+        return null;
     }
 
     public static function isAcceptableRedirect(string $uri): bool

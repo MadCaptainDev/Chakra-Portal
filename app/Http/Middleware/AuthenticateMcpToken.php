@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Mcp\Protocol;
 use App\Models\McpToken;
+use App\Models\McpUserLimit;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,6 +41,12 @@ class AuthenticateMcpToken
             // client (claude.ai connectors) finds the sign-in flow.
             return $this->refuse('A valid bearer token is required.', 401)
                 ->header('WWW-Authenticate', 'Bearer realm="Chakra Portal", resource_metadata="'.route('mcp.oauth.protected-resource').'"');
+        }
+
+        // An admin can switch someone's MCP access off without revoking every
+        // token they hold (Developer → Limits).
+        if (! McpUserLimit::for($token->user)->enabled) {
+            return $this->refuse('MCP access is turned off for this account. Ask an admin (Developer → Limits).', 403);
         }
 
         $token->touchLastUsed();

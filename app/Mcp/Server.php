@@ -4,6 +4,7 @@ namespace App\Mcp;
 
 use App\Models\McpCallLog;
 use App\Models\McpToken;
+use App\Models\McpUserLimit;
 use App\Models\User;
 use App\Tools\AdReports;
 use App\Tools\Clients;
@@ -185,6 +186,21 @@ class Server
     }
 
     /**
+     * The tools this person gets over MCP: toolsFor() narrowed by the
+     * limits an admin set on the Developer page (read-only, no client
+     * messages). The WhatsApp assistant reads toolsFor() and is not
+     * affected -- these are MCP limits.
+     *
+     * @return list<Tool>
+     */
+    public function mcpToolsFor(User $user): array
+    {
+        $limit = McpUserLimit::for($user);
+
+        return array_values(array_filter($this->toolsFor($user), fn (Tool $tool) => $limit->allowsTool($tool)));
+    }
+
+    /**
      * Handle one message. Returns null for a notification, which gets no reply.
      *
      * @param  array<string, mixed>  $message
@@ -216,7 +232,7 @@ class Server
             'ping' => Protocol::result($id, (object) []),
             'tools/list' => Protocol::result($id, ['tools' => array_map(
                 fn (Tool $tool) => $tool->describe(),
-                $this->toolsFor($user)
+                $this->mcpToolsFor($user)
             )]),
             'tools/call' => $this->call($id, $params, $user),
             // Answered rather than refused: some clients probe for these during
@@ -251,10 +267,22 @@ class Server
         $name = $params['name'] ?? null;
         $arguments = is_array($params['arguments'] ?? null) ? $params['arguments'] : [];
 
-        $tool = collect($this->toolsFor($user))->first(fn (Tool $t) => $t->name() === $name);
+        $tool = collect($this->mcpToolsFor($user))->first(fn (Tool $t) => $t->name() === $name);
 
         if (! $tool) {
             return Protocol::error($id, Protocol::INVALID_PARAMS, 'No such tool: '.(is_string($name) ? $name : '(none given)'));
+        }
+
+        // The admin-set daily cap. Answered as a tool error, not a protocol
+        // one, so the model reads it and tells the person instead of retrying.
+        $limit = McpUserLimit::for($user);
+
+        if ($limit->daily_limit !== null && $limit->callsToday() >= $limit->daily_limit) {
+            return Protocol::result($id, Protocol::toolError(
+                "Daily limit reached: {$limit->daily_limit} portal tool calls a day for this account. "
+                .'It resets at midnight (India time). An admin can raise it under Developer → Limits. '
+                .'Do not retry today.'
+            ));
         }
 
         // Every call lands in mcp_call_logs for the Developer page's Activity
