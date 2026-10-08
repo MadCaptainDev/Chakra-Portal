@@ -22,6 +22,8 @@
         "drawflow": "^0.0.60",
         "firebase": "^12.18.0",
         "page-mascot": "^0.1.0",
+        "react": "^19.3.0",
+        "react-dom": "^19.3.0",
         "swagger-ui-dist": "^5.32.14"
     }
 }
