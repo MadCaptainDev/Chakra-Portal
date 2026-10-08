@@ -364,7 +364,8 @@
                 <div x-transition.opacity class="pointer-events-auto w-full max-w-md flex items-center gap-3 rounded-2xl px-4 py-3 shadow-2xl ring-1"
                      :class="t.tone === 'error' ? 'bg-red-950/95 ring-red-400/40 text-red-100' : 'bg-brand-900/95 ring-white/15 text-white'">
                     <span class="flex-1 text-sm" x-text="t.text"></span>
-                    <button type="button" x-show="t.undo" @click="runUndo(t)" class="shrink-0 text-sm font-bold text-brand-300 hover:text-white">Undo</button>
+                    {{-- !! matters: Alpine CALLS an expression that evaluates to a function, so a bare t.undo ran the undo the moment the toast rendered. --}}
+                    <button type="button" x-show="!!t.undo" @click="runUndo(t)" class="shrink-0 text-sm font-bold text-brand-300 hover:text-white">Undo</button>
                     <button type="button" @click="dismiss(t.id)" class="shrink-0 w-7 h-7 rounded-full text-white/50 hover:bg-white/10 hover:text-white" aria-label="Dismiss">✕</button>
                 </div>
             </template>
