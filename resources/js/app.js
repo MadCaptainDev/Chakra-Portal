@@ -127,6 +127,28 @@ window.chakraPush = {
 };
 
 /*
+ * The page mascot (resources/js/page-mascot.js) -- React, ~70 KB gzipped, so
+ * it is its own chunk, fetched only once a [data-page-mascot] comes within a
+ * screen of view: a visitor who never scrolls to it never downloads it.
+ */
+const mascotSpots = document.querySelectorAll('[data-page-mascot]');
+if (mascotSpots.length) {
+    const loadMascots = () => import('./page-mascot.js').then(({ mountMascots }) => mountMascots());
+
+    if ('IntersectionObserver' in window) {
+        const watcher = new IntersectionObserver((entries) => {
+            if (entries.some((entry) => entry.isIntersecting)) {
+                watcher.disconnect();
+                loadMascots();
+            }
+        }, { rootMargin: '100% 0px' });
+        mascotSpots.forEach((spot) => watcher.observe(spot));
+    } else {
+        loadMascots();
+    }
+}
+
+/*
  * The homepage's film and its scroll parallax
  * (resources/js/showreel.js). Same reasoning as push.js above: one page
  * uses it, so it is its own chunk, fetched only where the stage exists.

@@ -442,6 +442,17 @@
         <div class="relative max-w-7xl mx-auto px-5 sm:px-8 py-16 sm:py-24">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16">
                 <div>
+                    {{-- The mascot watches the cursor and reacts when poked
+                         (resources/js/page-mascot.js). Fixed size, so the
+                         heading never shifts when it mounts. --}}
+                    <div class="flex items-end gap-4 mb-4">
+                        <div data-page-mascot
+                             data-directions="{{ asset('images/mascot/chakra-directions.webp') }}"
+                             data-reactions="{{ asset('images/mascot/chakra-reactions.webp') }}"
+                             data-size="120" data-label="Chakra mascot"
+                             class="w-[120px] h-[120px] shrink-0"></div>
+                        <p class="pb-3 text-xs text-brand-100/50 leading-snug">Psst, give me<br>a poke.</p>
+                    </div>
                     <p class="text-brand-300 text-xs font-semibold uppercase tracking-[0.25em] mb-3">Get in touch</p>
                     <h2 class="text-3xl sm:text-5xl font-extrabold leading-[1.1]">Let's make your brand's <span class="text-brand-400">next reel</span>.</h2>
                     <p class="mt-5 text-brand-100/65 leading-relaxed">
