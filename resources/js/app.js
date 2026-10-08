@@ -9,6 +9,7 @@ import { videoChecker } from './video-check.js';
 import { notionConnections } from './notion-connections.js';
 import { inboxDesk } from './inbox-desk.js';
 import { serviceExplorer, hoursPipeline } from './home-studio.js';
+import { loginMascot } from './login-mascot.js';
 
 window.Alpine = Alpine;
 
@@ -42,6 +43,9 @@ Alpine.data('inboxDesk', inboxDesk);
 // The homepage's What we do and How we work -- see resources/js/home-studio.js.
 Alpine.data('serviceExplorer', serviceExplorer);
 Alpine.data('hoursPipeline', hoursPipeline);
+
+// The sign-in page's mascot -- see resources/js/login-mascot.js.
+Alpine.data('loginMascot', loginMascot);
 
 Alpine.start();
 
@@ -125,28 +129,6 @@ window.chakraPush = {
     refreshIfEnabled: (webConfig, vapidKey) => import('./push.js').then((m) => m.refreshIfEnabled(webConfig, vapidKey)),
     supported: () => import('./push.js').then((m) => m.supported()),
 };
-
-/*
- * The page mascot (resources/js/page-mascot.js) -- React, ~70 KB gzipped, so
- * it is its own chunk, fetched only once a [data-page-mascot] comes within a
- * screen of view: a visitor who never scrolls to it never downloads it.
- */
-const mascotSpots = document.querySelectorAll('[data-page-mascot]');
-if (mascotSpots.length) {
-    const loadMascots = () => import('./page-mascot.js').then(({ mountMascots }) => mountMascots());
-
-    if ('IntersectionObserver' in window) {
-        const watcher = new IntersectionObserver((entries) => {
-            if (entries.some((entry) => entry.isIntersecting)) {
-                watcher.disconnect();
-                loadMascots();
-            }
-        }, { rootMargin: '100% 0px' });
-        mascotSpots.forEach((spot) => watcher.observe(spot));
-    } else {
-        loadMascots();
-    }
-}
 
 /*
  * The homepage's film and its scroll parallax
