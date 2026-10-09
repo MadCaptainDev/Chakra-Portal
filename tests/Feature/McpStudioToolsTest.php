@@ -98,6 +98,7 @@ class McpStudioToolsTest extends TestCase
             'shoots_rolling_now', 'get_client_brief', 'send_brief_reminder', 'instagram_performance',
             'money_due', 'client_advances_owed', 'log_client_advance', 'needs_attention',
             'hours_vs_revenue', 'payment_behaviour', 'import_ad_report', 'send_ad_report', 'list_ad_reports',
+            'expenses_due', 'log_expense', 'record_expense_payment',
         ] as $name) {
             $this->assertContains($name, $names);
         }

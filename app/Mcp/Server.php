@@ -10,6 +10,7 @@ use App\Tools\AdReports;
 use App\Tools\Clients;
 use App\Tools\CreateTodo;
 use App\Tools\DescribeData;
+use App\Tools\Expenses;
 use App\Tools\Finance;
 use App\Tools\FindClient;
 use App\Tools\Insights;
@@ -76,8 +77,10 @@ class Server
         .'silently retry a write that failed. '
         .'6) Timesheets record work already done; to-dos record work still to do. '
         .'7) Proposals: read proposal_guide before writing one. '
-        .'8) There are no tools to record payments, approve invoices, read client passwords or delete '
-        .'clients -- send the person to the portal for those.';
+        .'8) The studio\'s own spending: log_expense for a one-time spend, record_expense_payment to '
+        .'mark an EMI, salary or bill paid (find its id with expenses_due). '
+        .'9) There are no tools to record a payment FROM a client, approve invoices, read client '
+        .'passwords or delete clients -- send the person to the portal for those.';
 
     /**
      * Every tool, in the order a model meets them.
@@ -137,6 +140,10 @@ class Server
             new Finance\MoneyDue,
             new Finance\ClientAdvancesOwed,
             new Finance\LogClientAdvance,
+            // The studio's own outgoings: EMIs, salaries, bills, one-time spends.
+            new Expenses\ExpensesDue,
+            new Expenses\LogExpense,
+            new Expenses\RecordExpensePayment,
             // Insights, read-only, behind the Insights module.
             new Insights\NeedsAttention,
             new Insights\PaymentBehaviour,
