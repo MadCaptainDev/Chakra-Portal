@@ -127,7 +127,7 @@ const elbow = (a, b) => [a, { x: b.x, y: a.y }, b];
 export function createCity(options) {
     const {
         host, getSnapshot, getLens, lenses, getTime, getSelected, getFresh,
-        whereAt, phaseColor, onPick, onBackground, onPersonDown, onView, firstName,
+        whereAt, phaseColor, onPick, onBackground, onPersonDown, onView, firstName, logoUrl,
     } = options;
 
     const canvas = document.createElement('canvas');
@@ -242,7 +242,7 @@ export function createCity(options) {
 
                 if (district?.home) {
                     // Chakra fills the middle block, a plaza round a 3x3 tower.
-                    hq = { kind: 'hq', gx: ox + 8, gy: oy + 8, w: 3, d: 3, floors: 10 };
+                    hq = { kind: 'hq', gx: ox + 7, gy: oy + 7, w: 4, d: 4, floors: 16 };
                     objects.push(hq);
                     plots.filter((p) => p.central).forEach((p) => used.add(p));
                 }
@@ -725,7 +725,10 @@ export function createCity(options) {
                 const roofTop = P(o.gx + o.w / 2, o.gy + o.d / 2, h);
                 tops.set(o.kind === 'hq' ? 'hq' : o.id, roofTop);
                 if (o.kind === 'client' && L.gauge) drawTank(roofTop, L.gauge(bld), L.colour(bld, snap), dark);
-                if (o.kind === 'hq') drawBeacon(roofTop, anim);
+                if (o.kind === 'hq') {
+                    drawHqDressing(o, h, anim, dark);
+                    drawBeacon(roofTop, anim);
+                }
             }
         });
 
@@ -865,6 +868,79 @@ export function createCity(options) {
         ctx.strokeStyle = 'rgba(255,255,255,0.8)';
         ctx.lineWidth = 1;
         ctx.strokeRect(top.x - r, top.y - h, r * 2, h);
+    }
+
+    /* ——— Chakra's tower: the logo on both walls, marquee bulbs, flickering windows ——— */
+
+    const logo = new Image();
+    if (logoUrl) {
+        logo.onload = () => { needsRender = true; };
+        logo.src = logoUrl;
+    }
+
+    function drawHqDressing(o, h, anim, dark) {
+        // A point on a front wall: u along it (0..1), z up it in storey pixels.
+        const wall = (from, to) => {
+            const a = groundAt(from[0], from[1]);
+            const b = groundAt(to[0], to[1]);
+            return (u, z) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u - z * cam.zoom });
+        };
+        const walls = [
+            { at: wall([o.gx, o.gy + o.d], [o.gx + o.w, o.gy + o.d]), cols: o.w * 2 }, // left front
+            { at: wall([o.gx + o.w, o.gy + o.d], [o.gx + o.w, o.gy]), cols: o.d * 2 }, // right front
+        ];
+        const tick = Math.floor(anim * 4);
+
+        walls.forEach(({ at, cols }, side) => {
+            // Flickering windows: a different handful lit each moment.
+            for (let f = 0; f < o.floors; f++) {
+                if (f >= o.floors - 6 && f < o.floors - 1) continue; // behind the banner
+                for (let k = 0; k < cols; k++) {
+                    const r = hash(`${side}:${f}:${k}:${tick + ((f * 7 + k * 3) % 5)}`) % 100;
+                    if (r > (dark > 0.5 ? 55 : 22)) continue;
+                    const u0 = (k + 0.28) / cols;
+                    const u1 = (k + 0.72) / cols;
+                    const z0 = f * FLOOR + 3;
+                    const z1 = f * FLOOR + FLOOR - 3;
+                    quad(at(u0, z0), at(u1, z0), at(u1, z1), at(u0, z1), dark > 0.5 ? `rgba(255,220,130,${0.65 + (r % 30) / 100})` : `rgba(255,255,255,${0.35 + (r % 20) / 100})`);
+                }
+            }
+
+            // The banner: a navy panel across the top storeys, logo on it.
+            const zTop = h - FLOOR * 1.2;
+            const zBot = h - FLOOR * 5.6;
+            const u0 = 0.08;
+            const u1 = 0.92;
+            quad(at(u0, zBot), at(u1, zBot), at(u1, zTop), at(u0, zTop), dark > 0.5 ? '#0b1a24' : '#132a38');
+            if (logo.complete && logo.naturalWidth) {
+                const TL = at(u0 + 0.06, zTop - FLOOR * 0.5);
+                const TR = at(u1 - 0.06, zTop - FLOOR * 0.5);
+                const BL = at(u0 + 0.06, zBot + FLOOR * 0.5);
+                const iw = logo.naturalWidth;
+                const ih = logo.naturalHeight;
+                ctx.save();
+                ctx.setTransform(dpr * (TR.x - TL.x) / iw, dpr * (TR.y - TL.y) / iw, dpr * (BL.x - TL.x) / ih, dpr * (BL.y - TL.y) / ih, dpr * TL.x, dpr * TL.y);
+                ctx.globalAlpha = dark > 0.5 ? 1 : 0.95;
+                ctx.drawImage(logo, 0, 0);
+                ctx.restore();
+            }
+
+            // Marquee bulbs round the banner, chasing.
+            const perimeter = [];
+            const n = 14;
+            for (let i = 0; i < n; i++) perimeter.push(at(u0 + ((u1 - u0) * i) / n, zTop));
+            for (let i = 0; i < 4; i++) perimeter.push(at(u1, zTop - ((zTop - zBot) * i) / 4));
+            for (let i = 0; i < n; i++) perimeter.push(at(u1 - ((u1 - u0) * i) / n, zBot));
+            for (let i = 0; i < 4; i++) perimeter.push(at(u0, zBot + ((zTop - zBot) * i) / 4));
+            const chase = anim ? Math.floor(anim * 8) : 0;
+            perimeter.forEach((p, i) => {
+                const on = (i + chase) % 3 === 0;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, Math.max(1.2, 1.9 * cam.zoom), 0, Math.PI * 2);
+                ctx.fillStyle = on ? '#ffe08a' : dark > 0.5 ? 'rgba(255,224,138,0.25)' : 'rgba(255,255,255,0.35)';
+                ctx.fill();
+            });
+        });
     }
 
     function drawBeacon(top, anim) {

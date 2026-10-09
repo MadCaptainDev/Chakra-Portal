@@ -878,6 +878,7 @@ function boot(root) {
             phaseColor: (phase) => hex(PHASE[phase].color),
             initials,
             firstName,
+            logoUrl: root.dataset.logo,
             onPick: (id) => select(id),
             onBackground: () => closeCard(),
             onPersonDown: (personId, shoot, event) => armDrag(personId, shoot, event),

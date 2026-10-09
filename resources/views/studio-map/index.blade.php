@@ -53,7 +53,7 @@
 
     <h1 class="sr-only">Studio Map</h1>
 
-    <div class="space-y-4" data-studio-map data-endpoint="{{ route('studio-map.data') }}" data-actions='@json($actionUrls)'>
+    <div class="space-y-4" data-studio-map data-endpoint="{{ route('studio-map.data') }}" data-logo="{{ asset('images/chakra-logo.png') }}" data-actions='@json($actionUrls)'>
         <script type="application/json" data-studio-map-snapshot>@json($snapshot)</script>
 
         <div class="relative -mt-2 h-[calc(100dvh-6.5rem)] min-h-[540px] overflow-hidden rounded-2xl bg-[#0b1a24] ring-1 ring-white/10 lg:h-[calc(100dvh-5.5rem)] [&:fullscreen]:h-screen [&:fullscreen]:rounded-none" data-map-box>
