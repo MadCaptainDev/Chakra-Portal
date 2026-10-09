@@ -39,7 +39,7 @@ class AnnouncementPosted extends Notification
     public function toFcm(object $notifiable): PushMessage
     {
         return new PushMessage(
-            title: 'New announcement',
+            title: $this->announcement->isMilestone() ? 'Views milestone' : 'New announcement',
             body: Str::limit($this->announcement->title, 150),
             url: $notifiable->allows('announcements')
                 ? route('announcements.index')

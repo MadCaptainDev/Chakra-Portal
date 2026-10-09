@@ -148,7 +148,7 @@
             <x-sidebar-link icon="home" :href="route('my.dashboard')" :active="request()->routeIs('my.dashboard')">
                 Dashboard
             </x-sidebar-link>
-            <x-sidebar-link icon="sparkles" :href="route('my.editing')" :active="request()->routeIs('my.editing')">
+            <x-sidebar-link icon="film-cut" :href="route('my.editing')" :active="request()->routeIs('my.editing')">
                 My Editing
             </x-sidebar-link>
             <x-sidebar-link icon="camera" :href="route('my.shoots')" :active="request()->routeIs('my.shoots*')">
@@ -157,13 +157,10 @@
             <x-sidebar-link icon="check-circle" :href="route('my.todos')" :active="request()->routeIs('my.todos*')">
                 My To-dos
             </x-sidebar-link>
-            <x-sidebar-link icon="refresh" :href="route('my.routines')" :active="request()->routeIs('my.routines*')">
-                My Routines
-            </x-sidebar-link>
-            {{-- Only for whoever is on an Instagram check routine. --}}
+            {{-- Only for whoever is on the checker's people list. --}}
             @if ($user && app(\App\Services\InboxDesk::class)->hasAccess($user))
-                <x-sidebar-link icon="inbox" :href="route('inbox-desk.index')" :active="request()->routeIs('inbox-desk.*')">
-                    Inbox Check
+                <x-sidebar-link icon="chat-check" :href="route('inbox-desk.index')" :active="request()->routeIs('inbox-desk.*')">
+                    Comment &amp; Message Checker
                 </x-sidebar-link>
             @endif
             <x-sidebar-link icon="clock" :href="route('my.timesheet')" :active="request()->routeIs('my.timesheet*')">
@@ -220,7 +217,7 @@
                 <x-sidebar-link icon="home" :href="route('my.dashboard')" :active="request()->routeIs('my.dashboard')">
                     My Dashboard
                 </x-sidebar-link>
-                <x-sidebar-link icon="sparkles" :href="route('my.editing')" :active="request()->routeIs('my.editing')">
+                <x-sidebar-link icon="film-cut" :href="route('my.editing')" :active="request()->routeIs('my.editing')">
                     My Editing
                 </x-sidebar-link>
                 <x-sidebar-link icon="camera" :href="route('my.shoots')" :active="request()->routeIs('my.shoots*')">
@@ -228,9 +225,6 @@
                 </x-sidebar-link>
                 <x-sidebar-link icon="check-circle" :href="route('my.todos')" :active="request()->routeIs('my.todos*')">
                     My To-dos
-                </x-sidebar-link>
-                <x-sidebar-link icon="refresh" :href="route('my.routines')" :active="request()->routeIs('my.routines*')">
-                    My Routines
                 </x-sidebar-link>
                 <x-sidebar-link icon="clock" :href="route('my.timesheet')" :active="request()->routeIs('my.timesheet*')">
                     My Timesheet
@@ -256,6 +250,9 @@
             </x-sidebar-link>
             <x-sidebar-link icon="check-circle" :href="route('daily-checks')" :active="request()->routeIs('daily-checks')">
                 EOD checks
+            </x-sidebar-link>
+            <x-sidebar-link icon="chat-check" :href="route('inbox-desk.index')" :active="request()->routeIs('inbox-desk.*')">
+                Comment &amp; Message Checker
             </x-sidebar-link>
             {{-- A working admin already has this under My work. --}}
             @unless ($user?->logsWork())

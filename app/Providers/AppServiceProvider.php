@@ -53,9 +53,8 @@ class AppServiceProvider extends ServiceProvider
             WhatsappSendLog::LOGGABLE_MORPH_MAP,
         ));
 
-        // The Video Checker's routes (see that file). loadRoutesFrom skips
-        // this when routes are cached, so route:cache still picks them up.
-        $this->loadRoutesFrom(base_path('routes/video-check.php'));
+        // Routes kept in their own file. loadRoutesFrom skips this when
+        // routes are cached, so route:cache still picks them up.
         $this->loadRoutesFrom(base_path('routes/showreel.php'));
 
         /*

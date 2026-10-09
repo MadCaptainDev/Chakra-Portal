@@ -46,6 +46,7 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\GoogleKeepImportController;
 use App\Http\Controllers\InboxDeskController;
+use App\Http\Controllers\InboxDeskSetupController;
 use App\Http\Controllers\InsightsController;
 use App\Http\Controllers\InstagramConnectionController;
 use App\Http\Controllers\InstagramInsightsController;
@@ -58,7 +59,6 @@ use App\Http\Controllers\McpTokenController;
 use App\Http\Controllers\MonthlyReportController;
 use App\Http\Controllers\My\CalendarController as MyCalendarController;
 use App\Http\Controllers\My\DashboardController as MyDashboardController;
-use App\Http\Controllers\My\RoutineController as MyRoutineController;
 use App\Http\Controllers\My\SalaryController as MySalaryController;
 use App\Http\Controllers\My\ShootRunController;
 use App\Http\Controllers\My\TeamController as MyTeamController;
@@ -88,9 +88,6 @@ use App\Http\Controllers\PushSettingController;
 use App\Http\Controllers\PushTokenController;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\RecurringInvoiceController;
-use App\Http\Controllers\RoutineCalendarController;
-use App\Http\Controllers\RoutineCheckingController;
-use App\Http\Controllers\RoutineController;
 use App\Http\Controllers\SaasProductController;
 use App\Http\Controllers\SalaryController;
 use App\Http\Controllers\ScriptCommentController;
@@ -361,17 +358,6 @@ Route::middleware(['auth', 'logs-work', 'recognitions.catchup', 'scheduled-flows
     Route::post('editing/refresh', [MyEditingController::class, 'refresh'])->middleware('throttle:4,1')->name('editing.refresh');
     Route::post('editing/{todo}/act', [MyEditingController::class, 'act'])->name('editing.act');
     Route::post('editing/{todo}/correct', [MyEditingController::class, 'correct'])->name('editing.correct');
-
-    /*
-     * Repeating duties assigned to this person (or shared team duties they
-     * are permitted on). Complete is ownership-checked in the controller —
-     * wrong user gets 404, matching timesheet.
-     */
-    Route::middleware('routines.catchup')->group(function () {
-        Route::get('routines', [MyRoutineController::class, 'index'])->name('routines');
-        Route::post('routines/complete', [MyRoutineController::class, 'completeMany'])->name('routines.complete-many');
-        Route::post('routines/{occurrence}/complete', [MyRoutineController::class, 'complete'])->name('routines.complete');
-    });
 });
 
 /*
@@ -906,50 +892,20 @@ Route::middleware(['auth', 'module:taxonomy,view'])->group(function () {
 });
 
 /*
- * Inbox Check -- Instagram DMs and comments, account by account. Not behind
- * a module permission: who sees what is decided per routine by InboxDesk
- * (permitted people, or admins), the same rule My Routines uses, so the
- * person doing the duty needs no extra grant to reach it.
+ * Comment & Message Checker -- Instagram DMs and comments, account by
+ * account. Not behind a module permission: who sees it is decided by the
+ * checker's own people list (InboxDesk), so whoever does the duty needs no
+ * extra grant. Setting it up (accounts, checks, people) is admin-only.
  */
 Route::middleware(['auth', 'routines.catchup'])->prefix('inbox-check')->name('inbox-desk.')->group(function () {
     Route::get('/', [InboxDeskController::class, 'index'])->name('index');
     Route::get('state', [InboxDeskController::class, 'state'])->name('state');
     Route::post('{occurrence}/check', [InboxDeskController::class, 'check'])->whereNumber('occurrence')->name('check');
     Route::post('{occurrence}/undo', [InboxDeskController::class, 'undo'])->whereNumber('occurrence')->name('undo');
-});
 
-/*
- * Repeating studio duties. Definitions and calendar. Subjects toggle existing
- * Client Instagram (social_accounts) and Venture (content_accounts) IDs —
- * there is no separate Instagram handles master list.
- * routines.catchup materialises occurrences on first hit of the day.
- */
-Route::middleware(['auth', 'module:routines,view', 'routines.catchup'])->group(function () {
-    // "Who still owes what" is the daily question, so it is the front door;
-    // the calendar answers the occasional one and sits behind it.
-    Route::get('routines/check', [RoutineCheckingController::class, 'index'])->name('routines.checking');
-    Route::get('routines', [RoutineController::class, 'index'])->name('routines.index');
-    Route::get('routines/calendar', [RoutineCalendarController::class, 'index'])->name('routines.calendar');
-
-    Route::middleware('module:routines,create')->group(function () {
-        Route::post('routines', [RoutineController::class, 'store'])->name('routines.store');
-    });
-
-    Route::middleware('module:routines,edit')->group(function () {
-        Route::put('routines/{routine}', [RoutineController::class, 'update'])->name('routines.update');
-    });
-
-    Route::middleware('module:routines,delete')->group(function () {
-        Route::delete('routines/{routine}', [RoutineController::class, 'destroy'])->name('routines.destroy');
-    });
-
-    Route::middleware('module:routines,manage')->group(function () {
-        Route::post('routines/occurrences/{occurrence}/skip', [RoutineCalendarController::class, 'skip'])
-            ->name('routines.occurrences.skip');
-        Route::post('routines/check/{occurrence}/complete', [RoutineCheckingController::class, 'complete'])
-            ->name('routines.checking.complete');
-        Route::post('routines/check/{occurrence}/skip', [RoutineCheckingController::class, 'skip'])
-            ->name('routines.checking.skip');
+    Route::middleware('admin')->group(function () {
+        Route::get('setup', [InboxDeskSetupController::class, 'edit'])->name('setup');
+        Route::put('setup', [InboxDeskSetupController::class, 'update'])->name('setup.update');
     });
 });
 

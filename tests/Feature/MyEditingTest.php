@@ -44,20 +44,37 @@ class MyEditingTest extends TestCase
         return $this->actingAs($this->sanjai)->postJson(route('my.editing.act', $todo), ['action' => $action, ...$extra]);
     }
 
-    public function test_the_page_offers_my_upcoming_planner_videos_and_my_usual_clients(): void
+    public function test_the_page_offers_the_planner_mine_first_and_my_usual_clients(): void
     {
         $this->plannerItem();
-        $this->plannerItem(['title' => 'Somebody else’s', 'editor' => 'Gokul', 'assigned_user_id' => null]);
+        $this->plannerItem(['title' => 'Janet - 10 Foods', 'editor' => 'Gokul', 'assigned_user_id' => null]);
         $this->plannerItem(['title' => 'Already published', 'status' => 'Published']);
         Todo::create(['user_id' => $this->sanjai->id, 'title' => 'Suryas - Cream Bun Montage', 'venture' => 'All / Multiple Clients', 'starts_on' => today()->subDays(3), 'due_on' => today()->subDays(3)]);
 
         $this->actingAs($this->sanjai)->get(route('my.editing'))
             ->assertOk()
-            ->assertSee('SVA - Sharara Kurti Set')
             ->assertSee('Tomorrow')
-            ->assertDontSee('Somebody else')
             ->assertDontSee('Already published')
-            ->assertSee('Suryas', false);
+            ->assertViewHas('planner', function (array $planner) {
+                // Mine first; Gokul's still findable by typing, marked as not mine.
+                return array_column($planner, 'title') === ['SVA - Sharara Kurti Set', 'Janet - 10 Foods']
+                    && array_column($planner, 'mine') === [true, false];
+            })
+            ->assertViewHas('hints', fn (array $hints) => in_array('Suryas', $hints['clients'], true));
+    }
+
+    public function test_hints_come_from_my_notion_history_when_my_board_is_new(): void
+    {
+        foreach (['TPC - Grooming Tips', 'TPC - Vaccine Day', 'SVA - Cotton Saree'] as $i => $title) {
+            $this->plannerItem(['title' => $title, 'status' => 'Published', 'published_date' => today()->subDays($i + 1)]);
+        }
+        $this->plannerItem(['title' => 'Gokul - Not mine', 'status' => 'Published', 'editor' => 'Gokul', 'assigned_user_id' => null, 'published_date' => today()->subDay()]);
+
+        $this->actingAs($this->sanjai)->get(route('my.editing'))
+            ->assertViewHas('hints', fn (array $hints) => $hints['clients'] === ['TPC', 'SVA']
+                && in_array('TPC - Vaccine Day', $hints['titles'], true)
+                && ! in_array('Gokul - Not mine', $hints['titles'], true)
+                && $hints['per_day'] === 1);
     }
 
     public function test_one_tap_from_the_planner_adds_a_linked_reel_and_twice_is_still_one(): void

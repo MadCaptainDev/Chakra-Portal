@@ -3,7 +3,6 @@
 namespace App\Support;
 
 use App\Models\Enquiry;
-use App\Models\RoutineOccurrence;
 use App\Models\WhatsappConversation;
 
 /**
@@ -92,18 +91,6 @@ class Permission
             'label' => 'Forecast',
             'group' => 'Production',
             'icon' => 'trending-up',
-            'abilities' => ['view'],
-        ],
-        /*
-         * Checks an export before it is posted or sent: shape, resolution,
-         * length, frame rate, loudness, clipping. The video is analysed in
-         * the browser and never uploaded -- only the verdict is kept, so
-         * `view` (use it, see your own history) is all there is to grant.
-         */
-        'video-check' => [
-            'label' => 'Video Checker',
-            'group' => 'Production',
-            'icon' => 'eye',
             'abilities' => ['view'],
         ],
         /*
@@ -212,17 +199,6 @@ class Permission
             'group' => 'Production',
             'icon' => 'grip',
             'abilities' => ['view', 'manage'],
-        ],
-        /*
-         * Repeating studio duties (routines). Badge is overdue open
-         * occurrences — same shape as Enquiry::unreadCount.
-         */
-        'routines' => [
-            'label' => 'Routines',
-            'group' => 'Production',
-            'icon' => 'refresh',
-            'badge' => [RoutineOccurrence::class, 'overdueCount'],
-            'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
         /*
          * Scraping and analyzing a competitor's public Instagram, not one of

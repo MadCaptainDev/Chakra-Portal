@@ -14,9 +14,9 @@ Artisan::command('inspire', function () {
 // middleware provides a catch-up on the first request of the day.
 Schedule::command('invoices:generate-recurring')->dailyAt('08:00');
 
-// Materialise open routine occurrences for the day. EnsureRoutinesGenerated
+// Materialise the Comment & Message Checker's checks for the day. EnsureRoutinesGenerated
 // middleware is the catch-up when this host was off at 06:00.
-Schedule::command('routines:generate')->dailyAt('06:00');
+Schedule::command('inbox-check:generate')->dailyAt('06:00');
 
 // Notion content (Reel/Post/YT planners) must land before recurring invoices
 // that bill by {{published_*}} quantity variables. Runs before Instagram
@@ -95,7 +95,7 @@ Schedule::command('content:send-depletion-alerts')->dailyAt('09:00')->timezone(c
 Schedule::command('shoots:send-missing-content-alerts')->dailyAt('09:00')->timezone(config('app.timezone'));
 
 // None of the three above have a page-view catch-up the way
-// invoices:generate-recurring/routines:generate/instagram:sync do (see
+// invoices:generate-recurring/inbox-check:generate/instagram:sync do (see
 // EnsureRecurringInvoicesGenerated and friends) -- there is no natural
 // page a staff member opens that implies "check whether today's digest
 // went out". All three depend entirely on schedule:run actually firing,

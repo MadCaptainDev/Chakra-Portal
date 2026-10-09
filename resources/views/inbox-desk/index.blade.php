@@ -1,6 +1,6 @@
 @php
     /**
-     * Inbox Check -- see App\Services\InboxDesk and resources/js/inbox-desk.js.
+     * Comment & Message Checker -- see App\Services\InboxDesk and resources/js/inbox-desk.js.
      *
      * Built for a phone first: one column of account cards, two big tiles
      * each (DMs, Comments), one tap to check. Everything below renders from
@@ -14,17 +14,16 @@
             'undo' => route('inbox-desk.undo', ['occurrence' => '__ID__']),
         ],
     ];
-    $canEditRoutines = auth()->user()->can('routines.edit');
+    $canSetUp = auth()->user()->isAdmin();
 @endphp
 
-<x-app-layout title="Inbox Check">
+<x-app-layout title="Comment & Message Checker">
     <x-slot name="header">
-        <x-page-header eyebrow="Daily · Instagram" title="Inbox Check"
+        <x-page-header eyebrow="Daily · Instagram" title="Comment & Message Checker"
                        subtitle="DMs and comments, account by account. Tap a tile when it is done.">
-            @if ($canEditRoutines && Route::has('routines.index'))
+            @if ($canSetUp)
                 <x-slot name="actions">
-                    <x-btn :href="route('routines.checking')" variant="secondary" size="sm" icon="clipboard-list">All routines</x-btn>
-                    <x-btn :href="route('routines.index')" variant="secondary" size="sm" icon="cog">Set up</x-btn>
+                    <x-btn :href="route('inbox-desk.setup')" variant="secondary" size="sm" icon="cog">Set up</x-btn>
                 </x-slot>
             @endif
         </x-page-header>
@@ -36,19 +35,17 @@
         <template x-if="b.routines.length === 0">
             <x-card padding="lg" class="text-center">
                 <div class="mx-auto w-14 h-14 rounded-2xl bg-brand-400/15 text-brand-300 flex items-center justify-center mb-4">
-                    <x-icon name="inbox" class="w-7 h-7" />
+                    <x-icon name="chat-check" class="w-7 h-7" />
                 </div>
                 @if (auth()->user()->isAdmin())
-                    <p class="text-lg font-semibold text-white">No Instagram check is set up yet</p>
+                    <p class="text-lg font-semibold text-white">The checker is not set up yet</p>
                     <p class="mt-1 text-sm text-brand-100/60 max-w-sm mx-auto">
-                        Create a daily routine scoped to accounts, pick the Instagram accounts and who checks them. It shows up here the same day.
+                        Pick the Instagram accounts, what to check on each and who checks them. It shows up here the same day.
                     </p>
-                    @if (Route::has('routines.index'))
-                        <x-btn :href="route('routines.index')" class="mt-5" icon="plus">Set up a routine</x-btn>
-                    @endif
+                    <x-btn :href="route('inbox-desk.setup')" class="mt-5" icon="cog">Set up the checker</x-btn>
                 @else
                     <p class="text-lg font-semibold text-white">Nothing to check</p>
-                    <p class="mt-1 text-sm text-brand-100/60">No Instagram accounts are assigned to you. Your admin can add you on the routine.</p>
+                    <p class="mt-1 text-sm text-brand-100/60">No Instagram accounts are assigned to you. Your admin can add you in the checker's setup.</p>
                 @endif
             </x-card>
         </template>

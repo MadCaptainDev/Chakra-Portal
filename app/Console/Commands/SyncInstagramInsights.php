@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\SocialAccount;
 use App\Services\Instagram\InstagramException;
 use App\Services\Instagram\InstagramInsights;
+use App\Services\ViewMilestones;
 use Illuminate\Console\Command;
 use Throwable;
 
@@ -104,6 +105,16 @@ class SyncInstagramInsights extends Command
                 report($e);
                 $this->error('  FAILED — unexpected error, logged.');
             }
+        }
+
+        // Fresh view counts are in: announce any reel that crossed a milestone.
+        try {
+            $posted = app(ViewMilestones::class)->run();
+            if ($posted > 0) {
+                $this->info("Posted {$posted} views milestone announcement(s).");
+            }
+        } catch (Throwable $e) {
+            report($e);
         }
 
         $this->newLine();

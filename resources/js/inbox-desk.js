@@ -1,5 +1,5 @@
 /*
- * The Inbox Check screen (resources/views/inbox-desk/index.blade.php).
+ * The Comment & Message Checker screen (resources/views/inbox-desk/index.blade.php).
  *
  * One tap per tile, saved the moment it is made -- no form, no Save button.
  * The tile turns green before the server answers (optimistic), and the

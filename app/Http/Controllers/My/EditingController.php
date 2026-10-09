@@ -40,7 +40,7 @@ class EditingController extends Controller
 
         return view('my.editing', [
             'cards' => $this->cards($user),
-            'suggestions' => $this->suggestions($user),
+            'planner' => $this->planner($user),
             'hints' => $this->hints($user),
             'kinds' => Todo::KINDS,
         ]);
@@ -217,51 +217,69 @@ class EditingController extends Controller
     }
 
     /**
-     * The editor's own upcoming Reel Planner items not on their board yet:
-     * the publishing calendar, read as "what to edit next".
+     * Reel Planner items still to be edited, for "Up next" and the search
+     * box: the publishing calendar read as "what to edit next". The editor's
+     * own (assigned in the portal, or named as editor in Notion) are marked
+     * and come first; everybody else's are still findable by typing, because
+     * editors cover for each other. Items already on this board are left out.
      */
-    private function suggestions(User $user): array
+    private function planner(User $user): array
     {
         $first = strtok($user->name, ' ');
         $taken = Todo::query()->where('user_id', $user->id)->whereNotNull('content_item_id')->pluck('content_item_id');
 
         return ContentItem::query()
             ->whereIn('status', self::TO_EDIT)
-            ->where(fn ($q) => $q->where('assigned_user_id', $user->id)->orWhere('editor', 'like', "%{$first}%"))
-            ->where(fn ($q) => $q->whereNull('published_date')->orWhereBetween('published_date', [today()->subDays(3), today()->addDays(14)]))
+            ->where(fn ($q) => $q->whereNull('published_date')->orWhereBetween('published_date', [today()->subDays(3), today()->addDays(21)]))
             ->whereNotIn('id', $taken)
             ->orderByRaw('published_date is null')->orderBy('published_date')
-            ->limit(30)
+            ->limit(250)
             ->get()
             ->map(fn (ContentItem $i) => [
                 'id' => $i->id,
                 'title' => trim($i->title),
                 'client' => $i->venture,
+                'editor' => $i->editor,
                 'status' => $i->status,
                 'source' => $i->source,
+                'mine' => $i->assigned_user_id === $user->id || ($first && $i->editor && stripos($i->editor, $first) !== false),
                 'publishes' => $i->published_date ? ($i->published_date->isToday() ? 'Today' : ($i->published_date->isTomorrow() ? 'Tomorrow' : $i->published_date->format('D j M'))) : 'No date',
                 'late' => $i->published_date?->lt(today()) ?? false,
             ])
+            ->sortByDesc('mine')
             ->values()
             ->all();
     }
 
     /**
-     * Hints from what this editor usually does: their most frequent clients
-     * (as the prefix they write), their recent titles for autocomplete, and
-     * how many videos a day they usually get through.
+     * Hints from what this editor usually does, for the search box: the
+     * clients they work on most (as the prefix they write), titles they have
+     * used, and how many videos a day they get through. Read from their
+     * cards here and from the Reel Planner, where Notion names them as the
+     * editor -- months of history, so the hints work from day one.
      */
     private function hints(User $user): array
     {
-        $recent = Todo::query()->where('user_id', $user->id)->whereNull('parent_id')
-            ->whereDate('starts_on', '>=', today()->subDays(45))->get(['title', 'starts_on', 'status']);
-        $prefixes = $recent->map(fn ($t) => ClientGuess::prefix($t->title))->filter()
-            ->countBy()->sortDesc()->keys()->take(6)->values()->all();
-        $doneByDay = $recent->where('status', Todo::STATUS_COMPLETED)->groupBy(fn ($t) => $t->starts_on?->toDateString())->map->count();
+        $first = strtok($user->name, ' ');
+        $cards = Todo::query()->where('user_id', $user->id)->whereNull('parent_id')
+            ->whereDate('starts_on', '>=', today()->subDays(45))->latest('id')->get(['title', 'starts_on', 'status']);
+        $notion = $first ? ContentItem::query()
+            ->where('editor', 'like', "%{$first}%")
+            ->whereBetween('published_date', [today()->subDays(60), today()])
+            ->latest('published_date')
+            ->get(['title', 'published_date']) : collect();
+
+        $titles = $cards->pluck('title')->merge($notion->pluck('title'))->map(fn ($t) => trim(preg_replace('/\s+/', ' ', $t)))->filter();
+        $prefixes = $titles->map(fn ($t) => ClientGuess::prefix($t))->filter()->countBy()->sortDesc()->keys()->take(8)->values()->all();
+
+        $doneByDay = $cards->where('status', Todo::STATUS_COMPLETED)->groupBy(fn ($t) => $t->starts_on?->toDateString())->map->count();
+        if ($doneByDay->isEmpty()) {
+            $doneByDay = $notion->where('published_date', '>=', today()->subDays(30))->groupBy(fn ($i) => $i->published_date->toDateString())->map->count();
+        }
 
         return [
             'clients' => $prefixes,
-            'titles' => $recent->pluck('title')->unique()->take(60)->values()->all(),
+            'titles' => $titles->unique(fn ($t) => mb_strtolower($t))->take(150)->values()->all(),
             'per_day' => $doneByDay->isEmpty() ? null : (int) round($doneByDay->avg()),
         ];
     }

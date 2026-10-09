@@ -16,7 +16,7 @@ use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
- * The Inbox Check: Instagram DMs and comments, account by account, ticked
+ * The Comment & Message Checker: Instagram DMs and comments, account by account, ticked
  * one tile at a time and watched live from the widget.
  */
 class InboxDeskTest extends TestCase
@@ -40,7 +40,7 @@ class InboxDeskTest extends TestCase
         $this->assertSame(['@brand_a', '@brand_b'], array_column($board['routines'][0]['accounts'], 'handle'));
         $this->assertSame(['done' => 0, 'total' => 4, 'left' => 4, 'late' => 0, 'accounts_left' => 2], $board['totals']);
 
-        $this->actingAs($sanjai)->get(route('inbox-desk.index'))->assertOk()->assertSee('Inbox Check');
+        $this->actingAs($sanjai)->get(route('inbox-desk.index'))->assertOk()->assertSee('Comment & Message Checker');
     }
 
     public function test_someone_not_on_the_routine_sees_nothing_and_cannot_tick(): void
@@ -180,15 +180,73 @@ class InboxDeskTest extends TestCase
             ->assertJsonMissingPath('inbox');
     }
 
-    public function test_my_routines_points_at_the_inbox_check_instead_of_listing_accounts(): void
+    public function test_setup_is_admin_only(): void
     {
-        [$routine, $sanjai] = $this->deskRoutine(['brand_a']);
+        [, $sanjai] = $this->deskRoutine(['brand_a']);
 
-        $this->actingAs($sanjai)->get(route('my.routines'))
-            ->assertOk()
-            ->assertSee(route('inbox-desk.index'))
-            ->assertSee('2 checks left')
-            ->assertDontSee('@brand_a');
+        $this->actingAs($sanjai)->get(route('inbox-desk.setup'))->assertForbidden();
+        $this->actingAs(User::factory()->create())->get(route('inbox-desk.setup'))
+            ->assertOk()->assertSee('@brand_a')->assertSee('Sanjai');
+    }
+
+    public function test_saving_the_setup_keeps_ticked_history_and_clears_only_what_was_removed(): void
+    {
+        [$routine, $sanjai] = $this->deskRoutine(['brand_a', 'brand_b']);
+        $admin = User::factory()->create();
+        $dms = $routine->checkpoints->firstWhere('name', 'DMs');
+        $brandA = SocialAccount::where('username', 'brand_a')->first();
+        $brandB = SocialAccount::where('username', 'brand_b')->first();
+
+        $ticked = RoutineOccurrence::query()->open()->where('checkpoint_id', $dms->id)->where('subject_id', $brandA->id)->firstOrFail();
+        $this->actingAs($sanjai)->postJson(route('inbox-desk.check', $ticked->id))->assertOk();
+
+        $this->actingAs($admin)->put(route('inbox-desk.setup.update'), [
+            'title' => 'Instagram DMs & Comments',
+            'schedule_type' => 'daily',
+            'catch_up_days' => 3,
+            'is_active' => '1',
+            'checks' => ['DMs', 'Story replies'],
+            'account_ids' => [$brandA->id],
+            'user_ids' => [$sanjai->id],
+        ])->assertRedirect(route('inbox-desk.setup'))->assertSessionHasNoErrors();
+
+        $routine->refresh()->load('checkpoints', 'fields');
+        $this->assertSame(['DMs', 'Story replies'], $routine->checkpoints->pluck('name')->all());
+        $this->assertSame($dms->id, $routine->checkpoints->first()->id, 'a kept check keeps its row');
+        $this->assertSame('done', $ticked->fresh()->status, 'ticked history survives');
+        $this->assertTrue($routine->fields->contains('key', 'replied_story_replies'));
+
+        // brand_b and Comments are gone from the board; the new check is on it.
+        $this->assertSame(0, RoutineOccurrence::query()->open()->where('subject_id', $brandB->id)->count());
+        $board = $this->actingAs($sanjai)->getJson(route('inbox-desk.state'))->json();
+        $this->assertSame(['@brand_a'], array_column($board['routines'][0]['accounts'], 'handle'));
+        $this->assertSame(['DMs', 'Story replies'], array_column($board['routines'][0]['checkpoints'], 'name'));
+    }
+
+    public function test_a_fresh_install_can_create_the_checker_from_setup(): void
+    {
+        $admin = User::factory()->create();
+        $person = User::factory()->employee()->create();
+        $account = SocialAccount::create([
+            'client_id' => Client::factory()->create()->id,
+            'platform' => SocialAccount::PLATFORM_INSTAGRAM,
+            'platform_user_id' => '777',
+            'username' => 'newbrand',
+            'status' => SocialAccount::STATUS_CONNECTED,
+        ]);
+
+        $this->actingAs($admin)->put(route('inbox-desk.setup.update'), [
+            'title' => 'IG check',
+            'schedule_type' => 'daily',
+            'catch_up_days' => 3,
+            'is_active' => '1',
+            'checks' => ['DMs', 'Comments'],
+            'account_ids' => [$account->id],
+            'user_ids' => [$person->id],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(2, RoutineOccurrence::query()->open()->count());
+        $this->actingAs($person)->getJson(route('inbox-desk.state'))->assertJsonPath('totals.total', 2);
     }
 
     /**

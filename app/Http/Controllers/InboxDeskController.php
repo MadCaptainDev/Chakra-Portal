@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 /**
- * The Inbox Check screen: Instagram DMs and comments, account by account.
+ * The Comment & Message Checker screen: Instagram DMs and comments, account by account.
  *
  * One page for both sides of the duty. The person doing it taps tiles; an
  * admin opening the same page watches them turn green, because the page

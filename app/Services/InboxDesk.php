@@ -16,15 +16,15 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
- * The Inbox Check: every account-scoped routine laid out as a grid of
+ * The Comment & Message Checker: every account-scoped routine laid out as a grid of
  * accounts × checkpoints (DMs, Comments) for today, ticked one tile at a time.
  *
  * Nothing here is a new kind of task. The routine engine already schedules,
  * fans out per account and records who did what -- this is the screen, the
- * widget feed and the tap-to-check over it, so the checking board, My
- * Routines and this all read and write the same rows.
+ * widget feed and the tap-to-check over it. Setting it up is
+ * InboxDeskSetupController; the old Routines screens are gone.
  *
- * Access mirrors My Routines exactly: admins see every active routine, anyone
+ * Access: admins see every active routine, anyone
  * else only routines they are permitted on, and only rows that are shared or
  * assigned to them. board(), check() and undo() all start from visible(), so
  * what can be seen and what can be acted on cannot drift apart.
@@ -106,7 +106,7 @@ class InboxDesk
 
     /**
      * Tick one tile. The tile stands for the oldest open row of its cell; a
-     * cell days behind closes its whole backlog, the same as My Routines --
+     * cell days behind closes its whole backlog, the same as the old My Routines --
      * you checked the inbox, you did not check it once per missed day.
      *
      * The reply count lands on the newest row only. Writing "replied to 6"
@@ -266,7 +266,7 @@ class InboxDesk
 
     /**
      * Rows this person may see: on a routine they can see, and shared or
-     * assigned to them. The same rule as My Routines.
+     * assigned to them.
      */
     private function visible(User $user): Builder
     {
@@ -528,7 +528,7 @@ class InboxDesk
      * Distinct people who messaged, or comments by anyone but the account,
      * since $since. Null when the account has no such feed at all.
      *
-     * Cached for a minute: every open Inbox Check polls, and the answer moves
+     * Cached for a minute: every open checker polls, and the answer moves
      * at the speed of Instagram, not of the poll.
      */
     private function newActivity(SocialAccount $account, string $kind, Carbon $since): ?int

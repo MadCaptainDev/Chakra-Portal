@@ -3,6 +3,11 @@
  * To do → Working → Done → Posted with a tap, corrections as branches on a
  * card. Every action is a JSON call to My\EditingController, which answers
  * with the card as it now stands; the card is swapped in place.
+ *
+ * The add box is a typeahead: as the editor types it offers Reel Planner
+ * items (theirs first, anyone's by name), their usual client prefixes and
+ * titles they have used before. On a phone the four lanes become tabs, and
+ * the tab follows a card when it moves so it never vanishes from view.
  */
 const csrf = () => document.querySelector('meta[name="csrf-token"]')?.content ?? '';
 
@@ -21,10 +26,22 @@ async function post(url, body = {}) {
     return data;
 }
 
-export function editingDay({ cards, suggestions, hints, kinds, urls }) {
+/** Which lane a card sits in; null for anything that sits in none (cancelled). */
+function laneOf(c) {
+    if (c.posted_at) return 'posted';
+    if (c.status === 'completed') return c.kind === 'none' ? 'posted' : 'done';
+    if (c.status === 'started') return 'working';
+    if (['waiting', 'blocked'].includes(c.status)) return 'todo';
+    return null;
+}
+
+export function editingDay({ cards, planner, hints, kinds, urls }) {
+    // Lower-cased text to search each planner item by, worked out once.
+    planner.forEach((p) => { p.hay = `${p.title} ${p.client ?? ''} ${p.editor ?? ''}`.toLowerCase(); });
+
     return {
         cards,
-        suggestions,
+        planner,
         hints,
         kinds,
         title: '',
@@ -32,7 +49,11 @@ export function editingDay({ cards, suggestions, hints, kinds, urls }) {
         error: '',
         flash: '',
         now: Date.now(),
-        showPlanner: suggestions.length > 0,
+        loadedAt: Date.now(),
+        showPlanner: false,
+        tab: 'todo',
+        open: false, // the typeahead list
+        hi: -1, // highlighted row; -1 is the typed text itself
         fixing: null, // card id with the correction box open
         fixText: '',
         links: {},
@@ -40,20 +61,83 @@ export function editingDay({ cards, suggestions, hints, kinds, urls }) {
 
         init() {
             setInterval(() => { this.now = Date.now(); }, 30000);
+            this.tab = this.lane('working').length ? 'working' : 'todo';
+            this.showPlanner = this.mine.length > 0 && this.openCount === 0;
         },
 
         // ——— Lanes ———
         lane(name) {
-            return this.cards.filter((c) => {
-                if (name === 'todo') return ['waiting', 'blocked'].includes(c.status);
-                if (name === 'working') return c.status === 'started';
-                if (name === 'done') return c.status === 'completed' && !c.posted_at && c.kind !== 'none';
-                if (name === 'posted') return !!c.posted_at || (c.status === 'completed' && c.kind === 'none');
-                return false;
-            });
+            return this.cards.filter((c) => laneOf(c) === name);
         },
         get openCount() {
             return this.cards.filter((c) => !c.posted_at && c.status !== 'completed').length;
+        },
+        get mine() {
+            return this.planner.filter((p) => p.mine);
+        },
+
+        // ——— Typeahead ———
+        get matches() {
+            const q = this.title.trim().toLowerCase();
+            if (!q) {
+                return this.mine.slice(0, 6).map((p) => ({ type: 'planner', key: `p${p.id}`, item: p }));
+            }
+            const words = q.split(/\s+/);
+            const hit = (text) => words.every((w) => text.includes(w));
+            const out = [];
+
+            if (!q.includes(' - ')) {
+                this.hints.clients
+                    .filter((c) => c.toLowerCase().startsWith(q) && c.toLowerCase() !== q)
+                    .slice(0, 3)
+                    .forEach((c) => out.push({ type: 'client', key: `c${c}`, text: c }));
+            }
+
+            const found = this.planner.filter((p) => hit(p.hay));
+            const starts = (p) => (p.title.toLowerCase().startsWith(q) ? 1 : 0);
+            found.sort((a, b) => (b.mine - a.mine) || (starts(b) - starts(a)));
+            const shown = found.slice(0, 6);
+            shown.forEach((p) => out.push({ type: 'planner', key: `p${p.id}`, item: p }));
+
+            const taken = new Set(shown.map((p) => p.title.toLowerCase()));
+            this.hints.titles
+                .filter((t) => hit(t.toLowerCase()) && !taken.has(t.toLowerCase()) && t.toLowerCase() !== q)
+                .slice(0, 4)
+                .forEach((t) => out.push({ type: 'title', key: `t${t}`, text: t }));
+
+            return out;
+        },
+        typed() {
+            this.open = true;
+            this.hi = -1;
+        },
+        move(step) {
+            const n = this.matches.length;
+            if (!n) return;
+            this.open = true;
+            // Cycle through -1 (what was typed) and every row.
+            this.hi = ((this.hi + 1 + step + n + 1) % (n + 1)) - 1;
+        },
+        enter() {
+            const pick = this.open && this.hi >= 0 ? this.matches[this.hi] : null;
+            if (pick) this.choose(pick);
+            else this.add();
+        },
+        choose(m) {
+            this.hi = -1;
+            if (m.type === 'planner') {
+                this.open = false;
+                this.title = '';
+                this.addFromPlanner(m.item);
+                return;
+            }
+            this.title = m.type === 'client' ? `${m.text} - ` : m.text;
+            this.open = m.type === 'client';
+            this.$nextTick(() => {
+                const el = this.$refs.add;
+                el.focus();
+                el.setSelectionRange(el.value.length, el.value.length);
+            });
         },
 
         // ——— Time spent ———
@@ -67,7 +151,6 @@ export function editingDay({ cards, suggestions, hints, kinds, urls }) {
             const m = minutes % 60;
             return h ? `${h}h ${m}m` : `${m}m`;
         },
-        loadedAt: Date.now(),
 
         openFixes(card) {
             return card.corrections.filter((c) => c.status !== 'completed').length;
@@ -88,7 +171,11 @@ export function editingDay({ cards, suggestions, hints, kinds, urls }) {
         },
         put(card) {
             const i = this.cards.findIndex((c) => c.id === card.id);
-            i >= 0 ? this.cards.splice(i, 1, card) : this.cards.push(card);
+            if (i >= 0) this.cards.splice(i, 1, card);
+            else this.cards.push(card);
+            // On a phone only one lane shows: follow the card to where it went.
+            const lane = laneOf(card);
+            if (lane) this.tab = lane;
         },
         say(text) {
             this.flash = text;
@@ -98,6 +185,14 @@ export function editingDay({ cards, suggestions, hints, kinds, urls }) {
         add() {
             const title = this.title.trim();
             if (!title) return;
+            this.open = false;
+            // Typed a planner title out in full? Add it linked, as if picked.
+            const same = this.planner.find((p) => p.title.toLowerCase() === title.toLowerCase());
+            if (same) {
+                this.title = '';
+                this.addFromPlanner(same);
+                return;
+            }
             this.run('add', async () => {
                 const { card, existing } = await post(urls.store, { title });
                 this.put(card);
@@ -107,15 +202,11 @@ export function editingDay({ cards, suggestions, hints, kinds, urls }) {
         },
         addFromPlanner(s) {
             this.run(`s${s.id}`, async () => {
-                const { card } = await post(urls.store, { content_item_id: s.id });
+                const { card, existing } = await post(urls.store, { content_item_id: s.id });
                 this.put(card);
-                this.suggestions = this.suggestions.filter((x) => x.id !== s.id);
-                this.say(`Added: ${s.title}`);
+                this.planner = this.planner.filter((x) => x.id !== s.id);
+                this.say(existing ? 'Already on your board.' : `Added: ${s.title}`);
             });
-        },
-        prefill(client) {
-            this.title = `${client} - `;
-            this.$nextTick(() => this.$refs.add.focus());
         },
         act(card, action, extra = {}) {
             this.run(`${card.id}${action}`, async () => {

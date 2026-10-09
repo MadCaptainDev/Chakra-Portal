@@ -138,14 +138,8 @@ class DashboardController extends Controller
          */
         $unreadEnquiries = Enquiry::unread()->count();
 
+        // Comment & Message Checker checks left open past their day.
         $missedRoutinesCount = RoutineOccurrence::overdueCount();
-        $missedRoutines = RoutineOccurrence::query()
-            ->overdue()
-            ->with(['routine', 'checkpoint', 'subject'])
-            ->orderBy('due_on')
-            ->orderBy('id')
-            ->limit(5)
-            ->get();
 
         // One candidate, not a section -- see PortfolioSuggestions::best()
         // for why a single link is the most this can ever offer.
@@ -231,9 +225,8 @@ class DashboardController extends Controller
             'pendingReviews' => $pendingReviews,
             'workGraph' => ContributionGraph::forTeam(),
 
-            // —— Routines ——
+            // —— Comment & Message Checker ——
             'missedRoutinesCount' => $missedRoutinesCount,
-            'missedRoutines' => $missedRoutines,
 
             // —— Delivery ——
             'content' => $this->contentPulse($month),
@@ -527,11 +520,11 @@ class DashboardController extends Controller
         if (($ctx['missedRoutinesCount'] ?? 0) > 0) {
             $items[] = [
                 'tone' => 'amber',
-                'domain' => 'Routines',
-                'title' => $ctx['missedRoutinesCount'].' missed '.Str::plural('duty', $ctx['missedRoutinesCount']),
-                'detail' => 'Open occurrences past their due date — tick them or skip with a reason.',
-                'href' => route('routines.calendar'),
-                'cta' => 'Open calendar',
+                'domain' => 'Instagram',
+                'title' => $ctx['missedRoutinesCount'].' DM / comment '.Str::plural('check', $ctx['missedRoutinesCount']).' missed',
+                'detail' => 'Accounts in the Comment & Message Checker nobody ticked on their day.',
+                'href' => route('inbox-desk.index'),
+                'cta' => 'Open checker',
             ];
         }
 

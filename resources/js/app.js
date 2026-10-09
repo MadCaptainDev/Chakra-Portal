@@ -5,7 +5,6 @@ import { whatsappInboxThread } from './whatsapp-inbox.js';
 import { proposalComment } from './proposal.js';
 import { proposalEditor, registerEditDirective } from './proposal-editor.js';
 import { installBanner } from './install.js';
-import { videoChecker } from './video-check.js';
 import { notionConnections } from './notion-connections.js';
 import { inboxDesk } from './inbox-desk.js';
 import { serviceExplorer, hoursPipeline } from './home-studio.js';
@@ -35,8 +34,6 @@ Alpine.data('proposalEditor', proposalEditor);
 // resources/js/install.js.
 Alpine.data('installBanner', installBanner);
 
-// The Video Checker page -- see resources/js/video-check.js.
-Alpine.data('videoChecker', videoChecker);
 
 // The Notion ↔ Clients screen -- see resources/js/notion-connections.js.
 Alpine.data('notionConnections', notionConnections);
