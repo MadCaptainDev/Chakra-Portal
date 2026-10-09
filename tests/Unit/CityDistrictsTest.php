@@ -39,6 +39,18 @@ class CityDistrictsTest extends TestCase
         $this->assertSame('Trichy', $names[$plan['of'][3]]);
     }
 
+    public function test_two_clusters_naming_the_same_town_are_one_district(): void
+    {
+        $plan = CityDistricts::build([
+            $this->client(1, 10.6105, 78.4182, 'Madurai Road , Manapparai'),
+            $this->client(2, 10.6105, 78.4182, 'Madurai Road , Manapparai'),
+            $this->client(3, 10.5000, 78.3000, 'Vaiyamppati , Manapparai'), // ~17 km away
+        ], self::NO_STUDIO);
+
+        $this->assertCount(1, $plan['districts']);
+        $this->assertSame($plan['of'][1], $plan['of'][3]);
+    }
+
     public function test_the_biggest_district_is_home_without_a_studio_pin_and_others_lie_by_bearing(): void
     {
         $plan = CityDistricts::build([

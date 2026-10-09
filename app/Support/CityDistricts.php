@@ -67,6 +67,24 @@ final class CityDistricts
         }
         unset($d);
 
+        // Two clusters whose addresses name the same town are one town --
+        // Vaiyampatti's "…, Manapparai" clients sit just past CLUSTER_KM from
+        // Madurai Road's, and two districts both called Manapparai read wrong.
+        $merged = [];
+        foreach ($districts as $d) {
+            $key = strtolower($d['name']);
+            if (! isset($merged[$key])) {
+                $merged[$key] = $d;
+                continue;
+            }
+            $a = count($merged[$key]['members']);
+            $b = count($d['members']);
+            $merged[$key]['lat'] = ($merged[$key]['lat'] * $a + $d['lat'] * $b) / ($a + $b);
+            $merged[$key]['lng'] = ($merged[$key]['lng'] * $a + $d['lng'] * $b) / ($a + $b);
+            $merged[$key]['members'] = array_merge($merged[$key]['members'], $d['members']);
+        }
+        $districts = array_values($merged);
+
         // 2. Which one is home.
         $home = null;
         if ($studio['set'] ?? false) {
