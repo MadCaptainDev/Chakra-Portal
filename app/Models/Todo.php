@@ -95,6 +95,10 @@ class Todo extends Model
         'notes',
         'starts_on',
         'due_on',
+        'parent_id',
+        'content_item_id',
+        'kind',
+        'post_url',
     ];
 
     /**
@@ -114,6 +118,7 @@ class Todo extends Model
         'due_on' => 'date',
         'closed_on' => 'date',
         'reviewed_at' => 'datetime',
+        'posted_at' => 'datetime',
     ];
 
     /** Whose job it is. The board is grouped by this. */
@@ -138,6 +143,64 @@ class Todo extends Model
     public function updates(): HasMany
     {
         return $this->hasMany(TodoUpdate::class)->orderBy('created_at')->orderBy('id');
+    }
+
+    /** What a finished video is for -- see the My Editing screen. */
+    public const KINDS = ['reel' => 'Reel', 'post' => 'Post', 'story' => 'Story', 'none' => 'Not for posting'];
+
+    /** The video a correction belongs to. */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    /** Corrections to this video, oldest first. */
+    public function corrections(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_id')->orderBy('id');
+    }
+
+    public function contentItem(): BelongsTo
+    {
+        return $this->belongsTo(ContentItem::class);
+    }
+
+    public function postedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'posted_by_id');
+    }
+
+    public function isPosted(): bool
+    {
+        return $this->posted_at !== null;
+    }
+
+    /**
+     * Minutes spent in Started, from the status history: every stretch
+     * between moving to started and moving away from it, the open one up to
+     * now. Needs `updates` loaded to avoid a query each.
+     */
+    public function workingMinutes(): int
+    {
+        $total = 0;
+        $since = null;
+        foreach ($this->updates as $u) {
+            if ($u->action !== TodoUpdate::STATUS && $u->action !== TodoUpdate::CREATED) {
+                continue;
+            }
+            $to = $u->to_status;
+            if ($to === self::STATUS_STARTED && $since === null) {
+                $since = $u->created_at;
+            } elseif ($to !== self::STATUS_STARTED && $since !== null) {
+                $total += $since->diffInMinutes($u->created_at);
+                $since = null;
+            }
+        }
+        if ($since !== null && $this->status === self::STATUS_STARTED) {
+            $total += $since->diffInMinutes(now());
+        }
+
+        return (int) $total;
     }
 
     /**

@@ -6,9 +6,8 @@ use App\Models\DailyCheck;
 use App\Models\Todo;
 use App\Models\User;
 use App\Notifications\DailyCheckPending;
+use App\Support\ClientGuess;
 use App\Support\DailyReport;
-use App\Support\TimesheetVenture;
-use App\Tools\Clients;
 use App\Tools\CreateTodo;
 use App\Tools\ToolException;
 use Illuminate\Support\Facades\Log;
@@ -74,7 +73,7 @@ class DailyReportImporter
                         $created = (new CreateTodo)->handle([
                             'title' => $task['title'],
                             'person' => $person->email,
-                            'client' => $this->client($task['client']),
+                            'client' => ClientGuess::venture($task['client']),
                             'starts_on' => $date->toDateString(),
                             'due_on' => $date->toDateString(),
                             'notes' => 'From the daily task message on WhatsApp.',
@@ -147,24 +146,6 @@ class DailyReportImporter
         return $matches->count() === 1 ? $matches->first() : $matches->first(fn (User $u) => strcasecmp($u->name, trim($name)) === 0);
     }
 
-    /**
-     * "SVA" → SVA Silks, "Suryas" → Surya's Restaurant, "Mahavir" → Mahavir
-     * Timbers…; anything unknown is filed as all/multiple clients, its name
-     * still in the to-do's title.
-     */
-    private function client(string $token): string
-    {
-        if (trim($token) === '') {
-            return TimesheetVenture::ALL_CLIENTS;
-        }
-        try {
-            return Clients::match($token);
-        } catch (ToolException) {
-            $starts = array_values(array_filter(TimesheetVenture::allowedValues(), fn ($v) => Str::startsWith(Str::lower($v), Str::lower(trim($token)))));
-
-            return count($starts) === 1 ? $starts[0] : TimesheetVenture::ALL_CLIENTS;
-        }
-    }
 
     private static function same(string $a, string $b): bool
     {

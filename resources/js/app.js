@@ -10,6 +10,7 @@ import { notionConnections } from './notion-connections.js';
 import { inboxDesk } from './inbox-desk.js';
 import { serviceExplorer, hoursPipeline } from './home-studio.js';
 import { loginMascot } from './login-mascot.js';
+import { editingDay } from './editing-day.js';
 
 window.Alpine = Alpine;
 
@@ -21,6 +22,9 @@ Alpine.data('whatsappInboxThread', whatsappInboxThread);
 
 // The public proposal's comment boxes -- see resources/js/proposal.js.
 Alpine.data('proposalComment', proposalComment);
+
+// The editors' video board -- see resources/js/editing-day.js.
+Alpine.data('editingDay', editingDay);
 
 // The proposal editor: the document typed into directly -- see
 // resources/js/proposal-editor.js. x-edit is its contenteditable binding.

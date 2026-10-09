@@ -32,6 +32,7 @@ use App\Http\Controllers\CompetitorSettingController;
 use App\Http\Controllers\ContentAccountController;
 use App\Http\Controllers\ContentDashboardController;
 use App\Http\Controllers\ContentItemAssignmentController;
+use App\Http\Controllers\DailyCheckController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardLayoutController;
 use App\Http\Controllers\DashboardWidgetController;
@@ -62,6 +63,7 @@ use App\Http\Controllers\My\SalaryController as MySalaryController;
 use App\Http\Controllers\My\ShootRunController;
 use App\Http\Controllers\My\TeamController as MyTeamController;
 use App\Http\Controllers\My\TimesheetController as MyTimesheetController;
+use App\Http\Controllers\My\EditingController as MyEditingController;
 use App\Http\Controllers\My\TodoController as MyTodoController;
 use App\Http\Controllers\NotificationCenterController;
 use App\Http\Controllers\NotionSettingController;
@@ -352,6 +354,13 @@ Route::middleware(['auth', 'logs-work', 'recognitions.catchup', 'scheduled-flows
     Route::delete('todos/{todo}', [MyTodoController::class, 'destroy'])->name('todos.destroy');
     Route::post('todos/{todo}/status', [MyTodoController::class, 'status'])->name('todos.status');
     Route::post('todos/{todo}/defer', [MyTodoController::class, 'defer'])->name('todos.defer');
+
+    // My Editing: the editors' video board -- see My\EditingController.
+    Route::get('editing', [MyEditingController::class, 'index'])->name('editing');
+    Route::post('editing', [MyEditingController::class, 'store'])->name('editing.store');
+    Route::post('editing/refresh', [MyEditingController::class, 'refresh'])->middleware('throttle:4,1')->name('editing.refresh');
+    Route::post('editing/{todo}/act', [MyEditingController::class, 'act'])->name('editing.act');
+    Route::post('editing/{todo}/correct', [MyEditingController::class, 'correct'])->name('editing.correct');
 
     /*
      * Repeating duties assigned to this person (or shared team duties they
@@ -1018,6 +1027,7 @@ Route::middleware(['auth', 'module:insights,view'])->group(function () {
  */
 Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('studio-map', [StudioMapController::class, 'index'])->name('studio-map');
+    Route::get('daily-checks', [DailyCheckController::class, 'index'])->name('daily-checks');
     Route::get('studio-map/data', [StudioMapController::class, 'data'])->name('studio-map.data');
 
     // What the map can do. Client WhatsApp sends are preview-then-send; the
