@@ -27,7 +27,8 @@ class SeedShootReachedTemplate extends Command
                 'name' => Shoot::WHATSAPP_TEMPLATE_REACHED,
                 'category' => 'UTILITY',
                 'language' => 'en_US',
-                'body' => '{{1}} has reached the location for {{2}} ({{3}}) at {{4}}.',
+                // Meta refuses a body that starts or ends with a variable.
+                'body' => 'Crew update: {{1}} has reached the location for {{2}} ({{3}}) at {{4}}. The shoot will start soon.',
                 'body_example' => ['Sanjai', 'SVA Silks reels', 'Anna Nagar', '10:42 AM'],
                 'footer' => 'Chakra Groups',
             ]);
