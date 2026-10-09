@@ -63,7 +63,7 @@ class ShootRunController extends Controller
     {
         $this->authoriseCrew($shoot);
 
-        $shoot->load(['client', 'videos.recordedBy', 'crew.user', 'notionShoot', 'reachedBy']);
+        $shoot->load(['client', 'videos.recordedBy', 'crew.user', 'notionShoot', 'reachedBy', 'departedBy']);
 
         return view('my.shoots.run', [
             'shoot' => $shoot,
@@ -73,6 +73,19 @@ class ShootRunController extends Controller
                 ->where('shoots.id', '!=', $shoot->id)
                 ->first(),
         ]);
+    }
+
+    public function depart(Request $request, Shoot $shoot): RedirectResponse
+    {
+        $this->authoriseCrew($shoot);
+
+        try {
+            ShootRun::depart($shoot, $request->user());
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back();
     }
 
     public function reached(Request $request, Shoot $shoot): RedirectResponse

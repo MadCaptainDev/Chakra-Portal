@@ -25,6 +25,29 @@ use function Illuminate\Support\defer;
 class ShootRun
 {
     /**
+     * The crew have set off for the location. Like reached(): anyone on the
+     * shoot may say so, the first one counts, and a shoot already reached or
+     * wrapped has nothing to set off for.
+     *
+     * @throws RuntimeException when the shoot has already wrapped
+     */
+    public static function depart(Shoot $shoot, User $crewMember): void
+    {
+        if ($shoot->hasWrapped()) {
+            throw new RuntimeException('This shoot has already been wrapped.');
+        }
+
+        if ($shoot->hasDeparted() || $shoot->hasReached()) {
+            return;
+        }
+
+        $shoot->forceFill([
+            'departed_at' => now(),
+            'departed_by_id' => $crewMember->id,
+        ])->save();
+    }
+
+    /**
      * The crew are on location. Anyone on the shoot may say so -- director,
      * camera, whoever gets there first -- and the first one to say it is the
      * one recorded; a second tap from someone else is not news.

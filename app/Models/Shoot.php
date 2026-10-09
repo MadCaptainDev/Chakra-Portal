@@ -63,6 +63,7 @@ class Shoot extends Model
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
         'requested_at' => 'datetime',
+        'departed_at' => 'datetime',
         'reached_at' => 'datetime',
         'started_at' => 'datetime',
         'finished_at' => 'datetime',
@@ -151,6 +152,17 @@ class Shoot extends Model
     public function reachedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reached_by_id');
+    }
+
+    public function departedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'departed_by_id');
+    }
+
+    /** The crew have set off; may or may not be there yet. */
+    public function hasDeparted(): bool
+    {
+        return $this->departed_at !== null;
     }
 
     /** The crew are on location; may or may not be rolling yet. */

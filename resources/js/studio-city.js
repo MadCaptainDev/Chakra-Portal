@@ -28,11 +28,13 @@
 const TW = 64; // tile width at zoom 1
 const TH = 32; // tile height at zoom 1
 const FLOOR = 11; // one storey, in pixels at zoom 1
-const DISTRICT = 12; // tiles per slot side
+const DISTRICT = 18; // tiles per slot side: three blocks of five, with streets between
+const BLOCKS = [0, 6, 12]; // where each block's street sits, inside a slot
+const LINES = [0, 6, 12, 18]; // the streets of a slot
 const ROAD = 6; // a street every six tiles in town
 const MIN_ZOOM = 0.12;
 const MAX_ZOOM = 2.4;
-const OPENING_ZOOM = 0.8; // the most the map opens at -- the town and around it, not a close-up
+const OPENING_ZOOM = 1.15; // the most the map opens at
 const ACTIVE_FPS = 30;
 const IDLE_FPS = 12;
 const ACTIVE_FOR_MS = 60000;
@@ -204,8 +206,6 @@ export function createCity(options) {
                 const type = district ? 'town' : nearHome ? 'suburb' : 'country';
                 const ox = dx * DISTRICT;
                 const oy = dy * DISTRICT;
-                const cx = ox + ROAD;
-                const cy = oy + ROAD;
                 const rnd = random(hash(`${dx}:${dy}`));
                 cells.push({ dx, dy, ox, oy, type, home: !!district?.home, seed: hash(`f${dx}:${dy}`) });
 
@@ -223,56 +223,68 @@ export function createCity(options) {
                     continue;
                 }
 
-                const free = [];
-                for (let i = 1; i < DISTRICT; i++) {
-                    for (let j = 1; j < DISTRICT; j++) {
-                        if (i % ROAD === 0 || j % ROAD === 0) continue;
-                        free.push({ gx: ox + i, gy: oy + j, d: Math.hypot(ox + i + 0.5 - cx, oy + j + 0.5 - cy), even: (i + j) % 2 === 0 });
+                // Town: three blocks a side. Each block holds four 2x2 plots
+                // with a one-tile garden cross between them, so every client
+                // building stands on its own with space round it.
+                const centre = { x: ox + DISTRICT / 2, y: oy + DISTRICT / 2 };
+                const plots = [];
+                for (const bi of BLOCKS) {
+                    for (const bj of BLOCKS) {
+                        for (const [pi, pj] of [[1, 1], [4, 1], [1, 4], [4, 4]]) {
+                            const gx = ox + bi + pi;
+                            const gy = oy + bj + pj;
+                            plots.push({ gx, gy, central: bi === 6 && bj === 6, d: Math.hypot(gx + 1 - centre.x, gy + 1 - centre.y) });
+                        }
                     }
                 }
-                free.sort((a, b) => a.d - b.d || a.gx - b.gx || a.gy - b.gy);
-                const taken = new Set();
-                const take = (gx, gy) => taken.add(`${gx},${gy}`);
+                plots.sort((a, b) => a.d - b.d || a.gx - b.gx || a.gy - b.gy);
+                const used = new Set();
 
                 if (district?.home) {
-                    hq = { kind: 'hq', gx: cx + 1, gy: cy - 2, w: 2, d: 2, floors: 9 };
-                    for (let a = -1; a < 3; a++) for (let b = -1; b < 3; b++) take(hq.gx + a, hq.gy + b); // a little plaza round it
+                    // Chakra fills the middle block, a plaza round a 3x3 tower.
+                    hq = { kind: 'hq', gx: ox + 8, gy: oy + 8, w: 3, d: 3, floors: 10 };
                     objects.push(hq);
+                    plots.filter((p) => p.central).forEach((p) => used.add(p));
                 }
 
                 if (district) {
-                    labels.push({ name: district.name, km: district.km, gx: cx + 0.5, gy: cy + 0.5, home: district.home });
+                    labels.push({ name: district.name, km: district.km, gx: ox + 12.5, gy: oy + 12.5, home: district.home });
                     const residents = snap.buildings.filter((b) => b.district === district.key).sort((a, b) => a.id - b.id);
-                    // Every other lot, so clients have room round them.
-                    let spots = free.filter((s) => s.even && !taken.has(`${s.gx},${s.gy}`));
-                    if (spots.length < residents.length) spots = free.filter((s) => !taken.has(`${s.gx},${s.gy}`));
+                    const open = plots.filter((p) => !used.has(p));
                     residents.forEach((b, k) => {
-                        const spot = spots[k];
-                        if (!spot) return;
-                        take(spot.gx, spot.gy);
-                        // The lots either side stay open: gardens, not neighbours.
-                        take(spot.gx + 1, spot.gy);
-                        take(spot.gx, spot.gy + 1);
-                        const o = { kind: 'client', id: b.id, gx: spot.gx, gy: spot.gy, w: 1, d: 1 };
+                        const plot = open[k];
+                        if (!plot) return;
+                        used.add(plot);
+                        const o = { kind: 'client', id: b.id, gx: plot.gx, gy: plot.gy, w: 2, d: 2 };
                         objects.push(o);
                         byClient.set(b.id, o);
                     });
                 }
 
-                free.forEach((s) => {
-                    if (taken.has(`${s.gx},${s.gy}`)) return;
-                    const r = rnd();
-                    const downtown = type === 'town' ? clamp(1 - s.d / 9, 0, 1) : 0;
-                    const density = type === 'town' ? 0.55 : 0.32;
-                    if (r < 0.1) {
-                        objects.push({ kind: 'tree', gx: s.gx, gy: s.gy, w: 1, d: 1, size: 0.7 + rnd() * 0.5 });
-                    } else if (r < density) {
-                        const floors = 1 + Math.floor(rnd() * (type === 'town' ? 2 + downtown * 4 : 2));
-                        objects.push({ kind: 'filler', gx: s.gx, gy: s.gy, w: 1, d: 1, floors, colour: FILLER[Math.floor(rnd() * FILLER.length)] });
-                    } else if (r < density + 0.12) {
-                        objects.push({ kind: 'park', gx: s.gx, gy: s.gy, w: 1, d: 1 });
+                // Unused plots: small filler buildings, trees and parks. The
+                // garden crosses stay green.
+                plots.forEach((p) => {
+                    if (used.has(p)) return;
+                    for (const [a, b] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+                        const gx = p.gx + a;
+                        const gy = p.gy + b;
+                        const r = rnd();
+                        const downtown = type === 'town' ? clamp(1 - p.d / 12, 0, 1) : 0;
+                        const density = type === 'town' ? 0.5 : 0.3;
+                        if (r < 0.1) objects.push({ kind: 'tree', gx, gy, w: 1, d: 1, size: 0.7 + rnd() * 0.5 });
+                        else if (r < density) objects.push({ kind: 'filler', gx, gy, w: 1, d: 1, floors: 1 + Math.floor(rnd() * (type === 'town' ? 2 + downtown * 3 : 2)), colour: FILLER[Math.floor(rnd() * FILLER.length)] });
                     }
                 });
+                for (const bi of BLOCKS) {
+                    for (const bj of BLOCKS) {
+                        if (district?.home && bi === 6 && bj === 6) continue; // Chakra's plaza
+                        for (let k = 1; k <= 5; k++) {
+                            for (const [gx, gy] of [[ox + bi + 3, oy + bj + k], [ox + bi + k, oy + bj + 3]]) {
+                                if (rnd() < 0.18) objects.push({ kind: 'tree', gx, gy, w: 1, d: 1, size: 0.55 + rnd() * 0.35 });
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -375,7 +387,7 @@ export function createCity(options) {
                     pos = along(route(city.hq, target), where.progress ?? 0.5 + Math.sin(anim * 0.25 + p.id) * 0.3);
                 }
             }
-            list.push({ person: p, phase: where.phase, shoot, x: pos.x, y: pos.y });
+            list.push({ person: p, phase: where.phase, shoot, x: pos.x, y: pos.y, axis: pos.axis ?? "x" });
         });
 
         return list;
@@ -521,7 +533,7 @@ export function createCity(options) {
         visibleCells.forEach((c) => {
             if (c.type !== 'country') return;
             const rnd = random(c.seed);
-            for (const [i, j] of [[0, 0], [6, 0], [0, 6], [6, 6]]) {
+            for (const i of BLOCKS) for (const j of BLOCKS) {
                 const split = rnd() < 0.5;
                 const parts = split ? [[0, 0, 6, 3], [0, 3, 6, 6]] : [[0, 0, 3, 6], [3, 0, 6, 6]];
                 parts.forEach(([a, b2, c2, d]) => {
@@ -535,8 +547,13 @@ export function createCity(options) {
         visibleCells.forEach((c) => {
             if (c.type === 'country') return;
             tileRect(c.ox, c.oy, c.ox + DISTRICT + 1, c.oy + DISTRICT + 1, css(tone('asphalt', dark)));
-            for (const [i, j] of [[0, 0], [6, 0], [0, 6], [6, 6]]) {
+            for (const i of BLOCKS) for (const j of BLOCKS) {
                 tileRect(c.ox + i + 1, c.oy + j + 1, c.ox + i + ROAD, c.oy + j + ROAD, css(tone(c.home ? 'homePavement' : 'pavement', dark)));
+                // The garden cross between each block's four plots.
+                if (c.home && i === 6 && j === 6) continue;
+                const green = css(tone('park', dark));
+                tileRect(c.ox + i + 3, c.oy + j + 1, c.ox + i + 4, c.oy + j + ROAD, green);
+                tileRect(c.ox + i + 1, c.oy + j + 3, c.ox + i + ROAD, c.oy + j + 4, green);
             }
         });
 
@@ -566,7 +583,7 @@ export function createCity(options) {
             };
             visibleCells.forEach((c) => {
                 if (c.type === 'country') return;
-                for (const k of [0, ROAD, DISTRICT]) {
+                for (const k of LINES) {
                     line(c.ox + k + 0.5, c.oy, c.ox + k + 0.5, c.oy + DISTRICT + 1);
                     line(c.ox, c.oy + k + 0.5, c.ox + DISTRICT + 1, c.oy + k + 0.5);
                 }
@@ -589,7 +606,7 @@ export function createCity(options) {
             };
             visibleCells.forEach((c) => {
                 if (c.type === 'country') return;
-                for (const i of [0, ROAD, DISTRICT]) for (const j of [0, ROAD, DISTRICT]) lamp(c.ox + i + 0.5, c.oy + j + 0.5);
+                for (const i of LINES) for (const j of LINES) lamp(c.ox + i + 0.5, c.oy + j + 0.5);
             });
         }
 
@@ -655,12 +672,22 @@ export function createCity(options) {
             const y = p.axis === 'x' ? p.y + lane : p.y;
             if (onScreen(groundAt(x, y))) things.push({ depth: x + y + 0.4, car: { ...car, axis: p.axis, dir }, x, y });
         });
-        people.forEach((p) => things.push({ depth: p.x + p.y + 0.5, person: p }));
+        // On the way: the crew of a shoot ride together, one van per shoot.
+        const vans = new Map();
+        const walking = people.filter((p) => p.phase === "walking" && p.shoot);
+        walking.forEach((p) => {
+            const van = vans.get(p.shoot.id) ?? { x: p.x, y: p.y, axis: p.axis, crew: [], shoot: p.shoot };
+            van.crew.push(p.person);
+            vans.set(p.shoot.id, van);
+        });
+        vans.forEach((van) => things.push({ depth: van.x + van.y + 0.5, van }));
+        people.filter((p) => !walking.includes(p)).forEach((p) => things.push({ depth: p.x + p.y + 0.5, person: p }));
         things.sort((a, b2) => a.depth - b2.depth);
 
         const tops = new Map();
         things.forEach((t) => {
             if (t.car) return drawCar(t, dark);
+            if (t.van) return drawVan(t.van, dark);
             if (t.person) return drawPerson(t.person, dark, anim);
             const o = t.o;
             if (o.kind === 'tree') return drawTree(o, dark);
@@ -729,7 +756,7 @@ export function createCity(options) {
         drawBillboards(snap, time, tops, now);
 
         if (cam.zoom > 0.6 || lens === 'crew') {
-            people.forEach((p) => {
+            people.filter((p) => !walking.includes(p)).forEach((p) => {
                 const s = groundAt(p.x, p.y, 18);
                 if (onScreen(s, 40)) pill(firstName(p.person.name) + (lens === 'crew' && p.person.hours_today ? ` · ${p.person.hours_today}h` : ''), s.x, s.y - 4, { size: 10, bg: 'rgba(0,0,0,0.7)', weight: 600 });
             });
@@ -757,6 +784,28 @@ export function createCity(options) {
             ctx.fillStyle = 'rgba(255,240,180,0.95)';
             ctx.fill();
         }
+    }
+
+
+    // The crew van: Chakra blue, the crew's names over it, always readable.
+    function drawVan(van, dark) {
+        const axis = van.axis;
+        const [ax, ay] = axis === 'x' ? [0.8, 0.42] : [0.42, 0.8];
+        const gx = van.x - ax / 2;
+        const gy = van.y - ay / 2;
+        const h = 10;
+        const z = Math.max(cam.zoom, 0.6);
+        const body = atNight([103, 188, 212], dark * 0.4);
+        const P = (a, b, zz) => groundAt(gx + a, gy + b, zz);
+        quad(P(0, ay, 0), P(ax, ay, 0), P(ax, ay, h), P(0, ay, h), css(shade(body, -0.25)));
+        quad(P(ax, ay, 0), P(ax, 0, 0), P(ax, 0, h), P(ax, ay, h), css(shade(body, -0.08)));
+        quad(P(0, 0, h), P(ax, 0, h), P(ax, ay, h), P(0, ay, h), css(shade(body, 0.2)));
+        const top = groundAt(van.x, van.y, h + 4);
+        const names = van.crew.map((c) => firstName(c.name));
+        const text = names.length > 2 ? `${names[0]}, ${names[1]} +${names.length - 2}` : names.join(', ');
+        const r = pill(`🚐 ${text} · on the way`, top.x, top.y - 4, { size: 10, bg: 'rgba(56,189,248,0.95)', fg: '#0b1a24', weight: 700 });
+        hits.push({ kind: 'person', id: van.crew[0].id, shoot: van.shoot, rect: r });
+        hits.push({ kind: 'person', id: van.crew[0].id, shoot: van.shoot, circle: { x: top.x, y: top.y + 6 * z, r: 14 * z } });
     }
 
     function drawTree(o, dark) {
@@ -943,12 +992,16 @@ export function createCity(options) {
         if (!city) return;
         const b = city.bounds;
         if (everything) return fitTo([iso(b.x0, b.y0), iso(b.x1, b.y0), iso(b.x1, b.y1), iso(b.x0, b.y1, 120)], 1.2);
+        // The studio's own clients and the tower, close enough that the
+        // buildings read as buildings.
         const [hx, hy] = city.homeSlot;
-        const x0 = hx * DISTRICT - 3;
-        const y0 = hy * DISTRICT - 3;
-        const x1 = (hx + 1) * DISTRICT + 4;
-        const y1 = (hy + 1) * DISTRICT + 4;
-        fitTo([iso(x0, y0), iso(x1, y0), iso(x1, y1), iso(x0, y1), iso(x0, y0, 150)], OPENING_ZOOM);
+        const pts = [];
+        city.objects.forEach((o) => {
+            if ((o.kind === 'client' || o.kind === 'hq') && Math.floor(o.gx / DISTRICT) === hx && Math.floor(o.gy / DISTRICT) === hy) {
+                pts.push(iso(o.gx, o.gy, 150), iso(o.gx + o.w, o.gy + o.d), iso(o.gx + o.w, o.gy), iso(o.gx, o.gy + o.d));
+            }
+        });
+        fitTo(pts, OPENING_ZOOM, 40);
     }
 
     /* ——— Pointer ——————————————————————————————————————————————— */

@@ -237,7 +237,7 @@ final class StudioMap
                 'per_hour' => $hours['totals']['per_hour'],
             ],
             'buildings' => $buildings->all(),
-            'day' => self::day(),
+            'day' => self::withTravelTimes(self::day(), $plan),
             'team' => self::team(),
             'attention' => NeedsAttention::all()->values()->all(),
         ];
@@ -259,6 +259,30 @@ final class StudioMap
         return ['lat' => $lat, 'lng' => $lng, 'set' => $lat !== null && $lng !== null];
     }
 
+
+    /**
+     * Roughly how long the drive to each shoot takes, so the map can move
+     * the crew along the road between "on the way" and "reached" before
+     * anyone has reached: twenty minutes in the studio's own town, then
+     * about a minute and a half a kilometre. A guess, and only used until
+     * the real arrival time is known.
+     *
+     * @param  array<string, mixed>  $day
+     * @param  array{districts: list<array<string, mixed>>, of: array<int, string>}  $plan
+     * @return array<string, mixed>
+     */
+    private static function withTravelTimes(array $day, array $plan): array
+    {
+        $km = array_column($plan['districts'], 'km', 'key');
+        $day['shoots'] = array_map(function (array $s) use ($plan, $km) {
+            $distance = $km[$plan['of'][$s['client_id']] ?? ''] ?? 0;
+            $s['travel_ms'] = (int) max(20, $distance * 1.5) * 60 * 1000;
+
+            return $s;
+        }, $day['shoots']);
+
+        return $day;
+    }
     /**
      * Today, as a timeline the page can play: every shoot with anything
      * happening today, with its crew and the moments it reached, rolled and
@@ -277,10 +301,11 @@ final class StudioMap
             ->where('status', '!=', Shoot::STATUS_CANCELLED)
             ->where(fn ($q) => $q
                 ->whereBetween('starts_at', [$start, $end])
+                ->orWhereBetween('departed_at', [$start, $end])
                 ->orWhereBetween('reached_at', [$start, $end])
                 ->orWhereBetween('finished_at', [$start, $end])
                 ->orWhere(fn ($q) => $q->inProgress()))
-            ->with(['client', 'crew.user', 'reachedBy', 'startedBy', 'videos.recordedBy'])
+            ->with(['client', 'crew.user', 'departedBy', 'reachedBy', 'startedBy', 'videos.recordedBy'])
             ->orderBy('starts_at')
             ->get();
 
@@ -290,6 +315,9 @@ final class StudioMap
         foreach ($shoots as $shoot) {
             $base = ['shoot_id' => $shoot->id, 'client_id' => $shoot->client_id, 'shoot' => $shoot->title, 'client' => $shoot->client?->name];
 
+            if ($shoot->departed_at?->between($start, $end)) {
+                $events->push($base + ['type' => 'departed', 'at' => $ms($shoot->departed_at), 'who' => $shoot->departedBy?->name]);
+            }
             if ($shoot->reached_at?->between($start, $end)) {
                 $events->push($base + ['type' => 'reached', 'at' => $ms($shoot->reached_at), 'who' => $shoot->reachedBy?->name]);
             }
@@ -330,6 +358,7 @@ final class StudioMap
                 'crew' => $s->crew->map(fn (ShootCrew $c) => $c->user?->name)->filter()->values()->all(),
                 'crew_ids' => $s->crew->pluck('user_id')->values()->all(),
                 'starts_at' => $ms($s->starts_at),
+                'departed_at' => $ms($s->departed_at),
                 'reached_at' => $ms($s->reached_at),
                 'started_at' => $ms($s->started_at),
                 'finished_at' => $ms($s->finished_at),

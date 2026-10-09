@@ -42,7 +42,7 @@ class ShootRunTest extends TestCase
 
         $this->actingAs($crew)->get(route('my.shoots.run', $shoot))
             ->assertOk()
-            ->assertSee('Start shoot');
+            ->assertSee('on the way');
 
         $this->actingAs($crew)->post(route('my.shoots.start', $shoot))->assertRedirect();
 
@@ -165,6 +165,46 @@ class ShootRunTest extends TestCase
             ->assertSessionHasErrors('photo');
 
         $this->assertCount(0, $shoot->fresh()->videos);
+    }
+
+    // ——— On the way ———
+
+    public function test_the_crew_can_say_they_are_on_the_way_and_the_first_tap_counts(): void
+    {
+        $shoot = $this->shoot();
+        $director = $this->crewMember($shoot);
+        $camera = $this->crewMember($shoot);
+
+        $this->actingAs($director)->post(route('my.shoots.depart', $shoot))->assertRedirect();
+        $first = $shoot->fresh()->departed_at;
+        $this->travel(5)->minutes();
+        $this->actingAs($camera)->post(route('my.shoots.depart', $shoot));
+
+        $shoot->refresh();
+        $this->assertEquals($first, $shoot->departed_at);
+        $this->assertSame($director->id, $shoot->departed_by_id);
+        $this->assertFalse($shoot->hasReached());
+
+        $this->actingAs($director)->get(route('my.shoots.run', $shoot))
+            ->assertOk()->assertSee('On the way since')->assertSee('reached the location', false);
+    }
+
+    public function test_the_runner_offers_on_the_way_first_and_reached_as_the_shortcut(): void
+    {
+        $shoot = $this->shoot();
+        $crew = $this->crewMember($shoot);
+
+        $this->actingAs($crew)->get(route('my.shoots.run', $shoot))
+            ->assertOk()->assertSee('on the way')->assertSee('Already there?');
+    }
+
+    public function test_someone_off_the_shoot_cannot_say_it_is_on_the_way(): void
+    {
+        $shoot = $this->shoot();
+
+        $this->actingAs(User::factory()->create(['role' => User::ROLE_EMPLOYEE]))
+            ->post(route('my.shoots.depart', $shoot))->assertNotFound();
+        $this->assertFalse($shoot->fresh()->hasDeparted());
     }
 
     // ——— Reached ———
@@ -360,7 +400,7 @@ class ShootRunTest extends TestCase
         $crew = $this->crewMember($shoot);
 
         $this->actingAs($crew)->get(route('my.shoots.run', $shoot))
-            ->assertOk()->assertSee('reached the location', false)->assertSee('Start shoot now');
+            ->assertOk()->assertSee('on the way')->assertSee('Already there?');
 
         ShootRun::reached($shoot, $crew);
         $this->actingAs($crew)->get(route('my.shoots.run', $shoot))

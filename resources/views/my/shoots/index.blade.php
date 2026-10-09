@@ -33,6 +33,7 @@
                             $shoot->isInProgress() => ['Rolling', 'bg-red-500/15 text-red-300'],
                             $shoot->hasWrapped() => ['Wrapped', 'bg-emerald-500/15 text-emerald-300'],
                             $shoot->hasReached() => ['Reached', 'bg-amber-500/15 text-amber-200'],
+                            $shoot->hasDeparted() => ['On the way', 'bg-sky-500/15 text-sky-200'],
                             default => ['Not started', 'bg-white/10 text-brand-100/70'],
                         };
                     @endphp

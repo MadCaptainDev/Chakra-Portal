@@ -30,6 +30,8 @@
             <span class="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300">Wrapped</span>
         @elseif ($shoot->hasReached())
             <span class="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-200">Reached</span>
+        @elseif ($shoot->hasDeparted())
+            <span class="rounded-full bg-sky-500/15 px-2.5 py-1 text-xs font-medium text-sky-200">On the way</span>
         @endif
     </header>
 
@@ -68,9 +70,30 @@
                             Go to it
                         </a>
                     </div>
+                @elseif (! $shoot->hasReached() && ! $shoot->hasDeparted())
+                    {{-- Step 1: setting off. The Studio Map shows the crew on the road from now. --}}
+                    <form method="POST" action="{{ route('my.shoots.depart', $shoot) }}" class="mt-10 w-full">
+                        @csrf
+                        <button type="submit"
+                                class="w-full rounded-2xl bg-sky-400 px-6 py-5 text-lg font-semibold text-brand-900 shadow-lg shadow-sky-400/20 active:scale-[0.98] transition">
+                            We're on the way
+                        </button>
+                    </form>
+                    <p class="mt-3 text-xs text-white/40">Tap as you leave. The studio sees you and the crew travelling to the shoot.</p>
+
+                    <form method="POST" action="{{ route('my.shoots.reached', $shoot) }}" class="mt-6">
+                        @csrf
+                        <button type="submit" class="text-sm font-medium text-white/60 underline underline-offset-4 hover:text-white">
+                            Already there? We've reached
+                        </button>
+                    </form>
                 @elseif (! $shoot->hasReached())
-                    {{-- Step 1: on location. Anyone on the crew can tap it. --}}
-                    <form method="POST" action="{{ route('my.shoots.reached', $shoot) }}" class="mt-10 w-full">
+                    {{-- Step 2: on location. Anyone on the crew can tap it. --}}
+                    <div class="mt-8 w-full rounded-xl bg-sky-500/10 px-4 py-3 text-sm text-sky-200">
+                        On the way since {{ $shoot->departed_at->format('g:i A') }}
+                        @if ($shoot->departedBy) · {{ $shoot->departedBy->name }} @endif
+                    </div>
+                    <form method="POST" action="{{ route('my.shoots.reached', $shoot) }}" class="mt-6 w-full">
                         @csrf
                         <button type="submit"
                                 class="w-full rounded-2xl bg-amber-400 px-6 py-5 text-lg font-semibold text-brand-900 shadow-lg shadow-amber-400/20 active:scale-[0.98] transition">

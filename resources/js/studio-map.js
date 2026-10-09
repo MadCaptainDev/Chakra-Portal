@@ -125,19 +125,20 @@ const LENSES = {
 const LENS_KEYS = Object.keys(LENSES);
 
 /* ——— Where a crew member is at time t ——————————————————————————————————
- * home: at the studio. walking: on the way (progress 0..1, or null when the
- * arrival time is not known yet). site: on location.
+ * home: at the studio. walking: on the way -- only once someone has tapped
+ * "We're on the way" in the Shoot Updater; progress runs from that moment to
+ * the arrival, or to the server's travel-time guess until there is one.
+ * site: on location (reached, or rolling).
  */
 function whereAt(shoot, t) {
     if (shoot.finished_at && t >= shoot.finished_at) return { phase: 'home' };
     const arrivals = [shoot.reached_at, shoot.started_at].filter(Boolean);
     const at = arrivals.length ? Math.min(...arrivals) : null;
     if (at && t >= at) return { phase: 'site' };
+    if (!shoot.departed_at || t < shoot.departed_at) return { phase: 'home' };
 
-    const depart = at ? at - 40 * MIN : (shoot.starts_at ?? Infinity) - 60 * MIN;
-    if (t < depart) return { phase: 'home' };
-
-    return { phase: 'walking', progress: at ? Math.min(1, (t - depart) / (at - depart)) : null };
+    const trip = at ? at - shoot.departed_at : shoot.travel_ms ?? 30 * MIN;
+    return { phase: 'walking', progress: Math.min(at ? 1 : 0.95, (t - shoot.departed_at) / Math.max(trip, MIN)) };
 }
 
 const PHASE = {
@@ -907,12 +908,13 @@ function boot(root) {
 /* ——— Plain DOM: ticker and lists — work without the map ——————————————— */
 
 const VERB = {
+    departed: (e) => `${esc(firstName(e.who ?? 'Crew'))} is on the way`,
     reached: (e) => `${esc(firstName(e.who ?? 'Crew'))} reached`,
     rolling: (e) => `${esc(firstName(e.who ?? 'Crew'))} started rolling`,
     video: (e) => `${esc(firstName(e.who ?? 'Crew'))} logged “${esc(e.title)}”`,
     wrapped: () => 'Wrapped',
 };
-const DOT = { reached: C.amber, rolling: C.red, video: C.green, wrapped: C.sky };
+const DOT = { departed: C.sky, reached: C.amber, rolling: C.red, video: C.green, wrapped: C.sky };
 
 function renderTickerIn(root, events, fresh) {
     root.querySelector('[data-ticker]').innerHTML = events.length
