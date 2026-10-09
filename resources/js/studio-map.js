@@ -156,7 +156,7 @@ function boot(root) {
 
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     host.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
@@ -179,6 +179,7 @@ function boot(root) {
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
     Object.assign(sun.shadow.camera, { left: -60, right: 60, top: 60, bottom: -60, far: 150 });
+    sun.shadow.camera.updateProjectionMatrix();
     scene.add(sun);
 
     const ground = new THREE.Mesh(
