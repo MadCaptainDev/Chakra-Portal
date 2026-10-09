@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Client;
 use App\Models\ClientBrief;
+use App\Models\CompanySetting;
 use App\Models\Invoice;
 use App\Models\Proposal;
 use App\Models\Script;
@@ -177,6 +178,13 @@ final class StudioMap
                     'invoices' => route('invoices.index', ['client' => $client->id]),
                 ],
 
+                // Where it sits on the real map. Null until the address has been
+                // looked up (clients:geocode) or the pin placed by hand.
+                'lat' => $client->latitude,
+                'lng' => $client->longitude,
+                'pin' => $client->location_source,
+                'address' => $client->address,
+
                 // ——— For the map's actions ———
                 'phone' => $client->phone,
                 'venture' => TimesheetVenture::canonicalForClient($client),
@@ -206,6 +214,7 @@ final class StudioMap
 
         return [
             'generated_at' => now()->format('g:i A'),
+            'studio' => self::studio(),
             'totals' => [
                 'owed' => round($buildings->sum('owed')),
                 'overdue' => round((float) $unpaid->flatten()
@@ -222,6 +231,22 @@ final class StudioMap
             'team' => self::team(),
             'attention' => NeedsAttention::all()->values()->all(),
         ];
+    }
+
+    /**
+     * Where the studio is -- the Chakra pin crew set out from. Placed by hand
+     * on the map (Settings has no address to look up); until it is, the page
+     * puts the pin in the middle of the clients and asks for it to be moved.
+     *
+     * @return array{lat: ?float, lng: ?float, set: bool}
+     */
+    private static function studio(): array
+    {
+        $settings = CompanySetting::current();
+        $lat = $settings->map_latitude !== null ? (float) $settings->map_latitude : null;
+        $lng = $settings->map_longitude !== null ? (float) $settings->map_longitude : null;
+
+        return ['lat' => $lat, 'lng' => $lng, 'set' => $lat !== null && $lng !== null];
     }
 
     /**

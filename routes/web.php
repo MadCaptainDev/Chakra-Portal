@@ -1026,6 +1026,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::post('remove-crew', [StudioMapActionController::class, 'removeCrew'])->name('remove-crew');
         Route::post('create-shoot', [StudioMapActionController::class, 'createShoot'])->name('create-shoot');
         Route::post('create-todo', [StudioMapActionController::class, 'createTodo'])->name('create-todo');
+        Route::post('place', [StudioMapActionController::class, 'place'])->name('place');
+        Route::post('locate', [StudioMapActionController::class, 'locate'])->middleware('throttle:20,1')->name('locate');
         Route::post('preview', [StudioMapActionController::class, 'preview'])->name('preview');
         Route::post('send', [StudioMapActionController::class, 'send'])->middleware('throttle:10,1')->name('send');
     });

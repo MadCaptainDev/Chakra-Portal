@@ -128,6 +128,8 @@ class Client extends Model
         'report_sections_disabled' => 'array',
         'portal_sections_disabled' => 'array',
         'is_active' => 'boolean',
+        'latitude' => 'float',
+        'longitude' => 'float',
         'forecast_alert_depletion_date' => 'date',
         'forecast_alert_sent_at' => 'datetime',
         'script_approval_token_issued_at' => 'datetime',

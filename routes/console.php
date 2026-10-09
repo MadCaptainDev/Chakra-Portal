@@ -41,6 +41,10 @@ Schedule::command('instagram:sync --force')->dailyAt('02:00')->timezone(config('
 // has fresh URLs (Instagram's expire) -- see App\Support\InstagramGrid.
 Schedule::command('home:refresh-grid')->dailyAt('03:00')->timezone(config('app.timezone'));
 
+// Client addresses onto the Studio Map's real map -- only new or edited ones;
+// see App\Console\Commands\GeocodeClients.
+Schedule::command('clients:geocode')->dailyAt('03:30')->timezone(config('app.timezone'));
+
 // The Notion content module UI is switched off for now, but the sync service
 // and content_items rows remain — only the old everyThirtyMinutes schedule
 // was removed in favour of the daily run above (before recurring invoices).

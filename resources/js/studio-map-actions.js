@@ -408,5 +408,5 @@ export function createActions(root, { snapshot, refresh, showPerson }) {
         return list;
     }
 
-    return { actionsFor, openAssign, openRemove, openBookShoot, openTodo, openSend, toast, showPerson };
+    return { actionsFor, openAssign, openRemove, openBookShoot, openTodo, openSend, toast, showPerson, post, urls };
 }

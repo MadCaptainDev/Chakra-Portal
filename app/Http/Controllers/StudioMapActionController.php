@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\CompanySetting;
 use App\Models\Invoice;
 use App\Models\Proposal;
 use App\Models\Shoot;
 use App\Models\User;
 use App\Services\ClientBriefNudge;
+use App\Services\Geocoder;
 use App\Services\InvoiceWhatsappSender;
 use App\Support\TimesheetVenture;
 use App\Support\WhatsappServiceWindow;
@@ -145,6 +147,59 @@ class StudioMapActionController extends Controller
             'due_on' => $data['due_on'] ?? null,
             'notes' => $data['notes'] ?? null,
         ], $request, fn (array $r) => "To-do for {$r['for']}: {$r['title']}.");
+    }
+
+    /**
+     * Put a pin where it belongs: a client, or the studio itself. A pin
+     * placed by hand is 'manual' and the nightly lookup leaves it alone.
+     * Bounded to India, which is where every client is; a stray click in
+     * the ocean is refused rather than saved.
+     */
+    public function place(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'target' => ['required', 'in:client,studio'],
+            'client_id' => ['required_if:target,client', 'nullable', 'integer', 'exists:clients,id'],
+            'lat' => ['required', 'numeric', 'between:6,37.5'],
+            'lng' => ['required', 'numeric', 'between:68,97.5'],
+        ], ['lat.between' => 'That is outside India.', 'lng.between' => 'That is outside India.']);
+
+        if ($data['target'] === 'studio') {
+            CompanySetting::current()->forceFill(['map_latitude' => $data['lat'], 'map_longitude' => $data['lng']])->save();
+
+            return response()->json(['message' => 'Chakra pinned there.']);
+        }
+
+        $client = Client::findOrFail($data['client_id']);
+        $client->forceFill([
+            'latitude' => $data['lat'],
+            'longitude' => $data['lng'],
+            'location_source' => 'manual',
+        ])->save();
+
+        return response()->json(['message' => "{$client->name} pinned there."]);
+    }
+
+    /** Look one client's address up now, rather than waiting for tonight's run. */
+    public function locate(Request $request, Geocoder $geocoder): JsonResponse
+    {
+        $client = Client::findOrFail($request->validate(['client_id' => ['required', 'integer']])['client_id']);
+
+        if (blank($client->address)) {
+            return response()->json(['message' => "{$client->name} has no address. Add one on their page, or place the pin by hand."], 422);
+        }
+
+        $hit = $geocoder->locate($client->address);
+        $client->forceFill([
+            'latitude' => $hit['lat'] ?? null,
+            'longitude' => $hit['lng'] ?? null,
+            'location_source' => $hit ? 'geocoded' : null,
+            'geocoded_address' => $client->address,
+        ])->save();
+
+        return $hit
+            ? response()->json(['message' => "Found {$client->name} at {$hit['matched']}."])
+            : response()->json(['message' => "OpenStreetMap could not find \"{$client->address}\". Place the pin by hand."], 422);
     }
 
     /**
