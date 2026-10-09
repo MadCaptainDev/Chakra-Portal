@@ -10,6 +10,7 @@ use App\Models\Shoot;
 use App\Models\User;
 use App\Services\ClientBriefNudge;
 use App\Services\Geocoder;
+use App\Services\GeocoderUnavailable;
 use App\Services\InvoiceWhatsappSender;
 use App\Support\TimesheetVenture;
 use App\Support\WhatsappServiceWindow;
@@ -189,7 +190,11 @@ class StudioMapActionController extends Controller
             return response()->json(['message' => "{$client->name} has no address. Add one on their page, or place the pin by hand."], 422);
         }
 
-        $hit = $geocoder->locate($client->address);
+        try {
+            $hit = $geocoder->locate($client->address);
+        } catch (GeocoderUnavailable $e) {
+            return response()->json(['message' => $e->getMessage().' Try again later, or place the pin by hand.'], 503);
+        }
         $client->forceFill([
             'latitude' => $hit['lat'] ?? null,
             'longitude' => $hit['lng'] ?? null,

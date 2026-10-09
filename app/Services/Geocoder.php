@@ -21,7 +21,11 @@ class Geocoder
 {
     private const ENDPOINT = 'https://nominatim.openstreetmap.org/search';
 
-    /** @return array{lat: float, lng: float, matched: string}|null */
+    /**
+     * @return array{lat: float, lng: float, matched: string}|null null when OpenStreetMap does not know it
+     *
+     * @throws GeocoderUnavailable when OpenStreetMap will not answer at all
+     */
     public function locate(string $address): ?array
     {
         foreach (self::candidates($address) as $query) {
@@ -60,7 +64,16 @@ class Geocoder
         return array_values(array_unique($candidates));
     }
 
-    /** @return array{lat: float, lng: float}|null */
+    /**
+     * "Not there" and "would not answer" are different: the first is null and
+     * is remembered, the second throws so nothing is remembered and the
+     * address is asked about again next time. Nominatim answers 429 to a
+     * shared hosting IP whenever its neighbours have been busy.
+     *
+     * @return array{lat: float, lng: float}|null
+     *
+     * @throws GeocoderUnavailable
+     */
     private function ask(string $query): ?array
     {
         try {
@@ -70,10 +83,18 @@ class Geocoder
         } catch (Throwable $e) {
             Log::warning('Geocoding failed.', ['query' => $query, 'error' => $e->getMessage()]);
 
-            return null;
+            throw new GeocoderUnavailable('OpenStreetMap could not be reached.', 0, $e);
         }
 
-        $first = $response->successful() ? ($response->json()[0] ?? null) : null;
+        if (! $response->successful()) {
+            Log::warning('Geocoding refused.', ['query' => $query, 'status' => $response->status()]);
+
+            throw new GeocoderUnavailable($response->status() === 429
+                ? 'OpenStreetMap is turning lookups away for a while (too many requests from this server).'
+                : 'OpenStreetMap answered '.$response->status().'.');
+        }
+
+        $first = $response->json()[0] ?? null;
 
         return $first ? ['lat' => (float) $first['lat'], 'lng' => (float) $first['lon']] : null;
     }

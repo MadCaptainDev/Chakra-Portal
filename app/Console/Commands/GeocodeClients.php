@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Client;
 use App\Services\Geocoder;
+use App\Services\GeocoderUnavailable;
 use Illuminate\Console\Command;
 
 /**
@@ -37,7 +38,16 @@ class GeocodeClients extends Command
                 usleep((int) $this->option('pause') * 1000);
             }
 
-            $hit = $geocoder->locate($client->address);
+            try {
+                $hit = $geocoder->locate($client->address);
+            } catch (GeocoderUnavailable $e) {
+                // Nothing is remembered for this one or the rest: tomorrow's
+                // run asks again. Pressing on would only earn more refusals.
+                $this->warn($e->getMessage().' Stopped; the rest will be tried on the next run.');
+                $this->info("{$found} placed before that.");
+
+                return self::SUCCESS;
+            }
 
             // Remembered either way, so an address that cannot be found is not
             // asked about again every night -- only once it is edited.

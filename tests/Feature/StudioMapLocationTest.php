@@ -81,6 +81,24 @@ class StudioMapLocationTest extends TestCase
         $this->assertSame(10.8251, $lost->fresh()->latitude);
     }
 
+    public function test_a_refused_lookup_is_not_remembered_as_not_found(): void
+    {
+        Http::fake(['nominatim.openstreetmap.org/*' => Http::response('Too many requests', 429)]);
+        $first = Client::factory()->create(['address' => 'Manapparai']);
+        $second = Client::factory()->create(['address' => 'Thillai Nagar, Trichy']);
+
+        $this->artisan('clients:geocode', ['--pause' => 0])->assertExitCode(0);
+
+        Http::assertSentCount(1); // stopped at the first refusal
+        $this->assertNull($first->fresh()->geocoded_address, 'asked again next run');
+        $this->assertNull($second->fresh()->geocoded_address);
+
+        $this->actingAs($this->admin())
+            ->postJson(route('studio-map.actions.locate'), ['client_id' => $first->id])
+            ->assertStatus(503);
+        $this->assertNull($first->fresh()->geocoded_address);
+    }
+
     public function test_placing_a_pin_by_hand_marks_it_manual(): void
     {
         $client = Client::factory()->create();
