@@ -14,10 +14,12 @@ class PaymentReceiptTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function invoice(?string $phone = '9876543210'): Invoice
+    private function invoice(?string $phone = '9876543210', int $status = 200): Invoice
     {
         WhatsappSetting::current()->update(['access_token' => 'EAAG-test-token', 'phone_number_id' => '556677889900']);
-        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.TEST']]])]);
+        Http::fake(['graph.facebook.com/*' => $status === 200
+            ? Http::response(['messages' => [['id' => 'wamid.TEST']]])
+            : Http::response(['error' => ['message' => 'Template not approved']], $status)]);
         $client = Client::factory()->create(['name' => 'Janet', 'phone' => $phone]);
 
         return Invoice::factory()->create(['client_id' => $client->id, 'invoice_number' => 'CP-0042', 'total' => 10000]);
@@ -63,8 +65,7 @@ class PaymentReceiptTest extends TestCase
 
     public function test_a_whatsapp_failure_never_loses_the_payment(): void
     {
-        $invoice = $this->invoice();
-        Http::fake(['graph.facebook.com/*' => Http::response(['error' => ['message' => 'Template not approved']], 400)]);
+        $invoice = $this->invoice('9876543210', 400);
 
         $this->pay($invoice)->assertSessionHas('error');
 
