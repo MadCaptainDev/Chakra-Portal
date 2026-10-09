@@ -47,8 +47,10 @@ class EditingController extends Controller
     }
 
     /** The walkthrough: a self-playing "how this screen works" for editors. */
-    public function guide(): View
+    public function guide(Request $request): View
     {
+        abort_if($request->user()->isClient(), 403);
+
         return view('my.editing-guide');
     }
 

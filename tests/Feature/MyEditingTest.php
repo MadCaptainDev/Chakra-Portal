@@ -85,6 +85,9 @@ class MyEditingTest extends TestCase
             ->assertOk()
             ->assertSee('data-editing-guide', false)
             ->assertSee('Save as video');
+
+        // An admin with no timesheet can open it too, to save it as a video.
+        $this->actingAs(User::factory()->create(['role' => User::ROLE_ADMIN]))->get(route('my.editing.guide'))->assertOk();
     }
 
     public function test_one_tap_from_the_planner_adds_a_linked_reel_and_twice_is_still_one(): void

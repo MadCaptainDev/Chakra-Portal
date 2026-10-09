@@ -323,6 +323,13 @@ Route::middleware('auth')->get('oauth/instagram/callback', [InstagramConnectionC
  * middleware admits employees and salary-linked admins; pure admins and
  * clients are refused.
  */
+/*
+ * The My Editing walkthrough sits outside the logs-work group below on
+ * purpose: admins who keep no timesheet open it to watch it or save it as a
+ * video for the editors.
+ */
+Route::get('my/editing/guide', [MyEditingController::class, 'guide'])->middleware('auth')->name('my.editing.guide');
+
 Route::middleware(['auth', 'logs-work', 'recognitions.catchup', 'scheduled-flows.catchup'])->prefix('my')->name('my.')->group(function () {
     Route::get('dashboard', [MyDashboardController::class, 'index'])->name('dashboard');
     Route::get('calendar', [MyCalendarController::class, 'index'])->name('calendar');
@@ -354,7 +361,6 @@ Route::middleware(['auth', 'logs-work', 'recognitions.catchup', 'scheduled-flows
 
     // My Editing: the editors' video board -- see My\EditingController.
     Route::get('editing', [MyEditingController::class, 'index'])->name('editing');
-    Route::get('editing/guide', [MyEditingController::class, 'guide'])->name('editing.guide');
     Route::post('editing', [MyEditingController::class, 'store'])->name('editing.store');
     Route::post('editing/refresh', [MyEditingController::class, 'refresh'])->middleware('throttle:4,1')->name('editing.refresh');
     Route::post('editing/{todo}/act', [MyEditingController::class, 'act'])->name('editing.act');
