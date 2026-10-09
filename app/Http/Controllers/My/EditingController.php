@@ -46,6 +46,12 @@ class EditingController extends Controller
         ]);
     }
 
+    /** The walkthrough: a self-playing "how this screen works" for editors. */
+    public function guide(): View
+    {
+        return view('my.editing-guide');
+    }
+
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();

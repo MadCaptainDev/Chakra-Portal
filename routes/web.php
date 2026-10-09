@@ -354,6 +354,7 @@ Route::middleware(['auth', 'logs-work', 'recognitions.catchup', 'scheduled-flows
 
     // My Editing: the editors' video board -- see My\EditingController.
     Route::get('editing', [MyEditingController::class, 'index'])->name('editing');
+    Route::get('editing/guide', [MyEditingController::class, 'guide'])->name('editing.guide');
     Route::post('editing', [MyEditingController::class, 'store'])->name('editing.store');
     Route::post('editing/refresh', [MyEditingController::class, 'refresh'])->middleware('throttle:4,1')->name('editing.refresh');
     Route::post('editing/{todo}/act', [MyEditingController::class, 'act'])->name('editing.act');

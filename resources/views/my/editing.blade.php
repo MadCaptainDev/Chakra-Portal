@@ -36,10 +36,16 @@
                 <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-300">{{ now()->format('l j F') }}</p>
                 <h1 class="text-2xl font-extrabold tracking-tight sm:text-3xl">My Editing</h1>
             </div>
+            <div class="flex items-center gap-1">
+            <a href="{{ route('my.editing.guide') }}" class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-brand-200/80 hover:bg-white/5 hover:text-white" title="How My Editing works">
+                <span class="flex h-5 w-5 items-center justify-center rounded-full bg-brand-400/20 text-[11px] font-bold text-brand-200">?</span>
+                <span>How it works</span>
+            </a>
             <button type="button" @click="refreshNotion()" :disabled="refreshing"
                     class="rounded-lg p-2.5 text-brand-100/40 hover:bg-white/5 hover:text-brand-100/80" title="Refresh from Notion" aria-label="Refresh the Reel Planner from Notion">
                 <svg class="h-4 w-4" :class="refreshing && 'animate-spin'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
             </button>
+            </div>
         </div>
 
         {{-- Messages --}}

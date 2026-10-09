@@ -77,6 +77,16 @@ class MyEditingTest extends TestCase
                 && $hints['per_day'] === 1);
     }
 
+    public function test_the_walkthrough_is_linked_from_my_editing_and_opens_for_an_editor(): void
+    {
+        $this->withoutVite();
+        $this->actingAs($this->sanjai)->get(route('my.editing'))->assertSee(route('my.editing.guide'));
+        $this->actingAs($this->sanjai)->get(route('my.editing.guide'))
+            ->assertOk()
+            ->assertSee('data-editing-guide', false)
+            ->assertSee('Save as video');
+    }
+
     public function test_one_tap_from_the_planner_adds_a_linked_reel_and_twice_is_still_one(): void
     {
         $item = $this->plannerItem();
