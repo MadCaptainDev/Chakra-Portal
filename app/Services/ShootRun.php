@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\DB;
 use App\Support\PublicUpload;
 use RuntimeException;
 
+use function Illuminate\Support\defer;
+
 /**
  * Running a shoot: starting it, filing each video, wrapping it.
  *
@@ -43,6 +45,18 @@ class ShootRun
             'reached_at' => now(),
             'reached_by_id' => $crewMember->id,
         ])->save();
+
+        self::announceReached($shoot, $crewMember);
+    }
+
+    /**
+     * Tell the studio, once per shoot. After the response, because the person
+     * tapping is standing on location on a phone signal, and a producer's
+     * WhatsApp delivery is not something they should wait on.
+     */
+    private static function announceReached(Shoot $shoot, User $crewMember): void
+    {
+        defer(fn () => ShootReachedAlert::send($shoot, $crewMember));
     }
 
     /**
@@ -71,6 +85,8 @@ class ShootRun
          * signal is the normal way this gets called twice. Without the lock
          * both reads see "nothing running" and both write a start.
          */
+        $firstArrival = ! $shoot->hasReached();
+
         DB::transaction(function () use ($shoot, $crewMember) {
             $running = self::runningFor($crewMember, lock: true)->first();
 
@@ -91,6 +107,11 @@ class ShootRun
         });
 
         NotionShootStatus::push($shoot, NotionShootStatus::SHOOTING);
+
+        // Nobody tapped Reached -- starting is the arrival, so say so once.
+        if ($firstArrival) {
+            self::announceReached($shoot, $crewMember);
+        }
     }
 
     /**

@@ -41,6 +41,9 @@ class Shoot extends Model
     /** Staff alert for a completed shoot missing from the Reel Planner -- see SeedMissingContentAlertTemplate and SendMissingContentAlerts. */
     public const WHATSAPP_TEMPLATE_MISSING_CONTENT = 'shoot_content_missing_v1';
 
+    /** Staff alert when the crew reach a shoot's location -- see SeedShootReachedTemplate and ShootReachedAlert. */
+    public const WHATSAPP_TEMPLATE_REACHED = 'shoot_crew_reached_v1';
+
     protected $fillable = [
         'title',
         'client_id',
