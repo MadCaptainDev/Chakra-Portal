@@ -28,14 +28,48 @@ class Geocoder
      */
     public function locate(string $address): ?array
     {
-        foreach (self::candidates($address) as $query) {
-            $hit = $this->ask($query);
-            if ($hit !== null) {
-                return $hit + ['matched' => $query];
+        $candidates = self::candidates($address);
+        $named = array_values(array_filter($candidates, fn ($c) => ! str_ends_with($c, ', India')));
+        $town = $named === [] ? null : end($named);
+
+        // The town first: a street name matches streets all over the state
+        // ("Madurai Road" is in every town on the way to Madurai), so a more
+        // exact hit only counts if it is near the town the address names.
+        $townHit = $town !== null ? $this->ask($town) : null;
+
+        foreach ($candidates as $query) {
+            if ($query === $town) {
+                if ($townHit !== null) {
+                    return $townHit + ['matched' => $town];
+                }
+
+                continue;
             }
+            $hit = $this->ask($query);
+            if ($hit === null) {
+                continue;
+            }
+            if ($townHit !== null && self::km($hit, $townHit) > self::NEAR_TOWN_KM) {
+                continue;
+            }
+
+            return $hit + ['matched' => $query];
         }
 
         return null;
+    }
+
+    /** How far an exact match may sit from the town the address names. */
+    private const NEAR_TOWN_KM = 20;
+
+    /** @param  array{lat: float, lng: float}  $a  @param  array{lat: float, lng: float}  $b */
+    private static function km(array $a, array $b): float
+    {
+        $dLat = deg2rad($b['lat'] - $a['lat']);
+        $dLng = deg2rad($b['lng'] - $a['lng']);
+        $h = sin($dLat / 2) ** 2 + cos(deg2rad($a['lat'])) * cos(deg2rad($b['lat'])) * sin($dLng / 2) ** 2;
+
+        return 6371 * 2 * atan2(sqrt($h), sqrt(1 - $h));
     }
 
     /**
@@ -46,8 +80,13 @@ class Geocoder
      */
     public static function candidates(string $address): array
     {
-        // What people write versus what OpenStreetMap calls it.
-        $address = preg_replace('/\bTrichy\b/i', 'Tiruchirappalli', $address);
+        // What people write versus what OpenStreetMap calls it. "Pudhukottai"
+        // with an h is a village near Thanjavur; the town has a double k.
+        $address = preg_replace(
+            ['/\bTrichy\b/i', '/\bPudh?u?kk?ott?ai\b/i'],
+            ['Tiruchirappalli', 'Pudukkottai'],
+            $address,
+        );
 
         $parts = array_values(array_filter(array_map('trim', preg_split('/[,\n]+/', $address)), fn ($p) => $p !== ''));
         $candidates = [];

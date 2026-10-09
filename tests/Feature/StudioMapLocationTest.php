@@ -52,6 +52,27 @@ class StudioMapLocationTest extends TestCase
         $this->assertSame('621306, India', last(Geocoder::candidates('Check Post, Dindigul Main Road, Tamil nadu 621306')));
     }
 
+    public function test_a_street_found_in_some_other_town_gives_way_to_the_town(): void
+    {
+        // "Madurai Road" exists in many towns; this one is 28 km away.
+        $this->nominatim([
+            'Manapparai' => [10.6082, 78.4231],
+            'Madurai Road, Manapparai' => [10.3542, 78.3434],
+        ]);
+
+        $this->assertSame(['lat' => 10.6082, 'lng' => 78.4231, 'matched' => 'Manapparai'], app(Geocoder::class)->locate('Madurai Road , Manapparai'));
+    }
+
+    public function test_a_street_in_the_town_itself_is_kept(): void
+    {
+        $this->nominatim([
+            'Manapparai' => [10.6082, 78.4231],
+            'Muthan Theru, Manapparai' => [10.6101, 78.4252], // a street in the town itself: kept
+        ]);
+        $this->assertSame('Muthan Theru, Manapparai', app(Geocoder::class)->locate('Muthan Theru , Manapparai')['matched']);
+        $this->assertSame(['Pudukkottai'], Geocoder::candidates('Pudhukottai'));
+    }
+
     public function test_the_nightly_lookup_places_new_and_edited_addresses_and_leaves_hand_placed_pins(): void
     {
         $this->nominatim(['Manapparai' => [10.6075, 78.425], 'Thillai Nagar, Tiruchirappalli' => [10.8251, 78.6843]]);
