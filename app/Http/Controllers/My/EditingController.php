@@ -235,6 +235,7 @@ class EditingController extends Controller
             ->orderByRaw('published_date is null')->orderBy('published_date')
             ->limit(250)
             ->get()
+            ->filter(fn (ContentItem $i) => filled($i->title))
             ->map(fn (ContentItem $i) => [
                 'id' => $i->id,
                 'title' => trim($i->title),
