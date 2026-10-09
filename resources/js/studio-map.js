@@ -302,7 +302,7 @@ function boot(root) {
             walker.add(name);
             town.add(walker);
 
-            walkers.push({ mesh: walker, to, rolling: person.rolling, phase: i * 0.9 });
+            walkers.push({ mesh: walker, to, onSite: person.on_site, phase: i * 0.9 });
         });
 
         scene.add(town);
@@ -339,8 +339,8 @@ function boot(root) {
     function placeWalkers(t) {
         walkers.forEach((w) => {
             const s = t * 0.25 + w.phase;
-            if (w.rolling) {
-                // On set: circling the building.
+            if (w.onSite) {
+                // On location (reached or rolling): circling the building.
                 const a = s * 1.4;
                 w.mesh.position.set(w.to.x + Math.cos(a) * 2.6, 0, w.to.z + Math.sin(a) * 2.6);
             } else {
@@ -461,7 +461,7 @@ function openPanelIn(root, b) {
     const shoots = b.shoots_today.map((s) => `
         <li class="rounded-lg bg-white/5 p-2.5">
             <a href="${esc(s.url)}" class="font-semibold text-white hover:underline">${esc(s.title)}</a>
-            <p class="text-xs text-brand-100/60">${s.rolling ? '<span class="text-emerald-300 font-semibold">Rolling</span> · ' : ''}${esc(s.when ?? '')}${s.location ? ' · ' + esc(s.location) : ''}</p>
+            <p class="text-xs text-brand-100/60">${s.rolling ? '<span class="text-emerald-300 font-semibold">Rolling</span> · ' : (s.reached ? '<span class="text-amber-200 font-semibold">Reached ' + esc(s.reached) + '</span> · ' : '')}${esc(s.when ?? '')}${s.location ? ' · ' + esc(s.location) : ''}</p>
             <p class="text-xs text-brand-100/60">${s.crew.length ? 'Crew: ' + s.crew.map(esc).join(', ') : '<span class="text-red-300">Nobody crewed</span>'}</p>
         </li>`).join('');
 

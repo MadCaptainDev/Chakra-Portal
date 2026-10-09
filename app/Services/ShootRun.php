@@ -23,6 +23,29 @@ use RuntimeException;
 class ShootRun
 {
     /**
+     * The crew are on location. Anyone on the shoot may say so -- director,
+     * camera, whoever gets there first -- and the first one to say it is the
+     * one recorded; a second tap from someone else is not news.
+     *
+     * @throws RuntimeException when the shoot has already wrapped
+     */
+    public static function reached(Shoot $shoot, User $crewMember): void
+    {
+        if ($shoot->hasWrapped()) {
+            throw new RuntimeException('This shoot has already been wrapped.');
+        }
+
+        if ($shoot->hasReached()) {
+            return;
+        }
+
+        $shoot->forceFill([
+            'reached_at' => now(),
+            'reached_by_id' => $crewMember->id,
+        ])->save();
+    }
+
+    /**
      * Begin the shoot.
      *
      * The one-at-a-time rule is per person, not per studio: two units with
@@ -57,7 +80,10 @@ class ShootRun
                 );
             }
 
+            // Rolling means they got there, even if nobody tapped Reached.
             $shoot->forceFill([
+                'reached_at' => $shoot->reached_at ?? now(),
+                'reached_by_id' => $shoot->reached_by_id ?? $crewMember->id,
                 'started_at' => now(),
                 'finished_at' => null,
                 'started_by_id' => $crewMember->id,

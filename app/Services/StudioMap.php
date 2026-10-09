@@ -161,6 +161,7 @@ final class StudioMap
             'when' => $shoot->starts_at?->format('g:i A'),
             'location' => $shoot->location,
             'rolling' => $rolling->contains('id', $shoot->id),
+            'reached' => $shoot->reached_at?->format('g:i A'),
             'crew' => $shoot->crew->map(fn (ShootCrew $c) => $c->user?->name)->filter()->values()->all(),
             'url' => route('shoots.show', $shoot),
         ];
@@ -171,7 +172,10 @@ final class StudioMap
      * on it gets no walker -- NeedsAttention already says so, and an empty
      * street says it again without inventing a person.
      *
-     * @return list<array{name: string, client_id: ?int, rolling: bool}>
+     * on_site: reached or rolling -- they stand at the building rather than
+     * walking to it.
+     *
+     * @return list<array{name: string, client_id: ?int, rolling: bool, on_site: bool}>
      */
     private static function crew(Collection $shoots, Collection $rolling): array
     {
@@ -182,6 +186,7 @@ final class StudioMap
                 'name' => $name,
                 'client_id' => $shoot->client_id,
                 'rolling' => $rolling->contains('id', $shoot->id),
+                'on_site' => $shoot->hasReached() || $rolling->contains('id', $shoot->id),
             ]))
             ->values()
             ->all();

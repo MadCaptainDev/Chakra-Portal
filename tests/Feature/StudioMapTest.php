@@ -76,7 +76,7 @@ class StudioMapTest extends TestCase
         $snapshot = StudioMap::snapshot();
 
         $this->assertSame('shoot', collect($snapshot['buildings'])->firstWhere('name', 'Zira')['state']);
-        $this->assertSame([['name' => 'Sanjai K', 'client_id' => $client->id, 'rolling' => false]], $snapshot['crew']);
+        $this->assertSame([['name' => 'Sanjai K', 'client_id' => $client->id, 'rolling' => false, 'on_site' => false]], $snapshot['crew']);
         $this->assertSame(1, $snapshot['totals']['shoots_today']);
     }
 

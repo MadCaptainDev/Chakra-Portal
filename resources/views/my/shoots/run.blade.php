@@ -9,7 +9,7 @@
 
 <x-editor-layout :title="$shoot->title">
     <header class="flex items-center gap-3 border-b border-white/10 px-4 py-3 shrink-0">
-        <a href="{{ url()->previous() === url()->current() ? route('dashboard') : url()->previous() }}"
+        <a href="{{ route('my.shoots') }}"
            class="rounded-lg p-2 -ml-2 text-white/60 hover:text-white hover:bg-white/10"
            aria-label="Leave this shoot">
             <x-icon name="chevron-left" class="h-5 w-5" />
@@ -28,6 +28,8 @@
             </span>
         @elseif ($wrapped)
             <span class="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300">Wrapped</span>
+        @elseif ($shoot->hasReached())
+            <span class="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-200">Reached</span>
         @endif
     </header>
 
@@ -66,8 +68,30 @@
                             Go to it
                         </a>
                     </div>
+                @elseif (! $shoot->hasReached())
+                    {{-- Step 1: on location. Anyone on the crew can tap it. --}}
+                    <form method="POST" action="{{ route('my.shoots.reached', $shoot) }}" class="mt-10 w-full">
+                        @csrf
+                        <button type="submit"
+                                class="w-full rounded-2xl bg-amber-400 px-6 py-5 text-lg font-semibold text-brand-900 shadow-lg shadow-amber-400/20 active:scale-[0.98] transition">
+                            We've reached the location
+                        </button>
+                    </form>
+                    <p class="mt-3 text-xs text-white/40">Lets the studio know the crew is on site. Start the shoot once you're set up.</p>
+
+                    <form method="POST" action="{{ route('my.shoots.start', $shoot) }}" class="mt-6">
+                        @csrf
+                        <button type="submit" class="text-sm font-medium text-white/60 underline underline-offset-4 hover:text-white">
+                            Already set up? Start shoot now
+                        </button>
+                    </form>
                 @else
-                    <form method="POST" action="{{ route('my.shoots.start', $shoot) }}" class="mt-10 w-full">
+                    {{-- Step 2: rolling. --}}
+                    <div class="mt-8 w-full rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                        Reached at {{ $shoot->reached_at->format('g:i A') }}
+                        @if ($shoot->reachedBy) · {{ $shoot->reachedBy->name }} @endif
+                    </div>
+                    <form method="POST" action="{{ route('my.shoots.start', $shoot) }}" class="mt-6 w-full">
                         @csrf
                         <button type="submit"
                                 class="w-full rounded-2xl bg-red-500 px-6 py-5 text-lg font-semibold text-white shadow-lg shadow-red-500/20 active:scale-[0.98] transition">
@@ -135,17 +159,17 @@
                                 Video {{ $videos->count() + 1 }}
                             </p>
                             <input type="text" name="name" value="{{ old('name') }}" required autofocus
-                                   placeholder="What is this one?"
+                                   placeholder="Video title"
                                    class="mt-2 w-full rounded-xl border-0 bg-white/10 px-4 py-3.5 text-base text-white placeholder-white/30 focus:ring-2 focus:ring-white/40">
                             <x-input-error :messages="$errors->get('name')" class="mt-1.5" />
                         </div>
 
                         <div>
-                            <label class="text-sm text-white/60">Photo</label>
+                            <label class="text-sm text-white/60">Photo of this video</label>
                             {{-- capture lets a phone open the camera straight away
                                  instead of the gallery, which is what is wanted
                                  standing on set. --}}
-                            <input type="file" name="photo" accept="image/*" capture="environment"
+                            <input type="file" name="photo" accept="image/*" capture="environment" required
                                    class="mt-2 w-full rounded-xl bg-white/10 px-4 py-3 text-sm text-white/70 file:mr-3 file:rounded-lg file:border-0 file:bg-white/15 file:px-3 file:py-1.5 file:text-sm file:text-white">
                             <x-input-error :messages="$errors->get('photo')" class="mt-1.5" />
                         </div>

@@ -73,6 +73,15 @@
             <span class="ml-auto text-xs" :class="statusClass" x-text="statusLine"></span>
         </div>
 
+        {{-- What the crew reported from location, via the Shoot Updater. --}}
+        @if ($shoot->hasReached())
+            <p class="text-sm text-brand-100/70">
+                <span class="text-amber-200">Reached {{ $shoot->reached_at->format('g:i A') }}</span>@if ($shoot->reachedBy) by {{ $shoot->reachedBy->name }}@endif
+                @if ($shoot->started_at) · <span class="text-red-300">rolling from {{ $shoot->started_at->format('g:i A') }}</span>@endif
+                @if ($shoot->finished_at) · <span class="text-emerald-300">wrapped {{ $shoot->finished_at->format('g:i A') }}</span>@endif
+            </p>
+        @endif
+
         @if ($clashes->isNotEmpty())
             <div class="rounded-xl bg-amber-400/10 border border-amber-400/30 p-4 flex items-start gap-3">
                 <x-icon name="alert" class="w-5 h-5 shrink-0 mt-0.5 text-amber-300" />

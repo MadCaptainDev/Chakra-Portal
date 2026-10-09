@@ -386,7 +386,9 @@ Route::middleware(['auth', 'logs-work', 'recognitions.catchup', 'scheduled-flows
  * shoot because no middleware can.
  */
 Route::middleware('auth')->group(function () {
+    Route::get('my/shoots', [ShootRunController::class, 'index'])->name('my.shoots');
     Route::get('my/shoots/{shoot}/run', [ShootRunController::class, 'show'])->name('my.shoots.run');
+    Route::post('my/shoots/{shoot}/reached', [ShootRunController::class, 'reached'])->name('my.shoots.reached');
     Route::post('my/shoots/{shoot}/start', [ShootRunController::class, 'start'])->name('my.shoots.start');
     Route::post('my/shoots/{shoot}/videos', [ShootRunController::class, 'storeVideo'])->name('my.shoots.videos.store');
     Route::post('my/shoots/{shoot}/finish', [ShootRunController::class, 'finish'])->name('my.shoots.finish');

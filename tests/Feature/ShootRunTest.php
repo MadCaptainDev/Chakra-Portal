@@ -126,6 +126,7 @@ class ShootRunTest extends TestCase
 
         $this->actingAs($crew)->post(route('my.shoots.videos.store', $shoot), [
             'name' => 'Vet interview',
+            'photo' => UploadedFile::fake()->image('interview.jpg'),
         ])->assertRedirect();
 
         $videos = $shoot->fresh()->videos;
@@ -136,10 +137,10 @@ class ShootRunTest extends TestCase
         $this->assertSame('Golden hour, shot wide', $videos->first()->notes);
         $this->assertNotNull($videos->first()->photo_path);
         $this->assertFileExists(public_path($videos->first()->photo_path));
-        $this->assertNull($videos->last()->photo_path);
+        $this->assertNotNull($videos->last()->photo_path);
 
         // Tidy up: PublicUpload writes into public/, not a faked disk.
-        @unlink(public_path($videos->first()->photo_path));
+        $videos->each(fn ($v) => @unlink(public_path($v->photo_path)));
     }
 
     public function test_a_video_needs_a_name(): void
@@ -154,12 +155,101 @@ class ShootRunTest extends TestCase
         $this->assertCount(0, $shoot->fresh()->videos);
     }
 
+    public function test_a_video_needs_a_photo(): void
+    {
+        $shoot = $this->shoot();
+        $crew = $this->crewMember($shoot);
+        ShootRun::start($shoot, $crew);
+
+        $this->actingAs($crew)->post(route('my.shoots.videos.store', $shoot), ['name' => 'No still'])
+            ->assertSessionHasErrors('photo');
+
+        $this->assertCount(0, $shoot->fresh()->videos);
+    }
+
+    // ——— Reached ———
+
+    public function test_any_crew_member_can_mark_the_crew_reached_and_the_first_one_counts(): void
+    {
+        $shoot = $this->shoot();
+        $director = $this->crewMember($shoot);
+        $camera = $this->crewMember($shoot);
+
+        $this->actingAs($director)->post(route('my.shoots.reached', $shoot))->assertRedirect();
+        $first = $shoot->fresh()->reached_at;
+
+        $this->travel(10)->minutes();
+        $this->actingAs($camera)->post(route('my.shoots.reached', $shoot))->assertRedirect();
+
+        $shoot->refresh();
+        $this->assertTrue($shoot->hasReached());
+        $this->assertEquals($first, $shoot->reached_at);
+        $this->assertSame($director->id, $shoot->reached_by_id);
+        $this->assertFalse($shoot->isInProgress(), 'reaching is not rolling');
+    }
+
+    public function test_someone_off_the_shoot_cannot_mark_it_reached(): void
+    {
+        $shoot = $this->shoot();
+
+        $this->actingAs(User::factory()->create(['role' => User::ROLE_EMPLOYEE]))
+            ->post(route('my.shoots.reached', $shoot))->assertNotFound();
+
+        $this->assertFalse($shoot->fresh()->hasReached());
+    }
+
+    public function test_starting_without_tapping_reached_still_records_arrival(): void
+    {
+        $shoot = $this->shoot();
+        $crew = $this->crewMember($shoot);
+
+        ShootRun::start($shoot, $crew);
+
+        $shoot->refresh();
+        $this->assertNotNull($shoot->reached_at);
+        $this->assertSame($crew->id, $shoot->reached_by_id);
+    }
+
+    public function test_starting_after_reached_keeps_the_arrival_time(): void
+    {
+        $shoot = $this->shoot();
+        $crew = $this->crewMember($shoot);
+        ShootRun::reached($shoot, $crew);
+        $arrived = $shoot->fresh()->reached_at;
+
+        $this->travel(45)->minutes();
+        ShootRun::start($shoot->fresh(), $crew);
+
+        $this->assertEquals($arrived, $shoot->fresh()->reached_at);
+    }
+
+    // ——— My Shoots ———
+
+    public function test_my_shoots_lists_only_my_shoots_grouped_live_today_and_upcoming(): void
+    {
+        $live = $this->shoot(['title' => 'Live one', 'starts_at' => now()->subHour()]);
+        $crew = $this->crewMember($live);
+        ShootRun::start($live, $crew);
+
+        $this->crewMember($this->shoot(['title' => 'Later today', 'starts_at' => now()->endOfDay()->subMinute()]), $crew);
+        $this->crewMember($this->shoot(['title' => 'Next week', 'starts_at' => now()->addWeek()]), $crew);
+        $this->crewMember($this->shoot(['title' => 'Next year', 'starts_at' => now()->addYear()]), $crew);
+        $this->crewMember($this->shoot(['title' => 'Not mine', 'starts_at' => now()->addHour()]));
+
+        $this->actingAs($crew)->get(route('my.shoots'))
+            ->assertOk()
+            ->assertSeeInOrder(['Live now', 'Live one', 'Today', 'Later today', 'Coming up', 'Next week'])
+            ->assertSee(route('my.shoots.run', $live), false)
+            ->assertDontSee('Next year')
+            ->assertDontSee('Not mine');
+    }
+
     public function test_videos_cannot_be_filed_before_the_shoot_starts(): void
     {
         $shoot = $this->shoot();
         $crew = $this->crewMember($shoot);
 
-        $this->actingAs($crew)->post(route('my.shoots.videos.store', $shoot), ['name' => 'Too early'])
+        $this->actingAs($crew)->post(route('my.shoots.videos.store', $shoot), ['name' => 'Too early', 'photo' => UploadedFile::fake()->image('x.jpg')])
             ->assertSessionHasErrors('name');
 
         $this->assertCount(0, $shoot->fresh()->videos);
@@ -187,7 +277,7 @@ class ShootRunTest extends TestCase
         ShootRun::start($shoot, $crew);
         ShootRun::finish($shoot, $crew);
 
-        $this->actingAs($crew)->post(route('my.shoots.videos.store', $shoot), ['name' => 'After the fact'])
+        $this->actingAs($crew)->post(route('my.shoots.videos.store', $shoot), ['name' => 'After the fact', 'photo' => UploadedFile::fake()->image('x.jpg')])
             ->assertSessionHasErrors(['name' => 'This shoot has already been wrapped.']);
 
         $this->expectException(RuntimeException::class);
@@ -241,7 +331,11 @@ class ShootRunTest extends TestCase
         $crew = $this->crewMember($shoot);
 
         $this->actingAs($crew)->get(route('my.shoots.run', $shoot))
-            ->assertOk()->assertSee('Start shoot');
+            ->assertOk()->assertSee('reached the location', false)->assertSee('Start shoot now');
+
+        ShootRun::reached($shoot, $crew);
+        $this->actingAs($crew)->get(route('my.shoots.run', $shoot))
+            ->assertOk()->assertSee('Reached at')->assertSee('Start shoot');
 
         ShootRun::start($shoot, $crew);
         $this->actingAs($crew)->get(route('my.shoots.run', $shoot))

@@ -3,6 +3,9 @@
     'title' => 'Upcoming shoots',
     'empty' => 'Nothing scheduled.',
     'allHref' => null,
+    // The crew's own dashboard links each row to the runner -- most crew
+    // cannot open the producer's shoot page at all.
+    'runner' => false,
 ])
 
 @if ($shoots->isNotEmpty() || $allHref)
@@ -21,7 +24,7 @@
         @else
             <div class="rounded-xl bg-white/5 ring-1 ring-white/10 overflow-hidden">
                 @foreach ($shoots as $shoot)
-                    <a href="{{ route('shoots.show', $shoot) }}"
+                    <a href="{{ ($runner ?? false) ? route('my.shoots.run', $shoot) : route('shoots.show', $shoot) }}"
                        class="flex items-center justify-between gap-3 p-4 {{ $loop->first ? '' : 'border-t border-white/10' }} group hover:bg-white/[0.03] transition-colors">
                         <span class="min-w-0">
                             <p class="text-sm font-semibold truncate group-hover:text-brand-200">{{ $shoot->title }}</p>

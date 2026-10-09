@@ -118,8 +118,9 @@
         @include('dashboard._upcoming-shoots', [
             'shoots' => $myShoots,
             'title' => 'My upcoming shoots',
+            'runner' => true,
             'empty' => 'You are not on any shoot crew yet.',
-            'allHref' => auth()->user()->can('shoots.view') ? route('shoots.calendar') : null,
+            'allHref' => route('my.shoots'),
         ])
 
         {{-- Today's plan, as counts and a way in. The list itself lives on the

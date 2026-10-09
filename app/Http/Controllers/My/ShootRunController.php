@@ -22,11 +22,48 @@ use RuntimeException;
  */
 class ShootRunController extends Controller
 {
+    /**
+     * The Shoot Updater's front door: every shoot this person is on that
+     * is live, today, or in the next fortnight -- one tap from the sidebar
+     * into the runner. Before this the runner was only linked from the
+     * producer's shoot page, which most crew cannot open.
+     *
+     * An admin sees every shoot in that window, crewed or not, because they
+     * cover for anybody.
+     */
+    public function index(Request $request): View
+    {
+        $user = $request->user();
+
+        $shoots = Shoot::query()
+            ->where('status', '!=', Shoot::STATUS_CANCELLED)
+            ->when(! $user->isAdmin(), fn ($q) => $q->where(fn ($q) => $q
+                ->whereHas('crew', fn ($c) => $c->where('user_id', $user->id))
+                ->orWhere('started_by_id', $user->id)))
+            ->where(fn ($q) => $q
+                ->inProgress()
+                ->orWhereBetween('starts_at', [now()->startOfDay(), now()->addDays(14)->endOfDay()]))
+            ->with(['client', 'crew.user'])
+            ->withCount('videos')
+            ->orderBy('starts_at')
+            ->get();
+
+        $live = $shoots->filter(fn (Shoot $s) => $s->isInProgress());
+        $today = $shoots->reject(fn (Shoot $s) => $s->isInProgress())
+            ->filter(fn (Shoot $s) => $s->starts_at->isToday());
+
+        return view('my.shoots.index', [
+            'live' => $live,
+            'today' => $today,
+            'upcoming' => $shoots->reject(fn (Shoot $s) => $live->contains($s) || $today->contains($s)),
+        ]);
+    }
+
     public function show(Shoot $shoot): View
     {
         $this->authoriseCrew($shoot);
 
-        $shoot->load(['client', 'videos.recordedBy', 'crew.user', 'notionShoot']);
+        $shoot->load(['client', 'videos.recordedBy', 'crew.user', 'notionShoot', 'reachedBy']);
 
         return view('my.shoots.run', [
             'shoot' => $shoot,
@@ -36,6 +73,19 @@ class ShootRunController extends Controller
                 ->where('shoots.id', '!=', $shoot->id)
                 ->first(),
         ]);
+    }
+
+    public function reached(Request $request, Shoot $shoot): RedirectResponse
+    {
+        $this->authoriseCrew($shoot);
+
+        try {
+            ShootRun::reached($shoot, $request->user());
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back();
     }
 
     public function start(Request $request, Shoot $shoot): RedirectResponse
@@ -58,8 +108,9 @@ class ShootRunController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:160'],
             // 12 MB: a phone still, not footage. Footage never comes through
-            // a form.
-            'photo' => ['nullable', 'image', 'max:12288'],
+            // a form. Required: the still is how the editor finds the take,
+            // and a title alone ("Product shot 3") rarely is.
+            'photo' => ['required', 'image', 'max:12288'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 

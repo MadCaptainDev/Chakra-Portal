@@ -148,6 +148,9 @@
             <x-sidebar-link icon="home" :href="route('my.dashboard')" :active="request()->routeIs('my.dashboard')">
                 Dashboard
             </x-sidebar-link>
+            <x-sidebar-link icon="camera" :href="route('my.shoots')" :active="request()->routeIs('my.shoots*')">
+                My Shoots
+            </x-sidebar-link>
             <x-sidebar-link icon="check-circle" :href="route('my.todos')" :active="request()->routeIs('my.todos*')">
                 My To-dos
             </x-sidebar-link>
@@ -214,6 +217,9 @@
                 <x-sidebar-link icon="home" :href="route('my.dashboard')" :active="request()->routeIs('my.dashboard')">
                     My Dashboard
                 </x-sidebar-link>
+                <x-sidebar-link icon="camera" :href="route('my.shoots')" :active="request()->routeIs('my.shoots*')">
+                    My Shoots
+                </x-sidebar-link>
                 <x-sidebar-link icon="check-circle" :href="route('my.todos')" :active="request()->routeIs('my.todos*')">
                     My To-dos
                 </x-sidebar-link>
@@ -242,6 +248,12 @@
             <x-sidebar-link icon="map-pin" :href="route('studio-map')" :active="request()->routeIs('studio-map')">
                 Studio Map
             </x-sidebar-link>
+            {{-- A working admin already has this under My work. --}}
+            @unless ($user?->logsWork())
+                <x-sidebar-link icon="camera" :href="route('my.shoots')" :active="request()->routeIs('my.shoots*')">
+                    Shoot Updater
+                </x-sidebar-link>
+            @endunless
             <x-sidebar-link icon="trending-up" :href="route('editors.index')" :active="request()->routeIs('editors.*')">
                 Editor Output
             </x-sidebar-link>

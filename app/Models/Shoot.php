@@ -60,6 +60,7 @@ class Shoot extends Model
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
         'requested_at' => 'datetime',
+        'reached_at' => 'datetime',
         'started_at' => 'datetime',
         'finished_at' => 'datetime',
         'reminder_sent_at' => 'datetime',
@@ -142,6 +143,17 @@ class Shoot extends Model
     public function startedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'started_by_id');
+    }
+
+    public function reachedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reached_by_id');
+    }
+
+    /** The crew are on location; may or may not be rolling yet. */
+    public function hasReached(): bool
+    {
+        return $this->reached_at !== null;
     }
 
     /**
