@@ -223,6 +223,35 @@ class ShootRunTest extends TestCase
         $this->assertEquals($arrived, $shoot->fresh()->reached_at);
     }
 
+    // ——— Removing crew (was a 500: scoped binding looked for Shoot::crews()) ———
+
+    public function test_an_admin_can_remove_someone_from_the_crew(): void
+    {
+        $shoot = $this->shoot();
+        $this->crewMember($shoot);
+        $row = $shoot->crew()->sole();
+
+        $this->actingAs(User::factory()->create(['role' => User::ROLE_ADMIN]))
+            ->delete(route('shoots.crew.destroy', [$shoot, $row]))
+            ->assertRedirect(route('shoots.show', $shoot));
+
+        $this->assertSame(0, $shoot->crew()->count());
+    }
+
+    public function test_one_shoots_url_cannot_remove_crew_from_another_shoot(): void
+    {
+        $shoot = $this->shoot();
+        $other = $this->shoot(['title' => 'Other shoot']);
+        $this->crewMember($other);
+        $row = $other->crew()->sole();
+
+        $this->actingAs(User::factory()->create(['role' => User::ROLE_ADMIN]))
+            ->delete(route('shoots.crew.destroy', [$shoot, $row]))
+            ->assertNotFound();
+
+        $this->assertSame(1, $other->crew()->count());
+    }
+
     // ——— My Shoots ———
 
     public function test_my_shoots_lists_only_my_shoots_grouped_live_today_and_upcoming(): void

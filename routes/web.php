@@ -634,7 +634,11 @@ Route::middleware(['auth', 'module:shoots,view'])->scopeBindings()->group(functi
     // Planning who and what goes: producer work.
     Route::middleware('module:shoots,edit')->group(function () {
         Route::post('shoots/{shoot}/crew', [ShootCrewController::class, 'store'])->name('shoots.crew.store');
-        Route::delete('shoots/{shoot}/crew/{crew}', [ShootCrewController::class, 'destroy'])->name('shoots.crew.destroy');
+        // Not scoped by the group: scopeBindings() would look for Shoot::crews(),
+        // and the relation is crew(). ShootCrewController::destroy() checks the
+        // row belongs to this shoot instead.
+        Route::delete('shoots/{shoot}/crew/{crew}', [ShootCrewController::class, 'destroy'])
+            ->withoutScopedBindings()->name('shoots.crew.destroy');
         Route::post('shoots/{shoot}/kit', [ShootKitController::class, 'store'])->name('shoots.kit.store');
         Route::post('shoots/{shoot}/kit/bulk-add', [ShootKitController::class, 'storeMany'])->name('shoots.kit.store-many');
         Route::delete('shoots/{shoot}/kit/{kit}', [ShootKitController::class, 'destroy'])->name('shoots.kit.destroy');
