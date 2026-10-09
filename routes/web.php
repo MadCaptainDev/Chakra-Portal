@@ -99,6 +99,7 @@ use App\Http\Controllers\ShootCalendarController;
 use App\Http\Controllers\ShootController;
 use App\Http\Controllers\ShootCrewController;
 use App\Http\Controllers\ShootKitController;
+use App\Http\Controllers\StudioMapActionController;
 use App\Http\Controllers\StudioMapController;
 use App\Http\Controllers\TaxonomyTermController;
 use App\Http\Controllers\TeamMemberController;
@@ -1009,13 +1010,25 @@ Route::middleware(['auth', 'module:insights,view'])->group(function () {
 });
 
 /*
- * The Studio Map: every client as a building in a small 3D town, read-only.
+ * The Studio Map: every client as a building in a small 3D town, and the
+ * actions the map can take on them (admin-only, like the page).
  * Plain `admin` rather than a module permission -- it shows money, shoots and
  * hours side by side, which no single module's permission covers.
  */
 Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('studio-map', [StudioMapController::class, 'index'])->name('studio-map');
     Route::get('studio-map/data', [StudioMapController::class, 'data'])->name('studio-map.data');
+
+    // What the map can do. Client WhatsApp sends are preview-then-send; the
+    // map always shows the preview and asks first. See StudioMapActionController.
+    Route::prefix('studio-map/actions')->name('studio-map.actions.')->middleware('throttle:60,1')->group(function () {
+        Route::post('assign-crew', [StudioMapActionController::class, 'assignCrew'])->name('assign-crew');
+        Route::post('remove-crew', [StudioMapActionController::class, 'removeCrew'])->name('remove-crew');
+        Route::post('create-shoot', [StudioMapActionController::class, 'createShoot'])->name('create-shoot');
+        Route::post('create-todo', [StudioMapActionController::class, 'createTodo'])->name('create-todo');
+        Route::post('preview', [StudioMapActionController::class, 'preview'])->name('preview');
+        Route::post('send', [StudioMapActionController::class, 'send'])->middleware('throttle:10,1')->name('send');
+    });
 });
 Route::middleware(['auth', 'module:invoices,view', 'recurring.catchup'])->group(function () {
     Route::get('invoices/quantity-variables/preview', [InvoiceController::class, 'previewQuantityVariables'])

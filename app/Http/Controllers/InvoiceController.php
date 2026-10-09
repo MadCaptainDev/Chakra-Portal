@@ -7,8 +7,8 @@ use App\Models\Client;
 use App\Models\CompanySetting;
 use App\Models\Invoice;
 use App\Models\SaasProduct;
-use App\Services\DocumentWhatsappNotifier;
 use App\Services\InvoiceDocumentRenderer;
+use App\Services\InvoiceWhatsappSender;
 use App\Support\InvoiceFilters;
 use App\Support\InvoiceQuantityVariable;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -209,10 +209,8 @@ class InvoiceController extends Controller
      * built around; it must exist and be Meta-approved before this can send
      * (see SeedInvoiceReadyTemplate).
      */
-    public function sendWhatsapp(Request $request, Invoice $invoice, DocumentWhatsappNotifier $notifier): RedirectResponse
+    public function sendWhatsapp(Request $request, Invoice $invoice, InvoiceWhatsappSender $sender): RedirectResponse
     {
-        $invoice->loadMissing('client');
-
         if (! $invoice->isSendableViaWhatsapp()) {
             return redirect()->route('invoices.show', $invoice)
                 ->with('error', 'This invoice cannot be sent over WhatsApp until it is approved.');
@@ -225,22 +223,7 @@ class InvoiceController extends Controller
         ]);
 
         try {
-            $notifier->send(
-                document: $invoice,
-                phone: $validated['phone'],
-                template: Invoice::WHATSAPP_TEMPLATE,
-                bodyParameters: [
-                    $invoice->client->name,
-                    $invoice->invoice_number,
-                    number_format((float) $invoice->total, 2),
-                ],
-                // The button's dynamic segment is just the token -- the
-                // template's own static base URL supplies the rest (see
-                // SeedInvoiceReadyTemplate), so this must not be the full
-                // invoice->publicUrl().
-                buttonUrlParameter: $invoice->ensurePublicToken(),
-                sentByUserId: $request->user()->id,
-            );
+            $sender->send($invoice, $validated['phone'], $request->user()->id);
         } catch (RuntimeException $e) {
             // Meta's own reason (template not approved yet, number not
             // reachable, ...) is the useful part -- surfaced as-is rather
@@ -249,8 +232,6 @@ class InvoiceController extends Controller
             // itself failed.
             return redirect()->route('invoices.show', $invoice)->with('error', $e->getMessage());
         }
-
-        $invoice->update(['whatsapp_sent_at' => now()]);
 
         return redirect()->route('invoices.show', $invoice)
             ->with('status', "Sent to {$validated['phone']} on WhatsApp.");

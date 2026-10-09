@@ -3,16 +3,19 @@
 namespace App\Services;
 
 use App\Models\Client;
+use App\Models\ClientBrief;
 use App\Models\Invoice;
 use App\Models\Proposal;
 use App\Models\Script;
 use App\Models\Shoot;
 use App\Models\ShootCrew;
 use App\Models\TimesheetEntry;
+use App\Models\Todo;
 use App\Models\User;
 use App\Services\Insights\EffortVersusRevenue;
 use App\Services\Insights\NeedsAttention;
 use App\Support\ContentForecast;
+use App\Support\TimesheetVenture;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -86,6 +89,30 @@ final class StudioMap
         // a content account only -- the rest have no runway to measure.
         $forecast = ContentForecast::forAllClients()->keyBy(fn (array $row) => $row['client']->id);
 
+        // What the map's actions need: the shoots crew can be dropped onto
+        // (today and the next fortnight, not yet wrapped), the proposals a
+        // client could be re-sent, and whose brief is still outstanding.
+        $upcoming = Shoot::query()
+            ->where('status', '!=', Shoot::STATUS_CANCELLED)
+            ->whereNull('finished_at')
+            ->whereBetween('starts_at', [$today->copy()->startOfDay(), $today->copy()->addDays(14)->endOfDay()])
+            ->with('crew.user')
+            ->orderBy('starts_at')
+            ->get()
+            ->groupBy('client_id');
+
+        $openProposals = Proposal::query()
+            ->whereIn('status', [Proposal::STATUS_SENT, Proposal::STATUS_VIEWED])
+            ->whereNotNull('client_id')
+            ->latest('updated_at')
+            ->get(['id', 'client_id', 'title', 'status'])
+            ->groupBy('client_id');
+
+        $briefsPending = ClientBrief::query()
+            ->where('status', '!=', ClientBrief::STATUS_SUBMITTED)
+            ->pluck('client_id')
+            ->flip();
+
         $clients = Client::query()
             ->where(fn ($q) => $q->where('is_active', true)
                 ->orWhereIn('id', $unpaid->keys()->filter())
@@ -95,7 +122,7 @@ final class StudioMap
 
         $buildings = $clients->map(function (Client $client) use (
             $unpaid, $onMap, $rolling, $nextShoot, $scriptsWaiting, $proposalsWaiting, $hoursByClient,
-            $perHourByClient, $invoicedByClient, $forecast
+            $perHourByClient, $invoicedByClient, $forecast, $upcoming, $openProposals, $briefsPending
         ) {
             $runway = $forecast->get($client->id);
             $invoices = $unpaid->get($client->id, collect());
@@ -149,6 +176,31 @@ final class StudioMap
                     'client' => route('clients.show', $client),
                     'invoices' => route('invoices.index', ['client' => $client->id]),
                 ],
+
+                // ——— For the map's actions ———
+                'phone' => $client->phone,
+                'venture' => TimesheetVenture::canonicalForClient($client),
+                'upcoming_shoots' => $upcoming->get($client->id, collect())->map(fn (Shoot $s) => [
+                    'id' => $s->id,
+                    'title' => $s->title,
+                    'when' => $s->starts_at->isToday() ? 'Today, '.$s->starts_at->format('g:i A') : $s->starts_at->format('D j M, g:i A'),
+                    'crew' => $s->crew->filter(fn (ShootCrew $c) => $c->user)->map(fn (ShootCrew $c) => [
+                        'id' => $c->user_id, 'name' => $c->user->name, 'role' => $c->role,
+                    ])->values()->all(),
+                ])->values()->all(),
+                'unpaid_invoices' => $invoices
+                    ->sortByDesc(fn (Invoice $i) => $i->isOverdue() ? $i->due_date->diffInDays(today()) : -1)
+                    ->map(fn (Invoice $i) => [
+                        'id' => $i->id,
+                        'number' => $i->invoice_number,
+                        'balance' => round($i->balanceDue()),
+                        'overdue_days' => $i->isOverdue() ? (int) $i->due_date->diffInDays(today()) : 0,
+                        'sendable' => $i->isSendableViaWhatsapp(),
+                    ])->values()->all(),
+                'open_proposals' => $openProposals->get($client->id, collect())
+                    ->map(fn (Proposal $p) => ['id' => $p->id, 'title' => $p->title, 'status' => $p->status])
+                    ->values()->all(),
+                'brief_pending' => filled($client->phone) && $briefsPending->has($client->id),
             ];
         })->values();
 
@@ -241,6 +293,7 @@ final class StudioMap
                 'client_id' => $s->client_id,
                 'title' => $s->title,
                 'crew' => $s->crew->map(fn (ShootCrew $c) => $c->user?->name)->filter()->values()->all(),
+                'crew_ids' => $s->crew->pluck('user_id')->values()->all(),
                 'starts_at' => $ms($s->starts_at),
                 'reached_at' => $ms($s->reached_at),
                 'started_at' => $ms($s->started_at),
@@ -256,7 +309,10 @@ final class StudioMap
      * hours logged today so an idle-looking figure who has logged seven of
      * them reads as busy rather than absent.
      *
-     * @return list<array{name: string, hours_today: float}>
+     * Their open to-dos ride along for the person panel -- the count, and the
+     * five due soonest.
+     *
+     * @return list<array<string, mixed>>
      */
     private static function team(): array
     {
@@ -267,10 +323,19 @@ final class StudioMap
             ->groupBy('user_id')
             ->pluck('minutes', 'user_id');
 
-        return User::query()->staff()->orderBy('name')->get(['id', 'name'])
+        $todos = Todo::query()->open()->orderBy('due_on')->get(['id', 'user_id', 'title', 'due_on'])->groupBy('user_id');
+
+        return User::query()->staff()->orderBy('name')->get(['id', 'name', 'role'])
             ->map(fn (User $u) => [
+                'id' => $u->id,
                 'name' => $u->name,
                 'hours_today' => round((float) ($minutes[$u->id] ?? 0) / 60, 1),
+                'open_todos' => $todos->get($u->id, collect())->count(),
+                'todos' => $todos->get($u->id, collect())->take(5)->map(fn (Todo $t) => [
+                    'title' => $t->title,
+                    'due' => $t->due_on?->isToday() ? 'Today' : $t->due_on?->format('j M'),
+                    'overdue' => $t->due_on?->isPast() && ! $t->due_on->isToday(),
+                ])->values()->all(),
             ])
             ->values()
             ->all();
