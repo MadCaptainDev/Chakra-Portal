@@ -42,10 +42,19 @@ class Geocoder
      */
     public static function candidates(string $address): array
     {
+        // What people write versus what OpenStreetMap calls it.
+        $address = preg_replace('/\bTrichy\b/i', 'Tiruchirappalli', $address);
+
         $parts = array_values(array_filter(array_map('trim', preg_split('/[,\n]+/', $address)), fn ($p) => $p !== ''));
         $candidates = [];
         for ($i = 0; $i < count($parts); $i++) {
             $candidates[] = implode(', ', array_slice($parts, $i));
+        }
+
+        // Last resort: a six-digit PIN code anywhere in it puts the pin in
+        // the right postal area, which beats none.
+        if (preg_match('/\b(6\d{5})\b/', $address, $pin)) {
+            $candidates[] = $pin[1].', India';
         }
 
         return array_values(array_unique($candidates));

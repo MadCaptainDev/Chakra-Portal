@@ -46,9 +46,15 @@ class StudioMapLocationTest extends TestCase
         Http::assertSent(fn (Request $r) => str_contains($r->url(), 'countrycodes=in') && $r->hasHeader('User-Agent'));
     }
 
+    public function test_local_names_and_pin_codes_help_the_lookup(): void
+    {
+        $this->assertSame(['Thillai Nagar, Tiruchirappalli', 'Tiruchirappalli'], Geocoder::candidates('Thillai Nagar , Trichy'));
+        $this->assertSame('621306, India', last(Geocoder::candidates('Check Post, Dindigul Main Road, Tamil nadu 621306')));
+    }
+
     public function test_the_nightly_lookup_places_new_and_edited_addresses_and_leaves_hand_placed_pins(): void
     {
-        $this->nominatim(['Manapparai' => [10.6075, 78.425], 'Thillai Nagar, Trichy' => [10.8251, 78.6843]]);
+        $this->nominatim(['Manapparai' => [10.6075, 78.425], 'Thillai Nagar, Tiruchirappalli' => [10.8251, 78.6843]]);
 
         $fresh = Client::factory()->create(['address' => 'Manapparai']);
         $manual = Client::factory()->create(['address' => 'Manapparai']);
@@ -69,7 +75,7 @@ class StudioMapLocationTest extends TestCase
         Http::assertNothingSent();
 
         // ...until the address is edited.
-        $this->nominatim(['Thillai Nagar, Trichy' => [10.8251, 78.6843]]);
+        $this->nominatim(['Thillai Nagar, Tiruchirappalli' => [10.8251, 78.6843]]);
         $lost->update(['address' => 'Thillai Nagar, Trichy']);
         $this->artisan('clients:geocode', ['--pause' => 0]);
         $this->assertSame(10.8251, $lost->fresh()->latitude);
