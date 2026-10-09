@@ -14,6 +14,7 @@ use App\Http\Controllers\Client\InstagramInsightsController as ClientInstagramIn
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\Client\MonthlyReportController as ClientMonthlyReportController;
 use App\Http\Controllers\Client\PortfolioController as ClientPortfolioController;
+use App\Http\Controllers\Client\ProposalController as ClientProposalController;
 use App\Http\Controllers\Client\ScriptApprovalController as ClientScriptApprovalController;
 use App\Http\Controllers\Client\ShootController as ClientShootController;
 use App\Http\Controllers\Client\ShootRequestController as ClientShootRequestController;
@@ -579,6 +580,16 @@ Route::middleware(['auth', 'client'])->prefix('client')->name('client.')->group(
     Route::post('scripts/{script}/comment', [ClientScriptApprovalController::class, 'comment'])->name('scripts.comment')->middleware('portal:scripts');
     Route::post('scripts/{script}/approve', [ClientScriptApprovalController::class, 'approve'])->name('scripts.approve')->middleware('portal:scripts');
     Route::post('scripts/{script}/request-changes', [ClientScriptApprovalController::class, 'requestChanges'])->name('scripts.request-changes')->middleware('portal:scripts');
+
+    /*
+     * Proposals the studio has sent, read and commented on inside the
+     * portal. {proposal} is a plain int for the same reason as {script}
+     * above -- see Client\ProposalController.
+     */
+    Route::get('proposals', [ClientProposalController::class, 'index'])->name('proposals')->middleware('portal:proposals');
+    Route::get('proposals/{proposal}', [ClientProposalController::class, 'show'])->name('proposals.show')->middleware('portal:proposals');
+    Route::get('proposals/{proposal}/pdf', [ClientProposalController::class, 'pdf'])->name('proposals.pdf')->middleware('portal:proposals');
+    Route::post('proposals/{proposal}/comments', [ClientProposalController::class, 'comment'])->name('proposals.comment')->middleware('portal:proposals');
 });
 
 /*

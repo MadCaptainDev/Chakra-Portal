@@ -63,6 +63,7 @@ class Client extends Model
         'shoots' => 'Shoots',
         'social' => 'Social',
         'scripts' => 'Script Approvals',
+        'proposals' => 'Proposals',
     ];
 
     /**

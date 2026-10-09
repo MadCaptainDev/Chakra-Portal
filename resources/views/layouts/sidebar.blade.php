@@ -135,6 +135,11 @@
                     Script Approvals
                 </x-sidebar-link>
             @endif
+            @if ($client?->portalSectionEnabled('proposals'))
+                <x-sidebar-link icon="template" :href="route('client.proposals')" :active="request()->routeIs('client.proposals*')">
+                    Proposals
+                </x-sidebar-link>
+            @endif
         </x-nav-section>
     @elseif (! $isAdmin)
         {{-- Employees get timesheet, calendar, and their own profile. The admin
