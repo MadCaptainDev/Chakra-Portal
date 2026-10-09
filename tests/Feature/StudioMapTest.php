@@ -7,8 +7,10 @@ use App\Models\Invoice;
 use App\Models\Proposal;
 use App\Models\Shoot;
 use App\Models\ShootCrew;
+use App\Models\ShootVideo;
 use App\Models\TimesheetEntry;
 use App\Models\User;
+use App\Services\ShootRun;
 use App\Services\StudioMap;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -46,7 +48,7 @@ class StudioMapTest extends TestCase
 
         $this->actingAs($this->admin())->getJson(route('studio-map.data'))
             ->assertOk()
-            ->assertJsonStructure(['generated_at', 'totals' => ['owed', 'overdue', 'shoots_today', 'rolling', 'hours_month', 'waiting_on_clients'], 'buildings', 'crew', 'attention'])
+            ->assertJsonStructure(['generated_at', 'totals' => ['owed', 'overdue', 'shoots_today', 'rolling', 'hours_month', 'waiting_on_clients'], 'buildings' => [['id', 'per_hour', 'invoiced_month', 'content']], 'day' => ['from', 'now', 'shoots', 'events'], 'team', 'attention'])
             ->assertJsonPath('buildings.0.name', 'Janet');
     }
 
@@ -76,7 +78,8 @@ class StudioMapTest extends TestCase
         $snapshot = StudioMap::snapshot();
 
         $this->assertSame('shoot', collect($snapshot['buildings'])->firstWhere('name', 'Zira')['state']);
-        $this->assertSame([['name' => 'Sanjai K', 'client_id' => $client->id, 'rolling' => false, 'on_site' => false]], $snapshot['crew']);
+        $this->assertSame(['Sanjai K'], $snapshot['day']['shoots'][0]['crew']);
+        $this->assertSame($client->id, $snapshot['day']['shoots'][0]['client_id']);
         $this->assertSame(1, $snapshot['totals']['shoots_today']);
     }
 
@@ -124,5 +127,67 @@ class StudioMapTest extends TestCase
         $this->assertTrue($names->contains('Paused'));
         $this->assertFalse($names->contains('Gone'));
         $this->assertSame('owes', $this->building('Paused')['state']);
+    }
+
+    // ——— The day: what the live feed and replay play ———
+
+    public function test_todays_run_becomes_a_timeline_of_events_in_order(): void
+    {
+        $this->travelTo(today()->setTime(9, 0));
+        $client = Client::factory()->create(['name' => 'Zira', 'is_active' => true]);
+        $shoot = Shoot::create(['title' => 'Zira launch', 'client_id' => $client->id, 'starts_at' => now()->setTime(10, 0), 'status' => Shoot::STATUS_CONFIRMED]);
+        $crew = User::factory()->create(['name' => 'Sanjai K']);
+        ShootCrew::create(['shoot_id' => $shoot->id, 'user_id' => $crew->id]);
+
+        $this->travelTo(today()->setTime(9, 40));
+        ShootRun::reached($shoot, $crew);
+        $this->travelTo(today()->setTime(10, 5));
+        ShootRun::start($shoot->fresh(), $crew);
+        $this->travelTo(today()->setTime(10, 30));
+        ShootVideo::create(['shoot_id' => $shoot->id, 'recorded_by_id' => $crew->id, 'name' => 'Product close-up', 'photo_path' => 'uploads/shoot-videos/x.jpg', 'position' => 1]);
+        $this->travelTo(today()->setTime(12, 0));
+        ShootRun::finish($shoot->fresh(), $crew);
+
+        $day = StudioMap::snapshot()['day'];
+
+        $this->assertSame(['reached', 'rolling', 'video', 'wrapped'], array_column($day['events'], 'type'));
+        $video = $day['events'][2];
+        $this->assertSame('Product close-up', $video['title']);
+        $this->assertSame('Sanjai K', $video['who']);
+        $this->assertStringEndsWith('uploads/shoot-videos/x.jpg', $video['photo']);
+        $this->assertSame('10:30 AM', $video['time']);
+        $this->assertSame(today()->setTime(9, 40)->getTimestampMs(), $day['shoots'][0]['reached_at']);
+        $this->assertSame(today()->setTime(6, 0)->getTimestampMs(), $day['from']);
+        $this->assertCount(4, array_unique(array_column($day['events'], 'id')), 'every event has its own id for the feed');
+    }
+
+    public function test_the_team_carries_hours_logged_today(): void
+    {
+        $staff = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'name' => 'Nitis']);
+        User::factory()->create(['role' => User::ROLE_CLIENT, 'name' => 'A client login']);
+        TimesheetEntry::create([
+            'user_id' => $staff->id, 'worked_on' => today()->toDateString(), 'task' => 'Editing',
+            'task_type' => 'editing', 'venture' => 'SVA Silks', 'minutes' => 90,
+        ]);
+
+        $team = collect(StudioMap::snapshot()['team'])->keyBy('name');
+
+        $this->assertSame(1.5, $team['Nitis']['hours_today']);
+        $this->assertFalse($team->has('A client login'), 'clients are not on the team');
+    }
+
+    public function test_money_lens_figures_come_from_the_same_join_as_insights(): void
+    {
+        $client = Client::factory()->create(['name' => 'SVA Silks and Readymades', 'notion_venture' => 'SVA Silks', 'is_active' => true]);
+        TimesheetEntry::create([
+            'user_id' => $this->admin()->id, 'worked_on' => today()->toDateString(), 'task' => 'Editing',
+            'task_type' => 'editing', 'venture' => 'SVA Silks', 'minutes' => 120,
+        ]);
+        Invoice::factory()->create(['client_id' => $client->id, 'total' => 3000, 'invoice_date' => today(), 'status' => Invoice::STATUS_PAID]);
+
+        $b = $this->building($client->name);
+        $this->assertSame(3000.0, (float) $b['invoiced_month']);
+        $this->assertSame(1500, $b['per_hour']);
+        $this->assertNull($b['content'], 'no content account, nothing to forecast');
     }
 }

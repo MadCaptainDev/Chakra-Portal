@@ -8,8 +8,12 @@ use App\Models\Proposal;
 use App\Models\Script;
 use App\Models\Shoot;
 use App\Models\ShootCrew;
+use App\Models\TimesheetEntry;
+use App\Models\User;
 use App\Services\Insights\EffortVersusRevenue;
 use App\Services\Insights\NeedsAttention;
+use App\Support\ContentForecast;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -75,6 +79,12 @@ final class StudioMap
 
         $hours = EffortVersusRevenue::between($today->copy()->startOfMonth(), $today->copy()->endOfMonth());
         $hoursByClient = $hours['rows']->pluck('hours', 'client_id');
+        $perHourByClient = $hours['rows']->pluck('per_hour', 'client_id');
+        $invoicedByClient = $hours['rows']->pluck('invoiced', 'client_id');
+
+        // The Content lens: days of unposted reels left. Regular clients with
+        // a content account only -- the rest have no runway to measure.
+        $forecast = ContentForecast::forAllClients()->keyBy(fn (array $row) => $row['client']->id);
 
         $clients = Client::query()
             ->where(fn ($q) => $q->where('is_active', true)
@@ -84,8 +94,10 @@ final class StudioMap
             ->get();
 
         $buildings = $clients->map(function (Client $client) use (
-            $unpaid, $onMap, $rolling, $nextShoot, $scriptsWaiting, $proposalsWaiting, $hoursByClient
+            $unpaid, $onMap, $rolling, $nextShoot, $scriptsWaiting, $proposalsWaiting, $hoursByClient,
+            $perHourByClient, $invoicedByClient, $forecast
         ) {
+            $runway = $forecast->get($client->id);
             $invoices = $unpaid->get($client->id, collect());
             $owed = (float) $invoices->sum(fn (Invoice $i) => $i->balanceDue());
             $overdueDays = (int) $invoices
@@ -115,6 +127,14 @@ final class StudioMap
                 'active' => (bool) $client->is_active,
                 'state' => $state,
                 'hours' => (float) ($hoursByClient[$client->id] ?? 0),
+                'invoiced_month' => round((float) ($invoicedByClient[$client->id] ?? 0)),
+                // Null, not zero, with no hours logged -- see EffortVersusRevenue.
+                'per_hour' => $perHourByClient[$client->id] ?? null,
+                'content' => $runway ? [
+                    'status' => $runway['status'],
+                    'remaining' => $runway['remaining'],
+                    'days_left' => $runway['depletion_date'] ? (int) today()->diffInDays($runway['depletion_date'], false) : null,
+                ] : null,
                 'owed' => round($owed),
                 'overdue_days' => $overdueDays,
                 'scripts_waiting' => $scripts,
@@ -132,8 +152,6 @@ final class StudioMap
             ];
         })->values();
 
-        $allShoots = $shootsToday->merge($rolling)->unique('id');
-
         return [
             'generated_at' => now()->format('g:i A'),
             'totals' => [
@@ -145,11 +163,117 @@ final class StudioMap
                 'rolling' => $rolling->count(),
                 'hours_month' => $hours['totals']['hours'],
                 'waiting_on_clients' => $scriptsWaiting->sum() + $proposalsWaiting->sum(),
+                'per_hour' => $hours['totals']['per_hour'],
             ],
             'buildings' => $buildings->all(),
-            'crew' => self::crew($allShoots, $rolling),
+            'day' => self::day(),
+            'team' => self::team(),
             'attention' => NeedsAttention::all()->values()->all(),
         ];
+    }
+
+    /**
+     * Today, as a timeline the page can play: every shoot with anything
+     * happening today, with its crew and the moments it reached, rolled and
+     * wrapped, and every event in order -- what the live feed scrolls and
+     * the replay slider scrubs through. Times are epoch milliseconds, the
+     * one format JavaScript's Date and a range input both take as-is.
+     *
+     * @return array<string, mixed>
+     */
+    private static function day(): array
+    {
+        $start = today();
+        $end = today()->endOfDay();
+
+        $shoots = Shoot::query()
+            ->where('status', '!=', Shoot::STATUS_CANCELLED)
+            ->where(fn ($q) => $q
+                ->whereBetween('starts_at', [$start, $end])
+                ->orWhereBetween('reached_at', [$start, $end])
+                ->orWhereBetween('finished_at', [$start, $end])
+                ->orWhere(fn ($q) => $q->inProgress()))
+            ->with(['client', 'crew.user', 'reachedBy', 'startedBy', 'videos.recordedBy'])
+            ->orderBy('starts_at')
+            ->get();
+
+        $ms = fn (?Carbon $at) => $at?->getTimestampMs();
+        $events = collect();
+
+        foreach ($shoots as $shoot) {
+            $base = ['shoot_id' => $shoot->id, 'client_id' => $shoot->client_id, 'shoot' => $shoot->title, 'client' => $shoot->client?->name];
+
+            if ($shoot->reached_at?->between($start, $end)) {
+                $events->push($base + ['type' => 'reached', 'at' => $ms($shoot->reached_at), 'who' => $shoot->reachedBy?->name]);
+            }
+            if ($shoot->started_at?->between($start, $end)) {
+                $events->push($base + ['type' => 'rolling', 'at' => $ms($shoot->started_at), 'who' => $shoot->startedBy?->name]);
+            }
+            foreach ($shoot->videos as $video) {
+                if ($video->created_at->between($start, $end)) {
+                    $events->push($base + [
+                        'type' => 'video',
+                        'at' => $ms($video->created_at),
+                        'who' => $video->recordedBy?->name,
+                        'id' => 'v'.$video->id,
+                        'title' => $video->name,
+                        'photo' => $video->photoUrl(),
+                    ]);
+                }
+            }
+            if ($shoot->finished_at?->between($start, $end)) {
+                $events->push($base + ['type' => 'wrapped', 'at' => $ms($shoot->finished_at), 'who' => null]);
+            }
+        }
+
+        $events = $events->sortBy('at')->values()
+            ->map(fn (array $e) => $e + ['id' => $e['type'].'-'.$e['shoot_id']])
+            ->map(fn (array $e) => $e + ['time' => Carbon::createFromTimestampMs($e['at'])->timezone(config('app.timezone'))->format('g:i A')]);
+
+        // The slider starts at 6 AM, or earlier if the day did.
+        $from = min($start->copy()->setTime(6, 0)->getTimestampMs(), $events->min('at') ?? PHP_INT_MAX);
+
+        return [
+            'from' => $from,
+            'now' => now()->getTimestampMs(),
+            'shoots' => $shoots->map(fn (Shoot $s) => [
+                'id' => $s->id,
+                'client_id' => $s->client_id,
+                'title' => $s->title,
+                'crew' => $s->crew->map(fn (ShootCrew $c) => $c->user?->name)->filter()->values()->all(),
+                'starts_at' => $ms($s->starts_at),
+                'reached_at' => $ms($s->reached_at),
+                'started_at' => $ms($s->started_at),
+                'finished_at' => $ms($s->finished_at),
+            ])->values()->all(),
+            'events' => $events->all(),
+        ];
+    }
+
+    /**
+     * Everybody on staff, for the Crew lens: who is out on a shoot (the page
+     * works out where from day.shoots) and who is back at the tower, with
+     * hours logged today so an idle-looking figure who has logged seven of
+     * them reads as busy rather than absent.
+     *
+     * @return list<array{name: string, hours_today: float}>
+     */
+    private static function team(): array
+    {
+        $minutes = TimesheetEntry::query()
+            ->counted()
+            ->whereDate('worked_on', today())
+            ->selectRaw('user_id, SUM(minutes) as minutes')
+            ->groupBy('user_id')
+            ->pluck('minutes', 'user_id');
+
+        return User::query()->staff()->orderBy('name')->get(['id', 'name'])
+            ->map(fn (User $u) => [
+                'name' => $u->name,
+                'hours_today' => round((float) ($minutes[$u->id] ?? 0) / 60, 1),
+            ])
+            ->values()
+            ->all();
     }
 
     /** @return array<string, mixed> */
@@ -165,30 +289,5 @@ final class StudioMap
             'crew' => $shoot->crew->map(fn (ShootCrew $c) => $c->user?->name)->filter()->values()->all(),
             'url' => route('shoots.show', $shoot),
         ];
-    }
-
-    /**
-     * One walker per crew member per shoot on the map. A shoot with nobody
-     * on it gets no walker -- NeedsAttention already says so, and an empty
-     * street says it again without inventing a person.
-     *
-     * on_site: reached or rolling -- they stand at the building rather than
-     * walking to it.
-     *
-     * @return list<array{name: string, client_id: ?int, rolling: bool, on_site: bool}>
-     */
-    private static function crew(Collection $shoots, Collection $rolling): array
-    {
-        return $shoots->flatMap(fn (Shoot $shoot) => $shoot->crew
-            ->map(fn (ShootCrew $c) => $c->user?->name)
-            ->filter()
-            ->map(fn (string $name) => [
-                'name' => $name,
-                'client_id' => $shoot->client_id,
-                'rolling' => $rolling->contains('id', $shoot->id),
-                'on_site' => $shoot->hasReached() || $rolling->contains('id', $shoot->id),
-            ]))
-            ->values()
-            ->all();
     }
 }
