@@ -1,32 +1,25 @@
 /*
- * The Studio Map (studio-map/index.blade.php): the studio's clients on a
- * real map -- OpenStreetMap streets through Leaflet -- with the Chakra pin
- * where the studio is.
+ * The Studio Map (studio-map/index.blade.php): the studio's clients as a
+ * city. The city itself -- districts, streets, buildings, cars, crew -- is
+ * drawn by studio-city.js; this file runs everything around it.
  *
- *  - Lenses. Five questions of the same pins -- Status, Money (rupees per
+ *  - Lenses. Five questions of the same city -- Status, Money (rupees per
  *    hour of work), Hours, Content (days of reels left) and Crew (where
- *    everybody is). A lens decides each pin's colour, size, badge, legend.
+ *    everybody is). A lens decides each client's colour, height, badge and
+ *    the legend.
  *  - The live feed. Today's shoot events run along the bottom, and a video's
- *    photo goes up over its client's pin for a few hours.
- *  - Replay. The slider is the time of day; crew, routes, photos and the
- *    feed are all worked out from the timeline for whatever time it says.
- *  - Acting. Click a pin for its command card -- its actions, most needed
- *    first. Drag a person from the team bench (or off the map) onto a pin to
- *    put them on a shoot, or onto the Chakra pin to take them off one. The
- *    actions live in studio-map-actions.js; this file decides when to offer
- *    them.
- *  - Pins. Addresses are looked up nightly (clients:geocode); anything not
- *    found, or found in the wrong place, is placed or moved by hand here.
+ *    photo goes up over its client's building for a few hours.
+ *  - Replay. The slider is the time of day; crew, photos, the feed and the
+ *    daylight are all worked out from the timeline for whatever time it says.
+ *  - Acting. Click a building for its command card -- its actions, most
+ *    needed first. Drag a person from the team bench (or off the street) onto
+ *    a building to put them on a shoot, or onto Chakra to take them off one.
+ *    The actions live in studio-map-actions.js; this file decides when to
+ *    offer them.
  *
- * Light by design: markers are plain HTML, motion is CSS, and nothing runs a
- * frame loop except a replay that is playing. The snapshot is re-fetched
- * every 30 seconds, and straight after any action.
+ * The snapshot is re-fetched every 30 seconds, and straight after any action.
  */
-// The ES-module build: the package's main entry is UMD, whose named exports
-// a bundler cannot see.
-import * as L from 'leaflet/dist/leaflet-src.esm.js';
-import 'leaflet/dist/leaflet.css';
-import '../css/studio-map.css';
+import { createCity } from './studio-city.js';
 import { createActions, esc, icon, initials, money } from './studio-map-actions.js';
 
 const STATE = {
@@ -40,19 +33,8 @@ const STATE = {
 const ORDER = Object.keys(STATE);
 const C = { red: 0xf87171, amber: 0xfbbf24, green: 0x34d399, sky: 0x38bdf8, slate: 0x64748b, brand: 0x67bcd4 };
 const REFRESH_MS = 30000;
-const LIVE_TICK_MS = 15000;
-const BILLBOARD_FOR_MS = 3 * 60 * 60 * 1000;
 const MIN = 60 * 1000;
 const DRAG_START_PX = 6;
-const FAR_ZOOM = 11; // below this, only pins that need you keep their names
-const TRICHY = [10.7905, 78.7047]; // where the map opens before anything is pinned
-
-// OpenStreetMap's own tiles: no key, just attribution and light use -- an
-// admin-only page is exactly that (tile.openstreetmap.org usage policy).
-// "Night" is the same tiles darkened in CSS (.sm-map.is-night), so it costs
-// no second download. CARTO's basemaps, tried first, now need an API key.
-const TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
@@ -68,14 +50,16 @@ const store = {
 
 /* ——— Lenses ——————————————————————————————————————————————————————— */
 
-const sizeFor = (value, scale) => Math.round(24 + Math.min(24, Math.sqrt(Math.max(0, value)) * scale));
+// Storeys: two at least, twelve at most, growing with the square root so
+// one busy client does not dwarf the rest.
+const floorsFor = (value, scale) => 2 + Math.min(10, Math.round(Math.sqrt(Math.max(0, value)) * scale));
 
 const LENSES = {
     status: {
         legend: () => ORDER.map((k) => [STATE[k].color, STATE[k].label]),
         colour: (b) => STATE[b.state].color,
         glow: (b) => STATE[b.state].glow,
-        size: (b) => sizeFor(b.hours, 3),
+        floors: (b) => floorsFor(b.hours, 1.5),
         badge: (b) => {
             if (b.overdue_days > 0) return `₹ ${b.overdue_days}d overdue`;
             if (b.state === 'rolling') return '● REC';
@@ -84,7 +68,7 @@ const LENSES = {
             return waiting ? `${waiting} waiting` : null;
         },
         loud: (b) => b.state !== 'calm',
-        note: 'Size: hours this month',
+        note: 'Height: hours this month',
     },
     money: {
         legend: (s) => [
@@ -100,25 +84,25 @@ const LENSES = {
             return b.per_hour >= avg * 0.6 ? C.amber : C.red;
         },
         glow: () => false,
-        size: (b) => sizeFor(b.invoiced_month / 1000, 2.6),
+        floors: (b) => floorsFor(b.invoiced_month / 1000, 1.3),
         badge: (b) => (b.per_hour != null ? `${money(b.per_hour)}/hr` : null),
         loud: (b) => b.per_hour != null,
-        note: 'Size: invoiced this month',
+        note: 'Height: invoiced this month',
     },
     hours: {
         legend: () => [[0x2f6e84, 'Under 10 hours'], [0x4fa9c4, '10–30 hours'], [0x8acce0, '30+ hours'], [C.slate, 'None this month']],
         colour: (b) => (b.hours <= 0 ? C.slate : b.hours < 10 ? 0x2f6e84 : b.hours < 30 ? 0x4fa9c4 : 0x8acce0),
         glow: () => false,
-        size: (b) => sizeFor(b.hours, 3),
+        floors: (b) => floorsFor(b.hours, 1.5),
         badge: (b) => (b.hours > 0 ? `${b.hours.toFixed(1)}h` : null),
         loud: (b) => b.hours > 0,
-        note: 'Size: hours this month',
+        note: 'Height: hours this month',
     },
     content: {
         legend: () => [[C.red, 'Runs out within a week, no shoot booked'], [C.amber, 'Runs out within 3 weeks'], [C.green, 'Enough content'], [C.slate, 'Not tracked']],
         colour: (b) => ({ critical: C.red, warning: C.amber, ok: C.green })[b.content?.status] ?? C.slate,
         glow: (b) => b.content?.status === 'critical',
-        size: () => 34,
+        floors: () => 4,
         badge: (b) => {
             if (!b.content) return null;
             if (b.content.days_left != null) return b.content.days_left <= 0 ? 'Out of content' : `${b.content.days_left}d left`;
@@ -126,16 +110,16 @@ const LENSES = {
         },
         gauge: (b) => (b.content?.days_left != null ? Math.max(0, Math.min(1, b.content.days_left / 42)) : null),
         loud: (b) => ['critical', 'warning'].includes(b.content?.status),
-        note: 'Ring: six weeks of reels = full',
+        note: 'Roof tank: six weeks of reels = full',
     },
     crew: {
         legend: () => [[C.green, 'On site'], [C.amber, 'On the way'], [C.brand, 'At the studio']],
         colour: () => 0x8796a0,
         glow: () => false,
-        size: () => 22,
+        floors: () => 2,
         badge: () => null,
         loud: () => false,
-        note: 'Drag anyone onto a pin, or onto Chakra',
+        note: 'Drag anyone onto a building, or onto Chakra',
     },
 };
 const LENS_KEYS = Object.keys(LENSES);
@@ -173,7 +157,6 @@ function boot(root) {
     const clock = root.querySelector('[data-replay-clock]');
     const liveButton = root.querySelector('[data-replay-live]');
     const playButton = root.querySelector('[data-replay-play]');
-    const banner = root.querySelector('[data-place-banner]');
 
     let snapshot = JSON.parse(root.querySelector('[data-studio-map-snapshot]').textContent);
     let skew = snapshot.day.now - Date.now(); // server clock minus ours
@@ -217,7 +200,7 @@ function boot(root) {
         const b = building(id);
         if (!b) return closeCard();
         selectedId = id;
-        if (!mapApi || !pinned(b)) return openDetails(id); // nowhere to pin a card to
+        if (!mapApi) return openDetails(id); // no city to pin a card to
         mapApi.flyTo(id);
         renderCard();
         mapApi.refreshPins();
@@ -264,29 +247,25 @@ function boot(root) {
             </div>
             <div class="flex border-t border-white/10 text-xs font-semibold">
                 <button type="button" data-card-details class="flex flex-1 items-center justify-center gap-1.5 py-2.5 text-brand-100/70 hover:text-white">${icon('info')}Details</button>
-                <button type="button" data-card-move class="flex flex-1 items-center justify-center gap-1.5 border-l border-white/10 py-2.5 text-brand-100/70 hover:text-white">Move pin</button>
                 <a href="${esc(b.links.client)}" class="flex flex-1 items-center justify-center gap-1.5 border-l border-white/10 py-2.5 text-brand-100/70 hover:text-white">${icon('out')}Open</a>
             </div>`);
 
         card.querySelectorAll('[data-act]').forEach((button) => button.addEventListener('click', () => list[Number(button.dataset.act)].run()));
         card.querySelector('[data-card-details]').addEventListener('click', () => openDetails(b.id));
-        card.querySelector('[data-card-move]').addEventListener('click', () => mapApi.startMove({ target: 'client', id: b.id }));
     }
 
     function renderHqCard() {
-        const set = snapshot.studio.set;
+        const home = snapshot.districts.find((d) => d.home);
+        const out = snapshot.team.filter((p) => statusOf(p.id).phase !== 'home').length;
         cardShell(`
             <div class="flex items-start gap-3 p-3">
                 <div class="min-w-0 flex-1">
                     <p class="font-bold leading-tight text-white">Chakra studio</p>
-                    <p class="mt-0.5 text-xs text-brand-100/60">${set ? 'Crew set out from here. Drop someone here to take them off a shoot.' : 'Not placed yet — move this pin to where the studio is.'}</p>
+                    <p class="mt-0.5 text-xs text-brand-100/60">${esc(home?.name ?? '')}${home ? ' · ' : ''}${out ? `${out} out on shoots` : 'Everyone is in'}</p>
+                    <p class="mt-2 text-xs text-brand-100/50">Crew walk out from here. Drop someone on this tower to take them off a shoot.</p>
                 </div>
                 <button type="button" data-card-close class="-mr-1 -mt-1 rounded-lg p-1.5 text-brand-100/60 hover:bg-white/10 hover:text-white" aria-label="Close">${icon('x')}</button>
-            </div>
-            <div class="px-1.5 pb-1.5">
-                <button type="button" data-card-move class="flex w-full items-center justify-center gap-2 rounded-xl ${set ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-brand-400 text-brand-900 hover:bg-brand-300'} px-3 py-2 text-sm font-semibold">${set ? 'Move the studio pin' : 'Place the studio'}</button>
             </div>`);
-        card.querySelector('[data-card-move]').addEventListener('click', () => mapApi.startMove({ target: 'studio' }));
     }
 
     function closeCard() {
@@ -503,7 +482,11 @@ function boot(root) {
         armDrag(Number(chip.dataset.person), null, event);
     });
 
-    /* ——— Pins not on the map yet ——— */
+    /* ——— Clients placed by guess ———
+     * Someone with no location still gets a building -- in the district their
+     * address names, or the studio's -- but it is a guess, so it is listed
+     * here with the way to fix it: look the address up, or add one.
+     */
     function renderUnpinned() {
         const missing = snapshot.buildings.filter((b) => !pinned(b)).sort((a, b) => a.name.localeCompare(b.name));
         const slot = root.querySelector('[data-unpinned]');
@@ -511,19 +494,22 @@ function boot(root) {
             slot.innerHTML = '';
             return;
         }
+        const districtName = (key) => snapshot.districts.find((d) => d.key === key)?.name ?? '';
         const open = slot.querySelector('[data-unpinned-list]') && !slot.querySelector('[data-unpinned-list]').classList.contains('hidden');
         slot.innerHTML = `
             <button type="button" data-unpinned-toggle aria-expanded="${open}" class="flex items-center gap-1.5 rounded-lg bg-amber-500/90 px-2.5 py-1.5 text-xs font-semibold text-brand-900 shadow-lg hover:bg-amber-400">
-                ${missing.length} not on the map <span aria-hidden="true">▾</span>
+                ${missing.length} placed by guess <span aria-hidden="true">▾</span>
             </button>
             <div data-unpinned-list class="${open ? '' : 'hidden'} mt-2 w-72 space-y-1 rounded-xl bg-brand-900/95 p-2 shadow-2xl ring-1 ring-white/15 backdrop-blur">
+                <p class="px-1 pb-1 text-[11px] text-brand-100/55">No location found for these, so they stand where their address points, or by the studio.</p>
                 ${missing.map((b) => `
                     <div class="rounded-lg bg-white/5 p-2">
-                        <p class="truncate text-sm font-semibold text-white">${esc(b.name)}</p>
+                        <p class="truncate text-sm font-semibold text-white">${esc(b.name)} <span class="font-normal text-brand-100/50">· in ${esc(districtName(b.district))}</span></p>
                         <p class="truncate text-[11px] text-brand-100/50">${b.address ? esc(b.address) : 'No address on file'}</p>
                         <div class="mt-1.5 flex gap-1.5">
-                            ${b.address ? `<button type="button" data-locate="${b.id}" class="rounded-md bg-white/10 px-2 py-1 text-[11px] font-semibold text-white hover:bg-white/15">Look up address</button>` : ''}
-                            <button type="button" data-place="${b.id}" class="rounded-md bg-brand-400 px-2 py-1 text-[11px] font-semibold text-brand-900 hover:bg-brand-300">Place on map</button>
+                            ${b.address
+                                ? `<button type="button" data-locate="${b.id}" class="rounded-md bg-white/10 px-2 py-1 text-[11px] font-semibold text-white hover:bg-white/15">Look up address</button>`
+                                : `<a href="${esc(b.links.client)}" class="rounded-md bg-brand-400 px-2 py-1 text-[11px] font-semibold text-brand-900 hover:bg-brand-300">Add an address</a>`}
                         </div>
                     </div>`).join('')}
             </div>`;
@@ -532,7 +518,6 @@ function boot(root) {
             list.classList.toggle('hidden');
             event.currentTarget.setAttribute('aria-expanded', String(!list.classList.contains('hidden')));
         });
-        slot.querySelectorAll('[data-place]').forEach((b) => b.addEventListener('click', () => mapApi?.startPlace(Number(b.dataset.place))));
         slot.querySelectorAll('[data-locate]').forEach((b) => b.addEventListener('click', async () => {
             b.disabled = true;
             b.textContent = 'Looking…';
@@ -733,7 +718,7 @@ function boot(root) {
         const q = searchInput.value.trim().toLowerCase();
         if (!q) return closeSearch();
         hits = [
-            ...snapshot.buildings.filter((b) => b.name.toLowerCase().includes(q)).map((b) => ({ kind: 'client', id: b.id, name: b.name, sub: pinned(b) ? STATE[b.state].label : 'Not on the map yet', colour: STATE[b.state].color })),
+            ...snapshot.buildings.filter((b) => b.name.toLowerCase().includes(q)).map((b) => ({ kind: 'client', id: b.id, name: b.name, sub: STATE[b.state].label, colour: STATE[b.state].color })),
             ...snapshot.team.filter((p) => p.name.toLowerCase().includes(q)).map((p) => ({ kind: 'person', id: p.id, name: p.name, sub: PHASE[statusOf(p.id).phase].label, colour: PHASE[statusOf(p.id).phase].color })),
         ].slice(0, 8);
         active = 0;
@@ -818,7 +803,7 @@ function boot(root) {
             togglePlay();
         } else if (event.key === 'Escape') {
             if (drag) return cancelDrag();
-            if (mapApi?.cancelPlacing()) return;
+
             if (!help.classList.contains('hidden')) return toggleHelp(false);
             if (selectedId != null) return closeCard();
             closePanel();
@@ -871,491 +856,51 @@ function boot(root) {
     renderTicker();
 
     try {
-        mapApi = startMap();
+        mapApi = startCity();
     } catch (e) {
         console.error(e);
         root.querySelector('[data-map-fallback]').classList.replace('hidden', 'flex');
     }
     renderUnpinned();
+    /* ——— The city ——————————————————————————————————————————————————— */
 
-    /* ——— The map ——————————————————————————————————————————————————— */
-
-    function startMap() {
-        const map = L.map(host, {
-            zoomControl: false,
-            attributionControl: true,
-            minZoom: 5,
-            maxZoom: 18,
-            worldCopyJump: false,
-            zoomSnap: 0.5,
+    function startCity() {
+        const city = createCity({
+            host,
+            getSnapshot: () => snapshot,
+            getLens: () => lens,
+            lenses: LENSES,
+            getTime: () => (live ? now() : t),
+            getSelected: () => selectedId,
+            getFresh: () => (live ? fresh : new Set()),
+            whereAt,
+            phaseColor: (phase) => hex(PHASE[phase].color),
+            initials,
+            firstName,
+            onPick: (id) => select(id),
+            onBackground: () => closeCard(),
+            onPersonDown: (personId, shoot, event) => armDrag(personId, shoot, event),
+            onView: () => positionCard(),
         });
-        map.attributionControl.setPrefix(false).setPosition('bottomright');
 
-        L.tileLayer(TILES, { attribution: ATTRIBUTION, maxZoom: 19 }).addTo(map);
-        let style = store.get('studio-map.tiles') === 'night' ? 'night' : 'streets';
-        const setStyle = (next) => {
-            style = next;
-            host.classList.toggle('is-night', next === 'night');
-            store.set('studio-map.tiles', next);
-            root.querySelectorAll('[data-tiles]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tiles === next)));
+        // Day and night: on the clock by default, or pinned either way.
+        let sky = store.get('studio-map.sky') ?? 'auto';
+        const setSky = (mode) => {
+            sky = mode;
+            store.set('studio-map.sky', mode);
+            city.setSky(mode);
+            root.querySelectorAll('[data-sky]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.sky === mode)));
         };
-        setStyle(style);
-        root.querySelectorAll('[data-tiles]').forEach((b) => {
-            b.setAttribute('aria-pressed', String(b.dataset.tiles === style));
-            b.addEventListener('click', () => setStyle(b.dataset.tiles));
-        });
+        root.querySelectorAll('[data-sky]').forEach((b) => b.addEventListener('click', () => setSky(b.dataset.sky)));
+        setSky(sky);
 
-        const routes = L.layerGroup().addTo(map);
-        const pins = L.layerGroup().addTo(map);
-        const boards = L.layerGroup().addTo(map);
-        const crew = L.layerGroup().addTo(map);
-
-        const pinMarkers = new Map(); // client id -> marker
-        const offsets = new Map(); // client id -> [dx, dy] when several share a spot
-        let walkers = []; // { marker, personId, shoots, homeIndex, current }
-        const billboards = new Map(); // client id -> { marker, eventId }
-        let hqMarker = null;
-        let moving = null; // { target, id?, marker, from }
-        let placing = null; // client id
-        let dropEl = null;
-
-        const hqLatLng = () => {
-            if (snapshot.studio.set) return L.latLng(snapshot.studio.lat, snapshot.studio.lng);
-            const spots = snapshot.buildings.filter(pinned);
-            if (!spots.length) return L.latLng(TRICHY);
-            return L.latLng(spots.reduce((s, b) => s + b.lat, 0) / spots.length, spots.reduce((s, b) => s + b.lng, 0) / spots.length);
-        };
-
-        /* ——— Pins ——— */
-        function pinHtml(b) {
-            const L_ = LENSES[lens];
-            const colour = hex(L_.colour(b, snapshot));
-            const size = L_.size(b);
-            const badge = L_.badge(b);
-            const fill = L_.gauge?.(b);
-            const freshHere = live && snapshot.day.events.some((e) => fresh.has(e.id) && e.client_id === b.id);
-            const [dx, dy] = offsets.get(b.id) ?? [0, 0];
-            const classes = [
-                'sm-pin',
-                L_.glow(b) || freshHere ? 'is-glowing' : '',
-                L_.loud(b) ? 'is-loud' : '',
-                b.active ? '' : 'is-faded',
-                fill != null ? 'has-gauge' : '',
-                selectedId === b.id ? 'is-selected' : '',
-            ].filter(Boolean).join(' ');
-
-            return `<div class="${classes}" data-client="${b.id}" style="--c:${colour};--size:${size}px;${fill != null ? `--fill:${fill};` : ''}transform:translate(${dx}px,${dy}px)">
-                ${badge ? `<span class="sm-pin__badge">${esc(badge)}</span>` : ''}
-                <span class="sm-pin__dot" role="button" aria-label="${esc(b.name)}">${esc(initials(b.name))}</span>
-                <span class="sm-pin__label">${esc(b.name)}</span>
-            </div>`;
-        }
-
-        /*
-         * Pins that would overlap on screen fan out round their shared centre.
-         * Worked out in screen pixels and redone on every zoom: three clients
-         * on Madurai Road are one blob zoomed out and three pins zoomed in. The
-         * studio joins in as the fixed middle of whatever group it lands in, so
-         * clients in its own town ring it rather than bury it.
-         */
-        function declutter() {
-            offsets.clear();
-            if (!map._loaded) return;
-            const items = snapshot.buildings.filter(pinned).map((b) => ({ id: b.id, b, p: map.latLngToLayerPoint([b.lat, b.lng]), size: LENSES[lens].size(b) }));
-            const hq = { id: 'hq', p: map.latLngToLayerPoint(hqLatLng()), size: 30 };
-            const all = [hq, ...items];
-            const parent = all.map((_, i) => i);
-            const find = (i) => (parent[i] === i ? i : (parent[i] = find(parent[i])));
-            for (let i = 0; i < all.length; i++) {
-                for (let j = i + 1; j < all.length; j++) {
-                    if (all[i].p.distanceTo(all[j].p) < (all[i].size + all[j].size) / 2 + 8) parent[find(i)] = find(j);
-                }
-            }
-            const groups = new Map();
-            all.forEach((item, i) => groups.set(find(i), [...(groups.get(find(i)) ?? []), item]));
-
-            groups.forEach((group) => {
-                if (group.length < 2) return;
-                const withHq = group.includes(hq);
-                const members = group.filter((x) => x !== hq).sort((x, y) => byStateThenName(x.b, y.b));
-                const center = withHq ? hq.p : members.reduce((c, m) => c.add(m.p), L.point(0, 0)).divideBy(members.length);
-                const widest = Math.max(...members.map((m) => m.size));
-                const r = Math.max(widest + 6, (members.length * (widest + 8)) / (2 * Math.PI)) + (withHq ? 16 : 0);
-                members.forEach((m, k) => {
-                    const angle = (k / members.length) * Math.PI * 2 - Math.PI / 2;
-                    offsets.set(m.id, [Math.round(center.x + Math.cos(angle) * r - m.p.x), Math.round(center.y + Math.sin(angle) * r - m.p.y)]);
-                });
-            });
-
-            pinMarkers.forEach((marker, id) => {
-                const [dx, dy] = offsets.get(id) ?? [0, 0];
-                const el = marker.getElement()?.querySelector('.sm-pin');
-                if (el) el.style.transform = `translate(${dx}px, ${dy}px)`;
-            });
-            billboards.forEach((board, id) => {
-                const [dx, dy] = offsets.get(id) ?? [0, 0];
-                const el = board.marker.getElement()?.querySelector('.sm-board');
-                if (el) el.style.transform = `translate(${dx}px, ${dy - board.lift}px)`;
-            });
-        }
-
-        function drawPins() {
-            pins.clearLayers();
-            pinMarkers.clear();
-            snapshot.buildings.filter(pinned).sort(byStateThenName).reverse().forEach((b) => {
-                const marker = L.marker([b.lat, b.lng], {
-                    icon: L.divIcon({ html: pinHtml(b), className: '', iconSize: [0, 0] }),
-                    keyboard: true,
-                    title: b.name,
-                    riseOnHover: true,
-                    zIndexOffset: LENSES[lens].loud(b) ? 500 : 0,
-                });
-                marker.on('click', (e) => (placing != null ? place({ target: 'client', client_id: placing }, e.latlng) : !moving && select(b.id)));
-                marker.on('contextmenu', () => !moving && placing == null && select(b.id));
-                marker.addTo(pins);
-                pinMarkers.set(b.id, marker);
-            });
-
-            const at = hqLatLng();
-            if (hqMarker) {
-                hqMarker.setLatLng(at);
-                hqMarker.setIcon(hqIcon());
-            } else {
-                // Under the client pins: they are what gets clicked, the studio is the backdrop.
-                hqMarker = L.marker(at, { icon: hqIcon(), zIndexOffset: -300, title: 'Chakra studio', keyboard: true }).addTo(map);
-                hqMarker.on('click', () => !moving && select('hq'));
-            }
-            declutter();
-        }
-        const hqIcon = () => L.divIcon({
-            className: '',
-            iconSize: [0, 0],
-            html: `<div class="sm-hq ${snapshot.studio.set ? '' : 'is-unset'}" data-hq><span class="sm-hq__pill">CHAKRA</span></div>`,
-        });
-
-        function refreshPins() {
-            pinMarkers.forEach((marker, id) => {
-                const b = building(id);
-                if (b) marker.setIcon(L.divIcon({ html: pinHtml(b), className: '', iconSize: [0, 0] }));
-            });
-        }
-
-        /* ——— Routes and crew ——— */
-        function drawRoutes() {
-            routes.clearLayers();
-            const from = hqLatLng();
-            const time = live ? now() : t;
-            snapshot.day.shoots.forEach((s) => {
-                const b = building(s.client_id);
-                if (!b || !pinned(b)) return;
-                const done = s.finished_at && time >= s.finished_at;
-                const onSite = !done && whereAt(s, time).phase === 'site';
-                L.polyline([from, [b.lat, b.lng]], {
-                    color: done ? '#94a3b8' : onSite ? '#34d399' : '#fbbf24',
-                    weight: 3,
-                    opacity: 0.85,
-                    className: `sm-route ${done ? 'is-done' : ''}`,
-                    interactive: false,
-                }).addTo(routes);
-            });
-        }
-
-        function drawCrew() {
-            crew.clearLayers();
-            const shootsFor = (id) => snapshot.day.shoots.filter((s) => s.crew_ids.includes(id) && pinned(building(s.client_id) ?? {}));
-            const cast = lens === 'crew' ? snapshot.team : snapshot.team.filter((p) => shootsFor(p.id).length);
-            walkers = cast.map((p, i) => {
-                const marker = L.marker(hqLatLng(), {
-                    icon: L.divIcon({
-                        className: '',
-                        iconSize: [0, 0],
-                        html: `<div class="sm-crew" data-crew="${p.id}" style="--c:${hex(C.brand)}"><span class="sm-crew__face" title="${esc(p.name)} — drag onto a pin">${esc(initials(p.name))}</span><span class="sm-crew__name">${esc(firstName(p.name))}${lens === 'crew' && p.hours_today ? ` · ${p.hours_today}h` : ''}</span></div>`,
-                    }),
-                    zIndexOffset: 2000,
-                    keyboard: false,
-                });
-                marker.addTo(crew);
-                return { marker, personId: p.id, shoots: shootsFor(p.id), homeIndex: i, current: null };
-            });
-            placeCrew();
-        }
-
-        function placeCrew() {
-            const time = live ? now() : t;
-            const home = hqLatLng();
-            const atSite = new Map(); // client id -> how many already placed there
-            const atHome = walkers.filter((w) => !w.shoots.some((s) => whereAt(s, time).phase !== 'home')).length;
-            let homeSlot = 0;
-
-            walkers.forEach((w) => {
-                let where = { phase: 'home' };
-                w.current = null;
-                for (const s of w.shoots) {
-                    const here = whereAt(s, time);
-                    if (here.phase !== 'home') {
-                        where = here;
-                        w.current = s;
-                        break;
-                    }
-                }
-
-                const el = w.marker.getElement()?.querySelector('.sm-crew');
-                const show = where.phase !== 'home' || lens === 'crew';
-                if (el) {
-                    el.style.display = show ? '' : 'none';
-                    el.style.setProperty('--c', hex(PHASE[where.phase].color));
-                    el.classList.toggle('is-walking', where.phase === 'walking');
-                }
-                if (!show) return;
-
-                let latlng = home;
-                let ring = null;
-                if (where.phase === 'home') {
-                    ring = [homeSlot++, atHome, 34];
-                } else {
-                    const b = building(w.current.client_id);
-                    const dest = L.latLng(b.lat, b.lng);
-                    if (where.phase === 'site') {
-                        latlng = dest;
-                        const n = atSite.get(b.id) ?? 0;
-                        atSite.set(b.id, n + 1);
-                        ring = [n, 6, (LENSES[lens].size(b) / 2) + 20, offsets.get(b.id)];
-                    } else {
-                        const k = where.progress ?? 0.55;
-                        latlng = L.latLng(home.lat + (dest.lat - home.lat) * k, home.lng + (dest.lng - home.lng) * k);
-                    }
-                }
-                w.marker.setLatLng(latlng);
-                if (el) {
-                    if (ring) {
-                        const [i, n, r, base = [0, 0]] = ring;
-                        const angle = (i / Math.max(n, 1)) * Math.PI * 2 + Math.PI / 4;
-                        el.style.transform = `translate(${Math.round(base[0] + Math.cos(angle) * r)}px, ${Math.round(base[1] + Math.sin(angle) * r)}px)`;
-                    } else {
-                        el.style.transform = '';
-                    }
-                }
-            });
-        }
-
-        /* ——— Billboards ——— */
-        function syncBillboards() {
-            const time = live ? now() : t;
-            const latest = new Map();
-            for (const e of snapshot.day.events) {
-                const b = e.client_id && building(e.client_id);
-                if (e.type === 'video' && e.photo && b && pinned(b) && e.at <= time && time - e.at <= BILLBOARD_FOR_MS) {
-                    latest.set(e.client_id, e); // in time order, so the last one wins
-                }
-            }
-            billboards.forEach((board, clientId) => {
-                if (latest.get(clientId)?.id !== board.eventId) {
-                    boards.removeLayer(board.marker);
-                    billboards.delete(clientId);
-                }
-            });
-            latest.forEach((e, clientId) => {
-                if (billboards.has(clientId)) return;
-                const b = building(clientId);
-                const [dx, dy] = offsets.get(clientId) ?? [0, 0];
-                const lift = LENSES[lens].size(b) / 2 + 26;
-                const marker = L.marker([b.lat, b.lng], {
-                    icon: L.divIcon({
-                        className: '',
-                        iconSize: [0, 0],
-                        html: `<div class="sm-board" style="transform:translate(${dx}px, ${dy - lift}px)"><div class="sm-board__card"><img src="${esc(e.photo)}" alt="" loading="lazy"><p>${esc(e.title)} · ${esc(e.time)}</p></div></div>`,
-                    }),
-                    zIndexOffset: 1500,
-                    keyboard: false,
-                }).addTo(boards);
-                marker.on('click', () => select(clientId));
-                billboards.set(clientId, { marker, eventId: e.id, lift });
-            });
-        }
-
-        /* ——— Fitting, zoom, fullscreen ——— */
-        // The map opens on the studio's own patch -- clients within reach of
-        // it -- so one client in Chennai does not shrink every pin around
-        // Trichy to a dot. "Show every client" fits the lot.
-        const NEAR_KM = 150;
-        function fit({ animate = true, everyone = true } = {}) {
-            const home = hqLatLng();
-            let points = snapshot.buildings.filter(pinned).map((b) => L.latLng(b.lat, b.lng));
-            if (!everyone) {
-                const near = points.filter((p) => p.distanceTo(home) <= NEAR_KM * 1000);
-                if (near.length >= 2) points = near;
-            }
-            if (snapshot.studio.set) points.push(home);
-            if (!points.length) return map.setView(TRICHY, 9, { animate });
-            if (points.length === 1) return map.setView(points[0], 13, { animate });
-            map.fitBounds(L.latLngBounds(points), { padding: [90, 90], maxZoom: 14, animate });
-        }
-        root.querySelector('[data-map-fit]').addEventListener('click', () => fit());
-        root.querySelectorAll('[data-map-zoom]').forEach((b) => b.addEventListener('click', () => (b.dataset.mapZoom === 'in' ? map.zoomIn() : map.zoomOut())));
-
+        root.querySelectorAll('[data-map-zoom]').forEach((b) => b.addEventListener('click', () => city.zoomBy(b.dataset.mapZoom === 'in' ? 1.35 : 1 / 1.35)));
+        root.querySelector('[data-map-fit]').addEventListener('click', () => city.fit());
         const fullButton = root.querySelector('[data-map-fullscreen]');
         if (!box.requestFullscreen) fullButton.classList.add('hidden');
         fullButton.addEventListener('click', () => (document.fullscreenElement ? document.exitFullscreen() : box.requestFullscreen()));
-        document.addEventListener('fullscreenchange', () => setTimeout(() => map.invalidateSize(), 50));
-        new ResizeObserver(() => map.invalidateSize()).observe(box);
 
-        const setFar = () => host.classList.toggle('is-far', map.getZoom() < FAR_ZOOM);
-        map.on('zoomend', () => {
-            setFar();
-            declutter();
-            placeCrew();
-        });
-        map.on('move zoom', positionCard);
-        map.on('click', (e) => {
-            if (placing != null) return place({ target: 'client', client_id: placing }, e.latlng);
-            if (!moving) closeCard();
-        });
-
-        /* ——— Placing and moving pins ——— */
-        function showBanner(text, canSave) {
-            banner.querySelector('[data-place-text]').textContent = text;
-            banner.querySelector('[data-place-save]').classList.toggle('hidden', !canSave);
-            banner.classList.replace('hidden', 'flex');
-        }
-        const hideBanner = () => banner.classList.replace('flex', 'hidden');
-
-        function startPlace(clientId) {
-            cancelPlacing();
-            closeCard();
-            placing = clientId;
-            host.classList.add('is-placing');
-            showBanner(`Click the map where ${building(clientId)?.name ?? 'they'} are`, false);
-        }
-
-        function startMove({ target, id }) {
-            cancelPlacing();
-            const marker = target === 'studio' ? hqMarker : pinMarkers.get(id);
-            if (!marker) return;
-            closeCard();
-            moving = { target, id, marker, from: marker.getLatLng() };
-            marker.dragging.enable();
-            showBanner(`Drag ${target === 'studio' ? 'the Chakra pin' : `${building(id).name}'s pin`} to the right spot, then save`, true);
-        }
-
-        function cancelPlacing() {
-            const was = placing != null || moving != null;
-            if (placing != null) {
-                placing = null;
-                host.classList.remove('is-placing');
-            }
-            if (moving) {
-                moving.marker.dragging.disable();
-                moving.marker.setLatLng(moving.from);
-                moving = null;
-            }
-            hideBanner();
-            return was;
-        }
-
-        async function place(body, latlng) {
-            try {
-                const result = await actions.post(actions.urls.place, { ...body, lat: latlng.lat, lng: latlng.lng });
-                actions.toast(result.message);
-                if (moving) moving.marker.dragging.disable();
-                moving = null;
-                placing = null;
-                host.classList.remove('is-placing');
-                hideBanner();
-                refresh();
-            } catch (e) {
-                actions.toast(e.message, 'error');
-            }
-        }
-
-        banner.querySelector('[data-place-cancel]').addEventListener('click', cancelPlacing);
-        banner.querySelector('[data-place-save]').addEventListener('click', () => {
-            if (!moving) return;
-            place(moving.target === 'studio' ? { target: 'studio' } : { target: 'client', client_id: moving.id }, moving.marker.getLatLng());
-        });
-
-        /* ——— Picking people up off the map ——— */
-        host.addEventListener('pointerdown', (event) => {
-            const face = event.target.closest('.sm-crew');
-            if (!face || event.button > 0) return;
-            event.stopPropagation(); // not a map pan
-            event.preventDefault();
-            map.dragging.disable();
-            const w = walkers.find((x) => x.personId === Number(face.dataset.crew));
-            armDrag(Number(face.dataset.crew), w?.current ?? null, event);
-        }, { capture: true });
-
-        /* ——— First draw ——— */
-        // View first: decluttering works in screen pixels, which need one.
-        fit({ animate: false, everyone: false });
-        drawPins();
-        drawRoutes();
-        drawCrew();
-        syncBillboards();
-        declutter();
-        setFar();
-
-        // Live: people and photos move on the clock, but slowly -- a nudge
-        // every fifteen seconds is plenty, and costs nothing in between.
-        setInterval(() => {
-            if (live && !document.hidden) {
-                placeCrew();
-                syncBillboards();
-            }
-        }, LIVE_TICK_MS);
-
-        return {
-            flyTo(id) {
-                const b = building(id);
-                if (b && pinned(b)) map.panTo([b.lat, b.lng], { animate: !reduceMotion() });
-            },
-            pointOf(id) {
-                if (id === 'hq') {
-                    const p = map.latLngToContainerPoint(hqMarker.getLatLng());
-                    return { x: p.x, y: p.y - 18 };
-                }
-                const b = building(id);
-                if (!b || !pinned(b)) return null;
-                const p = map.latLngToContainerPoint([b.lat, b.lng]);
-                const [dx, dy] = offsets.get(id) ?? [0, 0];
-                return { x: p.x + dx, y: p.y + dy - LENSES[lens].size(b) / 2 - 18 };
-            },
-            dropTargetAt(x, y) {
-                const el = document.elementFromPoint(x, y);
-                if (el?.closest('[data-hq]')) return { kind: 'hq', el: el.closest('[data-hq]') };
-                const pin = el?.closest('[data-client]');
-                return pin ? { kind: 'client', id: Number(pin.dataset.client), el: pin } : null;
-            },
-            highlightDrop(target, tone) {
-                dropEl?.classList.remove('drop-green', 'drop-amber', 'drop-red');
-                dropEl = target && tone ? target.el : null;
-                dropEl?.classList.add(`drop-${tone}`);
-            },
-            markDragging(personId, on) {
-                host.querySelector(`.sm-crew[data-crew="${personId}"]`)?.classList.toggle('is-dragging', on);
-            },
-            dragEnded() {
-                map.dragging.enable();
-            },
-            redraw() {
-                // Mid-move, a refresh would replace the very pin being dragged.
-                if (moving) return;
-                drawPins();
-                drawRoutes();
-                drawCrew();
-                billboards.forEach((board) => boards.removeLayer(board.marker));
-                billboards.clear();
-                syncBillboards();
-            },
-            refreshPins,
-            tick() {
-                drawRoutes();
-                placeCrew();
-                syncBillboards();
-            },
-            startPlace,
-            startMove,
-            cancelPlacing,
-        };
+        return city;
     }
 }
 
@@ -1413,7 +958,7 @@ function renderListsIn(root, snapshot) {
             <button type="button" data-select="${b.id}" class="flex w-full items-center gap-3 rounded-md px-1.5 py-2 text-left hover:bg-white/5">
                 <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background:${hex(STATE[b.state].color)}"></span>
                 <span class="min-w-0 flex-1 truncate text-white">${esc(b.name)}</span>
-                <span class="shrink-0 text-xs text-brand-100/60">${pinned(b) ? '' : 'not on map · '}${esc(STATE[b.state].label)}${b.owed ? ' · ' + money(b.owed) : ''}</span>
+                <span class="shrink-0 text-xs text-brand-100/60">${esc(STATE[b.state].label)}${b.owed ? ' · ' + money(b.owed) : ''}</span>
             </button>
         </li>`).join('');
 }

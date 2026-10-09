@@ -15,6 +15,7 @@ use App\Models\Todo;
 use App\Models\User;
 use App\Services\Insights\EffortVersusRevenue;
 use App\Services\Insights\NeedsAttention;
+use App\Support\CityDistricts;
 use App\Support\ContentForecast;
 use App\Support\TimesheetVenture;
 use Illuminate\Support\Carbon;
@@ -212,9 +213,18 @@ final class StudioMap
             ];
         })->values();
 
+        // The drawn city's plan: which district each client lives in.
+        $studio = self::studio();
+        $plan = CityDistricts::build(
+            $buildings->map(fn (array $b) => ['id' => $b['id'], 'lat' => $b['lat'], 'lng' => $b['lng'], 'address' => $b['address']])->all(),
+            $studio,
+        );
+        $buildings = $buildings->map(fn (array $b) => $b + ['district' => $plan['of'][$b['id']]]);
+
         return [
             'generated_at' => now()->format('g:i A'),
-            'studio' => self::studio(),
+            'studio' => $studio + ['district' => $plan['home']],
+            'districts' => $plan['districts'],
             'totals' => [
                 'owed' => round($buildings->sum('owed')),
                 'overdue' => round((float) $unpaid->flatten()

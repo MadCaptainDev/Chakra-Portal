@@ -1,10 +1,10 @@
 {{--
-    The Studio Map: the clients on a real map (OpenStreetMap through Leaflet),
+    The Studio Map: the clients as an animated city (resources/js/studio-city.js),
     drawn by resources/js/studio-map.js from the JSON below.
 
     Map first: the map fills the window, and everything else -- search, the
     lens switcher, the figures, the team bench, the feed, the replay -- floats
-    on it. The lists under it are plain HTML the same script fills in, so a
+    on it. The lists under it are plain HTML the script fills in, so a
     phone, a screen reader or a map that fails to load still gets every
     figure and every action.
 --}}
@@ -57,12 +57,10 @@
         <script type="application/json" data-studio-map-snapshot>@json($snapshot)</script>
 
         <div class="relative -mt-2 h-[calc(100dvh-6.5rem)] min-h-[540px] overflow-hidden rounded-2xl bg-[#0b1a24] ring-1 ring-white/10 lg:h-[calc(100dvh-5.5rem)] [&:fullscreen]:h-screen [&:fullscreen]:rounded-none" data-map-box>
-            {{-- z-0 makes the map its own stacking context, so Leaflet's
-                 internal z-indexes (400+) stay under everything below. --}}
-            <div class="sm-map absolute inset-0 z-0" data-map-canvas></div>
+            <div class="absolute inset-0 z-0" data-map-canvas></div>
 
             <p class="absolute inset-0 hidden items-center justify-center p-6 text-center text-sm text-brand-100/60" data-map-fallback>
-                The map could not load. Every client is listed below, and each one's actions open from there.
+                The city could not be drawn. Every client is listed below, and each one's actions open from there.
             </p>
 
             {{-- ——— Top left: find, lens, legend, unpinned ——— --}}
@@ -102,14 +100,15 @@
 
             {{-- ——— Top right: map controls ——— --}}
             <div class="absolute right-3 top-3 z-10 flex flex-col items-end gap-2">
-                <div class="flex overflow-hidden rounded-xl text-xs font-semibold {{ $glass }}" role="group" aria-label="Map style">
-                    <button type="button" data-tiles="streets" aria-pressed="true" class="px-2.5 py-2 text-brand-100/70 hover:text-white aria-pressed:bg-white/15 aria-pressed:text-white">Streets</button>
-                    <button type="button" data-tiles="night" aria-pressed="false" class="px-2.5 py-2 text-brand-100/70 hover:text-white aria-pressed:bg-white/15 aria-pressed:text-white">Night</button>
+                <div class="flex overflow-hidden rounded-xl text-xs font-semibold {{ $glass }}" role="group" aria-label="Daylight">
+                    <button type="button" data-sky="auto" aria-pressed="true" title="Follows the clock (and the replay)" class="px-2.5 py-2 text-brand-100/70 hover:text-white aria-pressed:bg-white/15 aria-pressed:text-white">Auto</button>
+                    <button type="button" data-sky="day" aria-pressed="false" class="px-2.5 py-2 text-brand-100/70 hover:text-white aria-pressed:bg-white/15 aria-pressed:text-white">Day</button>
+                    <button type="button" data-sky="night" aria-pressed="false" class="px-2.5 py-2 text-brand-100/70 hover:text-white aria-pressed:bg-white/15 aria-pressed:text-white">Night</button>
                 </div>
                 <div class="flex flex-col overflow-hidden rounded-xl text-white {{ $glass }}">
                     <button type="button" data-map-zoom="in" class="flex h-9 w-9 items-center justify-center text-lg hover:bg-white/10" aria-label="Zoom in">+</button>
                     <button type="button" data-map-zoom="out" class="flex h-9 w-9 items-center justify-center border-t border-white/10 text-lg hover:bg-white/10" aria-label="Zoom out">−</button>
-                    <button type="button" data-map-fit class="flex h-9 w-9 items-center justify-center border-t border-white/10 hover:bg-white/10" aria-label="Show every client" title="Show every client">
+                    <button type="button" data-map-fit class="flex h-9 w-9 items-center justify-center border-t border-white/10 hover:bg-white/10" aria-label="Show the whole city" title="Show the whole city">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9V5.25A1.5 1.5 0 0 1 5.25 3.75H9m6 0h3.75a1.5 1.5 0 0 1 1.5 1.5V9m0 6v3.75a1.5 1.5 0 0 1-1.5 1.5H15m-6 0H5.25a1.5 1.5 0 0 1-1.5-1.5V15" /></svg>
                     </button>
                     <button type="button" data-map-fullscreen class="flex h-9 w-9 items-center justify-center border-t border-white/10 hover:bg-white/10" aria-label="Full screen" title="Full screen">
@@ -129,17 +128,11 @@
                                 </div>
                             @endforeach
                         </dl>
-                        <p class="mt-3 border-t border-white/10 pt-2 text-[11px] text-brand-100/50">Click a pin for its actions. Drag a person from the bench onto a pin to put them on a shoot, or onto the Chakra pin to take them off one.</p>
+                        <p class="mt-3 border-t border-white/10 pt-2 text-[11px] text-brand-100/50">Click a building for its actions. Drag a person from the bench onto a building to put them on a shoot, or onto the Chakra tower to take them off one.</p>
                     </div>
                 </div>
             </div>
 
-            {{-- Placing a pin: what to do, and the way out. --}}
-            <div class="absolute left-1/2 top-16 z-20 hidden -translate-x-1/2 items-center gap-3 rounded-xl bg-brand-400 px-4 py-2 text-sm font-semibold text-brand-900 shadow-2xl" data-place-banner role="status">
-                <span data-place-text></span>
-                <button type="button" data-place-save class="hidden rounded-md bg-brand-900 px-2.5 py-1 text-xs text-white">Save</button>
-                <button type="button" data-place-cancel class="rounded-md bg-brand-900/15 px-2.5 py-1 text-xs hover:bg-brand-900/25">Cancel</button>
-            </div>
 
             {{-- ——— Bottom: the feed, then the bench and the replay ——— --}}
             <div class="pointer-events-none absolute inset-x-3 bottom-[130px] z-10 sm:bottom-[78px]">

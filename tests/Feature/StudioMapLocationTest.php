@@ -119,7 +119,7 @@ class StudioMapLocationTest extends TestCase
         $this->actingAs($admin)
             ->postJson(route('studio-map.actions.place'), ['target' => 'studio', 'lat' => 10.6075, 'lng' => 78.425])
             ->assertOk();
-        $this->assertSame(['lat' => 10.6075, 'lng' => 78.425, 'set' => true], StudioMap::snapshot()['studio']);
+        $this->assertSame(['lat' => 10.6075, 'lng' => 78.425, 'set' => true, 'district' => 'chakra'], StudioMap::snapshot()['studio']);
 
         $this->actingAs($admin)
             ->postJson(route('studio-map.actions.place'), ['target' => 'studio', 'lat' => 51.5, 'lng' => -0.12])

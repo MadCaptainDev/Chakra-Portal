@@ -22,7 +22,6 @@
     "dependencies": {
         "drawflow": "^0.0.60",
         "firebase": "^12.18.0",
-        "leaflet": "1.9.4",
         "page-mascot": "^0.1.0",
         "react": "^19.3.0",
         "react-dom": "^19.3.0",
