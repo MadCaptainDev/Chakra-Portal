@@ -188,6 +188,20 @@
                             <x-input-error :messages="$errors->get('note')" class="mt-2" />
                         </div>
                         <div class="sm:col-span-2">
+                            {{-- The client's thank-you on WhatsApp (PaymentReceipt). On by
+                                 default; untick for a payment they should not hear about. --}}
+                            @if ($invoice->client?->phone)
+                                <label class="flex items-start gap-2.5 text-sm text-brand-100/80">
+                                    <input type="hidden" name="notify_client" value="0">
+                                    <input type="checkbox" name="notify_client" value="1" @checked(old('notify_client', '1') === '1')
+                                           class="mt-0.5 rounded border-white/20 bg-white/10 text-emerald-500 focus:ring-emerald-400">
+                                    <span>Send {{ $invoice->client->name }} a payment receipt on WhatsApp <span class="text-brand-100/50">({{ $invoice->client->phone }})</span></span>
+                                </label>
+                            @else
+                                <p class="text-xs text-brand-100/50">No phone number on file for this client, so no WhatsApp receipt will be sent.</p>
+                            @endif
+                        </div>
+                        <div class="sm:col-span-2">
                             <x-primary-button>Record Payment</x-primary-button>
                         </div>
                     </form>

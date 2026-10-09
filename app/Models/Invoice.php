@@ -33,6 +33,9 @@ class Invoice extends Model
      */
     public const WHATSAPP_TEMPLATE = 'invoice_ready_v2';
 
+    /** The client's thank-you when a payment is recorded -- see SeedPaymentReceivedTemplate and PaymentReceipt. */
+    public const WHATSAPP_TEMPLATE_PAYMENT_RECEIVED = 'payment_received_v1';
+
     /**
      * The two things a Chakra App Studio invoice can be -- not every one is
      * AMC. A one-off build/dev-work invoice is App Studio income too, but
