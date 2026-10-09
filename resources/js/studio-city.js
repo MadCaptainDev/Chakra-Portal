@@ -1,18 +1,24 @@
 /*
- * The Studio Map's city: an isometric, SimCity-style town drawn on one
+ * The Studio Map's city: an isometric, SimCity-style region drawn on one
  * canvas. studio-map.js owns everything around it (panels, dialogs, the
  * bench, replay); this file owns what is on the ground.
  *
- * The plan comes from the server (App\Support\CityDistricts): districts in
- * slots round the studio's own, in the direction they really lie. Each
- * district is a 12×12-tile square cut by streets every six tiles. Clients
- * take the lots nearest their district's centre; the rest of the lots get
- * filler buildings, parks and gaps from a seeded random -- the same city on
- * every visit -- and empty slots inside the city's bounds become suburbs, so
- * it always reads as a city rather than a few towers.
+ * The plan comes from the server (App\Support\CityDistricts): towns in
+ * slots round the studio's own, in the direction they really lie and
+ * further out the further away they are. Each slot is a 12×12-tile square.
+ *
+ *  - Towns (a district with clients in it) have streets every six tiles;
+ *    clients take every other lot near the centre, so buildings have room,
+ *    and the rest is filler buildings, parks and gaps from a seeded random --
+ *    the same town on every visit.
+ *  - Suburbs ring the studio's own town: the same streets, thinner and lower.
+ *  - Everything else is countryside -- fields, trees, the odd hut -- crossed
+ *    by highways from the studio's town to each of the others. Cars use the
+ *    streets and highways; crew walk them, never through anything.
  *
  * Light by design:
  *  - every building is drawn once into a sprite and stamped after that;
+ *  - anything off screen is skipped;
  *  - the loop runs at 30 fps for a minute after you touch the map, 12 fps
  *    after that, and not at all when the tab is hidden, the map is scrolled
  *    out of view, or the system asks for reduced motion (then it draws only
@@ -22,18 +28,17 @@
 const TW = 64; // tile width at zoom 1
 const TH = 32; // tile height at zoom 1
 const FLOOR = 11; // one storey, in pixels at zoom 1
-const DISTRICT = 12; // tiles per district side
-const ROAD = 6; // a street every six tiles
-const MIN_ZOOM = 0.35;
-const MAX_ZOOM = 2.6;
+const DISTRICT = 12; // tiles per slot side
+const ROAD = 6; // a street every six tiles in town
+const MIN_ZOOM = 0.12;
+const MAX_ZOOM = 2.4;
+const OPENING_ZOOM = 0.8; // the most the map opens at -- the town and around it, not a close-up
 const ACTIVE_FPS = 30;
 const IDLE_FPS = 12;
 const ACTIVE_FOR_MS = 60000;
 const BILLBOARD_FOR_MS = 3 * 60 * 60 * 1000;
-const MIN = 60 * 1000;
 
 const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-const mod = (n, m) => ((n % m) + m) % m;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 /* ——— Seeded randomness: the same city every visit ——— */
@@ -64,6 +69,7 @@ const PALETTE = {
     asphalt: [[104, 112, 122], [34, 40, 50]],
     pavement: [[221, 216, 204], [52, 58, 68]],
     homePavement: [[230, 222, 200], [60, 62, 70]],
+    grass: [[160, 196, 120], [30, 50, 40]],
     park: [[150, 196, 128], [36, 62, 48]],
     tree: [[86, 148, 82], [28, 52, 40]],
     dash: [[246, 241, 228], [120, 126, 134]],
@@ -71,7 +77,9 @@ const PALETTE = {
     skyBottom: [[232, 240, 232], [22, 34, 56]],
 };
 const tone = (key, dark) => mix(PALETTE[key][0], PALETTE[key][1], dark);
+const FIELDS = [[146, 190, 96], [182, 204, 112], [216, 198, 128], [170, 140, 98], [120, 170, 90], [196, 212, 140]];
 const FILLER = [0xb9b2a6, 0xa9b4bd, 0xc4b8a0, 0x9fa9a2, 0xbfb5b0];
+const HUT = [0xd8b48a, 0xc9a27a, 0xe0c9a6];
 const CAR = [0xf87171, 0x60a5fa, 0xfbbf24, 0xf1f5f9, 0x34d399, 0x1f2937, 0xa78bfa];
 
 /* ——— Isometric projection ——— */
@@ -91,16 +99,39 @@ function darknessAt(ms) {
     return (h - 17.75) / 1.5;
 }
 
+/* ——— Paths along streets and highways ——— */
+function pathOf(points) {
+    const lengths = [0];
+    for (let i = 1; i < points.length; i++) lengths.push(lengths[i - 1] + Math.abs(points[i].x - points[i - 1].x) + Math.abs(points[i].y - points[i - 1].y));
+    return { points, lengths, total: lengths[lengths.length - 1] || 1 };
+}
+function along(path, k) {
+    const want = clamp(k, 0, 1) * path.total;
+    for (let i = 1; i < path.points.length; i++) {
+        if (path.lengths[i] >= want) {
+            const a = path.points[i - 1];
+            const b = path.points[i];
+            const seg = path.lengths[i] - path.lengths[i - 1] || 1;
+            const f = (want - path.lengths[i - 1]) / seg;
+            return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, axis: a.y === b.y ? 'x' : 'y', dir: Math.sign((b.x - a.x) + (b.y - a.y)) || 1 };
+        }
+    }
+    const p = path.points[path.points.length - 1];
+    return { x: p.x, y: p.y, axis: 'x', dir: 1 };
+}
+// Right-angled: along x first, then y.
+const elbow = (a, b) => [a, { x: b.x, y: a.y }, b];
+
 export function createCity(options) {
     const {
         host, getSnapshot, getLens, lenses, getTime, getSelected, getFresh,
-        whereAt, phaseColor, onPick, onBackground, onPersonDown, onView, initials, firstName,
+        whereAt, phaseColor, onPick, onBackground, onPersonDown, onView, firstName,
     } = options;
 
     const canvas = document.createElement('canvas');
     canvas.className = 'absolute inset-0 h-full w-full touch-none select-none';
     canvas.setAttribute('role', 'img');
-    canvas.setAttribute('aria-label', 'The studio and its clients, drawn as a city. Every client is also listed under the map.');
+    canvas.setAttribute('aria-label', 'The studio and its clients, drawn as a city and the towns around it. Every client is also listed under the map.');
     host.appendChild(canvas);
     const ctx = canvas.getContext('2d');
 
@@ -108,26 +139,29 @@ export function createCity(options) {
     let H = 0;
     let dpr = 1;
     const cam = { x: 0, y: 0, zoom: 1 };
-    let flight = null; // { from, to, start, ms }
+    let flight = null;
     let skyMode = 'auto';
     let hovered = null;
-    let dropTarget = null; // { kind, id, tone }
+    let dropTarget = null;
     let draggingPerson = null;
-    let hits = []; // what is on screen, front-most last
+    let hits = [];
     let lastInteraction = performance.now();
     let visible = true;
     let needsRender = true;
 
-    let city = null; // the plan: districts, objects, roads, bounds
+    let city = null;
     let cars = [];
-    const images = new Map(); // photo url -> Image
-    const boardBorn = new Map(); // event id -> when it first showed
+    let cityTops = new Map();
+    let roadsKey = null;
+    const images = new Map();
+    const boardBorn = new Map();
 
     /* ——— The plan ——————————————————————————————————————————————— */
 
     function buildPlan() {
         const snap = getSnapshot();
         const bySlot = new Map(snap.districts.map((d) => [d.slot.join(','), d]));
+        const home = snap.districts.find((d) => d.home) ?? { slot: [0, 0] };
         let minX = -1;
         let maxX = 1;
         let minY = -1;
@@ -138,9 +172,27 @@ export function createCity(options) {
             minY = Math.min(minY, y);
             maxY = Math.max(maxY, y);
         });
+        const centreOf = ([x, y]) => ({ x: x * DISTRICT + ROAD + 0.5, y: y * DISTRICT + ROAD + 0.5 });
+        const homeCentre = centreOf(home.slot);
 
+        // Highways: from the studio's town to every other, along x then y.
+        const highways = snap.districts.filter((d) => !d.home).map((d) => ({ key: d.key, path: pathOf(elbow(homeCentre, centreOf(d.slot))) }));
+        const onHighway = new Set();
+        highways.forEach(({ path }) => {
+            for (let i = 1; i < path.points.length; i++) {
+                const a = path.points[i - 1];
+                const b = path.points[i];
+                const steps = Math.abs(b.x - a.x) + Math.abs(b.y - a.y);
+                for (let s = 0; s <= steps; s++) {
+                    const x = Math.floor(a.x + Math.sign(b.x - a.x) * s);
+                    const y = Math.floor(a.y + Math.sign(b.y - a.y) * s);
+                    onHighway.add(`${x},${y}`);
+                }
+            }
+        });
+
+        const cells = [];
         const objects = [];
-        const lots = new Map(); // "gx,gy" -> object, for walkers to find a door
         const byClient = new Map();
         const labels = [];
         let hq = null;
@@ -148,17 +200,34 @@ export function createCity(options) {
         for (let dx = minX; dx <= maxX; dx++) {
             for (let dy = minY; dy <= maxY; dy++) {
                 const district = bySlot.get(`${dx},${dy}`) ?? null;
+                const nearHome = Math.max(Math.abs(dx - home.slot[0]), Math.abs(dy - home.slot[1])) === 1;
+                const type = district ? 'town' : nearHome ? 'suburb' : 'country';
                 const ox = dx * DISTRICT;
                 const oy = dy * DISTRICT;
                 const cx = ox + ROAD;
                 const cy = oy + ROAD;
                 const rnd = random(hash(`${dx}:${dy}`));
+                cells.push({ dx, dy, ox, oy, type, home: !!district?.home, seed: hash(`f${dx}:${dy}`) });
+
+                if (type === 'country') {
+                    for (let i = 0; i < DISTRICT; i++) {
+                        for (let j = 0; j < DISTRICT; j++) {
+                            const gx = ox + i;
+                            const gy = oy + j;
+                            if (onHighway.has(`${gx},${gy}`)) continue;
+                            const r = rnd();
+                            if (r < 0.1) objects.push({ kind: 'tree', gx, gy, w: 1, d: 1, size: 0.6 + rnd() * 0.6 });
+                            else if (r < 0.125) objects.push({ kind: 'filler', gx, gy, w: 1, d: 1, floors: 1, colour: HUT[Math.floor(rnd() * HUT.length)] });
+                        }
+                    }
+                    continue;
+                }
 
                 const free = [];
                 for (let i = 1; i < DISTRICT; i++) {
                     for (let j = 1; j < DISTRICT; j++) {
                         if (i % ROAD === 0 || j % ROAD === 0) continue;
-                        free.push({ gx: ox + i, gy: oy + j, d: Math.hypot(ox + i + 0.5 - cx, oy + j + 0.5 - cy) });
+                        free.push({ gx: ox + i, gy: oy + j, d: Math.hypot(ox + i + 0.5 - cx, oy + j + 0.5 - cy), even: (i + j) % 2 === 0 });
                     }
                 }
                 free.sort((a, b) => a.d - b.d || a.gx - b.gx || a.gy - b.gy);
@@ -167,104 +236,105 @@ export function createCity(options) {
 
                 if (district?.home) {
                     hq = { kind: 'hq', gx: cx + 1, gy: cy - 2, w: 2, d: 2, floors: 9 };
-                    for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) take(hq.gx + a, hq.gy + b);
+                    for (let a = -1; a < 3; a++) for (let b = -1; b < 3; b++) take(hq.gx + a, hq.gy + b); // a little plaza round it
                     objects.push(hq);
                 }
 
                 if (district) {
-                    labels.push({ name: district.name, gx: cx + 0.5, gy: cy + 0.5, home: district.home });
+                    labels.push({ name: district.name, km: district.km, gx: cx + 0.5, gy: cy + 0.5, home: district.home });
                     const residents = snap.buildings.filter((b) => b.district === district.key).sort((a, b) => a.id - b.id);
-                    const spots = free.filter((s) => !taken.has(`${s.gx},${s.gy}`));
+                    // Every other lot, so clients have room round them.
+                    let spots = free.filter((s) => s.even && !taken.has(`${s.gx},${s.gy}`));
+                    if (spots.length < residents.length) spots = free.filter((s) => !taken.has(`${s.gx},${s.gy}`));
                     residents.forEach((b, k) => {
                         const spot = spots[k];
                         if (!spot) return;
                         take(spot.gx, spot.gy);
+                        // The lots either side stay open: gardens, not neighbours.
+                        take(spot.gx + 1, spot.gy);
+                        take(spot.gx, spot.gy + 1);
                         const o = { kind: 'client', id: b.id, gx: spot.gx, gy: spot.gy, w: 1, d: 1 };
                         objects.push(o);
                         byClient.set(b.id, o);
                     });
                 }
 
-                // Filler: denser and taller downtown, thinner in the suburbs.
                 free.forEach((s) => {
                     if (taken.has(`${s.gx},${s.gy}`)) return;
                     const r = rnd();
-                    const downtown = district ? clamp(1 - s.d / 9, 0, 1) : 0;
+                    const downtown = type === 'town' ? clamp(1 - s.d / 9, 0, 1) : 0;
+                    const density = type === 'town' ? 0.55 : 0.32;
                     if (r < 0.1) {
                         objects.push({ kind: 'tree', gx: s.gx, gy: s.gy, w: 1, d: 1, size: 0.7 + rnd() * 0.5 });
-                    } else if (r < (district ? 0.68 : 0.42)) {
-                        const floors = 1 + Math.floor(rnd() * (district ? 2 + downtown * 5 : 2));
-                        objects.push({ kind: 'filler', gx: s.gx, gy: s.gy, w: 1, d: 1, floors, colour: FILLER[Math.floor(rnd() * FILLER.length)], seed: hash(`${s.gx},${s.gy}`) });
-                    } else if (r < 0.78) {
+                    } else if (r < density) {
+                        const floors = 1 + Math.floor(rnd() * (type === 'town' ? 2 + downtown * 4 : 2));
+                        objects.push({ kind: 'filler', gx: s.gx, gy: s.gy, w: 1, d: 1, floors, colour: FILLER[Math.floor(rnd() * FILLER.length)] });
+                    } else if (r < density + 0.12) {
                         objects.push({ kind: 'park', gx: s.gx, gy: s.gy, w: 1, d: 1 });
                     }
                 });
             }
         }
 
-        objects.forEach((o) => {
-            for (let a = 0; a < o.w; a++) for (let b = 0; b < o.d; b++) lots.set(`${o.gx + a},${o.gy + b}`, o);
-        });
-
-        const bounds = { x0: minX * DISTRICT, y0: minY * DISTRICT, x1: (maxX + 1) * DISTRICT + 1, y1: (maxY + 1) * DISTRICT + 1 };
-        const boundsKey = `${minX},${minY},${maxX},${maxY}`;
-        if (!city || city.boundsKey !== boundsKey) cars = makeCars(bounds);
-
-        city = { objects, byClient, hq, labels, bounds, boundsKey, homeDistrict: snap.districts.find((d) => d.home) };
+        const bounds = { x0: minX * DISTRICT, y0: minY * DISTRICT, x1: (maxX + 1) * DISTRICT, y1: (maxY + 1) * DISTRICT };
+        const planKey = `${minX},${minY},${maxX},${maxY}|${highways.map((h) => h.key).join(',')}`;
+        city = { cells, objects, byClient, hq, labels, bounds, highways, homeSlot: home.slot, homeCentre };
+        // Cars keep driving through a refresh; only new roads get new cars.
+        if (planKey !== roadsKey) {
+            roadsKey = planKey;
+            cars = makeCars(planKey);
+        }
         needsRender = true;
     }
 
-    function makeCars(b) {
-        const rnd = random(hash(`cars:${b.x0}:${b.y0}:${b.x1}:${b.y1}`));
+    // Cars: one or two on each town's main streets, two on every highway.
+    function makeCars(planKey) {
+        const rnd = random(hash(`cars:${planKey}`));
         const list = [];
-        for (let k = Math.ceil(b.x0 / ROAD); k * ROAD < b.x1; k++) {
-            if (rnd() < 0.75) list.push({ axis: 'y', line: k * ROAD, dir: rnd() < 0.5 ? 1 : -1, p: b.y0 + rnd() * (b.y1 - b.y0), speed: 0.9 + rnd() * 1.4, colour: CAR[Math.floor(rnd() * CAR.length)] });
-        }
-        for (let k = Math.ceil(b.y0 / ROAD); k * ROAD < b.y1; k++) {
-            if (rnd() < 0.75) list.push({ axis: 'x', line: k * ROAD, dir: rnd() < 0.5 ? 1 : -1, p: b.x0 + rnd() * (b.x1 - b.x0), speed: 0.9 + rnd() * 1.4, colour: CAR[Math.floor(rnd() * CAR.length)] });
-        }
+        const add = (path) => list.push({ path, k: rnd(), speed: (0.9 + rnd() * 1.3) / path.total, dir: rnd() < 0.5 ? 1 : -1, colour: CAR[Math.floor(rnd() * CAR.length)] });
+        city.cells.forEach((c) => {
+            if (c.type === 'country') return;
+            const mid = ROAD + 0.5;
+            if (rnd() < 0.8) add(pathOf([{ x: c.ox, y: c.oy + mid }, { x: c.ox + DISTRICT + 1, y: c.oy + mid }]));
+            if (rnd() < 0.8) add(pathOf([{ x: c.ox + mid, y: c.oy }, { x: c.ox + mid, y: c.oy + DISTRICT + 1 }]));
+        });
+        city.highways.forEach(({ path }) => {
+            add(path);
+            add(path);
+        });
         return list;
     }
 
-    /* ——— Walking: along the streets, never through buildings ——— */
+    /* ——— Walking: along streets and highways ——— */
 
     // The middle of the street nearest a lot's front door.
     function door(o) {
         const gx = o.gx + o.w / 2;
         const gy = o.gy + o.d / 2;
-        const toX = gx - (Math.floor(gx / ROAD) * ROAD + 0.5);
-        const toXRight = Math.ceil(gx / ROAD) * ROAD + 0.5 - gx;
-        const toY = gy - (Math.floor(gy / ROAD) * ROAD + 0.5);
-        const toYDown = Math.ceil(gy / ROAD) * ROAD + 0.5 - gy;
-        const best = Math.min(toX, toXRight, toY, toYDown);
-        if (best === toX) return { x: Math.floor(gx / ROAD) * ROAD + 0.5, y: gy };
-        if (best === toXRight) return { x: Math.ceil(gx / ROAD) * ROAD + 0.5, y: gy };
-        if (best === toY) return { x: gx, y: Math.floor(gy / ROAD) * ROAD + 0.5 };
-        return { x: gx, y: Math.ceil(gy / ROAD) * ROAD + 0.5 };
+        const options = [
+            { x: Math.floor(gx / ROAD) * ROAD + 0.5, y: gy },
+            { x: Math.ceil(gx / ROAD) * ROAD + 0.5, y: gy },
+            { x: gx, y: Math.floor(gy / ROAD) * ROAD + 0.5 },
+            { x: gx, y: Math.ceil(gy / ROAD) * ROAD + 0.5 },
+        ];
+        return options.reduce((best, p) => (Math.abs(p.x - gx) + Math.abs(p.y - gy) < Math.abs(best.x - gx) + Math.abs(best.y - gy) ? p : best));
     }
-    const corner = (v) => Math.round((v - 0.5) / ROAD) * ROAD + 0.5;
+    const corner = (p) => ({ x: Math.round((p.x - 0.5) / ROAD) * ROAD + 0.5, y: Math.round((p.y - 0.5) / ROAD) * ROAD + 0.5 });
+    const slotOf = (o) => [Math.floor(o.gx / DISTRICT), Math.floor(o.gy / DISTRICT)];
 
+    // Door to corner, through town to its centre, down the highway, then the
+    // same in reverse at the other end.
     function route(from, to) {
         const a = door(from);
         const b = door(to);
-        const ia = { x: corner(a.x), y: corner(a.y) };
-        const ib = { x: corner(b.x), y: corner(b.y) };
-        const points = [a, ia, { x: ib.x, y: ia.y }, ib, b];
-        const lengths = [0];
-        for (let i = 1; i < points.length; i++) lengths.push(lengths[i - 1] + Math.abs(points[i].x - points[i - 1].x) + Math.abs(points[i].y - points[i - 1].y));
-        return { points, lengths, total: lengths[lengths.length - 1] || 1 };
-    }
-
-    function along(r, k) {
-        const want = clamp(k, 0, 1) * r.total;
-        for (let i = 1; i < r.points.length; i++) {
-            if (r.lengths[i] >= want) {
-                const seg = r.lengths[i] - r.lengths[i - 1] || 1;
-                const f = (want - r.lengths[i - 1]) / seg;
-                return { x: r.points[i - 1].x + (r.points[i].x - r.points[i - 1].x) * f, y: r.points[i - 1].y + (r.points[i].y - r.points[i - 1].y) * f };
-            }
-        }
-        return r.points[r.points.length - 1];
+        const ia = corner(a);
+        const ib = corner(b);
+        const [tx, ty] = slotOf(to);
+        const sameTown = tx === city.homeSlot[0] && ty === city.homeSlot[1];
+        if (sameTown) return pathOf([a, ...elbow(ia, ib), b]);
+        const hc = city.homeCentre;
+        const tc = { x: tx * DISTRICT + ROAD + 0.5, y: ty * DISTRICT + ROAD + 0.5 };
+        return pathOf([a, ...elbow(ia, hc), ...elbow(hc, tc).slice(1), ...elbow(tc, ib).slice(1), b]);
     }
 
     function walkers(time, anim) {
@@ -292,8 +362,7 @@ export function createCity(options) {
             let pos;
             if (where.phase === 'home') {
                 const a = (atHome++ / Math.max(snap.team.length, 1)) * Math.PI * 2;
-                const h = door(city.hq);
-                pos = { x: h.x + Math.cos(a) * 0.9, y: h.y + Math.sin(a) * 0.9 };
+                pos = { x: city.hq.gx + 1 + Math.cos(a) * 1.7, y: city.hq.gy + 1 + Math.sin(a) * 1.7 };
             } else {
                 const target = city.byClient.get(shoot.client_id);
                 if (where.phase === 'site') {
@@ -303,8 +372,7 @@ export function createCity(options) {
                     const a = n * 1.9 + anim * 0.6;
                     pos = { x: d.x + Math.cos(a) * 0.32, y: d.y + Math.sin(a) * 0.32 };
                 } else {
-                    const r = route(city.hq, target);
-                    pos = along(r, where.progress ?? 0.5 + Math.sin(anim * 0.25 + p.id) * 0.3);
+                    pos = along(route(city.hq, target), where.progress ?? 0.5 + Math.sin(anim * 0.25 + p.id) * 0.3);
                 }
             }
             list.push({ person: p, phase: where.phase, shoot, x: pos.x, y: pos.y });
@@ -331,15 +399,14 @@ export function createCity(options) {
 
         const h = floors * FLOOR;
         const pw = ((w + d) * TW) / 2;
-        const ph = ((w + d) * TH) / 2 + h + (opts?.crown ?? 0);
+        const ph = ((w + d) * TH) / 2 + h;
         const off = document.createElement('canvas');
         off.width = Math.ceil(pw * bucket) + 2;
         off.height = Math.ceil(ph * bucket) + 2;
         const g = off.getContext('2d');
         g.scale(bucket, bucket);
-        // Footprint corners relative to the sprite, the top corner at (d·TW/2, h + crown).
         const ax = (d * TW) / 2;
-        const ay = h + (opts?.crown ?? 0);
+        const ay = h;
         const T = { x: ax, y: ay };
         const R = { x: ax + (w * TW) / 2, y: ay + (w * TH) / 2 };
         const B = { x: ax + ((w - d) * TW) / 2, y: ay + ((w + d) * TH) / 2 };
@@ -357,12 +424,10 @@ export function createCity(options) {
         poly([L, B, up(B), up(L)], css(shade(base, -0.22)));
         poly([B, R, up(R), up(B)], css(shade(base, -0.06)));
         poly([up(T), up(R), up(B), up(L)], css(shade(base, 0.16)));
-        // A parapet: the roof a little lower inside its rim.
         const inset = (p, q, f) => ({ x: p.x + (q.x - p.x) * f, y: p.y + (q.y - p.y) * f });
         const c = { x: (up(T).x + up(B).x) / 2, y: (up(T).y + up(B).y) / 2 };
         poly([inset(up(T), c, 0.18), inset(up(R), c, 0.18), inset(up(B), c, 0.18), inset(up(L), c, 0.18)], css(shade(base, opts?.roof ?? 0.04)));
 
-        // Windows: a grid on both front faces; lit at night, glass by day.
         const rnd = random(hash(id));
         const face = (p0, p1, cols) => {
             for (let f = 0; f < floors; f++) {
@@ -392,6 +457,7 @@ export function createCity(options) {
     const toScreen = (p) => ({ x: (p.x - cam.x) * cam.zoom + W / 2, y: (p.y - cam.y) * cam.zoom + H / 2 });
     const fromScreen = (sx, sy) => ({ x: (sx - W / 2) / cam.zoom + cam.x, y: (sy - H / 2) / cam.zoom + cam.y });
     const groundAt = (gx, gy, z = 0) => toScreen(iso(gx, gy, z));
+    const onScreen = (p, margin = 160) => p.x > -margin && p.x < W + margin && p.y > -margin * 1.5 && p.y < H + margin;
 
     function quad(a, b, c, d, fill) {
         ctx.beginPath();
@@ -403,6 +469,7 @@ export function createCity(options) {
         ctx.fillStyle = fill;
         ctx.fill();
     }
+    const tileRect = (x0, y0, x1, y1, fill) => quad(groundAt(x0, y0), groundAt(x1, y0), groundAt(x1, y1), groundAt(x0, y1), fill);
 
     function pill(text, x, y, { bg = 'rgba(11,26,36,0.88)', fg = '#fff', size = 11, weight = 700 } = {}) {
         ctx.font = `${weight} ${size}px Poppins, ui-sans-serif, system-ui, sans-serif`;
@@ -417,6 +484,12 @@ export function createCity(options) {
         ctx.textBaseline = 'middle';
         ctx.fillText(text, x, y - h / 2 + 0.5);
         return { x: x - w / 2, y: y - h, w, h };
+    }
+
+    function cellOnScreen(c) {
+        const m = groundAt(c.ox + DISTRICT / 2, c.oy + DISTRICT / 2);
+        const r = (DISTRICT * TW * cam.zoom) / 1.4;
+        return m.x > -r && m.x < W + r && m.y > -r && m.y < H + r;
     }
 
     function render(now = performance.now()) {
@@ -440,65 +513,102 @@ export function createCity(options) {
         ctx.fillStyle = sky;
         ctx.fillRect(0, 0, W, H);
 
-        // Ground: the whole city in asphalt, then the blocks laid over it --
-        // the streets are what shows between them.
         const b = city.bounds;
-        quad(groundAt(b.x0, b.y0), groundAt(b.x1, b.y0), groundAt(b.x1, b.y1), groundAt(b.x0, b.y1), css(tone('asphalt', dark)));
-        const homeSlot = city.homeDistrict?.slot ?? [0, 0];
-        for (let bx = b.x0; bx < b.x1 - 1; bx += ROAD) {
-            for (let by = b.y0; by < b.y1 - 1; by += ROAD) {
-                const home = Math.floor(bx / DISTRICT) === homeSlot[0] && Math.floor(by / DISTRICT) === homeSlot[1];
-                quad(groundAt(bx + 1, by + 1), groundAt(bx + ROAD, by + 1), groundAt(bx + ROAD, by + ROAD), groundAt(bx + 1, by + ROAD), css(tone(home ? 'homePavement' : 'pavement', dark)));
-            }
-        }
+        tileRect(b.x0, b.y0, b.x1, b.y1, css(tone('grass', dark)));
 
-        // Lane markings, and street lamps once it is dark.
-        if (cam.zoom > 0.55) {
+        // Countryside first: a patchwork of fields with hedges between.
+        const visibleCells = city.cells.filter(cellOnScreen);
+        visibleCells.forEach((c) => {
+            if (c.type !== 'country') return;
+            const rnd = random(c.seed);
+            for (const [i, j] of [[0, 0], [6, 0], [0, 6], [6, 6]]) {
+                const split = rnd() < 0.5;
+                const parts = split ? [[0, 0, 6, 3], [0, 3, 6, 6]] : [[0, 0, 3, 6], [3, 0, 6, 6]];
+                parts.forEach(([a, b2, c2, d]) => {
+                    const colour = atNight(FIELDS[Math.floor(rnd() * FIELDS.length)], dark);
+                    tileRect(c.ox + i + a + 0.12, c.oy + j + b2 + 0.12, c.ox + i + c2 - 0.12, c.oy + j + d - 0.12, css(colour));
+                });
+            }
+        });
+
+        // Towns and suburbs: asphalt, with the blocks laid over it.
+        visibleCells.forEach((c) => {
+            if (c.type === 'country') return;
+            tileRect(c.ox, c.oy, c.ox + DISTRICT + 1, c.oy + DISTRICT + 1, css(tone('asphalt', dark)));
+            for (const [i, j] of [[0, 0], [6, 0], [0, 6], [6, 6]]) {
+                tileRect(c.ox + i + 1, c.oy + j + 1, c.ox + i + ROAD, c.oy + j + ROAD, css(tone(c.home ? 'homePavement' : 'pavement', dark)));
+            }
+        });
+
+        // Highways across the country.
+        const roadColour = css(tone('asphalt', dark));
+        city.highways.forEach(({ path }) => {
+            for (let i = 1; i < path.points.length; i++) {
+                const p = path.points[i - 1];
+                const q = path.points[i];
+                tileRect(Math.min(p.x, q.x) - 0.5, Math.min(p.y, q.y) - 0.5, Math.max(p.x, q.x) + 0.5, Math.max(p.y, q.y) + 0.5, roadColour);
+            }
+        });
+
+        // Lane markings and, after dark, street lamps.
+        if (cam.zoom > 0.45) {
             ctx.save();
             ctx.strokeStyle = css(tone('dash', dark), 0.85);
             ctx.lineWidth = Math.max(1, 1.4 * cam.zoom);
             ctx.setLineDash([6 * cam.zoom, 8 * cam.zoom]);
-            for (let k = Math.ceil(b.x0 / ROAD) * ROAD; k < b.x1; k += ROAD) {
-                const p = groundAt(k + 0.5, b.y0);
-                const q = groundAt(k + 0.5, b.y1);
+            const line = (x0, y0, x1, y1) => {
+                const p = groundAt(x0, y0);
+                const q = groundAt(x1, y1);
                 ctx.beginPath();
                 ctx.moveTo(p.x, p.y);
                 ctx.lineTo(q.x, q.y);
                 ctx.stroke();
-            }
-            for (let k = Math.ceil(b.y0 / ROAD) * ROAD; k < b.y1; k += ROAD) {
-                const p = groundAt(b.x0, k + 0.5);
-                const q = groundAt(b.x1, k + 0.5);
-                ctx.beginPath();
-                ctx.moveTo(p.x, p.y);
-                ctx.lineTo(q.x, q.y);
-                ctx.stroke();
-            }
+            };
+            visibleCells.forEach((c) => {
+                if (c.type === 'country') return;
+                for (const k of [0, ROAD, DISTRICT]) {
+                    line(c.ox + k + 0.5, c.oy, c.ox + k + 0.5, c.oy + DISTRICT + 1);
+                    line(c.ox, c.oy + k + 0.5, c.ox + DISTRICT + 1, c.oy + k + 0.5);
+                }
+            });
+            city.highways.forEach(({ path }) => {
+                for (let i = 1; i < path.points.length; i++) line(path.points[i - 1].x, path.points[i - 1].y, path.points[i].x, path.points[i].y);
+            });
             ctx.restore();
         }
         if (dark > 0.3) {
-            for (let x = Math.ceil(b.x0 / ROAD) * ROAD; x < b.x1; x += ROAD) {
-                for (let y = Math.ceil(b.y0 / ROAD) * ROAD; y < b.y1; y += ROAD) {
-                    const p = groundAt(x + 0.5, y + 0.5);
-                    const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 26 * cam.zoom);
-                    glow.addColorStop(0, `rgba(255,214,120,${0.45 * dark})`);
-                    glow.addColorStop(1, 'rgba(255,214,120,0)');
-                    ctx.fillStyle = glow;
-                    ctx.fillRect(p.x - 26 * cam.zoom, p.y - 26 * cam.zoom, 52 * cam.zoom, 52 * cam.zoom);
-                }
-            }
+            const lamp = (x, y) => {
+                const p = groundAt(x, y);
+                if (!onScreen(p, 40)) return;
+                const r = 24 * cam.zoom;
+                const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+                glow.addColorStop(0, `rgba(255,214,120,${0.45 * dark})`);
+                glow.addColorStop(1, 'rgba(255,214,120,0)');
+                ctx.fillStyle = glow;
+                ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
+            };
+            visibleCells.forEach((c) => {
+                if (c.type === 'country') return;
+                for (const i of [0, ROAD, DISTRICT]) for (const j of [0, ROAD, DISTRICT]) lamp(c.ox + i + 0.5, c.oy + j + 0.5);
+            });
         }
 
-        // District names, painted on the ground so buildings stand over them.
+        // Town names on the ground, with how far they are.
         city.labels.forEach((l) => {
             const p = groundAt(l.gx + 2.6, l.gy + 2.6);
-            ctx.font = `800 ${Math.round((l.home ? 22 : 18) * cam.zoom)}px Poppins, ui-sans-serif, system-ui, sans-serif`;
+            if (!onScreen(p, 300)) return;
+            const size = Math.max(10, Math.round((l.home ? 22 : 18) * cam.zoom));
+            ctx.font = `800 ${size}px Poppins, ui-sans-serif, system-ui, sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = dark > 0.5 ? 'rgba(255,255,255,0.22)' : 'rgba(19,42,56,0.28)';
+            ctx.fillStyle = dark > 0.5 ? 'rgba(255,255,255,0.28)' : 'rgba(19,42,56,0.34)';
             if (ctx.letterSpacing !== undefined) ctx.letterSpacing = `${3 * cam.zoom}px`;
             ctx.fillText(l.name.toUpperCase(), p.x, p.y);
             if (ctx.letterSpacing !== undefined) ctx.letterSpacing = '0px';
+            if (!l.home && l.km != null) {
+                ctx.font = `700 ${Math.max(9, Math.round(11 * cam.zoom))}px Poppins, ui-sans-serif, system-ui, sans-serif`;
+                ctx.fillText(`${l.km} km from the studio`, p.x, p.y + size * 0.95);
+            }
         });
 
         // Parks and the rings under buildings that need you.
@@ -512,7 +622,9 @@ export function createCity(options) {
             ctx.stroke();
         };
         city.objects.forEach((o) => {
-            if (o.kind === 'park') quad(groundAt(o.gx, o.gy), groundAt(o.gx + 1, o.gy), groundAt(o.gx + 1, o.gy + 1), groundAt(o.gx, o.gy + 1), css(tone('park', dark)));
+            if (o.kind !== 'park') return;
+            const p = groundAt(o.gx, o.gy);
+            if (onScreen(p)) tileRect(o.gx, o.gy, o.gx + 1, o.gy + 1, css(tone('park', dark)));
         });
         const freshClients = new Set(snap.day.events.filter((e) => fresh.has(e.id)).map((e) => e.client_id));
         city.byClient.forEach((o, id) => {
@@ -529,18 +641,24 @@ export function createCity(options) {
         const people = walkers(time, anim);
         const things = [];
         city.objects.forEach((o) => {
-            if (o.kind !== 'park') things.push({ depth: o.gx + o.w + o.gy + o.d, o });
+            if (o.kind === 'park') return;
+            if (o.kind === 'filler' || o.kind === 'tree') {
+                if (!onScreen(groundAt(o.gx, o.gy))) return;
+            }
+            things.push({ depth: o.gx + o.w + o.gy + o.d, o });
         });
         cars.forEach((car) => {
-            const lane = car.dir > 0 ? 0.3 : 0.7;
-            const x = car.axis === 'x' ? car.p : car.line + lane;
-            const y = car.axis === 'x' ? car.line + lane : car.p;
-            things.push({ depth: x + y + 0.4, car, x, y });
+            const p = along(car.path, car.k);
+            const dir = p.dir * car.dir;
+            const lane = dir > 0 ? -0.2 : 0.2;
+            const x = p.axis === 'x' ? p.x : p.x + lane;
+            const y = p.axis === 'x' ? p.y + lane : p.y;
+            if (onScreen(groundAt(x, y))) things.push({ depth: x + y + 0.4, car: { ...car, axis: p.axis, dir }, x, y });
         });
         people.forEach((p) => things.push({ depth: p.x + p.y + 0.5, person: p }));
         things.sort((a, b2) => a.depth - b2.depth);
 
-        const tops = new Map(); // id -> screen point above the roof
+        const tops = new Map();
         things.forEach((t) => {
             if (t.car) return drawCar(t, dark);
             if (t.person) return drawPerson(t.person, dark, anim);
@@ -568,10 +686,8 @@ export function createCity(options) {
 
             const s = sprite(key, o.w, o.d, floors, colour, darkBucket, o.kind === 'hq' ? { roof: 0.2 } : null);
             const T = groundAt(o.gx, o.gy);
-            const x = T.x - s.ax * cam.zoom;
-            const y = T.y - s.ay * cam.zoom;
-            ctx.globalAlpha = faded ? (o.kind === 'filler' ? 0.55 : 0.6) : 1;
-            ctx.drawImage(s.canvas, x, y, s.w * cam.zoom, s.h * cam.zoom);
+            ctx.globalAlpha = faded ? 0.55 : 1;
+            ctx.drawImage(s.canvas, T.x - s.ax * cam.zoom, T.y - s.ay * cam.zoom, s.w * cam.zoom, s.h * cam.zoom);
             ctx.globalAlpha = 1;
 
             if (o.kind === 'client' || o.kind === 'hq') {
@@ -581,31 +697,28 @@ export function createCity(options) {
                 hits.push({ kind: o.kind === 'hq' ? 'hq' : 'client', id: o.kind === 'hq' ? 'hq' : o.id, poly: outline });
                 const roofTop = P(o.gx + o.w / 2, o.gy + o.d / 2, h);
                 tops.set(o.kind === 'hq' ? 'hq' : o.id, roofTop);
-                if (o.kind === 'client' && L.gauge) drawTank(o, roofTop, L.gauge(bld), L.colour(bld, snap), dark);
+                if (o.kind === 'client' && L.gauge) drawTank(roofTop, L.gauge(bld), L.colour(bld, snap), dark);
                 if (o.kind === 'hq') drawBeacon(roofTop, anim);
             }
         });
 
         // Labels over everything: names, badges, then photos.
-        const far = cam.zoom < 0.75;
+        const far = cam.zoom < 0.6;
         const labelled = [];
         city.byClient.forEach((o, id) => {
             const bld = snap.buildings.find((x) => x.id === id);
             const top = tops.get(id);
-            if (!bld || !top) return;
+            if (!bld || !top || !onScreen(top, 60)) return;
             const loud = L.loud(bld) || selected === id || hovered === id;
             if (far && !loud) return;
-            labelled.push({ bld, top, loud });
+            labelled.push({ bld, top });
         });
         labelled.sort((a, b2) => a.top.y - b2.top.y).forEach(({ bld, top }) => {
             const name = bld.name.length > 24 ? bld.name.slice(0, 23) + '…' : bld.name;
             const r = pill(name, top.x, top.y - 8 * cam.zoom - (L.gauge?.(bld) != null ? 24 * cam.zoom : 0), { size: 11 });
             hits.push({ kind: 'client', id: bld.id, rect: r });
             const badge = L.badge(bld);
-            if (badge) {
-                const c = rgb(L.colour(bld, snap));
-                pill(badge, top.x, r.y - 3, { bg: css(c), fg: '#0b1a24', size: 10, weight: 800 });
-            }
+            if (badge) pill(badge, top.x, r.y - 3, { bg: css(rgb(L.colour(bld, snap))), fg: '#0b1a24', size: 10, weight: 800 });
         });
         if (tops.has('hq')) {
             const top = tops.get('hq');
@@ -615,11 +728,10 @@ export function createCity(options) {
 
         drawBillboards(snap, time, tops, now);
 
-        // People's names last, so they read over roofs.
-        if (cam.zoom > 0.7 || lens === 'crew') {
+        if (cam.zoom > 0.6 || lens === 'crew') {
             people.forEach((p) => {
                 const s = groundAt(p.x, p.y, 18);
-                pill(firstName(p.person.name) + (lens === 'crew' && p.person.hours_today ? ` · ${p.person.hours_today}h` : ''), s.x, s.y - 4, { size: 10, bg: 'rgba(0,0,0,0.7)', weight: 600 });
+                if (onScreen(s, 40)) pill(firstName(p.person.name) + (lens === 'crew' && p.person.hours_today ? ` · ${p.person.hours_today}h` : ''), s.x, s.y - 4, { size: 10, bg: 'rgba(0,0,0,0.7)', weight: 600 });
             });
         }
 
@@ -627,13 +739,9 @@ export function createCity(options) {
         onView?.();
     }
 
-    let cityTops = new Map();
-
     function drawCar(t, dark) {
         const { car, x, y } = t;
-        const len = 0.42;
-        const wid = 0.24;
-        const [ax, ay] = car.axis === 'x' ? [len, wid] : [wid, len];
+        const [ax, ay] = car.axis === 'x' ? [0.42, 0.24] : [0.24, 0.42];
         const gx = x - ax / 2;
         const gy = y - ay / 2;
         const h = 5;
@@ -670,17 +778,15 @@ export function createCity(options) {
     function drawPerson(p, dark, anim) {
         const bob = p.phase === 'walking' && anim ? Math.abs(Math.sin(anim * 8 + p.person.id)) * 2 : 0;
         const s = groundAt(p.x, p.y, bob);
-        const z = cam.zoom;
-        const colour = phaseColor(p.phase);
-        const dim = draggingPerson === p.person.id ? 0.35 : 1;
-        ctx.globalAlpha = dim;
+        const z = Math.max(cam.zoom, 0.55); // stay findable when zoomed out
+        ctx.globalAlpha = draggingPerson === p.person.id ? 0.35 : 1;
         ctx.beginPath();
         ctx.ellipse(s.x, s.y, 5 * z, 2.5 * z, 0, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(0,0,0,0.25)';
         ctx.fill();
         ctx.beginPath();
         ctx.roundRect(s.x - 4 * z, s.y - 14 * z, 8 * z, 11 * z, 3 * z);
-        ctx.fillStyle = colour;
+        ctx.fillStyle = phaseColor(p.phase);
         ctx.fill();
         ctx.lineWidth = 1.5 * z;
         ctx.strokeStyle = '#fff';
@@ -694,15 +800,14 @@ export function createCity(options) {
         hits.push({ kind: 'person', id: p.person.id, shoot: p.shoot, circle: { x: s.x, y: s.y - 10 * z, r: Math.max(12, 12 * z) } });
     }
 
-    function drawTank(o, top, fill, colour, dark) {
+    function drawTank(top, fill, colour, dark) {
         if (fill == null) return;
         const z = cam.zoom;
         const r = 9 * z;
         const h = 18 * z;
-        const c = css(atNight(rgb(colour), dark * 0.5));
         ctx.fillStyle = 'rgba(255,255,255,0.25)';
         ctx.fillRect(top.x - r, top.y - h, r * 2, h);
-        ctx.fillStyle = c;
+        ctx.fillStyle = css(atNight(rgb(colour), dark * 0.5));
         ctx.fillRect(top.x - r, top.y - h * fill, r * 2, h * fill);
         ctx.beginPath();
         ctx.ellipse(top.x, top.y - h, r, r / 2, 0, 0, Math.PI * 2);
@@ -730,6 +835,8 @@ export function createCity(options) {
             if (e.type === 'video' && e.photo && e.client_id && tops.has(e.client_id) && e.at <= time && time - e.at <= BILLBOARD_FOR_MS) latest.set(e.client_id, e);
         }
         latest.forEach((e, clientId) => {
+            const top = tops.get(clientId);
+            if (!onScreen(top, 120)) return;
             let img = images.get(e.photo);
             if (!img) {
                 img = new Image();
@@ -740,7 +847,6 @@ export function createCity(options) {
             if (!boardBorn.has(e.id)) boardBorn.set(e.id, now);
             const age = (now - boardBorn.get(e.id)) / 1000;
             const pop = reduceMotion() ? 1 : Math.min(1, age / 0.35) * (1 + Math.max(0, 0.12 - Math.max(0, age - 0.35) * 0.4));
-            const top = tops.get(clientId);
             const w = 118 * pop;
             const ph = 74 * pop;
             const x = top.x - w / 2;
@@ -790,7 +896,7 @@ export function createCity(options) {
         for (let i = hits.length - 1; i >= 0; i--) {
             const h = hits[i];
             if (!kinds.includes(h.kind)) continue;
-            if (h.circle && Math.hypot(sx - h.circle.x, sy - (h.circle.y)) <= h.circle.r) return h;
+            if (h.circle && Math.hypot(sx - h.circle.x, sy - h.circle.y) <= h.circle.r) return h;
             if (h.rect && sx >= h.rect.x && sx <= h.rect.x + h.rect.w && sy >= h.rect.y && sy <= h.rect.y + h.rect.h) return h;
             if (h.poly && inPoly({ x: sx, y: sy }, h.poly)) return h;
         }
@@ -819,37 +925,36 @@ export function createCity(options) {
         touched();
     }
 
-    function fitTo(points, padding = 70) {
+    function fitTo(points, maxZoom, padding = 60) {
         if (!points.length || !W) return;
         const xs = points.map((p) => p.x);
         const ys = points.map((p) => p.y);
         const w = Math.max(...xs) - Math.min(...xs) || 1;
         const h = Math.max(...ys) - Math.min(...ys) || 1;
-        cam.zoom = clamp(Math.min((W - padding * 2) / w, (H - padding * 2 - 120) / h), MIN_ZOOM, 1.4);
+        cam.zoom = clamp(Math.min((W - padding * 2) / w, (H - padding * 2 - 110) / h), MIN_ZOOM, maxZoom);
         cam.x = (Math.max(...xs) + Math.min(...xs)) / 2;
         cam.y = (Math.max(...ys) + Math.min(...ys)) / 2 - 30 / cam.zoom;
         touched();
     }
 
-    // Opens on every district that has someone in it; the button fits the
-    // whole city including its suburbs.
+    // Opens on the studio's own town with a ring of what is round it; the
+    // button fits the whole region, out-of-town districts and all.
     function fit(everything = false) {
         if (!city) return;
         const b = city.bounds;
-        if (everything) {
-            return fitTo([iso(b.x0, b.y0), iso(b.x1, b.y0), iso(b.x1, b.y1), iso(b.x0, b.y1, 120)]);
-        }
-        const pts = [];
-        city.objects.forEach((o) => {
-            if (o.kind === 'client' || o.kind === 'hq') pts.push(iso(o.gx, o.gy, 140), iso(o.gx + o.w, o.gy + o.d));
-        });
-        fitTo(pts.length ? pts : [iso(b.x0, b.y0), iso(b.x1, b.y1)]);
+        if (everything) return fitTo([iso(b.x0, b.y0), iso(b.x1, b.y0), iso(b.x1, b.y1), iso(b.x0, b.y1, 120)], 1.2);
+        const [hx, hy] = city.homeSlot;
+        const x0 = hx * DISTRICT - 3;
+        const y0 = hy * DISTRICT - 3;
+        const x1 = (hx + 1) * DISTRICT + 4;
+        const y1 = (hy + 1) * DISTRICT + 4;
+        fitTo([iso(x0, y0), iso(x1, y0), iso(x1, y1), iso(x0, y1), iso(x0, y0, 150)], OPENING_ZOOM);
     }
 
     /* ——— Pointer ——————————————————————————————————————————————— */
 
     const pointers = new Map();
-    let pan = null; // { x, y, camX, camY, moved }
+    let pan = null;
     let pinch = null;
 
     canvas.addEventListener('pointerdown', (event) => {
@@ -967,7 +1072,6 @@ export function createCity(options) {
             lastTick = now;
             return;
         }
-        const still = reduceMotion();
         const fps = now - lastInteraction < ACTIVE_FOR_MS || flight ? ACTIVE_FPS : IDLE_FPS;
         if (now - lastFrame < 1000 / fps - 1) return;
         lastFrame = now;
@@ -982,13 +1086,11 @@ export function createCity(options) {
             if (k >= 1) flight = null;
             needsRender = true;
         }
-        if (!still) {
-            const b = city?.bounds;
+        if (!reduceMotion()) {
             cars.forEach((car) => {
-                const [lo, hi] = car.axis === 'x' ? [b.x0, b.x1] : [b.y0, b.y1];
-                car.p += car.dir * car.speed * dt;
-                if (car.p > hi) car.p = lo;
-                if (car.p < lo) car.p = hi;
+                car.k += car.dir * car.speed * dt;
+                if (car.k > 1) car.k -= 1;
+                if (car.k < 0) car.k += 1;
             });
             needsRender = true;
         }
@@ -1006,7 +1108,7 @@ export function createCity(options) {
             const o = id === 'hq' ? city?.hq : city?.byClient.get(id);
             if (!o) return;
             const to = iso(o.gx + o.w / 2, o.gy + o.d / 2, 40);
-            flight = reduceMotion() ? null : { from: { x: cam.x, y: cam.y }, to, start: performance.now(), ms: 450 };
+            flight = reduceMotion() ? null : { from: { x: cam.x, y: cam.y }, to, start: performance.now(), ms: 500 };
             if (!flight) {
                 cam.x = to.x;
                 cam.y = to.y;

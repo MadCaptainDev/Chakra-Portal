@@ -63,8 +63,9 @@ class CityDistrictsTest extends TestCase
         $slots = array_column($plan['districts'], 'slot', 'name');
         $this->assertSame('manapparai', $plan['home']);
         $this->assertSame([0, 0], $slots['Manapparai']);
-        $this->assertSame([0, -1], $slots['Chennai'], 'north-east is up and to the right');
-        $this->assertSame([0, 1], $slots['Dindigul'], 'south-west is down and to the left');
+        $this->assertSame([0, -3], $slots['Chennai'], 'north-east is up and to the right -- and 300 km out, three rings away');
+        $this->assertSame([-1, 2], $slots['Dindigul'], 'west-south-west is down and to the left, about 55 km: two rings');
+        $this->assertSame(['Manapparai' => 0, 'Chennai' => 341, 'Dindigul' => 56], array_column($plan['districts'], 'km', 'name'));
     }
 
     public function test_the_studio_pin_decides_home_and_clients_without_a_location_find_their_town(): void
@@ -86,7 +87,7 @@ class CityDistrictsTest extends TestCase
     {
         $plan = CityDistricts::build([], self::NO_STUDIO);
 
-        $this->assertSame([['key' => 'chakra', 'name' => 'Chakra', 'slot' => [0, 0], 'home' => true, 'count' => 0]], $plan['districts']);
+        $this->assertSame([['key' => 'chakra', 'name' => 'Chakra', 'slot' => [0, 0], 'home' => true, 'count' => 0, 'km' => 0]], $plan['districts']);
     }
 
     public function test_more_districts_than_a_ring_holds_spill_into_the_next(): void

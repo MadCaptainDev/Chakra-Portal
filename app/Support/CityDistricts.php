@@ -120,17 +120,22 @@ final class CityDistricts
             $districts[$match ?? $home]['members'][] = $client;
         }
 
-        // 4. Slots: home in the middle, the rest by real bearing.
+        // 4. Slots: home in the middle, the rest by real bearing -- and by
+        //    real distance, so Chennai is not the next block over: the further
+        //    away, the further out the ring, with countryside in between.
         $taken = ['0,0' => true];
         $districts[$home]['slot'] = [0, 0];
+        $districts[$home]['km'] = 0;
         $order = array_keys($districts);
         usort($order, fn ($a, $b) => [count($districts[$b]['members']), $districts[$a]['name']] <=> [count($districts[$a]['members']), $districts[$b]['name']]);
         foreach ($order as $i) {
             if ($i === $home) {
                 continue;
             }
+            $km = self::km($districts[$home]['lat'], $districts[$home]['lng'], $districts[$i]['lat'], $districts[$i]['lng']);
+            $districts[$i]['km'] = is_finite($km) ? (int) round($km) : null;
             $bearing = self::bearing($districts[$home], $districts[$i]);
-            $districts[$i]['slot'] = self::freeSlot($bearing, $taken);
+            $districts[$i]['slot'] = self::freeSlot($bearing, $taken, self::ringFor($km));
             $taken[implode(',', $districts[$i]['slot'])] = true;
         }
 
@@ -154,6 +159,7 @@ final class CityDistricts
                 'slot' => $d['slot'],
                 'home' => $i === $home,
                 'count' => count($d['members']),
+                'km' => $d['km'] ?? null,
             ];
             if ($i === $home) {
                 $homeKey = $key;
@@ -230,9 +236,9 @@ final class CityDistricts
      * @param  array<string, true>  $taken
      * @return array{0: int, 1: int}
      */
-    private static function freeSlot(float $bearing, array $taken): array
+    private static function freeSlot(float $bearing, array $taken, int $from = 1): array
     {
-        for ($ring = 1; ; $ring++) {
+        for ($ring = $from; ; $ring++) {
             $best = null;
             for ($dx = -$ring; $dx <= $ring; $dx++) {
                 for ($dy = -$ring; $dy <= $ring; $dy++) {
@@ -250,6 +256,20 @@ final class CityDistricts
                 return $best[0];
             }
         }
+    }
+
+    /**
+     * How many districts out a town sits: the next one along when it is
+     * close, with countryside between when it is not. Not to scale -- a
+     * 300 km ring would be a day's scroll -- but further is visibly further.
+     */
+    private static function ringFor(float $km): int
+    {
+        return match (true) {
+            ! is_finite($km), $km < 30 => 1,
+            $km < 80 => 2,
+            default => 3,
+        };
     }
 
     private static function km(?float $lat1, ?float $lng1, ?float $lat2, ?float $lng2): float
