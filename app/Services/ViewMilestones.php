@@ -101,7 +101,7 @@ class ViewMilestones
     private function announcementFor(SocialMediaItem $item, int $step, int $count): array
     {
         $account = $item->socialAccount;
-        $who = $account?->client?->name ?? $account?->handle() ?? 'A';
+        $who = preg_replace('/\s+/', ' ', trim($account?->client?->name ?? $account?->handle() ?? 'A'));
         $what = $item->isReel() ? 'reel' : 'video';
 
         $lines = array_filter([
