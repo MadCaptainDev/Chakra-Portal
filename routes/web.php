@@ -99,6 +99,7 @@ use App\Http\Controllers\ShootCalendarController;
 use App\Http\Controllers\ShootController;
 use App\Http\Controllers\ShootCrewController;
 use App\Http\Controllers\ShootKitController;
+use App\Http\Controllers\StudioMapController;
 use App\Http\Controllers\TaxonomyTermController;
 use App\Http\Controllers\TeamMemberController;
 use App\Http\Controllers\TimesheetAdminController;
@@ -999,6 +1000,16 @@ Route::middleware(['auth', 'module:timesheets,view'])->group(function () {
  */
 Route::middleware(['auth', 'module:insights,view'])->group(function () {
     Route::get('insights', [InsightsController::class, 'index'])->name('insights.index');
+});
+
+/*
+ * The Studio Map: every client as a building in a small 3D town, read-only.
+ * Plain `admin` rather than a module permission -- it shows money, shoots and
+ * hours side by side, which no single module's permission covers.
+ */
+Route::middleware(['auth', 'admin'])->group(function () {
+    Route::get('studio-map', [StudioMapController::class, 'index'])->name('studio-map');
+    Route::get('studio-map/data', [StudioMapController::class, 'data'])->name('studio-map.data');
 });
 Route::middleware(['auth', 'module:invoices,view', 'recurring.catchup'])->group(function () {
     Route::get('invoices/quantity-variables/preview', [InvoiceController::class, 'previewQuantityVariables'])

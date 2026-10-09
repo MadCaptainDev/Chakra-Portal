@@ -239,6 +239,9 @@
                 Dashboard
             </x-sidebar-link>
             {{-- Admin-only, and inside the admin branch of this file already. --}}
+            <x-sidebar-link icon="map-pin" :href="route('studio-map')" :active="request()->routeIs('studio-map')">
+                Studio Map
+            </x-sidebar-link>
             <x-sidebar-link icon="trending-up" :href="route('editors.index')" :active="request()->routeIs('editors.*')">
                 Editor Output
             </x-sidebar-link>

@@ -14,6 +14,9 @@ export default defineConfig({
                 // The paid-ads report on its results/{token} link -- scoped
                 // under .ar-doc, loaded by that page and nowhere else.
                 'resources/css/ad-report.css',
+                // The Studio Map's 3D town -- three.js is large, so it is
+                // its own entry rather than part of app.js.
+                'resources/js/studio-map.js',
             ],
             refresh: true,
         }),
