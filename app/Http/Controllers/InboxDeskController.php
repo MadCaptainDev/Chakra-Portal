@@ -28,6 +28,14 @@ class InboxDeskController extends Controller
         ]);
     }
 
+    /** The walkthrough: a self-playing "how this screen works". */
+    public function guide(Request $request): View
+    {
+        abort_if($request->user()->isClient(), 403);
+
+        return view('inbox-desk.guide');
+    }
+
     public function state(Request $request): JsonResponse
     {
         abort_if($request->user()->isClient(), 403);

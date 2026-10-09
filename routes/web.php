@@ -907,6 +907,7 @@ Route::middleware(['auth', 'module:taxonomy,view'])->group(function () {
 Route::middleware(['auth', 'routines.catchup'])->prefix('inbox-check')->name('inbox-desk.')->group(function () {
     Route::get('/', [InboxDeskController::class, 'index'])->name('index');
     Route::get('state', [InboxDeskController::class, 'state'])->name('state');
+    Route::get('guide', [InboxDeskController::class, 'guide'])->name('guide');
     Route::post('{occurrence}/check', [InboxDeskController::class, 'check'])->whereNumber('occurrence')->name('check');
     Route::post('{occurrence}/undo', [InboxDeskController::class, 'undo'])->whereNumber('occurrence')->name('undo');
 

@@ -83,7 +83,7 @@ class MyEditingTest extends TestCase
         $this->actingAs($this->sanjai)->get(route('my.editing'))->assertSee(route('my.editing.guide'));
         $this->actingAs($this->sanjai)->get(route('my.editing.guide'))
             ->assertOk()
-            ->assertSee('data-editing-guide', false)
+            ->assertSee('data-guide', false)
             ->assertSee('Save as video');
 
         // An admin with no timesheet can open it too, to save it as a video.

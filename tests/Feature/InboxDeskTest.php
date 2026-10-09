@@ -180,6 +180,16 @@ class InboxDeskTest extends TestCase
             ->assertJsonMissingPath('inbox');
     }
 
+    public function test_the_walkthrough_is_linked_from_the_checker_and_open_to_staff(): void
+    {
+        $this->withoutVite();
+        [, $sanjai] = $this->deskRoutine(['brand_a']);
+
+        $this->actingAs($sanjai)->get(route('inbox-desk.index'))->assertSee(route('inbox-desk.guide'));
+        $this->actingAs($sanjai)->get(route('inbox-desk.guide'))->assertOk()->assertSee('data-guide', false)->assertSee('Save as video');
+        $this->actingAs(User::factory()->create())->get(route('inbox-desk.guide'))->assertOk();
+    }
+
     public function test_setup_is_admin_only(): void
     {
         [, $sanjai] = $this->deskRoutine(['brand_a']);

@@ -17,8 +17,9 @@ export default defineConfig({
                 // The Studio Map's 3D town -- three.js is large, so it is
                 // its own entry rather than part of app.js.
                 'resources/js/studio-map.js',
-                // The My Editing walkthrough -- one page, so its own entry.
+                // The walkthroughs -- one page each, so their own entries.
                 'resources/js/editing-guide.js',
+                'resources/js/inbox-guide.js',
             ],
             refresh: true,
         }),

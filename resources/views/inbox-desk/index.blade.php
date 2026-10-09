@@ -21,11 +21,12 @@
     <x-slot name="header">
         <x-page-header eyebrow="Daily · Instagram" title="Comment & Message Checker"
                        subtitle="DMs and comments, account by account. Tap a tile when it is done.">
-            @if ($canSetUp)
-                <x-slot name="actions">
+            <x-slot name="actions">
+                <x-btn :href="route('inbox-desk.guide')" variant="secondary" size="sm" icon="chat-check">How it works</x-btn>
+                @if ($canSetUp)
                     <x-btn :href="route('inbox-desk.setup')" variant="secondary" size="sm" icon="cog">Set up</x-btn>
-                </x-slot>
-            @endif
+                @endif
+            </x-slot>
         </x-page-header>
     </x-slot>
 
