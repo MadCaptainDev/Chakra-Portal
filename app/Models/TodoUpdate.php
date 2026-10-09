@@ -30,6 +30,12 @@ class TodoUpdate extends Model
     /** A manager gave a verdict on the finished work. */
     public const REVIEWED = 'reviewed';
 
+    /** A finished video went out (My Editing): the note says where. */
+    public const POSTED = 'posted';
+
+    /** A post was taken back. */
+    public const UNPOSTED = 'unposted';
+
     /** @var array<string, string> */
     public const ACTIONS = [
         self::CREATED => 'Added',
@@ -37,6 +43,8 @@ class TodoUpdate extends Model
         self::MOVED => 'Moved',
         self::EDITED => 'Edited',
         self::REVIEWED => 'Checked',
+        self::POSTED => 'Posted',
+        self::UNPOSTED => 'Post undone',
     ];
 
     /**

@@ -32,7 +32,7 @@ use App\Http\Controllers\CompetitorSettingController;
 use App\Http\Controllers\ContentAccountController;
 use App\Http\Controllers\ContentDashboardController;
 use App\Http\Controllers\ContentItemAssignmentController;
-use App\Http\Controllers\DailyCheckController;
+use App\Http\Controllers\EditorUpdatesController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardLayoutController;
 use App\Http\Controllers\DashboardWidgetController;
@@ -991,7 +991,8 @@ Route::middleware(['auth', 'module:insights,view'])->group(function () {
  */
 Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('studio-map', [StudioMapController::class, 'index'])->name('studio-map');
-    Route::get('daily-checks', [DailyCheckController::class, 'index'])->name('daily-checks');
+    Route::get('editor-updates', [EditorUpdatesController::class, 'index'])->name('editor-updates');
+    Route::redirect('daily-checks', '/editor-updates');
     Route::get('studio-map/data', [StudioMapController::class, 'data'])->name('studio-map.data');
 
     // What the map can do. Client WhatsApp sends are preview-then-send; the

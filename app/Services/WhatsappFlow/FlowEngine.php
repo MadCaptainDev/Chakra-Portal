@@ -12,7 +12,6 @@ use App\Models\WhatsappFlowSession;
 use App\Models\WhatsappLabel;
 use App\Models\WhatsappWebhookEvent;
 use App\Services\AdminAgent\AdminAgent;
-use App\Services\DailyReportImporter;
 use App\Services\WhatsappSender;
 use App\Services\WhatsappFlow\Nodes\AdminActionNode;
 use App\Services\WhatsappFlow\Nodes\AgentTransferNode;
@@ -27,7 +26,6 @@ use App\Services\WhatsappFlow\Nodes\SendMessageNode;
 use App\Services\WhatsappFlow\Nodes\SendTemplateNode;
 use App\Services\WhatsappFlow\Nodes\SetLabelNode;
 use App\Support\ClientPortalContent;
-use App\Support\DailyReport;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -90,10 +88,6 @@ class FlowEngine
             return;
         }
 
-        if ($this->handledAsDailyReport($event)) {
-            return;
-        }
-
         if ($this->handedToAssistant($event)) {
             return;
         }
@@ -137,40 +131,6 @@ class FlowEngine
         }
 
         $this->run($session);
-    }
-
-    /**
-     * The editing team's daily messages -- "Daily Task:" lists and the "EOD
-     * CHECK" -- sent to the portal number by someone on staff. They become
-     * to-dos and the day's checklist (DailyReportImporter), and the sender
-     * gets a one-line summary back. Ahead of the assistant and every flow:
-     * a task list is not a question, and must not land in a menu.
-     */
-    private function handledAsDailyReport(WhatsappWebhookEvent $event): bool
-    {
-        if ($event->message_type !== 'text') {
-            return false;
-        }
-
-        $text = (string) (data_get($event->payload, 'text.body') ?? $event->summary);
-        if (! DailyReport::looksLikeOne($text)) {
-            return false;
-        }
-
-        $sender = User::findForWhatsappCrew((string) $event->wa_id);
-        if ($sender === null) {
-            return false;
-        }
-
-        $reply = app(DailyReportImporter::class)->apply($text, $sender);
-
-        try {
-            WhatsappSender::make()->sendText((string) $event->wa_id, $reply);
-        } catch (Throwable $e) {
-            Log::warning('Daily report reply not sent.', ['wa_id' => $event->wa_id, 'error' => $e->getMessage()]);
-        }
-
-        return true;
     }
 
     /**

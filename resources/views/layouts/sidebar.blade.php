@@ -248,8 +248,8 @@
             <x-sidebar-link icon="map-pin" :href="route('studio-map')" :active="request()->routeIs('studio-map')">
                 Studio Map
             </x-sidebar-link>
-            <x-sidebar-link icon="check-circle" :href="route('daily-checks')" :active="request()->routeIs('daily-checks')">
-                EOD checks
+            <x-sidebar-link icon="film-cut" :href="route('editor-updates')" :active="request()->routeIs('editor-updates')">
+                Editor Updates
             </x-sidebar-link>
             <x-sidebar-link icon="chat-check" :href="route('inbox-desk.index')" :active="request()->routeIs('inbox-desk.*')">
                 Comment &amp; Message Checker

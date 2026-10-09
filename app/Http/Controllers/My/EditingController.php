@@ -135,9 +135,11 @@ class EditingController extends Controller
                     'post_url' => $data['post_url'] ?? null,
                     'posted_by_id' => $user->id,
                 ])->save();
+                TodoUpdate::record($todo, $user, TodoUpdate::POSTED, ['note' => trim((Todo::KINDS[$todo->kind] ?? 'Posted').' '.($todo->post_url ?? ''))]);
                 break;
             case 'unpost':
                 $todo->forceFill(['posted_at' => null, 'post_url' => null, 'posted_by_id' => null])->save();
+                TodoUpdate::record($todo, $user, TodoUpdate::UNPOSTED);
                 break;
         }
 

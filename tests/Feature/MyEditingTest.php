@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Client;
 use App\Models\ContentItem;
-use App\Models\DailyCheck;
 use App\Models\Todo;
 use App\Models\User;
 use App\Services\Notion\ContentSyncService;
@@ -158,17 +157,5 @@ class MyEditingTest extends TestCase
 
         $this->actingAs($this->sanjai)->postJson(route('my.editing.refresh'))
             ->assertOk()->assertJsonPath('message', 'Reel Planner refreshed — 12 items.');
-    }
-
-    public function test_the_eod_page_is_for_admins_and_shows_what_was_crossed(): void
-    {
-        DailyCheck::create(['date' => today(), 'team' => 'EDITING TEAM', 'items' => [
-            ['label' => 'Videos Posted', 'ok' => true, 'note' => null],
-            ['label' => 'Final Outputs Moved to Main Disk', 'ok' => false, 'note' => 'SANJAI BRO out pending'],
-        ], 'status' => 'Pending', 'message' => 'EDITING TEAM | EOD CHECK']);
-
-        $this->actingAs($this->sanjai)->get(route('daily-checks'))->assertForbidden();
-        $this->actingAs(User::factory()->create(['role' => User::ROLE_ADMIN]))->get(route('daily-checks'))
-            ->assertOk()->assertSee('1 of 2 done')->assertSee('SANJAI BRO out pending')->assertSee('Pending');
     }
 }
