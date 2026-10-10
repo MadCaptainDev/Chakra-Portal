@@ -146,7 +146,7 @@
                                 <span x-text="s.status"></span>
                             </p>
                         </div>
-                        <button type="button" @click="addFromPlanner(s)" :disabled="busy['s' + s.id]"
+                        <button type="button" @click="addFromPlanner(s)" :disabled="!!busy['s' + s.id]"
                                 class="min-h-[40px] shrink-0 rounded-lg bg-brand-400/15 px-3.5 text-xs font-bold text-brand-200 hover:bg-brand-400/25 disabled:opacity-40">+ Add</button>
                     </li>
                 </template>
@@ -217,11 +217,11 @@
                                 {{-- What you can do next, by stage. --}}
                                 <div class="mt-3 flex flex-wrap gap-2 sm:mt-2.5 sm:gap-1.5">
                                     <template x-if="['waiting', 'blocked'].includes(card.status)">
-                                        <button type="button" @click="act(card, 'start')" :disabled="busy[card.id + 'start']"
+                                        <button type="button" @click="act(card, 'start')" :disabled="!!busy[card.id + 'start']"
                                                 class="min-h-[44px] flex-1 rounded-lg bg-amber-400 px-3 text-sm font-bold text-brand-900 hover:bg-amber-300 disabled:opacity-50 sm:min-h-[32px] sm:flex-none sm:text-xs">▶ Start working</button>
                                     </template>
                                     <template x-if="card.status === 'started'">
-                                        <button type="button" @click="act(card, 'done')" :disabled="openFixes(card) > 0 || busy[card.id + 'done']"
+                                        <button type="button" @click="act(card, 'done')" :disabled="openFixes(card) > 0 || !!busy[card.id + 'done']"
                                                 :title="openFixes(card) > 0 ? 'Finish the corrections first' : ''"
                                                 class="min-h-[44px] flex-1 rounded-lg bg-sky-400 px-3 text-sm font-bold text-brand-900 hover:bg-sky-300 disabled:opacity-40 sm:min-h-[32px] sm:flex-none sm:text-xs">✓ Done</button>
                                     </template>
