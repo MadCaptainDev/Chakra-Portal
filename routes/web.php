@@ -610,6 +610,7 @@ Route::middleware(['auth', 'module:shoots,view'])->scopeBindings()->group(functi
 
     // Before {shoot}, or "calendar" binds as a shoot id.
     Route::get('shoots/calendar', [ShootCalendarController::class, 'index'])->name('shoots.calendar');
+    Route::get('shoots/crew', [\App\Http\Controllers\ShootCrewRecordController::class, 'index'])->name('shoots.crew-record');
 
     /*
      * "Sync from Notion" on the Shoots screen. One action: fetch Notion's

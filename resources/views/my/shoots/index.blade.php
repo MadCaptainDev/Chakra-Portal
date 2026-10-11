@@ -1,6 +1,7 @@
 {{--
     The Shoot Updater's front door (ShootRunController::index): the shoots
-    this person is on, live first, then today, then the next fortnight. One
+    this person is on, live first, then today, then the next fortnight, and
+    under them their past shoots month by month (shoots._crew-history). One
     big tap per shoot into the runner -- built for a phone held in one hand
     on location, not for a desk.
 --}}
@@ -66,5 +67,10 @@
                 @endforelse
             </section>
         @endforeach
+
+        <section>
+            <p class="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-300">{{ $person ? 'Your past shoots' : 'Past shoots' }}</p>
+            @include('shoots._crew-history', ['shoots' => $past, 'person' => $person])
+        </section>
     </div>
 </x-app-layout>

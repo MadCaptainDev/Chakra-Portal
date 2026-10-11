@@ -5,6 +5,7 @@ namespace App\Http\Controllers\My;
 use App\Http\Controllers\Controller;
 use App\Models\Shoot;
 use App\Services\ShootRun;
+use App\Support\CrewShootRecord;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -56,6 +57,9 @@ class ShootRunController extends Controller
             'live' => $live,
             'today' => $today,
             'upcoming' => $shoots->reject(fn (Shoot $s) => $live->contains($s) || $today->contains($s)),
+            // Their own record; an admin, who sees every shoot above, sees everyone's.
+            'past' => CrewShootRecord::shoots($user->isAdmin() ? null : $user),
+            'person' => $user->isAdmin() ? null : $user,
         ]);
     }
 
