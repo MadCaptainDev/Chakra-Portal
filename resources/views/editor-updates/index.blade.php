@@ -8,13 +8,15 @@
         'started' => 'bg-amber-400/15 text-amber-200',
         'fix' => 'bg-orange-400/15 text-orange-200',
         'fixed' => 'bg-lime-400/10 text-lime-200',
+        'hold' => 'bg-violet-400/15 text-violet-200',
+        'moved' => 'bg-sky-400/10 text-sky-200/90',
         'done' => 'bg-sky-400/15 text-sky-200',
         'posted' => 'bg-emerald-400/15 text-emerald-200',
         'other' => 'bg-white/5 text-brand-100/70',
     ];
     $statusChip = [
         'waiting' => ['To do', 'bg-white/10 text-brand-100/80'],
-        'blocked' => ['Blocked', 'bg-red-400/15 text-red-200'],
+        'blocked' => ['On hold', 'bg-violet-400/15 text-violet-200'],
         'started' => ['Working', 'bg-amber-400/15 text-amber-200'],
         'completed' => ['Done', 'bg-sky-400/15 text-sky-200'],
         'cancelled' => ['Cancelled', 'bg-white/5 text-brand-100/50'],
@@ -26,7 +28,7 @@
 <x-app-layout title="Editor Updates">
     <x-slot name="header">
         <x-page-header title="Editor Updates" eyebrow="Team"
-                       subtitle="Every to-do on each person's board, and how it moved that day — added, started, corrections, done, posted." />
+                       subtitle="Every to-do on each person's board, and how it moved that day — added, started, corrections, on hold, moved on, done, posted." />
     </x-slot>
 
     <div class="mx-auto max-w-4xl space-y-5">
@@ -66,9 +68,9 @@
                         </p>
                     </div>
                     <div class="flex flex-wrap gap-1.5 text-[11px] font-semibold">
-                        @foreach (['added' => 'added', 'started' => 'started', 'fixes' => 'corrections', 'done' => 'done', 'posted' => 'posted'] as $k => $label)
+                        @foreach (['added' => 'added', 'started' => 'started', 'fixes' => 'corrections', 'held' => 'on hold', 'moved' => 'moved to next day', 'done' => 'done', 'posted' => 'posted'] as $k => $label)
                             @if ($p['stats'][$k] > 0)
-                                <span class="rounded-full px-2 py-0.5 {{ $tone[$k === 'fixes' ? 'fix' : $k] }}">{{ $p['stats'][$k] }} {{ $label }}</span>
+                                <span class="rounded-full px-2 py-0.5 {{ $tone[['fixes' => 'fix', 'held' => 'hold'][$k] ?? $k] }}">{{ $p['stats'][$k] }} {{ $label }}</span>
                             @endif
                         @endforeach
                     </div>

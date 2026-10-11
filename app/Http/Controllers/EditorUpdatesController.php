@@ -12,7 +12,8 @@ use Illuminate\View\View;
 
 /**
  * Editor Updates: one day, person by person -- every to-do on their board
- * and how it moved that day (added, started, corrections, done, posted),
+ * and how it moved that day (added, started, corrections, on hold, moved to
+ * the next day, done, posted),
  * read from the to-do history that My Editing and My To-dos already write.
  * Admin-only. Replaces the WhatsApp "EOD CHECK" page: nobody has to report
  * anything, the moves are the report.
@@ -81,6 +82,8 @@ class EditorUpdatesController extends Controller
                 'added' => $count('added'),
                 'started' => $count('started'),
                 'fixes' => $count('fix'),
+                'held' => $count('hold'),
+                'moved' => $events->where('type', 'moved')->where('label', '!=', 'Back to today')->count(),
                 'done' => $count('done'),
                 'posted' => $count('posted'),
             ],
@@ -134,11 +137,17 @@ class EditorUpdatesController extends Controller
             $u->action === TodoUpdate::POSTED => $this->make($u, $owner, 'posted', 'Posted', $u->note),
             $u->action === TodoUpdate::UNPOSTED => $this->make($u, $owner, 'other', 'Post undone'),
             $u->action === TodoUpdate::REVIEWED => $this->make($u, $owner, 'other', 'Checked', $u->note),
-            $u->action === TodoUpdate::MOVED => $this->make($u, $owner, 'other', 'Moved to '.$u->to_on?->format('j M')),
+            $u->action === TodoUpdate::MOVED => $u->to_on?->isSameDay($u->created_at)
+                ? $this->make($u, $owner, 'moved', 'Back to today')
+                : $this->make($u, $owner, 'moved', 'Moved to '.($u->to_on?->isSameDay($u->created_at->copy()->addDay()) ? 'next day' : $u->to_on?->format('D j M')), $u->note),
             $u->action !== TodoUpdate::STATUS => null,
-            $u->to_status === Todo::STATUS_STARTED => $u->from_status === Todo::STATUS_COMPLETED
-                ? $this->make($u, $owner, 'started', 'Back to working', $u->note)
-                : $this->make($u, $owner, 'started', 'Started'),
+            $u->to_status === Todo::STATUS_BLOCKED => $this->make($u, $owner, 'hold', 'On hold', $u->note),
+            $u->to_status === Todo::STATUS_STARTED => match ($u->from_status) {
+                Todo::STATUS_COMPLETED => $this->make($u, $owner, 'started', 'Back to working', $u->note),
+                Todo::STATUS_BLOCKED => $this->make($u, $owner, 'started', 'Resumed'),
+                default => $this->make($u, $owner, 'started', 'Started'),
+            },
+            $u->to_status === Todo::STATUS_WAITING && $u->from_status === Todo::STATUS_STARTED => $this->make($u, $owner, 'other', 'Paused'),
             $u->to_status === Todo::STATUS_COMPLETED => $this->make($u, $owner, 'done', 'Done'),
             default => $this->make($u, $owner, 'other', Todo::STATUSES[$u->to_status] ?? ucfirst((string) $u->to_status), $u->note),
         };

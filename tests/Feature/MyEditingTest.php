@@ -143,6 +143,60 @@ class MyEditingTest extends TestCase
             ->assertJsonPath('card.status', 'started')->assertJsonPath('card.posted_at', null);
     }
 
+    public function test_hold_stops_the_clock_with_a_reason_and_resume_carries_on(): void
+    {
+        $this->actingAs($this->sanjai)->postJson(route('my.editing.store'), ['title' => 'SVA - Frock']);
+        $video = Todo::sole();
+        $this->act($video, 'start');
+        $this->travel(20)->minutes();
+
+        $this->act($video, 'hold', ['note' => 'Waiting for footage'])
+            ->assertJsonPath('card.status', 'blocked')
+            ->assertJsonPath('card.held', 'Waiting for footage')
+            ->assertJsonPath('card.working_minutes', 20);
+
+        $this->travel(2)->hours();
+        $this->act($video, 'start')->assertJsonPath('card.status', 'started')->assertJsonPath('card.held', null);
+        $this->travel(10)->minutes();
+        $this->act($video, 'done')->assertJsonPath('card.working_minutes', 30, 'the two hours on hold do not count');
+    }
+
+    public function test_next_day_takes_a_video_off_today_and_it_comes_back_on_its_own(): void
+    {
+        $this->actingAs($this->sanjai)->postJson(route('my.editing.store'), ['title' => 'SVA - Frock']);
+        $video = Todo::sole();
+        $this->act($video, 'start');
+
+        $this->act($video, 'next')
+            ->assertJsonPath('card.status', 'waiting', 'a video being worked on is paused, not left running overnight')
+            ->assertJsonPath('card.next_on', 'Tomorrow');
+        $this->assertTrue($video->fresh()->due_on->isTomorrow());
+
+        // Changed their mind: back on today's board.
+        $this->act($video, 'today')->assertJsonPath('card.next_on', null);
+        $this->assertTrue($video->fresh()->due_on->isToday());
+
+        // Moved on again; tomorrow it is simply on the board.
+        $this->act($video, 'next');
+        $this->travel(1)->day();
+        $this->actingAs($this->sanjai)->get(route('my.editing'))
+            ->assertViewHas('cards', fn (array $cards) => count($cards) === 1 && $cards[0]['next_on'] === null);
+    }
+
+    public function test_a_finished_video_or_a_correction_cannot_be_held_or_moved(): void
+    {
+        $this->actingAs($this->sanjai)->postJson(route('my.editing.store'), ['title' => 'SVA - Frock']);
+        $video = Todo::sole();
+        $this->actingAs($this->sanjai)->postJson(route('my.editing.correct', $video), ['title' => 'Music']);
+        $fix = Todo::where('parent_id', $video->id)->sole();
+
+        $this->act($fix, 'hold')->assertStatus(422);
+        $this->act($fix, 'done');
+        $this->act($video, 'done');
+        $this->act($video, 'next')->assertStatus(422);
+        $this->act($video, 'hold')->assertStatus(422);
+    }
+
     public function test_somebody_elses_video_is_not_mine_to_move(): void
     {
         $gokul = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);

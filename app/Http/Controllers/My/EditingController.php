@@ -89,16 +89,20 @@ class EditingController extends Controller
         return response()->json(['card' => $this->card($todo->load('corrections', 'updates', 'contentItem'))]);
     }
 
-    /** start | done | reopen | post | unpost | kind */
+    /** start | done | reopen | post | unpost | kind | hold | next | today */
     public function act(Request $request, Todo $todo): JsonResponse
     {
         $user = $request->user();
         $this->authorise($todo, $user);
         $data = $request->validate([
-            'action' => ['required', 'in:start,done,reopen,post,unpost,kind'],
+            'action' => ['required', 'in:start,done,reopen,post,unpost,kind,hold,next,today'],
             'kind' => ['nullable', 'in:'.implode(',', array_keys(Todo::KINDS))],
             'post_url' => ['nullable', 'url', 'max:500'],
+            'note' => ['nullable', 'string', 'max:255'],
         ]);
+        if (in_array($data['action'], ['hold', 'next', 'today'], true) && ($todo->parent_id || ! $todo->isOpen())) {
+            return response()->json(['message' => 'Only a video still on your board can be held or moved.'], 422);
+        }
 
         switch ($data['action']) {
             case 'start':
@@ -140,6 +144,33 @@ class EditingController extends Controller
             case 'unpost':
                 $todo->forceFill(['posted_at' => null, 'post_url' => null, 'posted_by_id' => null])->save();
                 TodoUpdate::record($todo, $user, TodoUpdate::UNPOSTED);
+                break;
+            case 'hold':
+                // Stuck on something outside the editor's hands. Stops the
+                // working clock; the reason is what Editor Updates shows.
+                if ($todo->status !== Todo::STATUS_BLOCKED) {
+                    $todo->moveTo(Todo::STATUS_BLOCKED, $user, filled($data['note'] ?? null) ? trim($data['note']) : null);
+                }
+                break;
+            case 'next':
+                // Not today: off today's lanes until the next day. A video
+                // being worked on is paused first, or its clock would run all
+                // night.
+                if ($todo->status === Todo::STATUS_STARTED) {
+                    $todo->moveTo(Todo::STATUS_WAITING, $user, 'Paused');
+                }
+                $todo->defer($user);
+                break;
+            case 'today':
+                if (! $todo->due_on->gt(today())) {
+                    break;
+                }
+                $from = $todo->due_on->copy();
+                $todo->forceFill([
+                    'due_on' => today()->toDateString(),
+                    'starts_on' => $todo->starts_on->min(today())->toDateString(),
+                ])->save();
+                TodoUpdate::record($todo, $user, TodoUpdate::MOVED, ['from_on' => $from, 'to_on' => today(), 'note' => 'Back to today']);
                 break;
         }
 
@@ -222,8 +253,28 @@ class EditingController extends Controller
             'working_minutes' => $t->workingMinutes(),
             'working_since' => $t->status === Todo::STATUS_STARTED ? optional($t->updates->last(fn ($u) => $u->to_status === Todo::STATUS_STARTED))->created_at?->getTimestampMs() : null,
             'sent_back' => $t->wasSentBack() ? $t->review_note : null,
+            'held' => $t->status === Todo::STATUS_BLOCKED ? (string) $t->updates->last(fn ($u) => $u->to_status === Todo::STATUS_BLOCKED)?->note : null,
+            'next_on' => $this->nextOn($t),
             'corrections' => $t->corrections->map(fn (Todo $c) => ['id' => $c->id, 'title' => $c->title, 'status' => $c->status])->values()->all(),
         ];
+    }
+
+    /**
+     * The day a video was moved on to, while that is still ahead: it sits
+     * off today's lanes until then. Only a move made with "Next day" counts
+     * -- a to-do from My To-dos that simply spans the week is not "later".
+     */
+    private function nextOn(Todo $t): ?string
+    {
+        if (! $t->isOpen() || $t->status === Todo::STATUS_STARTED || ! $t->due_on?->gt(today())) {
+            return null;
+        }
+        $moved = $t->updates->last(fn ($u) => $u->action === TodoUpdate::MOVED);
+        if (! $moved?->to_on?->gt(today())) {
+            return null;
+        }
+
+        return $t->due_on->isTomorrow() ? 'Tomorrow' : $t->due_on->format('D j M');
     }
 
     /**

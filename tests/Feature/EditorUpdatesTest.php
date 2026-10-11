@@ -81,6 +81,25 @@ class EditorUpdatesTest extends TestCase
             ->assertSeeInOrder(['TPC - Grooming Ad', 'Working', 'Started']);
     }
 
+    public function test_holds_and_next_day_moves_are_on_the_timeline(): void
+    {
+        $this->at('10:00');
+        $id = $this->actingAs($this->sanjai)->postJson(route('my.editing.store'), ['title' => 'SVA - Cotton Frock'])->json('card.id');
+        $this->postJson(route('my.editing.act', $id), ['action' => 'start']);
+        $this->at('10:30');
+        $this->postJson(route('my.editing.act', $id), ['action' => 'hold', 'note' => 'Waiting for client']);
+        $this->at('12:00');
+        $this->postJson(route('my.editing.act', $id), ['action' => 'start']);
+        $this->at('18:00');
+        $this->postJson(route('my.editing.act', $id), ['action' => 'next']);
+
+        $this->at('19:00');
+        $this->actingAs($this->admin)->get(route('editor-updates'))
+            ->assertOk()
+            ->assertSeeInOrder(['Sanjai', '1 on hold', '1 moved to next day', 'SVA - Cotton Frock', 'Started', 'On hold', 'Waiting for client', 'Resumed', 'Paused', 'Moved to next day'])
+            ->assertSee('6h 30m working');
+    }
+
     public function test_it_is_admin_only_and_the_old_eod_link_redirects(): void
     {
         $this->actingAs($this->sanjai)->get(route('editor-updates'))->assertForbidden();

@@ -190,6 +190,10 @@
                                     <p class="mt-2 rounded-lg bg-red-500/10 px-2 py-1.5 text-xs text-red-200">Sent back: <span x-text="card.sent_back"></span></p>
                                 </template>
 
+                                <template x-if="card.status === 'blocked'">
+                                    <p class="mt-2 rounded-lg bg-violet-400/10 px-2 py-1.5 text-xs font-semibold text-violet-200">⏸ On hold<span class="font-normal" x-show="!!card.held" x-text="' — ' + card.held"></span></p>
+                                </template>
+
                                 {{-- Corrections: branches on this video. --}}
                                 <template x-if="card.corrections.length > 0">
                                     <ul class="mt-2 space-y-0.5 border-l-2 border-amber-400/40 pl-2.5">
@@ -214,19 +218,50 @@
                                     </form>
                                 </template>
 
+                                {{-- Hold: a tap on a usual reason, or type one (optional). --}}
+                                <template x-if="holding === card.id">
+                                    <div class="mt-2 space-y-1.5 rounded-lg bg-violet-400/10 p-2">
+                                        <p class="text-xs font-semibold text-violet-200">Why is it on hold?</p>
+                                        <div class="flex flex-wrap gap-1.5">
+                                            <template x-for="r in ['Waiting for footage', 'Waiting for client', 'Waiting for approval', 'Waiting for assets']" :key="r">
+                                                <button type="button" @click="hold(card, r)" :disabled="!!busy[card.id + 'hold']"
+                                                        class="min-h-[40px] rounded-full bg-white/5 px-3 text-xs font-semibold text-brand-100/80 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-40 sm:min-h-[30px] sm:text-[11px]" x-text="r"></button>
+                                            </template>
+                                        </div>
+                                        <form @submit.prevent="hold(card)" class="flex gap-1.5">
+                                            <input x-model="holdText" x-init="$el.focus()" placeholder="Or type the reason (optional)" maxlength="255"
+                                                   class="min-h-[44px] min-w-0 flex-1 rounded-lg border-0 bg-white/10 px-3 text-base text-white placeholder:text-brand-100/40 focus:ring-2 focus:ring-violet-400 sm:min-h-[36px] sm:text-xs">
+                                            <button :disabled="!!busy[card.id + 'hold']" class="rounded-lg bg-violet-400 px-3.5 text-sm font-bold text-brand-900 disabled:opacity-40 sm:text-xs">Hold</button>
+                                            <button type="button" @click="holding = null" class="px-2 text-sm text-brand-100/50" aria-label="Cancel">✕</button>
+                                        </form>
+                                    </div>
+                                </template>
+
                                 {{-- What you can do next, by stage. --}}
                                 <div class="mt-3 flex flex-wrap gap-2 sm:mt-2.5 sm:gap-1.5">
-                                    <template x-if="['waiting', 'blocked'].includes(card.status)">
+                                    <template x-if="card.status === 'waiting'">
                                         <button type="button" @click="act(card, 'start')" :disabled="!!busy[card.id + 'start']"
                                                 class="min-h-[44px] flex-1 rounded-lg bg-amber-400 px-3 text-sm font-bold text-brand-900 hover:bg-amber-300 disabled:opacity-50 sm:min-h-[32px] sm:flex-none sm:text-xs">▶ Start working</button>
+                                    </template>
+                                    <template x-if="card.status === 'blocked'">
+                                        <button type="button" @click="act(card, 'start')" :disabled="!!busy[card.id + 'start']"
+                                                class="min-h-[44px] flex-1 rounded-lg bg-amber-400 px-3 text-sm font-bold text-brand-900 hover:bg-amber-300 disabled:opacity-50 sm:min-h-[32px] sm:flex-none sm:text-xs">▶ Resume</button>
                                     </template>
                                     <template x-if="card.status === 'started'">
                                         <button type="button" @click="act(card, 'done')" :disabled="openFixes(card) > 0 || !!busy[card.id + 'done']"
                                                 :title="openFixes(card) > 0 ? 'Finish the corrections first' : ''"
                                                 class="min-h-[44px] flex-1 rounded-lg bg-sky-400 px-3 text-sm font-bold text-brand-900 hover:bg-sky-300 disabled:opacity-40 sm:min-h-[32px] sm:flex-none sm:text-xs">✓ Done</button>
                                     </template>
+                                    <template x-if="['waiting', 'started'].includes(card.status)">
+                                        <button type="button" @click="holding = card.id; holdText = ''; fixing = null"
+                                                class="min-h-[44px] rounded-lg bg-white/5 px-3 text-sm font-semibold text-violet-200 ring-1 ring-white/10 hover:bg-white/10 sm:min-h-[32px] sm:text-xs">⏸ Hold</button>
+                                    </template>
+                                    <template x-if="['waiting', 'started', 'blocked'].includes(card.status)">
+                                        <button type="button" @click="moveOn(card, 'next')" :disabled="!!busy[card.id + 'next']" title="Not today — move it to the next day"
+                                                class="min-h-[44px] rounded-lg bg-white/5 px-3 text-sm font-semibold text-sky-200 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-40 sm:min-h-[32px] sm:text-xs">Next day →</button>
+                                    </template>
                                     <template x-if="card.status !== 'completed' || !card.posted_at">
-                                        <button type="button" @click="fixing = card.id; fixText = ''"
+                                        <button type="button" @click="fixing = card.id; fixText = ''; holding = null"
                                                 class="min-h-[44px] rounded-lg bg-white/5 px-3 text-sm font-semibold text-amber-200 ring-1 ring-white/10 hover:bg-white/10 sm:min-h-[32px] sm:text-xs">+ Correction</button>
                                     </template>
                                 </div>
@@ -273,6 +308,30 @@
                     </div>
                 </section>
             @endforeach
+        </div>
+
+        {{-- Moved on with "Next day": off today's lanes, back on their own when the day comes. --}}
+        <div class="rounded-2xl bg-white/[0.03] ring-1 ring-white/10" x-show="lane('later').length > 0" x-cloak>
+            <h2 class="flex items-center justify-between px-4 pb-1 pt-3 text-xs font-semibold uppercase tracking-[0.14em] text-brand-100/60">
+                Moved to the next day
+                <span class="rounded-full bg-sky-400/15 px-2 py-0.5 text-[11px] normal-case tracking-normal text-sky-200" x-text="lane('later').length"></span>
+            </h2>
+            <ul class="divide-y divide-white/5">
+                <template x-for="card in lane('later')" :key="card.id">
+                    <li class="flex items-center gap-3 px-4 py-2.5">
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate text-sm font-semibold text-white" x-text="card.title"></p>
+                            <p class="truncate text-xs text-brand-100/55">
+                                <span x-text="card.client"></span> ·
+                                <span class="text-sky-200/80" x-text="'Back on your board ' + (card.next_on === 'Tomorrow' ? 'tomorrow' : card.next_on)"></span>
+                                <template x-if="card.status === 'blocked'"><span class="text-violet-200/80"> · on hold</span></template>
+                            </p>
+                        </div>
+                        <button type="button" @click="moveOn(card, 'today')" :disabled="!!busy[card.id + 'today']"
+                                class="min-h-[40px] shrink-0 rounded-lg bg-white/5 px-3 text-xs font-semibold text-brand-100/80 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-40">← Today</button>
+                    </li>
+                </template>
+            </ul>
         </div>
     </div>
 </x-app-layout>

@@ -2,7 +2,9 @@
  * My Editing (my/editing.blade.php): an editor's videos as cards that move
  * To do → Working → Done → Posted with a tap, corrections as branches on a
  * card. Every action is a JSON call to My\EditingController, which answers
- * with the card as it now stands; the card is swapped in place.
+ * with the card as it now stands; the card is swapped in place. A video can
+ * be put on hold (with a reason) or moved on to the next day, which lifts it
+ * into a strip under the board until that day comes.
  *
  * The add box is a typeahead: as the editor types it offers Reel Planner
  * items (theirs first, anyone's by name), their usual client prefixes and
@@ -26,8 +28,9 @@ async function post(url, body = {}) {
     return data;
 }
 
-/** Which lane a card sits in; null for anything that sits in none (cancelled). */
+/** Which lane a card sits in; "later" is the moved-on strip under the board; null for cancelled. */
 function laneOf(c) {
+    if (c.next_on) return 'later';
     if (c.posted_at) return 'posted';
     if (c.status === 'completed') return c.kind === 'none' ? 'posted' : 'done';
     if (c.status === 'started') return 'working';
@@ -56,6 +59,8 @@ export function editingDay({ cards, planner, hints, kinds, urls }) {
         hi: -1, // highlighted row; -1 is the typed text itself
         fixing: null, // card id with the correction box open
         fixText: '',
+        holding: null, // card id with the hold box open
+        holdText: '',
         links: {},
         refreshing: false,
 
@@ -70,7 +75,7 @@ export function editingDay({ cards, planner, hints, kinds, urls }) {
             return this.cards.filter((c) => laneOf(c) === name);
         },
         get openCount() {
-            return this.cards.filter((c) => !c.posted_at && c.status !== 'completed').length;
+            return this.cards.filter((c) => !c.posted_at && c.status !== 'completed' && !c.next_on).length;
         },
         get mine() {
             return this.planner.filter((p) => p.mine);
@@ -175,7 +180,7 @@ export function editingDay({ cards, planner, hints, kinds, urls }) {
             else this.cards.push(card);
             // On a phone only one lane shows: follow the card to where it went.
             const lane = laneOf(card);
-            if (lane) this.tab = lane;
+            if (lane && lane !== 'later') this.tab = lane;
         },
         say(text) {
             this.flash = text;
@@ -212,6 +217,23 @@ export function editingDay({ cards, planner, hints, kinds, urls }) {
             this.run(`${card.id}${action}`, async () => {
                 const { card: fresh } = await post(urls.act.replace('__ID__', card.id), { action, ...extra });
                 this.put(fresh);
+            });
+        },
+        hold(card, note = this.holdText) {
+            this.run(`${card.id}hold`, async () => {
+                const { card: fresh } = await post(urls.act.replace('__ID__', card.id), { action: 'hold', note: note.trim() || null });
+                this.put(fresh);
+                this.holding = null;
+                this.holdText = '';
+                this.say('On hold.');
+            });
+        },
+        // "next" moves it off today's lanes to the next day; "today" brings it back.
+        moveOn(card, action) {
+            this.run(`${card.id}${action}`, async () => {
+                const { card: fresh } = await post(urls.act.replace('__ID__', card.id), { action });
+                this.put(fresh);
+                this.say(action === 'next' ? `Moved to ${(fresh.next_on ?? 'the next day').toLowerCase()}.` : 'Back on today’s board.');
             });
         },
         toggleFix(card, fix) {
