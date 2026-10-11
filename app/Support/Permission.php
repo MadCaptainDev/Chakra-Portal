@@ -74,6 +74,19 @@ class Permission
             'icon' => 'camera',
             'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
+        /*
+         * Chakra Planner, the desktop content planner (routes/planner-api.php).
+         * `view` signs the app in and shows every planner; `edit` moves publish
+         * dates (written back to Notion); `manage` is the Ably key, Notion
+         * webhooks, everyone's signed-in computers and uploading releases.
+         * The portal link is only the download-and-setup page.
+         */
+        'planner' => [
+            'label' => 'Chakra Planner',
+            'group' => 'Production',
+            'icon' => 'calendar',
+            'abilities' => ['view', 'edit', 'manage'],
+        ],
         'equipment' => [
             'label' => 'Equipment',
             'group' => 'Production',

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ContentItem extends Model
@@ -128,6 +129,35 @@ class ContentItem extends Model
         return $shoot->shoot_date
             ? 'Shot '.$shoot->shoot_date->format('j M')
             : $shoot->title;
+    }
+
+    /** Every change made to this item through Chakra Planner or arriving from Notion's webhooks. */
+    public function changes(): HasMany
+    {
+        return $this->hasMany(ContentItemChange::class)->latest('id');
+    }
+
+    public function lastChange(): HasOne
+    {
+        return $this->hasOne(ContentItemChange::class)->latestOfMany();
+    }
+
+    /** My Editing cards made from this item -- who is editing it, and how far they are. */
+    public function editingTodos(): HasMany
+    {
+        return $this->hasMany(Todo::class)->whereNull('parent_id');
+    }
+
+    /**
+     * Chakra Planner hears about every saved change to an item (a date moved
+     * in the app, an assignment on the Content Dashboard, a page pulled in by
+     * a Notion webhook). The nightly and Refresh syncs write through upsert(),
+     * which fires no model events -- NotionSyncRunner announces those as one
+     * "items.refreshed" instead of two thousand item events.
+     */
+    protected static function booted(): void
+    {
+        static::saved(fn (self $item) => \App\Services\Planner\PlannerRealtime::itemChanged($item));
     }
 
     public function sourceLabel(): string

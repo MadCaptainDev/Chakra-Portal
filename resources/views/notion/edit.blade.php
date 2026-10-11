@@ -12,7 +12,7 @@
     <x-slot name="header">
         <x-page-header
             title="Notion Integration"
-            subtitle="One integration token for the whole studio. Content and shoots are pulled from Notion; nothing is ever written back." />
+            subtitle="One integration token for the whole studio. Content and shoots are pulled from Notion. Two things are written back: a shoot's status when the crew start and wrap, and publish dates moved in Chakra Planner." />
     </x-slot>
 
     <div class="space-y-6">
@@ -57,8 +57,8 @@
                     <x-input-error :messages="$errors->get('api_key')" class="mt-2" />
                     <p class="text-xs text-brand-100/60 mt-1">
                         Stored encrypted and never shown again. Leaving this blank keeps the current one. Give it
-                        <span class="font-medium">read content</span> access only — nothing here ever writes back
-                        to Notion, and the token does not need to.
+                        <span class="font-medium">read content</span> and <span class="font-medium">update content</span> access — shoot status and Chakra Planner's publish dates are
+                        written back to Notion.
                     </p>
                 </div>
 

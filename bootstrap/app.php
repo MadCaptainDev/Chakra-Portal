@@ -49,6 +49,16 @@ return Application::configure(basePath: dirname(__DIR__))
                 'throttle:saas-api',
                 \App\Http\Middleware\AuthenticateSaasProduct::class,
             ])->group(base_path('routes/saas-api.php'));
+
+            /*
+             * Chakra Planner, the desktop app. Same no-session shape; the
+             * token check is inside the file because signing in and the
+             * app's update check come before there is a token.
+             */
+            Route::middleware([
+                'throttle:planner-api',
+                \App\Http\Middleware\PlannerJson::class,
+            ])->group(base_path('routes/planner-api.php'));
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {

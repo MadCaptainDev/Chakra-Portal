@@ -663,6 +663,20 @@ Route::middleware(['auth', 'module:shoots,view'])->scopeBindings()->group(functi
  * read-only over App\Support\ContentForecast, so `view` is the only
  * ability the module has anything to grant.
  */
+/*
+ * Chakra Planner: the desktop app's page here -- download, signed-in
+ * computers, and (manage) its Ably key and Notion webhook. The planner
+ * itself is the app; see routes/planner-api.php.
+ */
+Route::middleware(['auth', 'module:planner,view'])->prefix('planner')->name('planner.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\PlannerPageController::class, 'index'])->name('index');
+    Route::delete('sessions/{session}', [\App\Http\Controllers\PlannerPageController::class, 'revokeSession'])->whereNumber('session')->name('sessions.destroy');
+    Route::middleware('module:planner,manage')->group(function () {
+        Route::put('settings', [\App\Http\Controllers\PlannerPageController::class, 'updateSettings'])->name('settings');
+        Route::delete('webhook', [\App\Http\Controllers\PlannerPageController::class, 'forgetWebhook'])->name('webhook.forget');
+    });
+});
+
 Route::middleware(['auth', 'module:forecast,view'])->group(function () {
     Route::get('forecast', [ForecastController::class, 'index'])->name('forecast.index');
     Route::get('forecast/{client}', [ForecastController::class, 'show'])->name('forecast.show');

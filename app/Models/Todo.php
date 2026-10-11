@@ -165,6 +165,22 @@ class Todo extends Model
         return $this->belongsTo(ContentItem::class);
     }
 
+    /**
+     * Chakra Planner shows who is editing a planner item and how far they
+     * are (ContentItem::editingTodos). Touching the item when its card moves
+     * is what puts that change in the app's ?updated_since= and, through
+     * ContentItem's own saved hook, in the live event.
+     */
+    protected static function booted(): void
+    {
+        static::saved(function (self $todo) {
+            if ($todo->content_item_id && $todo->parent_id === null
+                && ($todo->wasRecentlyCreated || $todo->wasChanged(['status', 'posted_at', 'user_id', 'content_item_id']))) {
+                ContentItem::query()->find($todo->content_item_id)?->touch();
+            }
+        });
+    }
+
     public function postedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'posted_by_id');

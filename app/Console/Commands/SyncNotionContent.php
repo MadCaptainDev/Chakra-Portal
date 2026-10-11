@@ -61,6 +61,10 @@ class SyncNotionContent extends Command
             $this->info("assignments: {$assigned} item(s) auto-assigned from Notion's Assigned To/Editor.");
         }
 
+        // Chakra Planner: fresh status colours, and one "re-fetch" event for every open app.
+        \App\Services\Planner\PlannerSchema::forget();
+        \App\Services\Planner\PlannerRealtime::refreshed('Nightly sync from Notion.');
+
         $unreachable = array_keys(array_filter($available, fn ($ok) => ! $ok));
 
         if ($unreachable !== []) {

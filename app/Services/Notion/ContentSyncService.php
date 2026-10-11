@@ -194,6 +194,124 @@ class ContentSyncService
         }
     }
 
+    /*
+     * One page at a time -- for Chakra Planner, which writes a page's date
+     * back to Notion and hears about single pages from Notion's webhooks.
+     * The full syncs above stay the way every other screen is kept fresh.
+     */
+
+    public function isConfigured(): bool
+    {
+        return $this->apiKey() !== null;
+    }
+
+    /**
+     * GET one page. Throws (RequestException) on anything but a 2xx, so a
+     * caller can tell "Notion said no" from "here is the page".
+     *
+     * @return array<string, mixed>
+     */
+    public function fetchPage(string $pageId): array
+    {
+        return $this->client()->get(self::API_BASE.'/pages/'.$pageId)->throw()->json();
+    }
+
+    /**
+     * PATCH one page's properties; returns the page as it now stands.
+     * Not retried: a write that timed out may still have landed.
+     *
+     * @param  array<string, mixed>  $properties
+     * @return array<string, mixed>
+     */
+    public function updatePage(string $pageId, array $properties): array
+    {
+        return Http::withToken($this->apiKey())
+            ->withHeaders(['Notion-Version' => self::API_VERSION])
+            ->acceptJson()
+            ->timeout(20)
+            ->patch(self::API_BASE.'/pages/'.$pageId, ['properties' => $properties])
+            ->throw()
+            ->json();
+    }
+
+    /**
+     * Write one page into content_items, through the model (so Chakra
+     * Planner hears about it), and return the row. Null for a page that is
+     * not in one of the four content planners.
+     *
+     * synced_at is left alone on an existing row: NotionSyncRunner reads
+     * max(synced_at) as "when did the last FULL sync run", and one page
+     * arriving must not convince it the whole cache is fresh.
+     *
+     * @param  array<string, mixed>  $page
+     */
+    public function applyPage(array $page, ?string $source = null): ?ContentItem
+    {
+        $source ??= $this->sourceForPage($page);
+        if ($source === null || $source === NotionShoot::SOURCE) {
+            return null;
+        }
+
+        $row = $this->contentRowFor($source, $page);
+        $item = ContentItem::query()->firstOrNew(['notion_page_id' => $page['id']]);
+        $gone = ($page['archived'] ?? false) || ($page['in_trash'] ?? false);
+
+        $item->forceFill(Arr::except($row, ['notion_page_id', 'synced_at']) + [
+            'synced_at' => $item->exists ? $item->synced_at : now(),
+            'notion_shoot_id' => $row['notion_shoot_page_id']
+                ? NotionShoot::query()->where('notion_page_id', $row['notion_shoot_page_id'])->value('id')
+                : null,
+            'notion_missing_since' => $gone ? ($item->notion_missing_since ?? now()) : null,
+        ])->save();
+
+        return $item;
+    }
+
+    /** Which content planner a page lives in, from its parent database. */
+    public function sourceForPage(array $page): ?string
+    {
+        $parent = $page['parent'] ?? [];
+
+        return $this->sourceForDatabase((string) ($parent['database_id'] ?? $parent['data_source_id'] ?? ''));
+    }
+
+    public function sourceForDatabase(string $databaseId): ?string
+    {
+        $needle = str_replace('-', '', $databaseId);
+        if ($needle === '') {
+            return null;
+        }
+        foreach (config('notion.databases', []) as $source => $config) {
+            foreach ($config['ids'] ?? [] as $id) {
+                if (str_replace('-', '', $id) === $needle) {
+                    return $source;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The page's publish-date property: its exact name in that database
+     * (needed to write it back) and its raw date value.
+     *
+     * @return array{name: string, date: ?array}|null
+     */
+    public function publishedDateProperty(array $page): ?array
+    {
+        $properties = $page['properties'] ?? [];
+        $candidates = config('notion.properties.published_date', []);
+        $name = collect($candidates)->first(fn ($c) => array_key_exists($c, $properties))
+            ?? collect(array_keys($properties))->first(fn ($k) => in_array(Str::lower(trim($k)), array_map(fn ($c) => Str::lower(trim($c)), $candidates), true));
+
+        if ($name === null || ($properties[$name]['type'] ?? null) !== 'date') {
+            return null;
+        }
+
+        return ['name' => $name, 'date' => $properties[$name]['date'] ?? null];
+    }
+
     /**
      * Distinct Venture options across every reachable database, for the
      * client-form dropdown.
