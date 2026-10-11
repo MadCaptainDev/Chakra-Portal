@@ -61,6 +61,25 @@ class CrewShootRecordTest extends TestCase
             ->assertViewHas('past', fn ($past) => $past->count() === 3);
     }
 
+    public function test_each_past_shoot_shows_the_videos_that_came_out_of_it(): void
+    {
+        $notion = \App\Models\NotionShoot::factory()->create(['video_count' => '4']);
+        $shoot = $this->shoot('SVA Diwali shoot', today()->subDays(3), [$this->aron]);
+        $shoot->forceFill(['notion_shoot_id' => $notion->id])->save();
+        \App\Models\ContentItem::factory()->create(['source' => 'reel', 'title' => 'SVA - Silk saree twirl', 'status' => 'Published', 'notion_shoot_id' => $notion->id, 'published_date' => today()->subDay()]);
+        \App\Models\ContentItem::factory()->create(['source' => 'reel', 'title' => 'SVA - Kurti closeups', 'status' => 'To Be Edited', 'notion_shoot_id' => $notion->id, 'published_date' => today()->addDays(4)]);
+        \App\Models\ContentItem::factory()->create(['source' => 'reel', 'title' => 'Deleted in Notion', 'notion_shoot_id' => $notion->id, 'notion_missing_since' => now()]);
+        \App\Models\ShootVideo::create(['shoot_id' => $shoot->id, 'recorded_by_id' => $this->aron->id, 'name' => 'Lehenga walk', 'position' => 1]);
+        $this->shoot('Janet clinic shoot', today()->subDays(5), [$this->aron]);
+
+        $this->actingAs($this->aron)->get(route('my.shoots'))
+            ->assertOk()
+            ->assertSeeInOrder(['SVA Diwali shoot', '2 videos of 4 planned', '1 published', 'From the Reel Planner', 'SVA - Silk saree twirl', 'Went out', 'Published', 'SVA - Kurti closeups', 'Goes out', 'To Be Edited', 'Logged on the day', 'Lehenga walk', 'Aron Sham'])
+            ->assertSee('2 videos came out of these shoots')
+            ->assertSeeInOrder(['Janet clinic shoot', 'No videos linked yet'])
+            ->assertDontSee('Deleted in Notion');
+    }
+
     public function test_managers_see_everyones_record_and_one_persons_list(): void
     {
         $this->shoot('SVA Diwali shoot', today()->subDays(3), [$this->aron, $this->nitis]);

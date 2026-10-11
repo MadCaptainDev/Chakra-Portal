@@ -19,23 +19,53 @@ use Illuminate\Support\Facades\DB;
  */
 class CrewShootRecord
 {
-    /** Past shoots this person was on (everyone's, for null), newest first. */
+    /**
+     * Past shoots this person was on (everyone's, for null), newest first,
+     * with the videos that came out of each:
+     *
+     * - the Reel Planner reels linked to the shoot in Notion (its "Shoot"
+     *   relation) -- for most past shoots the only record of what was shot;
+     * - videos the crew logged in the app on the day (ShootVideo), which
+     *   only shoots run through My Shoots have;
+     * - Notion's "No Of Videos", the number planned.
+     */
     public static function shoots(?User $person): Collection
     {
         return Shoot::query()
             ->where('status', '!=', Shoot::STATUS_CANCELLED)
             ->where('starts_at', '<', today())
             ->when($person, fn ($q) => $q->whereHas('crew', fn ($c) => $c->where('user_id', $person->id)))
-            ->with(['client:id,name', 'crew.user:id,name'])
-            ->withCount('videos')
+            ->with([
+                'client:id,name',
+                'crew.user:id,name',
+                'videos.recordedBy:id,name',
+                'notionShoot:id,video_count',
+                'notionShoot.contentItems' => fn ($q) => $q->visible()
+                    ->select('id', 'notion_shoot_id', 'source', 'title', 'status', 'published_date')
+                    ->orderByRaw('published_date is null')->orderBy('published_date'),
+            ])
             ->orderByDesc('starts_at')
             ->get();
+    }
+
+    /** The planner reels that came out of a shoot loaded by shoots(). */
+    public static function reels(Shoot $shoot): Collection
+    {
+        return $shoot->notionShoot?->contentItems ?? collect();
+    }
+
+    /** Notion's "No Of Videos" when it is a plain number ("7"); it is free text, so often it is not. */
+    public static function planned(Shoot $shoot): ?int
+    {
+        $raw = trim((string) $shoot->notionShoot?->video_count);
+
+        return ctype_digit($raw) ? (int) $raw : null;
     }
 
     /**
      * The headline numbers for a list from shoots().
      *
-     * @return array{total: int, this_month: int, last_month: int, clients: list<string>, first: ?Carbon}
+     * @return array{total: int, this_month: int, last_month: int, clients: list<string>, first: ?Carbon, videos: int}
      */
     public static function summary(Collection $shoots): array
     {
@@ -44,6 +74,7 @@ class CrewShootRecord
 
         return [
             'total' => $shoots->count(),
+            'videos' => $shoots->sum(fn (Shoot $s) => max(self::reels($s)->count(), $s->videos->count())),
             'this_month' => $shoots->filter(fn (Shoot $s) => $s->starts_at->gte($thisMonth))->count(),
             'last_month' => $shoots->filter(fn (Shoot $s) => $s->starts_at->between($lastMonth, $thisMonth->copy()->subSecond()))->count(),
             'clients' => $shoots->map(fn (Shoot $s) => $s->client?->name)->filter()->countBy()->sortDesc()->keys()->take(3)->values()->all(),
