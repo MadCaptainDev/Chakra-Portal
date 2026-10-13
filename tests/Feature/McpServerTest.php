@@ -258,6 +258,57 @@ class McpServerTest extends TestCase
         $this->assertNotContains('create_script', $this->toolNames($this->tokenFor($employee)));
     }
 
+    public function test_a_script_is_read_and_edited_by_its_number(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        Client::create(['name' => 'Janet']);
+        $made = $this->toolData($this->tokenFor($admin), 'create_script', [
+            'client' => 'Janet', 'title' => 'Contraception',
+            'sections' => [['heading' => 'Hook', 'text' => 'Old hook'], ['heading' => 'CTA', 'text' => 'Old CTA']],
+        ]);
+        $this->assertSame('#'.$made['id'], $made['number']);
+        $section = Script::firstOrFail()->sections()->first();
+        $version = (int) $section->version;
+
+        $read = $this->toolData($this->tokenFor($admin), 'get_script', ['script' => '#'.$made['id']]);
+        $this->assertSame(['heading' => 'Hook', 'text' => 'Old hook'], $read['sections'][0]);
+
+        $data = $this->toolData($this->tokenFor($admin), 'update_script', [
+            'script' => (string) $made['id'],
+            'text' => "1st place\nPills\n\n2nd place\nIUCD",
+            'status' => Script::STATUS_COMPLETED,
+        ]);
+
+        $this->assertSame(['text', 'status'], $data['changed']);
+        $script = Script::with('sections')->firstOrFail();
+        $this->assertSame(Script::STATUS_COMPLETED, $script->status);
+        $this->assertCount(1, $script->sections);
+        $this->assertSame("<p>1st place<br>\nPills</p><p>2nd place<br>\nIUCD</p>", $script->sections[0]->body);
+        // The kept row moves on a version, so an open editor sees a conflict instead of saving over it.
+        $this->assertSame($version + 1, (int) $script->sections[0]->fresh()->version);
+        $this->assertSame($admin->id, $script->last_edited_by_id);
+    }
+
+    public function test_approving_a_script_over_mcp_needs_the_approve_permission(): void
+    {
+        $writer = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
+        foreach (['view', 'create', 'edit'] as $ability) {
+            UserPermission::create(['user_id' => $writer->id, 'module' => 'scripts', 'ability' => $ability]);
+        }
+        Client::create(['name' => 'Janet']);
+        $made = $this->toolData($this->tokenFor($writer), 'create_script', ['client' => 'Janet', 'title' => 'X', 'text' => 'words']);
+
+        $result = $this->callTool($this->tokenFor($writer), 'update_script', ['script' => (string) $made['id'], 'status' => 'completed']);
+
+        $this->assertTrue($result['isError']);
+        $this->assertStringContainsString('approve permission', $result['content'][0]['text']);
+        $this->assertSame(Script::STATUS_DRAFT, Script::firstOrFail()->status);
+
+        // Words are still theirs to change.
+        $ok = $this->toolData($this->tokenFor($writer), 'update_script', ['script' => (string) $made['id'], 'title' => 'Y']);
+        $this->assertSame(['title'], $ok['changed']);
+    }
+
     // ——— Which tools a person is shown ———
 
     public function test_module_tools_are_hidden_from_someone_without_the_permission(): void

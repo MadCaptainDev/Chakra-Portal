@@ -83,7 +83,7 @@ class CreateScript extends Tool
             throw new ToolException('Give the script a title of up to 255 characters.');
         }
 
-        $sections = $this->sections($arguments);
+        $sections = ScriptText::fromArguments($arguments);
         $client = ClientResolver::resolve($arguments['client'] ?? null);
         $writer = People::assignable($arguments['writer'] ?? null, $user);
 
@@ -113,7 +113,7 @@ class CreateScript extends Tool
             foreach ($sections as $i => [$heading, $text]) {
                 $section = $script->sections()->make(['heading' => $heading]);
                 $section->position = $i;
-                $section->body = $this->html($text);
+                $section->body = ScriptText::html($text);
                 $section->save();
             }
 
@@ -124,6 +124,7 @@ class CreateScript extends Tool
 
         return [
             'id' => $script->id,
+            'number' => '#'.$script->id,
             'title' => $script->title,
             'client' => $client->name,
             'status' => $script->statusLabel(),
@@ -134,48 +135,6 @@ class CreateScript extends Tool
         ];
     }
 
-    /** @return list<array{0: string, 1: string}> */
-    private function sections(array $arguments): array
-    {
-        $text = trim((string) ($arguments['text'] ?? ''));
-        $given = $arguments['sections'] ?? [];
-
-        if ($text !== '' && ! empty($given)) {
-            throw new ToolException('Send the script as text or as sections, not both.');
-        }
-
-        if ($text !== '') {
-            return [['Script', $text]];
-        }
-
-        $out = [];
-        foreach ((array) $given as $part) {
-            $heading = trim((string) ($part['heading'] ?? ''));
-            $body = trim((string) ($part['text'] ?? ''));
-            if ($heading === '' || $body === '') {
-                throw new ToolException('Every section needs a heading and some text.');
-            }
-            $out[] = [mb_substr($heading, 0, 255), $body];
-        }
-
-        if ($out === []) {
-            throw new ToolException('There is no script text. Send it as text or as sections.');
-        }
-
-        return $out;
-    }
-
-    /** Plain text to the editor's HTML: blank lines make paragraphs, single breaks stay. */
-    private function html(string $text): string
-    {
-        $paragraphs = preg_split('/\R\s*\R/u', str_replace("\r\n", "\n", trim($text)));
-
-        return collect($paragraphs)
-            ->map(fn ($p) => trim($p))
-            ->filter()
-            ->map(fn ($p) => '<p>'.nl2br(e($p), false).'</p>')
-            ->implode('');
-    }
 
     private function date(?string $value): ?Carbon
     {

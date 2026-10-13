@@ -153,6 +153,12 @@ class Script extends Model
     }
 
     /** "Check from each other" -- a flat review thread, oldest first. */
+    /** Videos shot from this script on set (ShootRunController links them). */
+    public function shootVideos(): HasMany
+    {
+        return $this->hasMany(ShootVideo::class);
+    }
+
     public function comments(): HasMany
     {
         return $this->hasMany(ScriptComment::class)->with('user')->oldest();

@@ -10,6 +10,8 @@ use App\Tools\AdReports;
 use App\Tools\Clients;
 use App\Tools\CreateScript;
 use App\Tools\CreateTodo;
+use App\Tools\GetScript;
+use App\Tools\UpdateScript;
 use App\Tools\DescribeData;
 use App\Tools\Expenses;
 use App\Tools\Finance;
@@ -110,6 +112,8 @@ class Server
             new Shoots\AssignShootCrew,
             new ListScripts,
             new CreateScript,
+            new GetScript,
+            new UpdateScript,
             new ReelPlannerToday,
             /*
              * Proposals, end to end: writing the document, working through

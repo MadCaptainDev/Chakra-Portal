@@ -1,6 +1,6 @@
 <x-app-layout :title="$script->title">
     <x-slot name="header">
-        <x-page-header :title="$script->title" eyebrow="Script"
+        <x-page-header :title="$script->title" :eyebrow="'Script #'.$script->id"
                        :subtitle="collect([$script->clientLabel(), $script->campaign])->filter()->implode(' · ') ?: 'No client set'">
             <x-slot name="actions">
                 <x-btn :href="route('scripts.show', $script)" variant="secondary" icon="eye">Preview</x-btn>

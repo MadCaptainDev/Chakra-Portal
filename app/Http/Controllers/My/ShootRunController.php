@@ -8,8 +8,10 @@ use App\Models\Shoot;
 use App\Models\ShootVideo;
 use App\Services\ShootRun;
 use App\Support\CrewShootRecord;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -75,12 +77,71 @@ class ShootRunController extends Controller
         return view('my.shoots.run', [
             'shoot' => $shoot,
             'scripts' => $this->scripts($shoot),
+            'liveVersion' => $this->liveVersion($shoot),
             // Named so the screen can say which shoot is in the way, rather
             // than only that something is.
             'blockedBy' => ShootRun::runningFor(request()->user())
                 ->where('shoots.id', '!=', $shoot->id)
                 ->first(),
         ]);
+    }
+
+    /**
+     * The shoot screen's live feed, polled every few seconds by each phone
+     * on set -- this host cannot hold a websocket open. A cheap version
+     * string is compared first; only when something moved (a script edited
+     * in the portal or over MCP, a video saved by someone else on the crew,
+     * the shoot wrapped) is the full list sent back.
+     */
+    public function live(Request $request, Shoot $shoot): JsonResponse
+    {
+        $this->authoriseCrew($shoot);
+
+        $version = $this->liveVersion($shoot);
+        if ($request->query('since') === $version) {
+            return response()->json(['changed' => false, 'version' => $version]);
+        }
+
+        $shoot->load('videos.recordedBy');
+
+        return response()->json([
+            'changed' => true,
+            'version' => $version,
+            'wrapped' => $shoot->hasWrapped(),
+            'scripts' => $this->scripts($shoot),
+            'videos' => $shoot->videos->map(fn (ShootVideo $v) => [
+                'id' => $v->id,
+                'name' => $v->name,
+                'by' => $v->recordedBy?->name,
+                'script_id' => $v->script_id,
+            ])->values(),
+        ]);
+    }
+
+    /** Changes whenever anything the shoot screen shows changes. */
+    private function liveVersion(Shoot $shoot): string
+    {
+        $scripts = $shoot->client_id
+            ? Script::query()->where('client_id', $shoot->client_id)
+                ->selectRaw('COUNT(*) AS n, MAX(updated_at) AS at')->first()
+            : null;
+        $sections = $shoot->client_id
+            ? DB::table('script_sections')->join('scripts', 'scripts.id', '=', 'script_sections.script_id')
+                ->where('scripts.client_id', $shoot->client_id)
+                ->selectRaw('COUNT(*) AS n, MAX(script_sections.updated_at) AS at')->first()
+            : null;
+        // This shoot's videos, and any video shot from this client's scripts
+        // (another shoot ticking one off), not every video in the studio.
+        $videos = ShootVideo::query()
+            ->where(fn ($q) => $q->where('shoot_id', $shoot->id)
+                ->when($shoot->client_id, fn ($q) => $q->orWhereIn('script_id', Script::query()->select('id')->where('client_id', $shoot->client_id))))
+            ->selectRaw('COUNT(*) AS n, MAX(id) AS last')->first();
+
+        return md5(json_encode([
+            $shoot->updated_at?->getTimestamp(),
+            $scripts?->n, $scripts?->at, $sections?->n, $sections?->at,
+            $videos?->n, $videos?->last,
+        ]));
     }
 
     public function depart(Request $request, Shoot $shoot): RedirectResponse
@@ -230,6 +291,8 @@ class ShootRunController extends Controller
             ->map(fn (Script $s) => [
                 'id' => $s->id,
                 'title' => $s->title,
+                // Changes when the words change, so a phone can tell which script was edited.
+                'rev' => md5($s->title.'|'.$s->sections->map(fn ($sec) => $sec->heading.$sec->body)->implode('|')),
                 'status' => $s->status === Script::STATUS_COMPLETED ? 'Approved' : $s->statusLabel(),
                 // A linked video says where; shot_at covers ones shot before videos were linked.
                 'shot' => $shot->has($s->id) ? ((int) $shot[$s->id] ? 'here' : 'before') : ($s->shot_at ? 'before' : null),

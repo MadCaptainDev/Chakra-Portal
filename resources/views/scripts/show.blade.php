@@ -21,7 +21,7 @@
 
 <x-app-layout :title="$script->title">
     <x-slot name="header">
-        <x-page-header :title="$script->title" eyebrow="Script" :subtitle="$script->clientLabel() ?: 'No client set'">
+        <x-page-header :title="$script->title" :eyebrow="'Script #'.$script->id" :subtitle="$script->clientLabel() ?: 'No client set'">
             <x-slot name="actions">
                 @can('scripts.approve')
                     @if ($script->canSendToClient() && $script->client?->portalSectionEnabled('scripts'))

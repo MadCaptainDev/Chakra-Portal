@@ -600,4 +600,38 @@ class ShootRunTest extends TestCase
         $this->assertStringContainsString('Sage green is', $block[1]['body']);
         $this->assertSame(['Hook', 'CTA'], array_column($scripts[1]['sections'], 'heading'));
     }
+
+    public function test_the_live_feed_answers_unchanged_cheaply_and_carries_a_script_edit(): void
+    {
+        $client = Client::create(['name' => 'Janet']);
+        $shoot = $this->shoot(['client_id' => $client->id]);
+        $crew = $this->crewMember($shoot);
+        ShootRun::start($shoot, $crew);
+        $script = $this->script($client, 'Ranking');
+
+        $first = $this->actingAs($crew)->getJson(route('my.shoots.live', $shoot))->assertOk()->json();
+        $this->assertTrue($first['changed']);
+        $rev = $first['scripts'][0]['rev'];
+
+        $this->actingAs($crew)->getJson(route('my.shoots.live', [$shoot, 'since' => $first['version']]))
+            ->assertExactJson(['changed' => false, 'version' => $first['version']]);
+
+        $this->travel(2)->seconds();
+        $section = $script->sections()->first();
+        $section->body = '<p>New words</p>';
+        $section->save();
+
+        $next = $this->actingAs($crew)->getJson(route('my.shoots.live', [$shoot, 'since' => $first['version']]))->json();
+        $this->assertTrue($next['changed']);
+        $this->assertNotSame($rev, $next['scripts'][0]['rev']);
+        $this->assertStringContainsString('New words', $next['scripts'][0]['sections'][0]['body']);
+    }
+
+    public function test_the_live_feed_is_for_the_crew_only(): void
+    {
+        $shoot = $this->shoot();
+        $stranger = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
+
+        $this->actingAs($stranger)->getJson(route('my.shoots.live', $shoot))->assertNotFound();
+    }
 }

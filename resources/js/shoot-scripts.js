@@ -30,14 +30,67 @@ function store(key, value) {
     }
 }
 
+const POLL_MS = 5000;
+
+/**
+ * Live updates for the shoot screen. This host cannot hold a websocket open,
+ * so each phone asks the portal every few seconds whether anything moved;
+ * an unchanged shoot answers with a few bytes. Paused while the phone is
+ * locked or the tab is hidden, and asked again the moment it comes back.
+ */
+function poller(url, version, onChange) {
+    let current = version;
+    let timer = null;
+    let failures = 0;
+
+    const schedule = (ms) => {
+        clearTimeout(timer);
+        if (!document.hidden) timer = setTimeout(check, ms);
+    };
+    const check = async () => {
+        try {
+            const res = await fetch(`${url}?since=${encodeURIComponent(current)}`, {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
+            if (!res.ok) throw new Error(String(res.status));
+            const data = await res.json();
+            failures = 0;
+            if (data.changed) {
+                current = data.version;
+                onChange(data);
+            }
+        } catch {
+            failures += 1; // no signal on location: back off, keep trying
+        }
+        schedule(failures ? Math.min(30000, POLL_MS * (failures + 1)) : POLL_MS);
+    };
+    document.addEventListener('visibilitychange', () => (document.hidden ? clearTimeout(timer) : check()));
+    schedule(POLL_MS);
+}
+
+/** Before the shoot is rolling: any change (someone tapped Start) reloads into the new state. */
+export function shootLive({ liveUrl, version }) {
+    return {
+        init() {
+            poller(liveUrl, version, () => window.location.reload());
+        },
+    };
+}
+
 function logKey(shootId, scriptId) {
     return `shoot-${shootId}-script-${scriptId}`;
 }
 
-export function shootScripts({ shootId, scripts, oldName = '', oldScriptId = null, oldSectionLog = '' }) {
+export function shootScripts({ shootId, scripts, liveUrl = null, liveVersion = '', videoIds = [], me = null, oldName = '', oldScriptId = null, oldSectionLog = '' }) {
     return {
         shootId,
         scripts,
+        videoIds,
+        notice: '',
+        noticeTimer: null,
+        newVideos: 0,
+        saving: false,
         sectionLog: oldSectionLog || '', // what the form sends
         log: null, // the open script's timings: { sections: [{shot, takes, seconds}], running: {i, since} | null }
         tick: Date.now(),
@@ -51,6 +104,51 @@ export function shootScripts({ shootId, scripts, oldName = '', oldScriptId = nul
         showShot: false,
         wake: null,
         frame: null,
+
+        init() {
+            if (liveUrl) poller(liveUrl, liveVersion, (data) => this.apply(data));
+        },
+
+        // ——— Live ———
+        apply(data) {
+            if (data.wrapped) {
+                window.location.reload();
+                return;
+            }
+
+            const before = new Map(this.scripts.map((s) => [s.id, s.rev]));
+            const edited = data.scripts.filter((s) => before.has(s.id) && before.get(s.id) !== s.rev);
+            const added = data.scripts.filter((s) => !before.has(s.id));
+            this.scripts = data.scripts;
+
+            if (this.reading) {
+                const fresh = data.scripts.find((s) => s.id === this.reading.id);
+                if (fresh) {
+                    // Same timings, new words: keep each part's log by position.
+                    const blank = { shot: false, takes: 0, seconds: 0 };
+                    this.log.sections = fresh.sections.map((_, i) => this.log.sections[i] || { ...blank });
+                    if (this.log.running && this.log.running.i >= fresh.sections.length) this.log.running = null;
+                    this.reading = fresh;
+                    this.saveLog();
+                }
+            }
+
+            const fresh = data.videos.filter((v) => !this.videoIds.includes(v.id));
+            this.videoIds = data.videos.map((v) => v.id);
+            const others = fresh.filter((v) => v.by !== me);
+            this.newVideos += others.length;
+
+            const lines = [];
+            edited.forEach((s) => lines.push(`Script #${s.id} was just updated`));
+            added.forEach((s) => lines.push(`New script #${s.id}: ${s.title}`));
+            others.forEach((v) => lines.push(`${v.by || 'Someone'} saved “${v.name}”`));
+            if (lines.length) this.say(lines.join(' · '));
+        },
+        say(text) {
+            this.notice = text;
+            clearTimeout(this.noticeTimer);
+            this.noticeTimer = setTimeout(() => { this.notice = ''; }, 8000);
+        },
 
         get todo() {
             return this.scripts.filter((s) => !s.shot);
@@ -227,7 +325,13 @@ export function shootScripts({ shootId, scripts, oldName = '', oldScriptId = nul
         },
         // The video is being saved: its timings go with it, so the phone
         // can forget them. A failed save comes back with them in old().
-        submitted() {
+        submitted(event) {
+            // One tap, one video: on a slow signal a second tap used to file it twice.
+            if (this.saving) {
+                event?.preventDefault();
+                return;
+            }
+            this.saving = true;
             if (this.scriptId) {
                 try {
                     localStorage.removeItem(logKey(this.shootId, this.scriptId));
