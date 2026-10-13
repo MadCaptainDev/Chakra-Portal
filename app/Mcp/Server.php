@@ -8,6 +8,7 @@ use App\Models\McpUserLimit;
 use App\Models\User;
 use App\Tools\AdReports;
 use App\Tools\Clients;
+use App\Tools\CreateScript;
 use App\Tools\CreateTodo;
 use App\Tools\DescribeData;
 use App\Tools\Expenses;
@@ -108,6 +109,7 @@ class Server
             new Shoots\CreateShoot,
             new Shoots\AssignShootCrew,
             new ListScripts,
+            new CreateScript,
             new ReelPlannerToday,
             /*
              * Proposals, end to end: writing the document, working through
