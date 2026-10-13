@@ -90,6 +90,7 @@ class Script extends Model
         'target_seconds' => 'integer',
         'last_edited_at' => 'datetime',
         'sent_to_client_at' => 'datetime',
+        'shot_at' => 'datetime',
     ];
 
     public function client(): BelongsTo

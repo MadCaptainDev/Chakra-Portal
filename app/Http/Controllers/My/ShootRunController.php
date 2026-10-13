@@ -192,12 +192,13 @@ class ShootRunController extends Controller
             ->where('status', '!=', Script::STATUS_ARCHIVED)
             ->with('sections')
             ->get()
-            ->sortBy(fn (Script $s) => [$shot->has($s->id) ? 1 : 0, $rank[$s->status] ?? 3, $s->id])
+            ->sortBy(fn (Script $s) => [($shot->has($s->id) || $s->shot_at) ? 1 : 0, $rank[$s->status] ?? 3, $s->id])
             ->map(fn (Script $s) => [
                 'id' => $s->id,
                 'title' => $s->title,
                 'status' => $s->status === Script::STATUS_COMPLETED ? 'Approved' : $s->statusLabel(),
-                'shot' => $shot->has($s->id) ? ((int) $shot[$s->id] ? 'here' : 'before') : null,
+                // A linked video says where; shot_at covers ones shot before videos were linked.
+                'shot' => $shot->has($s->id) ? ((int) $shot[$s->id] ? 'here' : 'before') : ($s->shot_at ? 'before' : null),
                 'sections' => $s->sections->reject->isEmpty()
                     ->map(fn ($sec) => ['heading' => $sec->heading, 'body' => $sec->body])->values()->all(),
             ])

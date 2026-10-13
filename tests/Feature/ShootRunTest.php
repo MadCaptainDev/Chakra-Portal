@@ -511,4 +511,21 @@ class ShootRunTest extends TestCase
 
         $this->assertSame(0, ShootVideo::count());
     }
+
+    public function test_a_script_marked_shot_without_a_video_goes_to_already_shot(): void
+    {
+        $client = Client::create(['name' => 'Squad Architects']);
+        $shoot = $this->shoot(['client_id' => $client->id]);
+        $crew = $this->crewMember($shoot);
+        ShootRun::start($shoot, $crew);
+        $old = $this->script($client, 'Shot last month', Script::STATUS_COMPLETED);
+        $old->forceFill(['shot_at' => now()->subMonth()])->save();
+        $new = $this->script($client, 'Not shot yet');
+
+        $scripts = $this->actingAs($crew)->get(route('my.shoots.run', $shoot))->viewData('scripts');
+
+        $this->assertSame([$new->id, $old->id], array_column($scripts, 'id'));
+        $this->assertNull($scripts[0]['shot']);
+        $this->assertSame('before', $scripts[1]['shot']);
+    }
 }
