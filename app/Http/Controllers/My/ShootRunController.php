@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\My;
 
 use App\Http\Controllers\Controller;
+use App\Models\Script;
 use App\Models\Shoot;
+use App\Models\ShootVideo;
 use App\Services\ShootRun;
 use App\Support\CrewShootRecord;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use RuntimeException;
@@ -67,10 +70,11 @@ class ShootRunController extends Controller
     {
         $this->authoriseCrew($shoot);
 
-        $shoot->load(['client', 'videos.recordedBy', 'crew.user', 'notionShoot', 'reachedBy', 'departedBy']);
+        $shoot->load(['client', 'videos.recordedBy', 'videos.script', 'crew.user', 'notionShoot', 'reachedBy', 'departedBy']);
 
         return view('my.shoots.run', [
             'shoot' => $shoot,
+            'scripts' => $this->scripts($shoot),
             // Named so the screen can say which shoot is in the way, rather
             // than only that something is.
             'blockedBy' => ShootRun::runningFor(request()->user())
@@ -129,6 +133,8 @@ class ShootRunController extends Controller
             // and a title alone ("Product shot 3") rarely is.
             'photo' => ['required', 'image', 'max:12288'],
             'notes' => ['nullable', 'string', 'max:2000'],
+            // Only one of this client's own scripts can be named.
+            'script_id' => ['nullable', 'integer', Rule::exists('scripts', 'id')->where('client_id', $shoot->client_id ?? 0)],
         ]);
 
         try {
@@ -138,6 +144,7 @@ class ShootRunController extends Controller
                 name: $data['name'],
                 photo: $request->file('photo'),
                 notes: $data['notes'] ?? null,
+                scriptId: isset($data['script_id']) ? (int) $data['script_id'] : null,
             );
         } catch (RuntimeException $e) {
             throw ValidationException::withMessages(['name' => $e->getMessage()]);
@@ -157,6 +164,46 @@ class ShootRunController extends Controller
         }
 
         return redirect()->route('my.shoots.run', $shoot);
+    }
+
+    /**
+     * The client's scripts to read from on set: not shot yet first (on any
+     * shoot), the ones the client has signed off before drafts, archived
+     * ones never. Each carries its text so the reader opens with no request
+     * -- signal on location is the thing that cannot be counted on.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function scripts(Shoot $shoot): array
+    {
+        if (! $shoot->client_id) {
+            return [];
+        }
+
+        $shot = ShootVideo::query()->whereNotNull('script_id')
+            ->selectRaw('script_id, MAX(shoot_id = ?) AS here', [$shoot->id])
+            ->groupBy('script_id')
+            ->pluck('here', 'script_id');
+
+        $rank = [Script::STATUS_COMPLETED => 0, Script::STATUS_CLIENT_REVIEW => 1, Script::STATUS_READY => 2];
+
+        return Script::query()
+            ->where('client_id', $shoot->client_id)
+            ->where('status', '!=', Script::STATUS_ARCHIVED)
+            ->with('sections')
+            ->get()
+            ->sortBy(fn (Script $s) => [$shot->has($s->id) ? 1 : 0, $rank[$s->status] ?? 3, $s->id])
+            ->map(fn (Script $s) => [
+                'id' => $s->id,
+                'title' => $s->title,
+                'status' => $s->status === Script::STATUS_COMPLETED ? 'Approved' : $s->statusLabel(),
+                'shot' => $shot->has($s->id) ? ((int) $shot[$s->id] ? 'here' : 'before') : null,
+                'sections' => $s->sections->reject->isEmpty()
+                    ->map(fn ($sec) => ['heading' => $sec->heading, 'body' => $sec->body])->values()->all(),
+            ])
+            ->filter(fn ($s) => $s['sections'] !== [])
+            ->values()
+            ->all();
     }
 
     /**

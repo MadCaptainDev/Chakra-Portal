@@ -149,6 +149,7 @@ class ShootRun
         string $name,
         ?UploadedFile $photo = null,
         ?string $notes = null,
+        ?int $scriptId = null,
     ): ShootVideo {
         /*
          * Two different refusals, because "not in progress" covers two
@@ -168,7 +169,7 @@ class ShootRun
         // table during an upload is not.
         $photoPath = $photo ? PublicUpload::store($photo, 'shoot-videos') : null;
 
-        return DB::transaction(function () use ($shoot, $crewMember, $name, $photoPath, $notes) {
+        return DB::transaction(function () use ($shoot, $crewMember, $name, $photoPath, $notes, $scriptId) {
             $position = (int) ShootVideo::query()
                 ->where('shoot_id', $shoot->id)
                 ->lockForUpdate()
@@ -176,6 +177,7 @@ class ShootRun
 
             return ShootVideo::create([
                 'shoot_id' => $shoot->id,
+                'script_id' => $scriptId,
                 'recorded_by_id' => $crewMember->id,
                 'name' => $name,
                 'photo_path' => $photoPath,

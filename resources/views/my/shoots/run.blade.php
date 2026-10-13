@@ -144,7 +144,8 @@
 
         {{-- ================= RUNNING ================= --}}
         @else
-            <div class="mx-auto max-w-sm">
+            <div class="mx-auto max-w-sm"
+                 x-data="shootScripts(@js(['scripts' => $scripts, 'oldName' => old('name', ''), 'oldScriptId' => old('script_id')]))">
                 @if ($justSaved)
                     {{-- The fork: another one, or done. --}}
                     <div class="text-center">
@@ -157,6 +158,13 @@
                         <p class="mt-1 text-sm text-white/50">{{ $videos->last()?->name }}</p>
 
                         <div class="mt-8 space-y-3">
+                            <template x-if="todo.length > 0">
+                                <button type="button" @click="open(todo[0])"
+                                        class="block w-full rounded-2xl bg-amber-400 px-6 py-4 text-left text-brand-900 active:scale-[0.98] transition">
+                                    <span class="block text-xs font-semibold uppercase tracking-wide text-brand-900/60">Read next script</span>
+                                    <span class="block truncate text-base font-bold" x-text="todo[0].title"></span>
+                                </button>
+                            </template>
                             <a href="{{ route('my.shoots.run', $shoot) }}"
                                class="block w-full rounded-2xl bg-white px-6 py-4 text-base font-semibold text-brand-900 active:scale-[0.98] transition">
                                 Next video
@@ -173,18 +181,116 @@
                         </div>
                     </div>
                 @else
-                    <form method="POST" action="{{ route('my.shoots.videos.store', $shoot) }}"
-                          enctype="multipart/form-data" class="space-y-5">
+                    {{-- Scripts: read on set, then "Shot it" names the video after the script. --}}
+                    @if ($scripts)
+                        <section class="mb-6">
+                            <div class="flex items-baseline justify-between">
+                                <p class="text-xs uppercase tracking-wide text-white/40">Scripts</p>
+                                <p class="text-xs text-white/40"><span x-text="done.length"></span> of <span x-text="scripts.length"></span> shot</p>
+                            </div>
+                            <ul class="mt-2 space-y-2">
+                                <template x-for="s in todo" :key="s.id">
+                                    <li>
+                                        <button type="button" @click="open(s)"
+                                                class="flex w-full items-center gap-3 rounded-xl bg-white/5 px-3.5 py-3 text-left ring-1 ring-white/10 active:scale-[0.99] transition"
+                                                :class="scriptId === s.id ? 'ring-2 ring-amber-400' : ''">
+                                            <x-icon name="document" class="h-5 w-5 shrink-0 text-amber-300" />
+                                            <span class="min-w-0 flex-1">
+                                                <span class="block truncate text-sm font-medium" x-text="s.title"></span>
+                                                <span class="block text-xs text-white/40" x-text="s.status"></span>
+                                            </span>
+                                            <span class="shrink-0 text-xs font-semibold text-amber-300">Read</span>
+                                        </button>
+                                    </li>
+                                </template>
+                            </ul>
+                            <template x-if="todo.length === 0">
+                                <p class="mt-2 rounded-xl bg-emerald-500/10 px-3.5 py-3 text-sm text-emerald-200">Every script has been shot.</p>
+                            </template>
+
+                            <template x-if="done.length > 0">
+                                <div class="mt-2">
+                                    <button type="button" @click="showShot = !showShot" class="py-1.5 text-xs text-white/50 underline underline-offset-4">
+                                        <span x-text="showShot ? 'Hide' : 'Show'"></span> already shot (<span x-text="done.length"></span>)
+                                    </button>
+                                    <ul x-show="showShot" class="mt-1.5 space-y-1.5">
+                                        <template x-for="s in done" :key="s.id">
+                                            <li>
+                                                <button type="button" @click="open(s)" class="flex w-full items-center gap-3 rounded-xl bg-white/[0.03] px-3.5 py-2.5 text-left">
+                                                    <x-icon name="check-circle" class="h-4 w-4 shrink-0 text-emerald-400" />
+                                                    <span class="min-w-0 flex-1 truncate text-sm text-white/60" x-text="s.title"></span>
+                                                    <span class="shrink-0 text-[11px] text-white/35" x-text="s.shot === 'here' ? 'this shoot' : 'earlier shoot'"></span>
+                                                </button>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </div>
+                            </template>
+                        </section>
+
+                        {{-- The reader: full screen, big type, auto-scroll. --}}
+                        <template x-teleport="body">
+                            <div x-show="!!reading" x-cloak @keydown.escape.window="close()"
+                                 class="fixed inset-0 z-[70] flex flex-col bg-black text-white">
+                                <div class="flex items-center gap-2 border-b border-white/10 px-3 py-2.5">
+                                    <button type="button" @click="close()" class="rounded-lg p-2 text-white/60 hover:bg-white/10" aria-label="Close script">
+                                        <span class="block h-5 w-5 text-center text-lg leading-5" aria-hidden="true">✕</span>
+                                    </button>
+                                    <p class="min-w-0 flex-1 truncate text-sm font-semibold" x-text="reading?.title"></p>
+                                    <button type="button" @click="smaller()" class="h-10 w-10 rounded-lg bg-white/10 text-sm font-bold" aria-label="Smaller text">A−</button>
+                                    <button type="button" @click="bigger()" class="h-10 w-10 rounded-lg bg-white/10 text-lg font-bold" aria-label="Bigger text">A+</button>
+                                </div>
+
+                                <div x-ref="page" @click="stop()" class="flex-1 overflow-y-auto px-5 pb-[60vh] pt-6">
+                                    <template x-for="(sec, i) in (reading?.sections || [])" :key="i">
+                                        <div class="mb-8">
+                                            <p class="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-300" x-text="sec.heading"></p>
+                                            <div class="leading-snug [&_p]:mb-4" :style="`font-size: ${size}px`" x-html="sec.body"></div>
+                                        </div>
+                                    </template>
+                                </div>
+
+                                <div class="border-t border-white/10 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+                                    <div class="flex items-center gap-2">
+                                        <button type="button" @click="slower()" class="h-12 w-12 shrink-0 rounded-xl bg-white/10 text-lg" aria-label="Scroll slower">−</button>
+                                        <button type="button" @click="toggle()"
+                                                class="h-12 flex-1 rounded-xl text-sm font-bold"
+                                                :class="scrolling ? 'bg-white/15 text-white' : 'bg-white/10 text-white/80'">
+                                            <span x-text="scrolling ? 'Pause scroll' : 'Auto-scroll'"></span>
+                                            <span class="ml-1 text-xs font-normal text-white/50" x-text="speed"></span>
+                                        </button>
+                                        <button type="button" @click="faster()" class="h-12 w-12 shrink-0 rounded-xl bg-white/10 text-lg" aria-label="Scroll faster">+</button>
+                                    </div>
+                                    <button type="button" @click="shotIt()"
+                                            class="mt-2 h-14 w-full rounded-xl bg-amber-400 text-base font-bold text-brand-900 active:scale-[0.98] transition">
+                                        Shot it — save this video
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    @endif
+
+                    <form method="POST" action="{{ route('my.shoots.videos.store', $shoot) }}" x-ref="form"
+                          enctype="multipart/form-data" class="space-y-5 scroll-mt-4">
                         @csrf
+                        <input type="hidden" name="script_id" :value="scriptId ?? ''">
 
                         <div>
                             <p class="text-xs uppercase tracking-wide text-white/40">
                                 Video {{ $videos->count() + 1 }}
                             </p>
-                            <input type="text" name="name" value="{{ old('name') }}" required autofocus
+                            <input type="text" name="name" x-model="name" required
                                    placeholder="Video title"
                                    class="mt-2 w-full rounded-xl border-0 bg-white/10 px-4 py-3.5 text-base text-white placeholder-white/30 focus:ring-2 focus:ring-white/40">
                             <x-input-error :messages="$errors->get('name')" class="mt-1.5" />
+                            <x-input-error :messages="$errors->get('script_id')" class="mt-1.5" />
+                            <template x-if="!!linked">
+                                <p class="mt-2 flex items-center gap-2 rounded-lg bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
+                                    <x-icon name="document" class="h-4 w-4 shrink-0" />
+                                    <span class="min-w-0 flex-1 truncate">From script: <span x-text="linked?.title"></span></span>
+                                    <button type="button" @click="unlink()" class="shrink-0 text-amber-200/60 underline">Unlink</button>
+                                </p>
+                            </template>
                         </div>
 
                         <div>
@@ -192,7 +298,7 @@
                             {{-- capture lets a phone open the camera straight away
                                  instead of the gallery, which is what is wanted
                                  standing on set. --}}
-                            <input type="file" name="photo" accept="image/*" capture="environment" required
+                            <input type="file" name="photo" x-ref="photo" accept="image/*" capture="environment" required
                                    class="mt-2 w-full rounded-xl bg-white/10 px-4 py-3 text-sm text-white/70 file:mr-3 file:rounded-lg file:border-0 file:bg-white/15 file:px-3 file:py-1.5 file:text-sm file:text-white">
                             <x-input-error :messages="$errors->get('photo')" class="mt-1.5" />
                         </div>

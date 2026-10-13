@@ -10,6 +10,7 @@ import { inboxDesk } from './inbox-desk.js';
 import { serviceExplorer, hoursPipeline } from './home-studio.js';
 import { loginMascot } from './login-mascot.js';
 import { editingDay } from './editing-day.js';
+import { shootScripts } from './shoot-scripts.js';
 
 window.Alpine = Alpine;
 
@@ -24,6 +25,7 @@ Alpine.data('proposalComment', proposalComment);
 
 // The editors' video board -- see resources/js/editing-day.js.
 Alpine.data('editingDay', editingDay);
+Alpine.data('shootScripts', shootScripts);
 
 // The proposal editor: the document typed into directly -- see
 // resources/js/proposal-editor.js. x-edit is its contenteditable binding.

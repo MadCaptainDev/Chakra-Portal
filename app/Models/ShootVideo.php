@@ -16,6 +16,7 @@ class ShootVideo extends Model
 {
     protected $fillable = [
         'shoot_id',
+        'script_id',
         'recorded_by_id',
         'name',
         'photo_path',
@@ -26,6 +27,12 @@ class ShootVideo extends Model
     public function shoot(): BelongsTo
     {
         return $this->belongsTo(Shoot::class);
+    }
+
+    /** The script it was shot from, when one was picked on set. */
+    public function script(): BelongsTo
+    {
+        return $this->belongsTo(Script::class);
     }
 
     public function recordedBy(): BelongsTo

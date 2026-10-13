@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\Client;
+use App\Models\Script;
 use App\Models\Shoot;
 use App\Models\ShootCrew;
 use App\Models\ShootVideo;
@@ -429,5 +431,84 @@ class ShootRunTest extends TestCase
         $shoot->delete();
 
         $this->assertSame(0, ShootVideo::query()->count());
+    }
+
+    // ——— Scripts on set ———
+
+    private function script(Client $client, string $title, string $status = Script::STATUS_DRAFT, string $text = 'Hook line'): Script
+    {
+        $script = Script::create(['client_id' => $client->id, 'title' => $title, 'status' => $status, 'priority' => Script::PRIORITY_NORMAL]);
+        $section = $script->sections()->make(['heading' => 'Script']);
+        $section->position = 0;
+        $section->body = '<p>'.$text.'</p>';
+        $section->save();
+
+        return $script;
+    }
+
+    public function test_the_rolling_screen_carries_the_clients_scripts_unshot_and_approved_first(): void
+    {
+        $client = Client::create(['name' => 'Squad Architects']);
+        $other = Client::create(['name' => 'Someone Else']);
+        $shoot = $this->shoot(['client_id' => $client->id]);
+        $crew = $this->crewMember($shoot);
+        ShootRun::start($shoot, $crew);
+
+        $draft = $this->script($client, 'Draft one');
+        $approved = $this->script($client, 'Approved one', Script::STATUS_COMPLETED, 'Italian Marble? ZERO dhaan');
+        $this->script($client, 'Archived one', Script::STATUS_ARCHIVED);
+        $this->script($other, 'Not their script');
+        Script::create(['client_id' => $client->id, 'title' => 'Empty one', 'status' => Script::STATUS_DRAFT, 'priority' => Script::PRIORITY_NORMAL]);
+
+        $scripts = $this->actingAs($crew)->get(route('my.shoots.run', $shoot))
+            ->assertOk()
+            ->assertSee('ZERO dhaan')
+            ->viewData('scripts');
+
+        $this->assertSame([$approved->id, $draft->id], array_column($scripts, 'id'));
+        $this->assertSame('Approved', $scripts[0]['status']);
+    }
+
+    public function test_a_video_shot_from_a_script_is_linked_and_ticked_off(): void
+    {
+        $client = Client::create(['name' => 'Squad Architects']);
+        $shoot = $this->shoot(['client_id' => $client->id]);
+        $crew = $this->crewMember($shoot);
+        ShootRun::start($shoot, $crew);
+        $tiles = $this->script($client, 'Which Tile for Which Room');
+        $plants = $this->script($client, 'Plants');
+
+        $this->actingAs($crew)->post(route('my.shoots.videos.store', $shoot), [
+            'name' => 'Which Tile for Which Room',
+            'script_id' => $tiles->id,
+            'photo' => UploadedFile::fake()->image('still.jpg'),
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $video = ShootVideo::firstOrFail();
+        $this->assertSame($tiles->id, $video->script_id);
+
+        $scripts = $this->actingAs($crew)->get(route('my.shoots.run', $shoot))->viewData('scripts');
+        $this->assertSame([$plants->id, $tiles->id], array_column($scripts, 'id'));
+        $this->assertSame('here', $scripts[1]['shot']);
+
+        @unlink(public_path($video->photo_path));
+    }
+
+    public function test_another_clients_script_cannot_be_linked(): void
+    {
+        $client = Client::create(['name' => 'Squad Architects']);
+        $other = Client::create(['name' => 'Someone Else']);
+        $shoot = $this->shoot(['client_id' => $client->id]);
+        $crew = $this->crewMember($shoot);
+        ShootRun::start($shoot, $crew);
+        $theirs = $this->script($other, 'Not theirs');
+
+        $this->actingAs($crew)->post(route('my.shoots.videos.store', $shoot), [
+            'name' => 'Something',
+            'script_id' => $theirs->id,
+            'photo' => UploadedFile::fake()->image('still.jpg'),
+        ])->assertSessionHasErrors('script_id');
+
+        $this->assertSame(0, ShootVideo::count());
     }
 }
