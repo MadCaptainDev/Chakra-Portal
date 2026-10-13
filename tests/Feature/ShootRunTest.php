@@ -528,4 +528,76 @@ class ShootRunTest extends TestCase
         $this->assertNull($scripts[0]['shot']);
         $this->assertSame('before', $scripts[1]['shot']);
     }
+
+    public function test_section_times_are_filed_with_the_video_and_cleaned(): void
+    {
+        $client = Client::create(['name' => 'Squad Architects']);
+        $shoot = $this->shoot(['client_id' => $client->id]);
+        $crew = $this->crewMember($shoot);
+        ShootRun::start($shoot, $crew);
+        $tiles = $this->script($client, 'Tiles');
+
+        $this->actingAs($crew)->post(route('my.shoots.videos.store', $shoot), [
+            'name' => 'Tiles',
+            'script_id' => $tiles->id,
+            'section_log' => json_encode([
+                ['heading' => 'Hook', 'shot' => true, 'takes' => 3, 'seconds' => 95, 'extra' => 'dropped'],
+                ['heading' => 'CTA', 'shot' => false, 'takes' => 0, 'seconds' => 0],
+                ['heading' => 'Body', 'shot' => true, 'takes' => 1, 'seconds' => 999999],
+            ]),
+            'photo' => UploadedFile::fake()->image('still.jpg'),
+        ])->assertSessionHasNoErrors();
+
+        $video = ShootVideo::firstOrFail();
+        $this->assertSame(['heading' => 'Hook', 'shot' => true, 'takes' => 3, 'seconds' => 95], $video->section_log[0]);
+        $this->assertSame(86400, $video->section_log[2]['seconds']);
+        $this->assertSame(95 + 86400, $video->seconds);
+        $this->assertSame('2 of 3 sections · 1441m 35s', $video->sectionSummary());
+
+        @unlink(public_path($video->photo_path));
+    }
+
+    public function test_section_times_without_a_script_are_ignored(): void
+    {
+        $shoot = $this->shoot();
+        $crew = $this->crewMember($shoot);
+        ShootRun::start($shoot, $crew);
+
+        $this->actingAs($crew)->post(route('my.shoots.videos.store', $shoot), [
+            'name' => 'Free shot',
+            'section_log' => json_encode([['heading' => 'Hook', 'shot' => true, 'takes' => 1, 'seconds' => 10]]),
+            'photo' => UploadedFile::fake()->image('still.jpg'),
+        ])->assertSessionHasNoErrors();
+
+        $video = ShootVideo::firstOrFail();
+        $this->assertNull($video->section_log);
+        $this->assertNull($video->seconds);
+        @unlink(public_path($video->photo_path));
+    }
+
+    public function test_a_single_block_script_is_cut_into_parts_and_a_written_one_keeps_its_sections(): void
+    {
+        $client = Client::create(['name' => 'Squad Architects']);
+        $shoot = $this->shoot(['client_id' => $client->id]);
+        $crew = $this->crewMember($shoot);
+        ShootRun::start($shoot, $crew);
+        $this->script($client, 'Block', Script::STATUS_COMPLETED,
+            'Hook line that runs on for more than ten words in all of it</p><p>First uh, Sage Green.</p><p>Sage green is the trend this year in kitchens everywhere you look today</p><p>1.Bro, Italian Marble?<br>ZERO dhaan');
+        $written = Script::create(['client_id' => $client->id, 'title' => 'Written', 'status' => Script::STATUS_DRAFT, 'priority' => Script::PRIORITY_NORMAL]);
+        foreach (['Hook', 'CTA'] as $i => $heading) {
+            $sec = $written->sections()->make(['heading' => $heading]);
+            $sec->position = $i;
+            $sec->body = '<p>'.$heading.' text</p><p>more</p>';
+            $sec->save();
+        }
+
+        $scripts = $this->actingAs($crew)->get(route('my.shoots.run', $shoot))->viewData('scripts');
+
+        $block = $scripts[0]['sections'];
+        $this->assertSame(['Part 1 of 3', 'Part 2 of 3', 'Part 3 of 3'], array_column($block, 'heading'));
+        // The one-line lead-in stays with the paragraph it introduces.
+        $this->assertStringContainsString('First uh', $block[1]['body']);
+        $this->assertStringContainsString('Sage green is', $block[1]['body']);
+        $this->assertSame(['Hook', 'CTA'], array_column($scripts[1]['sections'], 'heading'));
+    }
 }

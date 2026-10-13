@@ -145,7 +145,7 @@
         {{-- ================= RUNNING ================= --}}
         @else
             <div class="mx-auto max-w-sm"
-                 x-data="shootScripts(@js(['scripts' => $scripts, 'oldName' => old('name', ''), 'oldScriptId' => old('script_id')]))">
+                 x-data="shootScripts(@js(['shootId' => $shoot->id, 'oldSectionLog' => old('section_log', ''), 'scripts' => $scripts, 'oldName' => old('name', ''), 'oldScriptId' => old('script_id')]))">
                 @if ($justSaved)
                     {{-- The fork: another one, or done. --}}
                     <div class="text-center">
@@ -243,8 +243,33 @@
 
                                 <div x-ref="page" @click="stop()" class="flex-1 overflow-y-auto px-5 pb-[60vh] pt-6">
                                     <template x-for="(sec, i) in (reading?.sections || [])" :key="i">
-                                        <div class="mb-8">
-                                            <p class="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-300" x-text="sec.heading"></p>
+                                        <div class="mb-8 rounded-xl p-2 -mx-2 transition"
+                                             :class="isRunning(i) ? 'bg-red-500/10 ring-1 ring-red-500/40' : (log?.sections[i]?.shot ? 'bg-emerald-500/[0.06]' : '')">
+                                            <div class="mb-2 flex items-center gap-2" @click.stop>
+                                                <p class="min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-[0.18em] text-amber-300" x-text="sec.heading"></p>
+                                                <span class="shrink-0 text-sm tabular-nums"
+                                                      :class="isRunning(i) ? 'text-red-300' : 'text-white/50'"
+                                                      x-show="isRunning(i) || secondsFor(i) > 0" x-text="clock(secondsFor(i))"></span>
+                                                <template x-if="isRunning(i)">
+                                                    <button type="button" @click="stopSection()"
+                                                            class="flex h-10 shrink-0 items-center gap-1.5 rounded-lg bg-red-500 px-3.5 text-sm font-bold text-white">
+                                                        <span class="h-2.5 w-2.5 rounded-[2px] bg-white"></span> Stop
+                                                    </button>
+                                                </template>
+                                                <template x-if="!isRunning(i)">
+                                                    <button type="button" @click="startSection(i)"
+                                                            class="flex h-10 shrink-0 items-center gap-1.5 rounded-lg px-3.5 text-sm font-bold"
+                                                            :class="log?.sections[i]?.takes ? 'bg-white/10 text-white/80' : 'bg-white text-black'">
+                                                        <span>▶</span> <span x-text="log?.sections[i]?.takes ? 'Retake' : 'Start'"></span>
+                                                    </button>
+                                                </template>
+                                                <button type="button" @click="toggleShot(i)" x-show="!isRunning(i)"
+                                                        class="h-10 shrink-0 rounded-lg px-2.5 text-xs font-semibold"
+                                                        :class="log?.sections[i]?.shot ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/5 text-white/40'"
+                                                        x-text="log?.sections[i]?.shot ? '✓ Shot' : 'Not shot'"></button>
+                                            </div>
+                                            <p class="mb-2 text-[11px] text-white/35" x-show="(log?.sections[i]?.takes || 0) > 1"
+                                               x-text="(log?.sections[i]?.takes || 0) + ' takes'"></p>
                                             <div class="leading-snug [&_p]:mb-4" :style="`font-size: ${size}px`" x-html="sec.body"></div>
                                         </div>
                                     </template>
@@ -262,8 +287,12 @@
                                         <button type="button" @click="faster()" class="h-12 w-12 shrink-0 rounded-xl bg-white/10 text-lg" aria-label="Scroll faster">+</button>
                                     </div>
                                     <button type="button" @click="shotIt()"
-                                            class="mt-2 h-14 w-full rounded-xl bg-amber-400 text-base font-bold text-brand-900 active:scale-[0.98] transition">
-                                        Shot it — save this video
+                                            class="mt-2 flex h-14 w-full items-center justify-between rounded-xl bg-amber-400 px-4 text-brand-900 active:scale-[0.98] transition">
+                                        <span class="text-left text-xs font-semibold leading-tight">
+                                            <span x-text="shotCount"></span> of <span x-text="reading?.sections.length"></span> sections shot<br>
+                                            <span class="tabular-nums" x-text="clock(totalSeconds)"></span>
+                                        </span>
+                                        <span class="text-base font-bold">Done — save video</span>
                                     </button>
                                 </div>
                             </div>
@@ -271,9 +300,10 @@
                     @endif
 
                     <form method="POST" action="{{ route('my.shoots.videos.store', $shoot) }}" x-ref="form"
-                          enctype="multipart/form-data" class="space-y-5 scroll-mt-4">
+                          enctype="multipart/form-data" class="space-y-5 scroll-mt-4" @submit="submitted()">
                         @csrf
                         <input type="hidden" name="script_id" :value="scriptId ?? ''">
+                        <input type="hidden" name="section_log" :value="sectionLog">
 
                         <div>
                             <p class="text-xs uppercase tracking-wide text-white/40">
@@ -287,7 +317,7 @@
                             <template x-if="!!linked">
                                 <p class="mt-2 flex items-center gap-2 rounded-lg bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
                                     <x-icon name="document" class="h-4 w-4 shrink-0" />
-                                    <span class="min-w-0 flex-1 truncate">From script: <span x-text="linked?.title"></span></span>
+                                    <span class="min-w-0 flex-1 truncate">From script: <span x-text="linked?.title"></span><template x-if="!!sectionLog"><span class="text-amber-200/60" x-text="' · ' + JSON.parse(sectionLog).filter(s => s.shot).length + ' of ' + JSON.parse(sectionLog).length + ' sections · ' + clock(JSON.parse(sectionLog).reduce((n, s) => n + s.seconds, 0))"></span></template></span>
                                     <button type="button" @click="unlink()" class="shrink-0 text-amber-200/60 underline">Unlink</button>
                                 </p>
                             </template>

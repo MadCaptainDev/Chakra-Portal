@@ -20,6 +20,9 @@
                         @if ($video->script)
                             <p class="mt-0.5 truncate text-xs text-amber-200/70">Script: {{ $video->script->title }}</p>
                         @endif
+                        @if ($video->sectionSummary())
+                            <p class="mt-0.5 text-xs text-white/50">{{ $video->sectionSummary() }}</p>
+                        @endif
                         @if ($video->notes)
                             <p class="mt-0.5 line-clamp-2 text-xs text-white/50">{{ $video->notes }}</p>
                         @endif

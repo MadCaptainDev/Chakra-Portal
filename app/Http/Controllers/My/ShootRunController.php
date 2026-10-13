@@ -135,7 +135,11 @@ class ShootRunController extends Controller
             'notes' => ['nullable', 'string', 'max:2000'],
             // Only one of this client's own scripts can be named.
             'script_id' => ['nullable', 'integer', Rule::exists('scripts', 'id')->where('client_id', $shoot->client_id ?? 0)],
+            // Section timings from the reader, sent as JSON in one field.
+            'section_log' => ['nullable', 'json', 'max:20000'],
         ]);
+
+        $log = $this->sectionLog($data['section_log'] ?? null);
 
         try {
             ShootRun::recordVideo(
@@ -145,6 +149,7 @@ class ShootRunController extends Controller
                 photo: $request->file('photo'),
                 notes: $data['notes'] ?? null,
                 scriptId: isset($data['script_id']) ? (int) $data['script_id'] : null,
+                sectionLog: isset($data['script_id']) ? $log : null,
             );
         } catch (RuntimeException $e) {
             throw ValidationException::withMessages(['name' => $e->getMessage()]);
@@ -164,6 +169,35 @@ class ShootRunController extends Controller
         }
 
         return redirect()->route('my.shoots.run', $shoot);
+    }
+
+    /**
+     * The reader's per-section log, kept to the shape the screens read and
+     * nothing else: heading, shot, takes, seconds (a day at most).
+     *
+     * @return list<array{heading: string, shot: bool, takes: int, seconds: int}>|null
+     */
+    private function sectionLog(?string $json): ?array
+    {
+        $rows = $json ? json_decode($json, true) : null;
+        if (! is_array($rows)) {
+            return null;
+        }
+
+        $clean = [];
+        foreach (array_slice(array_values($rows), 0, 50) as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $clean[] = [
+                'heading' => mb_substr(trim((string) ($row['heading'] ?? '')), 0, 255) ?: 'Section',
+                'shot' => (bool) ($row['shot'] ?? false),
+                'takes' => max(0, min(99, (int) ($row['takes'] ?? 0))),
+                'seconds' => max(0, min(86400, (int) ($row['seconds'] ?? 0))),
+            ];
+        }
+
+        return $clean ?: null;
     }
 
     /**
@@ -199,12 +233,50 @@ class ShootRunController extends Controller
                 'status' => $s->status === Script::STATUS_COMPLETED ? 'Approved' : $s->statusLabel(),
                 // A linked video says where; shot_at covers ones shot before videos were linked.
                 'shot' => $shot->has($s->id) ? ((int) $shot[$s->id] ? 'here' : 'before') : ($s->shot_at ? 'before' : null),
-                'sections' => $s->sections->reject->isEmpty()
-                    ->map(fn ($sec) => ['heading' => $sec->heading, 'body' => $sec->body])->values()->all(),
+                'sections' => $this->parts($s),
             ])
             ->filter(fn ($s) => $s['sections'] !== [])
             ->values()
             ->all();
+    }
+
+    /**
+     * What the crew time on set, one Start/Stop each. A script written in
+     * sections keeps them. One written as a single block -- most are, pasted
+     * in whole -- is cut at its paragraphs, a short one-line paragraph ("First uh, Sage
+     * Green...") staying with the paragraph it introduces, so each part is
+     * one thing to say on camera.
+     *
+     * @return list<array{heading: string, body: string}>
+     */
+    private function parts(Script $script): array
+    {
+        $sections = $script->sections->reject->isEmpty()->values();
+
+        if ($sections->count() !== 1) {
+            return $sections->map(fn ($sec) => ['heading' => $sec->heading, 'body' => $sec->body])->all();
+        }
+
+        preg_match_all('#<p\b[^>]*>.*?</p>#s', $sections[0]->body, $m);
+        $paragraphs = array_values(array_filter($m[0], fn ($p) => trim(strip_tags($p)) !== ''));
+
+        if (count($paragraphs) < 2) {
+            return [['heading' => $sections[0]->heading, 'body' => $sections[0]->body]];
+        }
+
+        $parts = [];
+        $carry = '';
+        foreach ($paragraphs as $i => $p) {
+            $carry .= $p;
+            $words = count(preg_split('/\s+/u', trim(strip_tags($p)), -1, PREG_SPLIT_NO_EMPTY));
+            if ($words <= 10 && ! str_contains($p, '<br') && $i < count($paragraphs) - 1) {
+                continue;
+            }
+            $parts[] = $carry;
+            $carry = '';
+        }
+
+        return array_map(fn ($body, $i) => ['heading' => 'Part '.($i + 1).' of '.count($parts), 'body' => $body], $parts, array_keys($parts));
     }
 
     /**

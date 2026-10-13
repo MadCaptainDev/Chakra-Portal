@@ -1,7 +1,11 @@
 /**
  * Scripts on set: the client's scripts beside the shoot runner, a full-screen
- * reader (big text, auto-scroll, screen kept awake), and "Shot it", which
- * names the next video after the script and links the two.
+ * reader (big text, auto-scroll, screen kept awake), Start/Stop per section
+ * to time each one and mark it shot or not, and "Done", which names the
+ * next video after the script, links the two and files the section times.
+ *
+ * Section times live in localStorage until the video is saved, so a reload
+ * or a dead signal mid-shoot does not lose them.
  *
  * Everything arrives with the page -- signal on location is not to be
  * counted on -- so opening a script is instant and works offline.
@@ -26,9 +30,18 @@ function store(key, value) {
     }
 }
 
-export function shootScripts({ scripts, oldName = '', oldScriptId = null }) {
+function logKey(shootId, scriptId) {
+    return `shoot-${shootId}-script-${scriptId}`;
+}
+
+export function shootScripts({ shootId, scripts, oldName = '', oldScriptId = null, oldSectionLog = '' }) {
     return {
+        shootId,
         scripts,
+        sectionLog: oldSectionLog || '', // what the form sends
+        log: null, // the open script's timings: { sections: [{shot, takes, seconds}], running: {i, since} | null }
+        tick: Date.now(),
+        ticker: null,
         name: oldName,
         scriptId: oldScriptId ? Number(oldScriptId) : null,
         reading: null, // the script open in the reader
@@ -51,13 +64,74 @@ export function shootScripts({ scripts, oldName = '', oldScriptId = null }) {
 
         open(script) {
             this.reading = script;
+            this.log = this.loadLog(script);
+            this.ticker = setInterval(() => { this.tick = Date.now(); }, 500);
             this.$nextTick(() => { this.$refs.page.scrollTop = 0; });
             this.keepAwake();
         },
         close() {
+            // A running section keeps running: closing to check something
+            // is not the same as cutting. Its start is saved.
             this.stop();
+            clearInterval(this.ticker);
             this.reading = null;
+            this.log = null;
             this.release();
+        },
+
+        // ——— Section timings ———
+        loadLog(script) {
+            let saved = null;
+            try {
+                saved = JSON.parse(localStorage.getItem(logKey(this.shootId, script.id)) || 'null');
+            } catch {
+                saved = null;
+            }
+            const sections = script.sections.map((_, i) => saved?.sections?.[i] || { shot: false, takes: 0, seconds: 0 });
+            return { sections, running: saved?.running ?? null };
+        },
+        saveLog() {
+            if (!this.reading) return;
+            store(logKey(this.shootId, this.reading.id), JSON.stringify(this.log));
+        },
+        isRunning(i) {
+            return !!this.log?.running && this.log.running.i === i;
+        },
+        startSection(i) {
+            if (this.log.running) this.stopSection();
+            this.log.running = { i, since: Date.now() };
+            this.saveLog();
+        },
+        stopSection() {
+            const run = this.log.running;
+            if (!run) return;
+            const sec = this.log.sections[run.i];
+            sec.seconds += Math.max(1, Math.round((Date.now() - run.since) / 1000));
+            sec.takes += 1;
+            sec.shot = true;
+            this.log.running = null;
+            this.saveLog();
+        },
+        toggleShot(i) {
+            this.log.sections[i].shot = !this.log.sections[i].shot;
+            this.saveLog();
+        },
+        secondsFor(i) {
+            const sec = this.log?.sections[i];
+            if (!sec) return 0;
+            const live = this.isRunning(i) ? Math.floor((this.tick - this.log.running.since) / 1000) : 0;
+            return sec.seconds + Math.max(0, live);
+        },
+        get shotCount() {
+            return this.log ? this.log.sections.filter((s) => s.shot).length : 0;
+        },
+        get totalSeconds() {
+            return this.log ? this.log.sections.reduce((n, _, i) => n + this.secondsFor(i), 0) : 0;
+        },
+        clock(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = String(seconds % 60).padStart(2, '0');
+            return `${m}:${s}`;
         },
 
         bigger() {
@@ -129,6 +203,13 @@ export function shootScripts({ scripts, oldName = '', oldScriptId = null }) {
         // ——— Into the video form ———
         shotIt() {
             const script = this.reading;
+            if (this.log.running) this.stopSection();
+            this.sectionLog = JSON.stringify(script.sections.map((sec, i) => ({
+                heading: sec.heading,
+                shot: this.log.sections[i].shot,
+                takes: this.log.sections[i].takes,
+                seconds: this.log.sections[i].seconds,
+            })));
             this.close();
             this.use(script);
             this.$nextTick(() => {
@@ -142,6 +223,18 @@ export function shootScripts({ scripts, oldName = '', oldScriptId = null }) {
         },
         unlink() {
             this.scriptId = null;
+            this.sectionLog = '';
+        },
+        // The video is being saved: its timings go with it, so the phone
+        // can forget them. A failed save comes back with them in old().
+        submitted() {
+            if (this.scriptId) {
+                try {
+                    localStorage.removeItem(logKey(this.shootId, this.scriptId));
+                } catch {
+                    // Nothing stored.
+                }
+            }
         },
     };
 }
