@@ -133,6 +133,29 @@ class MyEditingTest extends TestCase
         $this->assertTrue($video->fresh()->isPosted());
     }
 
+    public function test_an_editor_removes_a_video_and_a_planner_item_comes_back(): void
+    {
+        $item = $this->plannerItem();
+        $id = $this->actingAs($this->sanjai)->postJson(route('my.editing.store'), ['content_item_id' => $item->id])->json('card.id');
+        $this->postJson(route('my.editing.act', $id), ['action' => 'start']);
+        $this->postJson(route('my.editing.correct', $id), ['title' => 'Logo']);
+
+        $this->postJson(route('my.editing.act', $id), ['action' => 'remove'])->assertOk()->assertJsonPath('removed', $id);
+        $this->assertSame(Todo::STATUS_CANCELLED, Todo::find($id)->status);
+        $this->assertSame(Todo::STATUS_CANCELLED, Todo::where('parent_id', $id)->sole()->status, 'its open correction goes too');
+
+        // Off the board, back in Up next, and adding it again makes a fresh card.
+        $this->get(route('my.editing'))
+            ->assertViewHas('cards', fn (array $cards) => $cards === [])
+            ->assertViewHas('planner', fn (array $p) => array_column($p, 'id') === [$item->id]);
+        $again = $this->postJson(route('my.editing.store'), ['content_item_id' => $item->id])->assertJsonMissingPath('existing')->json('card.id');
+        $this->assertNotSame($id, $again);
+
+        // Someone else cannot remove it; a posted video cannot be removed.
+        $other = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
+        $this->actingAs($other)->postJson(route('my.editing.act', $again), ['action' => 'remove'])->assertNotFound();
+    }
+
     public function test_a_correction_on_a_finished_video_puts_it_back_to_working(): void
     {
         $this->actingAs($this->sanjai)->postJson(route('my.editing.store'), ['title' => 'SVA - Frock']);

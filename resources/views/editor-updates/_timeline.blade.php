@@ -36,7 +36,7 @@
     </style>
 @endpush
 
-<section class="rounded-2xl bg-white/[0.03] ring-1 ring-white/10" x-data="editorTimeline(@js($timeline), @js(route('editor-updates.live', ['date' => $day->toDateString()])))">
+<section class="rounded-2xl bg-white/[0.03] ring-1 ring-white/10">
     {{-- Header: live state and what is waiting --}}
     <div class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-white/10 px-4 py-3 sm:px-5">
         <p class="flex items-center gap-2 font-semibold text-white">

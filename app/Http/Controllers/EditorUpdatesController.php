@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Todo;
 use App\Models\TodoUpdate;
 use App\Models\User;
+use App\Support\EditorBoard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -223,6 +224,8 @@ class EditorUpdatesController extends Controller
                 'late' => $ready->filter->isLateToPublish()->count(),
             ],
             'totals' => $this->totals($people),
+            // Now, for today only: what needs the admin and each editor in a card.
+            'board' => $isToday ? (fn (EditorBoard $b) => $b->board($b->moves($day)))(app(EditorBoard::class)) : null,
         ];
     }
 
@@ -310,6 +313,7 @@ class EditorUpdatesController extends Controller
                 : $this->make($u, $owner, 'moved', 'Moved to '.($u->to_on?->isSameDay($u->created_at->copy()->addDay()) ? 'next day' : $u->to_on?->format('D j M')), $u->note),
             $u->action !== TodoUpdate::STATUS => null,
             $u->to_status === Todo::STATUS_BLOCKED => $this->make($u, $owner, 'hold', 'On hold', $u->note),
+            $u->to_status === Todo::STATUS_CANCELLED => $this->make($u, $owner, 'other', 'Removed'),
             $u->to_status === Todo::STATUS_STARTED => match ($u->from_status) {
                 Todo::STATUS_COMPLETED => $this->make($u, $owner, 'started', 'Back to working', $u->note),
                 Todo::STATUS_BLOCKED => $this->make($u, $owner, 'started', 'Resumed'),

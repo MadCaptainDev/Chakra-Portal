@@ -266,6 +266,14 @@ export function editingDay({ cards, planner, hints, kinds, urls }) {
                 this.fixing = null;
             });
         },
+        remove(card) {
+            if (!window.confirm(`Remove "${card.title}" from your board?`)) return;
+            this.run(`${card.id}remove`, async () => {
+                await post(urls.act.replace('__ID__', card.id), { action: 'remove' });
+                this.cards = this.cards.filter((c) => c.id !== card.id);
+                this.say('Removed.');
+            });
+        },
         refreshNotion() {
             this.refreshing = true;
             post(urls.refresh)

@@ -69,6 +69,7 @@ class EditingController extends Controller
 
         // Already on the board? Hand that card back rather than a second one.
         $existing = Todo::query()->where('user_id', $user->id)->whereNull('parent_id')
+            ->where('status', '!=', Todo::STATUS_CANCELLED)
             ->when($item, fn ($q) => $q->where('content_item_id', $item->id), fn ($q) => $q->where('title', $title)->open())
             ->first();
         if ($existing) {
@@ -105,7 +106,7 @@ class EditingController extends Controller
         $user = $request->user();
         $this->authorise($todo, $user);
         $data = $request->validate([
-            'action' => ['required', 'in:start,done,reopen,ready,post,deliver,unpost,kind,hold,next,today'],
+            'action' => ['required', 'in:start,done,reopen,ready,post,deliver,unpost,kind,hold,next,today,remove'],
             'kind' => ['nullable', 'in:'.implode(',', array_keys(Todo::KINDS))],
             'post_url' => ['nullable', 'url', 'max:500'],
             'note' => ['nullable', 'string', 'max:255'],
@@ -113,6 +114,22 @@ class EditingController extends Controller
         ], ['publish_at.required_if' => 'Set when it is to be published.']);
         if (in_array($data['action'], ['hold', 'next', 'today'], true) && ($todo->parent_id || ! $todo->isOpen())) {
             return response()->json(['message' => 'Only a video still on your board can be held or moved.'], 422);
+        }
+
+        // Remove: a video added by mistake, or not this editor's after all. It is
+        // cancelled, not deleted -- its history stays -- and leaves the board;
+        // a planner item comes back to Up next. Not once it has gone out.
+        if ($data['action'] === 'remove') {
+            if ($todo->parent_id || $todo->posted_at) {
+                return response()->json(['message' => 'A video that has gone out cannot be removed.'], 422);
+            }
+            if ($todo->status !== Todo::STATUS_CANCELLED) {
+                $todo->moveTo(Todo::STATUS_CANCELLED, $user, $data['note'] ?? 'Removed from the board');
+                $todo->corrections()->open()->get()->each(fn (Todo $fix) => $fix->moveTo(Todo::STATUS_CANCELLED, $user, 'Video removed'));
+                $todo->forceFill(['ready_at' => null, 'publish_at' => null, 'publish_reminded_at' => null])->save();
+            }
+
+            return response()->json(['removed' => $todo->id]);
         }
 
         switch ($data['action']) {
@@ -269,6 +286,7 @@ class EditingController extends Controller
         return Todo::query()
             ->where('user_id', $user->id)
             ->whereNull('parent_id')
+            ->where('status', '!=', Todo::STATUS_CANCELLED)
             ->where(fn ($q) => $q->open()->orWhereDate('closed_on', today())->orWhereDate('posted_at', today())
                 ->orWhere(fn ($q) => $q->where('status', Todo::STATUS_COMPLETED)->whereNull('posted_at')->whereDate('closed_on', '>=', today()->subDays(14))))
             ->with('corrections', 'updates', 'contentItem')
@@ -336,7 +354,8 @@ class EditingController extends Controller
     private function planner(User $user): array
     {
         $first = strtok($user->name, ' ');
-        $taken = Todo::query()->where('user_id', $user->id)->whereNotNull('content_item_id')->pluck('content_item_id');
+        $taken = Todo::query()->where('user_id', $user->id)->whereNotNull('content_item_id')
+            ->where('status', '!=', Todo::STATUS_CANCELLED)->pluck('content_item_id');
 
         return ContentItem::query()
             ->whereIn('status', self::TO_EDIT)

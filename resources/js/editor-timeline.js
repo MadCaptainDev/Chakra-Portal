@@ -28,7 +28,7 @@ export function editorTimeline(initial, url) {
         init() {
             this.data.lanes.forEach((l) => l.marks.forEach((m) => this.seen.add(m.id)));
             if (!this.data.is_today) return;
-            setInterval(() => { this.clock = Date.now(); }, 30_000);
+            setInterval(() => { this.clock = Date.now(); }, 20_000);
             setInterval(() => { if (!document.hidden) this.read(); }, EVERY_MS);
             document.addEventListener('visibilitychange', () => { if (!document.hidden) this.read(); });
         },
@@ -104,6 +104,47 @@ export function editorTimeline(initial, url) {
                 working: 'Editing', hold: 'On hold', celebrate: 'Just posted!', active: 'Active', idle: 'Idle',
             }[lane.state] ?? '';
         },
+        // ——— The board on top: what needs the admin, and each editor ———
+        needLook(n) {
+            return {
+                late: { icon: '⚠', chip: 'bg-red-500/20 text-red-200', text: 'text-red-200', href: '#ready-queue', cta: 'Open' },
+                review: { icon: '◷', chip: 'bg-sky-400/15 text-sky-200', text: 'text-white', href: '#review-queue', cta: 'Review' },
+                hold: { icon: '⏸', chip: 'bg-violet-400/15 text-violet-200', text: 'text-white', href: null, cta: '' },
+                long: { icon: '⏳', chip: 'bg-amber-400/15 text-amber-200', text: 'text-white', href: null, cta: '' },
+                idle: { icon: '💤', chip: 'bg-white/10 text-brand-100/70', text: 'text-white', href: null, cta: '' },
+            }[n.kind] ?? { icon: '•', chip: 'bg-white/10', text: 'text-white', href: null, cta: '' };
+        },
+        needTitle(n) {
+            return {
+                late: `Not published: ${n.text}`,
+                review: `${n.count} ${n.count === 1 ? 'video' : 'videos'} waiting for your review`,
+                hold: `${n.person}: ${n.count} on hold`,
+                long: `${n.person} has been on one video a long time`,
+                idle: n.text,
+            }[n.kind] ?? n.text;
+        },
+        needLine(n) {
+            return {
+                late: `${n.person ?? 'Editor'} · ${n.detail}`,
+                review: `Oldest: ${n.text}${n.person ? ` (${n.person})` : ''} · ${n.detail.split(' · ').pop()}`,
+                hold: `${n.text} · ${n.detail.split(' · ').slice(1).join(' · ')}`,
+                long: `${n.text} · ${n.detail}`,
+                idle: n.detail,
+            }[n.kind] ?? n.detail;
+        },
+        span(min) {
+            if (min === null || min === undefined) return '';
+            return min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : `${min}m`;
+        },
+        /** Minutes since a moment, counting on between reads. */
+        runFor(ms) {
+            if (!ms) return null;
+            return Math.max(0, Math.floor((this.data.now + (this.clock - this.received) - ms) / 60000));
+        },
+        laneOf(name) {
+            return this.data.lanes.find((l) => l.name === name);
+        },
+
         hm(min) {
             return min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : `${min}m`;
         },

@@ -25,7 +25,7 @@
         <p x-show="error" x-cloak class="rounded-lg bg-red-500/15 px-3 py-2 text-sm text-red-200 lg:col-span-2" x-text="error"></p>
 
         {{-- Waiting for review --}}
-        <div class="rounded-2xl bg-sky-400/[0.05] ring-1 ring-sky-400/25">
+        <div id="review-queue" class="scroll-mt-24 rounded-2xl bg-sky-400/[0.05] ring-1 ring-sky-400/25">
             <div class="border-b border-sky-400/15 px-4 py-3">
                 <p class="font-semibold text-white">Waiting for review <span class="ml-1 rounded-full bg-sky-400/20 px-2 py-0.5 text-xs text-sky-200">{{ $review->count() }}</span></p>
                 <p class="text-xs text-brand-100/55">A change? Send a correction back. All good? Video ready with its publishing time — or Delivered.</p>
@@ -70,7 +70,7 @@
         </div>
 
         {{-- Ready to publish --}}
-        <div class="rounded-2xl bg-violet-400/[0.05] ring-1 ring-violet-400/25">
+        <div id="ready-queue" class="scroll-mt-24 rounded-2xl bg-violet-400/[0.05] ring-1 ring-violet-400/25">
             <div class="border-b border-violet-400/15 px-4 py-3">
                 <p class="font-semibold text-white">Ready to publish <span class="ml-1 rounded-full bg-violet-400/20 px-2 py-0.5 text-xs text-violet-200">{{ $ready->count() }}</span>
                     @if ($lateCount = $ready->filter->isLateToPublish()->count())

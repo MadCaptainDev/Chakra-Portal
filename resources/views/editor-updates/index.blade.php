@@ -39,12 +39,18 @@
     <div class="mx-auto max-w-6xl space-y-5">
         <x-day-nav route="editor-updates" :day="$day" :subtitle="$isToday ? 'Live — updates as people work' : null" />
 
-        @include('editor-updates._timeline')
+        {{-- Read top-down: what needs you, each editor now, the day's flow (live,
+             today), the queues to act on, the timeline; detail last. --}}
+        <div class="space-y-5" x-data="editorTimeline(@js($timeline), @js(route('editor-updates.live', ['date' => $day->toDateString()])))">
+            @include('editor-updates._now')
 
-        @include('editor-updates._queue')
+            @include('editor-updates._queue')
 
-        {{-- The day in four numbers --}}
-        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            @include('editor-updates._timeline')
+        </div>
+
+        {{-- A past day: its numbers (today's are in the live flow above) --}}
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4" @if ($isToday) hidden @endif>
             @foreach ([['Added', $totals['added'], 'text-white'], ['Corrections', $totals['fixes'], 'text-orange-200'], ['Done', $totals['done'], 'text-sky-200'], ['Posted', $totals['posted'], 'text-emerald-200']] as [$label, $n, $color])
                 <div class="rounded-xl bg-white/5 px-4 py-3 ring-1 ring-white/10">
                     <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-100/50">{{ $label }}</p>
@@ -60,10 +66,14 @@
             </div>
         @endif
 
+        @if ($people->isNotEmpty())
+            <h2 class="pt-2 text-xs font-bold uppercase tracking-[0.16em] text-brand-100/50">Video by video <span class="font-normal normal-case tracking-normal text-brand-100/40">— every move, tap a name to open</span></h2>
+        @endif
+
         @foreach ($people as $p)
-            <section class="rounded-2xl bg-white/[0.03] ring-1 ring-white/10" x-data="{ still: false }">
+            <details class="group rounded-2xl bg-white/[0.03] ring-1 ring-white/10" x-data="{ still: false }" @if (! $isToday) open @endif>
                 {{-- Who, and their day in a line --}}
-                <div class="flex flex-wrap items-center gap-3 border-b border-white/10 px-4 py-3.5 sm:px-5">
+                <summary class="flex cursor-pointer list-none flex-wrap items-center gap-3 px-4 py-3.5 group-open:border-b group-open:border-white/10 sm:px-5 [&::-webkit-details-marker]:hidden">
                     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-400/20 text-sm font-bold text-brand-200">{{ mb_strtoupper(mb_substr($p['user']->name, 0, 1)) }}</span>
                     <div class="min-w-0 flex-1">
                         <p class="font-semibold text-white">{{ $p['user']->name }}</p>
@@ -83,7 +93,8 @@
                             @endif
                         @endforeach
                     </div>
-                </div>
+                    <span class="text-brand-100/40 transition group-open:rotate-180">▾</span>
+                </summary>
 
                 {{-- What moved --}}
                 <div class="divide-y divide-white/5">
@@ -147,7 +158,7 @@
                         </ul>
                     </div>
                 @endif
-            </section>
+            </details>
         @endforeach
     </div>
 </x-app-layout>
