@@ -212,6 +212,52 @@ class InboxDeskTest extends TestCase
         $this->assertSame('open', $board['routines'][0]['accounts'][0]['cells'][$evening['id']]['state']);
     }
 
+    public function test_a_round_starts_with_one_tap_and_stops_on_its_last_tick(): void
+    {
+        Carbon::setTestNow(today()->setTime(10, 0));
+        [$routine, $sanjai] = $this->deskRoutine(['brand_a']);
+        $routine->checkpoints->each(fn ($cp) => $cp->update(['name' => 'Morning '.$cp->name]));
+
+        $board = $this->actingAs($sanjai)->postJson(route('inbox-desk.round.start'), ['routine_id' => $routine->id, 'round' => 'morning'])
+            ->assertOk()->assertJsonPath('message', 'Morning round started.')->json('board');
+        $this->assertSame('running', $board['rounds'][$routine->id][0]['state']);
+
+        // Ticking: the clock runs until the round's last tile.
+        Carbon::setTestNow(today()->setTime(10, 12));
+        $open = RoutineOccurrence::query()->open()->orderBy('id')->get();
+        $this->postJson(route('inbox-desk.check', $open[0]->id), ['count' => 4])->assertOk();
+        $this->assertNull(\App\Models\CheckRound::sole()->ended_at);
+        Carbon::setTestNow(today()->setTime(10, 18));
+        $board = $this->postJson(route('inbox-desk.check', $open[1]->id), ['count' => 2])->json('board');
+
+        $round = $board['rounds'][$routine->id][0];
+        $this->assertSame(['done', 18, 6, 2], [$round['state'], $round['minutes'], $round['replies'], $round['checks']]);
+
+        // Undo puts the round back to running; a stranger cannot start one.
+        $done = RoutineOccurrence::query()->where('status', 'done')->latest('id')->first();
+        $this->postJson(route('inbox-desk.undo', $done->id))->assertOk();
+        $this->assertNull(\App\Models\CheckRound::sole()->ended_at);
+        $this->actingAs(User::factory()->employee()->create())
+            ->postJson(route('inbox-desk.round.start'), ['routine_id' => $routine->id, 'round' => 'morning'])->assertNotFound();
+    }
+
+    public function test_ticking_without_start_times_the_round_from_the_first_tick_and_admins_see_the_week(): void
+    {
+        Carbon::setTestNow(today()->setTime(16, 0));
+        [$routine, $sanjai] = $this->deskRoutine(['brand_a']);
+        foreach (RoutineOccurrence::query()->open()->get() as $i => $row) {
+            Carbon::setTestNow(today()->setTime(16, $i * 10));
+            $this->actingAs($sanjai)->postJson(route('inbox-desk.check', $row->id), ['count' => 1]);
+        }
+        $round = \App\Models\CheckRound::sole();
+        $this->assertTrue($round->auto_started);
+        $this->assertSame(10, $round->minutes());
+
+        $week = $this->actingAs(User::factory()->create())->getJson(route('inbox-desk.state'))->json('week');
+        $this->assertSame(10, $week['days'][0]['rounds']['daily']['minutes']);
+        $this->assertNull($this->actingAs($sanjai)->getJson(route('inbox-desk.state'))->json('week'), 'the week is for admins');
+    }
+
     public function test_setup_is_admin_only(): void
     {
         [, $sanjai] = $this->deskRoutine(['brand_a']);

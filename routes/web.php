@@ -930,6 +930,7 @@ Route::middleware(['auth', 'routines.catchup'])->prefix('inbox-check')->name('in
     Route::get('guide', [InboxDeskController::class, 'guide'])->name('guide');
     Route::post('{occurrence}/check', [InboxDeskController::class, 'check'])->whereNumber('occurrence')->name('check');
     Route::post('{occurrence}/undo', [InboxDeskController::class, 'undo'])->whereNumber('occurrence')->name('undo');
+    Route::post('round/start', [InboxDeskController::class, 'startRound'])->name('round.start');
 
     Route::middleware('admin')->group(function () {
         Route::get('setup', [InboxDeskSetupController::class, 'edit'])->name('setup');

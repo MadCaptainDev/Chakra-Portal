@@ -12,6 +12,7 @@
             'state' => route('inbox-desk.state'),
             'check' => route('inbox-desk.check', ['occurrence' => '__ID__']),
             'undo' => route('inbox-desk.undo', ['occurrence' => '__ID__']),
+            'round' => route('inbox-desk.round.start'),
         ],
     ];
     $canSetUp = auth()->user()->isAdmin();
@@ -130,6 +131,33 @@
                         </div>
                     </div>
                 </section>
+
+                {{-- ═════════ Rounds: one tap starts the clock, the last tick stops it ═════════ --}}
+                <template x-for="routine in b.routines" :key="'rounds-' + routine.id">
+                    <section class="flex flex-wrap gap-2" x-show="(b.rounds?.[routine.id] ?? []).length">
+                        <template x-for="r in (b.rounds?.[routine.id] ?? [])" :key="r.round">
+                            <div class="flex min-w-[220px] flex-1 items-center gap-3 rounded-2xl px-4 py-3 ring-1"
+                                 :class="{ 'bg-white/5 ring-white/10': r.state === 'idle', 'bg-amber-400/10 ring-amber-400/30': r.state === 'running', 'bg-emerald-400/10 ring-emerald-400/25': r.state === 'done' }">
+                                <span class="text-xl" x-text="r.round === 'evening' ? '🌙' : (r.round === 'morning' ? '☀️' : '⏱')"></span>
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-sm font-semibold text-white" x-text="r.label"></p>
+                                    <p class="text-xs" :class="r.state === 'running' ? 'text-amber-200' : (r.state === 'done' ? 'text-emerald-200' : 'text-brand-100/55')">
+                                        <template x-if="r.state === 'idle'"><span x-text="r.available ? 'Tap Start when you begin checking' : 'Opens at 3 PM'"></span></template>
+                                        <template x-if="r.state === 'running'"><span>Running · <span class="tabular-nums" x-text="roundRun(r)"></span> · stops by itself on the last tick</span></template>
+                                        <template x-if="r.state === 'done'"><span x-text="`Done in ${r.minutes} min · ${r.replies} replies` + (r.by ? ` · ${r.by}` : '')"></span></template>
+                                    </p>
+                                </div>
+                                <button type="button" x-show="r.state === 'idle' && r.available" @click="startRound(routine, r)"
+                                        class="min-h-[40px] shrink-0 rounded-xl bg-brand-400 px-4 text-sm font-bold text-brand-900 hover:bg-brand-300">▶ Start</button>
+                                <span x-show="r.state === 'running'" class="relative flex h-2.5 w-2.5 shrink-0">
+                                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-60"></span>
+                                    <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-400"></span>
+                                </span>
+                                <span x-show="r.state === 'done'" class="shrink-0 text-lg text-emerald-300">✓</span>
+                            </div>
+                        </template>
+                    </section>
+                </template>
 
                 {{-- ═════════ Filter ═════════ --}}
                 <div class="flex items-center gap-2 overflow-x-auto -mx-1 px-1" role="tablist" aria-label="Show accounts">
@@ -324,6 +352,49 @@
                                 </article>
                             </template>
                         </div>
+                    </section>
+                </template>
+
+                {{-- ═════════ Admins: a week of rounds -- days, not people ═════════ --}}
+                <template x-if="b.week">
+                    <section>
+                        <h2 class="mb-2 text-sm font-semibold uppercase tracking-wider text-brand-100/60">Rounds this week</h2>
+                        <x-card padding="sm">
+                            <p class="mb-2 text-xs text-brand-100/55">
+                                How long a round takes, to plan time — not a race.
+                                <template x-for="r in b.week.rounds" :key="'avg' + r.key">
+                                    <span class="ml-1 rounded-full bg-white/10 px-2 py-0.5 text-brand-100/80" x-show="b.week.average[r.key] !== null" x-text="r.label + ' ≈ ' + b.week.average[r.key] + ' min'"></span>
+                                </template>
+                            </p>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead>
+                                        <tr class="text-left text-[11px] uppercase tracking-wider text-brand-100/45">
+                                            <th class="py-1.5 pr-3 font-semibold">Day</th>
+                                            <template x-for="r in b.week.rounds" :key="'h' + r.key"><th class="py-1.5 pr-3 font-semibold" x-text="r.label"></th></template>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-white/5">
+                                        <template x-for="d in b.week.days" :key="d.label">
+                                            <tr>
+                                                <td class="py-2 pr-3 text-brand-100/70" x-text="d.label"></td>
+                                                <template x-for="r in b.week.rounds" :key="d.label + r.key">
+                                                    <td class="py-2 pr-3">
+                                                        <template x-if="!d.rounds[r.key]"><span class="text-brand-100/30">—</span></template>
+                                                        <template x-if="d.rounds[r.key]">
+                                                            <span>
+                                                                <span class="font-semibold tabular-nums text-white" x-text="d.rounds[r.key].running ? 'running' : d.rounds[r.key].minutes + ' min'"></span>
+                                                                <span class="text-xs text-brand-100/50" x-text="' · ' + d.rounds[r.key].replies + ' replies' + (d.rounds[r.key].auto ? ' · timed from first tick' : '')"></span>
+                                                            </span>
+                                                        </template>
+                                                    </td>
+                                                </template>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </x-card>
                     </section>
                 </template>
 

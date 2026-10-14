@@ -133,6 +133,17 @@ export function inboxDesk(config) {
             }
         },
 
+        // ---- rounds: one tap starts the clock, the last tick stops it ------
+        async startRound(routine, r) {
+            const data = await this.call(this.routes.round, { routine_id: routine.id, round: r.round });
+            if (data) this.toast(data.message);
+        },
+        roundRun(r) {
+            if (!r.started_ms) return '';
+            const m = Math.max(0, Math.floor((this.now - r.started_ms) / 60000));
+            return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m} min`;
+        },
+
         async undo(routine, account, cp) {
             const cell = this.cell(account, cp);
             await this.undoById(cell.id, this.tileKey(routine, account, cp));

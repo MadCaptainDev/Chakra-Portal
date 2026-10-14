@@ -46,6 +46,7 @@ class InboxDesk
     public function __construct(
         private readonly RoutineCompleter $completer,
         private readonly RoutineOccurrenceGenerator $generator,
+        private readonly CheckRounds $rounds,
     ) {}
 
     /**
@@ -106,6 +107,9 @@ class InboxDesk
                 'accounts_left' => $boards->sum('accounts_left'),
             ],
             'feed' => $this->feed($rows),
+            // Each checker's rounds today, and for admins the last week of them.
+            'rounds' => $this->rounds->today($routines),
+            'week' => $user->isAdmin() && $routines->isNotEmpty() ? $this->rounds->week($routines) : null,
         ];
     }
 
@@ -159,6 +163,12 @@ class InboxDesk
             RoutineOccurrence::query()->whereIn('id', $closed)->update(['completed_at' => now()]);
         }
 
+        // The round's clock: started by this tick if nobody tapped Start,
+        // stopped when this was the round's last open tile.
+        if ($closed !== []) {
+            $this->rounds->ticked($user, $target);
+        }
+
         return ['done' => count($closed), 'already' => $already];
     }
 
@@ -176,6 +186,8 @@ class InboxDesk
 
         abort_unless($row && $row->completed_at?->isToday(), 404);
         abort_unless($user->isAdmin() || (int) $row->completed_by === (int) $user->id, 403);
+
+        $this->rounds->unticked($row);
 
         return DB::transaction(fn () => RoutineOccurrence::query()
             ->where('status', RoutineOccurrence::STATUS_DONE)
