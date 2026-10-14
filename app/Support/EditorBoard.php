@@ -135,10 +135,16 @@ class EditorBoard
             }
         }
 
+        // Who is who: every need and card carries the editor's id, for a link to their day.
+        $ids = $moves->pluck('person_id', 'person')->all() + $open->filter(fn (Todo $t) => $t->user)->mapWithKeys(fn (Todo $t) => [$t->user->name => $t->user_id])->all();
+        $needs = array_map(fn (array $n) => $n + ['user_id' => $ids[$n['person'] ?? ''] ?? null], $needs);
+        $editors = $editors->map(fn (array $e) => $e + ['user_id' => $ids[$e['person']] ?? null]);
+
         return [
             'needs' => $needs,
             'editors' => $editors->all(),
             'flow' => [
+                'editing' => $open->where('status', Todo::STATUS_STARTED)->count(),
                 'added' => $moves->where('type', 'added')->count(),
                 'done' => $moves->where('type', 'done')->count(),
                 'out' => $moves->where('type', 'posted')->count(),

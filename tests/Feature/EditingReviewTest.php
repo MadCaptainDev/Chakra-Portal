@@ -47,7 +47,7 @@ class EditingReviewTest extends TestCase
 
         $this->actingAs($this->admin)->get(route('editor-updates'))
             ->assertOk()
-            ->assertSee('Waiting for review')
+            ->assertSee('Waiting for your review')
             ->assertSee('SVA - Cotton Frock')
             ->assertSee('Done → review');
     }
@@ -81,7 +81,7 @@ class EditingReviewTest extends TestCase
         $this->assertSame(1, TodoUpdate::where('action', TodoUpdate::DELIVERED)->count());
 
         $this->get(route('editor-updates'))->assertOk()
-            ->assertDontSee('Waiting for review')
+            ->assertSee('Nothing waiting for review')
             ->assertSee('Delivered')
             ->assertSee('Story');
 

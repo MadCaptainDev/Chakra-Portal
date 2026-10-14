@@ -31,17 +31,41 @@
 @endphp
 
 <x-app-layout title="Editor Updates">
-    <x-slot name="header">
-        <x-page-header title="Editor Updates" eyebrow="Team"
-                       subtitle="Every to-do on each person's board, and how it moved that day — added, started, corrections, on hold, moved on, sent for review, posted or delivered." />
-    </x-slot>
-
-    <div class="mx-auto max-w-6xl space-y-5">
-        <x-day-nav route="editor-updates" :day="$day" :subtitle="$isToday ? 'Live — updates as people work' : null" />
+    <div class="mx-auto max-w-[1320px] space-y-7 pb-16">
+        {{-- Header: the day, live, and a switch to other days --}}
+        <header class="flex flex-wrap items-end justify-between gap-4">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Team · Editing</p>
+                <h1 class="mt-1 text-[30px] font-extrabold tracking-tight text-white sm:text-[34px]">Editor Updates</h1>
+                <p class="text-sm text-brand-100/70">{{ $day->format('l, j F') }}</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2.5">
+                @if ($isToday)
+                    <span class="inline-flex h-10 items-center gap-2 rounded-full bg-emerald-400/[0.12] px-3.5 text-[13px] font-semibold text-emerald-300">
+                        <span class="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.25)]"></span>Live · every 15s
+                    </span>
+                @endif
+                <nav class="inline-flex h-11 items-center gap-1 rounded-xl border border-white/[0.08] bg-[#15303f] px-1" aria-label="Day">
+                    <a href="{{ route('editor-updates', ['date' => $day->copy()->subDay()->toDateString()]) }}" class="flex h-9 w-9 items-center justify-center rounded-lg text-lg text-brand-100/70 hover:bg-white/10 hover:text-white" aria-label="Previous day">‹</a>
+                    <form method="GET" action="{{ route('editor-updates') }}">
+                        <input type="date" name="date" value="{{ $day->toDateString() }}" max="{{ today()->toDateString() }}" onchange="this.form.submit()"
+                               class="h-9 rounded-lg border-0 bg-transparent px-2 text-sm font-semibold text-white [color-scheme:dark] focus:ring-2 focus:ring-brand-400" aria-label="Pick a day">
+                    </form>
+                    @if ($isToday)
+                        <span class="flex h-9 w-9 items-center justify-center text-lg text-brand-100/25" aria-hidden="true">›</span>
+                    @else
+                        <a href="{{ route('editor-updates', ['date' => $day->copy()->addDay()->toDateString()]) }}" class="flex h-9 w-9 items-center justify-center rounded-lg text-lg text-brand-100/70 hover:bg-white/10 hover:text-white" aria-label="Next day">›</a>
+                    @endif
+                </nav>
+                @unless ($isToday)
+                    <a href="{{ route('editor-updates') }}" class="inline-flex h-11 items-center rounded-xl bg-brand-400 px-4 text-sm font-bold text-brand-900 hover:bg-brand-300">Today</a>
+                @endunless
+            </div>
+        </header>
 
         {{-- Read top-down: what needs you, each editor now, the day's flow (live,
              today), the queues to act on, the timeline; detail last. --}}
-        <div class="space-y-5" x-data="editorTimeline(@js($timeline), @js(route('editor-updates.live', ['date' => $day->toDateString()])))">
+        <div class="space-y-7" x-data="editorTimeline(@js($timeline), @js(route('editor-updates.live', ['date' => $day->toDateString()])), @js(route('editor-updates.editor', ['user' => '__ID__', 'date' => $day->toDateString()])))">
             @include('editor-updates._now')
 
             @include('editor-updates._queue')

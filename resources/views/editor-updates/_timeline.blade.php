@@ -36,7 +36,7 @@
     </style>
 @endpush
 
-<section class="rounded-2xl bg-white/[0.03] ring-1 ring-white/10">
+<section class="rounded-[20px] border border-white/[0.08] bg-[#15303f]">
     {{-- Header: live state and what is waiting --}}
     <div class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-white/10 px-4 py-3 sm:px-5">
         <p class="flex items-center gap-2 font-semibold text-white">
@@ -46,7 +46,7 @@
                     <span class="relative inline-flex h-2.5 w-2.5 rounded-full" :class="failed ? 'bg-amber-400' : 'bg-emerald-400'"></span>
                 </span>
             </template>
-            <span x-text="data.is_today ? 'Live timeline' : 'Timeline'"></span>
+            <span x-text="data.is_today ? 'The day so far' : 'The day'"></span>
         </p>
         <p class="text-xs text-brand-100/50" x-show="data.is_today">
             <span x-text="failed ? 'reconnecting…' : 'updated ' + data.generated"></span> · every 15s
@@ -107,7 +107,7 @@
                     </div>
 
                     {{-- The day --}}
-                    <div class="relative h-12 rounded-lg bg-white/[0.025]">
+                    <div class="relative h-14 rounded-xl bg-[#0f2230]">
                         <template x-for="h in hours" :key="'g' + h.at">
                             <span class="absolute inset-y-0 w-px bg-white/[0.05]" :style="`left:${x(h.at)}%`"></span>
                         </template>

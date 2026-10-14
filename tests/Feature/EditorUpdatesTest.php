@@ -102,6 +102,30 @@ class EditorUpdatesTest extends TestCase
             ->assertSee('6h 30m working');
     }
 
+    public function test_one_editors_day_page_shows_their_videos_steps_and_holds(): void
+    {
+        $this->at('10:00');
+        $id = $this->actingAs($this->sanjai)->postJson(route('my.editing.store'), ['title' => 'SVA - Cotton Frock'])->json('card.id');
+        $this->postJson(route('my.editing.act', $id), ['action' => 'start']);
+        $held = $this->postJson(route('my.editing.store'), ['title' => 'TPC - Grooming Ad'])->json('card.id');
+        $this->postJson(route('my.editing.act', $held), ['action' => 'start']);
+        $this->postJson(route('my.editing.act', $held), ['action' => 'hold', 'note' => 'Waiting for footage']);
+        $this->at('11:30');
+
+        // The editor's card on the main page links to their day.
+        $this->actingAs($this->admin)->get(route('editor-updates'))->assertOk()
+            ->assertSee('editor-updates\\/editor\\/__ID__', false);
+
+        $this->get(route('editor-updates.editor', $this->sanjai))
+            ->assertOk()
+            ->assertSee('Sanjai')
+            ->assertSeeInOrder(['The day so far', 'Every video today', 'SVA - Cotton Frock', 'Started'])
+            ->assertSee('On hold')
+            ->assertSee('Waiting for footage');
+
+        $this->actingAs($this->sanjai)->get(route('editor-updates.editor', $this->sanjai))->assertForbidden();
+    }
+
     public function test_it_is_admin_only_and_the_old_eod_link_redirects(): void
     {
         $this->actingAs($this->sanjai)->get(route('editor-updates'))->assertForbidden();

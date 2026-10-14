@@ -115,7 +115,7 @@ class VideoReadyTest extends TestCase
             ->assertOk()
             ->assertSee('Ready to publish')
             ->assertSee('1 late')
-            ->assertSee('Live timeline');
+            ->assertSee('The day so far');
 
         $live = $this->getJson(route('editor-updates.live'))->assertOk()->json();
         $this->assertSame(['review' => 0, 'ready' => 1, 'late' => 1], $live['waiting']);

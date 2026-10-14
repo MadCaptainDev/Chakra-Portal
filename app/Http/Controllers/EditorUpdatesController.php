@@ -49,6 +49,32 @@ class EditorUpdatesController extends Controller
         return response()->json($this->timeline($day, $people, $todos));
     }
 
+    /** One editor's day: their lane drawn large, every video with its steps, and what is on hold and why. */
+    public function editor(Request $request, User $user): View
+    {
+        $day = $this->day($request);
+        [$people, $todos] = $this->people($day);
+        $timeline = $this->timeline($day, $people, $todos);
+
+        $holds = Todo::query()->whereNull('parent_id')->where('user_id', $user->id)
+            ->where('status', Todo::STATUS_BLOCKED)->with('updates')->get()
+            ->map(function (Todo $t) {
+                $since = $t->updates->last(fn (TodoUpdate $u) => $u->to_status === Todo::STATUS_BLOCKED);
+
+                return ['title' => $t->title, 'note' => $since?->note, 'since' => $since?->created_at];
+            })->sortBy('since')->values();
+
+        return view('editor-updates.editor', [
+            'day' => $day,
+            'editor' => $user,
+            'person' => $people->first(fn (array $p) => $p['user']->id === $user->id),
+            'lane' => collect($timeline['lanes'])->firstWhere('id', $user->id),
+            'range' => [$timeline['from'], $timeline['to']],
+            'now' => $timeline['is_today'] ? $timeline['now'] : null,
+            'holds' => $holds,
+        ]);
+    }
+
     private function day(Request $request): Carbon
     {
         return rescue(fn () => Carbon::parse($request->query('date', today()->toDateString()))->startOfDay(), today(), false);
@@ -101,7 +127,7 @@ class EditorUpdatesController extends Controller
             ->when($ready,
                 fn ($q) => $q->whereNotNull('ready_at')->orderBy('publish_at'),
                 fn ($q) => $q->whereNull('ready_at')->whereDate('closed_on', '>=', today()->subDays(14))->orderBy('closed_on')->orderBy('updated_at'))
-            ->with(['user', 'contentItem', 'corrections'])
+            ->with(['user', 'contentItem', 'corrections', 'updates'])
             ->get();
     }
 

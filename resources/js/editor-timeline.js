@@ -14,8 +14,9 @@ const ICONS = {
     done: '✔', ready: '🕒', posted: '🚀', other: '•',
 };
 
-export function editorTimeline(initial, url) {
+export function editorTimeline(initial, url, editorUrl = '') {
     return {
+        editorUrl, // one editor's day, with __ID__ for their user id
         data: initial,
         fresh: {}, // marker ids that arrived on the last read, to pop in
         ticker: [],
@@ -140,6 +141,47 @@ export function editorTimeline(initial, url) {
         runFor(ms) {
             if (!ms) return null;
             return Math.max(0, Math.floor((this.data.now + (this.clock - this.received) - ms) / 60000));
+        },
+        // ——— The designed top: links, the day's flow, an editor card's look ———
+        needHref(n) {
+            if (n.kind === 'late') return '#ready-queue';
+            if (n.kind === 'review') return '#review-queue';
+            return n.user_id && this.editorUrl ? this.editorUrl.replace('__ID__', n.user_id) : null;
+        },
+        needCta(n) {
+            return { late: 'Open', review: 'Review now', hold: 'See holds', long: 'Open day', idle: 'Open day' }[n.kind] ?? 'Open';
+        },
+        get flowTiles() {
+            const f = this.data.board.flow;
+            return [
+                { n: f.added, label: 'Added', hint: 'new videos', color: '#eef6f9' },
+                { n: f.done, label: 'Done', hint: 'sent to review', color: '#7dd3fc' },
+                { n: f.ready, label: 'Ready', hint: 'time set', color: '#c4b5fd' },
+                { n: f.out, label: 'Out', hint: 'posted · delivered', color: '#6ee7b7' },
+            ];
+        },
+        get flowBar() {
+            const f = this.data.board.flow;
+            const parts = [
+                { n: f.out, label: 'out', color: '#34d399' },
+                { n: f.review, label: 'in review', color: '#5BC0EB' },
+                { n: f.ready, label: 'ready', color: '#A78BFA' },
+                { n: f.editing ?? 0, label: 'still editing', color: '#F4B740' },
+            ].filter((p) => p.n > 0);
+            const total = parts.reduce((t, p) => t + p.n, 0) || 1;
+            return parts.map((p) => ({ ...p, pct: (p.n / total) * 100 }));
+        },
+        look(ed) {
+            if (ed.state === 'working') {
+                return { word: 'Editing', dot: '#F4B740', ring: 'border-amber-400/45', pill: 'bg-amber-400/15 text-amber-200' };
+            }
+            if (ed.state === 'hold') {
+                return { word: 'All on hold', dot: '#A78BFA', ring: 'border-violet-400/35', pill: 'bg-violet-400/15 text-violet-200' };
+            }
+            if (!ed.last) {
+                return { word: 'Not started', dot: '#8ACCE0', ring: 'border-white/[0.08]', pill: 'bg-brand-300/15 text-brand-200' };
+            }
+            return { word: ed.idle !== null ? `Idle ${this.span(ed.idle)}` : 'Idle', dot: '#7f9aa8', ring: 'border-white/[0.08]', pill: 'bg-white/10 text-brand-100/80' };
         },
         laneOf(name) {
             return this.data.lanes.find((l) => l.name === name);
