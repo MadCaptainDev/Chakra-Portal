@@ -24,6 +24,9 @@ use function Illuminate\Support\defer;
  */
 class ShootRun
 {
+    /** A video with the same name on the same shoot within this many minutes is the same video. */
+    public const DUPLICATE_WINDOW_MINUTES = 2;
+
     /**
      * The crew have set off for the location. Like reached(): anyone on the
      * shoot may say so, the first one counts, and a shoot already reached or
@@ -170,11 +173,25 @@ class ShootRun
         // table during an upload is not.
         $photoPath = $photo ? PublicUpload::store($photo, 'shoot-videos') : null;
 
-        return DB::transaction(function () use ($shoot, $crewMember, $name, $photoPath, $notes, $scriptId, $sectionLog) {
+        $video = DB::transaction(function () use ($shoot, $crewMember, $name, $photoPath, $notes, $scriptId, $sectionLog) {
             $position = (int) ShootVideo::query()
                 ->where('shoot_id', $shoot->id)
                 ->lockForUpdate()
                 ->max('position');
+
+            // The same video sent twice -- a double tap on a slow signal, two
+            // requests a moment apart -- is one video. Under the lock above,
+            // so two at once cannot both miss each other. A real second take
+            // of a script, minutes later, is still its own video.
+            $twin = ShootVideo::query()
+                ->where('shoot_id', $shoot->id)
+                ->where('name', $name)
+                ->when($scriptId, fn ($q) => $q->where('script_id', $scriptId), fn ($q) => $q->whereNull('script_id'))
+                ->where('created_at', '>=', now()->subMinutes(self::DUPLICATE_WINDOW_MINUTES))
+                ->first();
+            if ($twin) {
+                return $twin;
+            }
 
             return ShootVideo::create([
                 'shoot_id' => $shoot->id,
@@ -188,6 +205,13 @@ class ShootRun
                 'position' => $position + 1,
             ]);
         });
+
+        // The twin kept its own still; this one's upload is not needed.
+        if ($photoPath && $video->photo_path !== $photoPath) {
+            PublicUpload::delete($photoPath);
+        }
+
+        return $video;
     }
 
     /**
