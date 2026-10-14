@@ -31,5 +31,7 @@ class EditorUpdatesFeedTest extends TestCase
         $this->assertSame(['added' => 1, 'fixes' => 1, 'done' => 0, 'posted' => 0], $feed['totals']);
         $this->assertSame('Sanjai', $feed['people'][0]['person']);
         $this->assertSame(['SVA - Cotton Frock'], $feed['people'][0]['working']);
+        $this->assertSame('working', $feed['people'][0]['state']);
+        $this->assertSame('Correction', $feed['people'][0]['last_label']);
     }
 }

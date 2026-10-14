@@ -42,6 +42,21 @@ class EditorUpdatesFeed extends Command
             'last' => $mine->first()['time'],
             'working' => Todo::query()->whereNull('parent_id')->where('status', Todo::STATUS_STARTED)
                 ->where('user_id', $userId)->pluck('title')->all(),
+            'holding' => Todo::query()->whereNull('parent_id')->where('status', Todo::STATUS_BLOCKED)
+                ->where('user_id', $userId)->pluck('title')->all(),
+            'last_type' => $mine->first()['type'],
+            'last_label' => $mine->first()['label'],
+            'last_title' => $mine->first()['title'],
+            'last_ago' => (int) Carbon::parse($mine->first()['at'])->diffInMinutes(now()),
+        ])->map(fn (array $p) => $p + [
+            // What the editor is doing now, for the live panes to act out.
+            'state' => match (true) {
+                $p['working'] !== [] => 'working',
+                $p['holding'] !== [] => 'hold',
+                $p['last_type'] === 'posted' && $p['last_ago'] < 15 => 'celebrate',
+                $p['last_ago'] < 20 => 'active',
+                default => 'idle',
+            },
         ])->values();
 
         $this->line(json_encode([
@@ -102,6 +117,7 @@ class EditorUpdatesFeed extends Command
         return [
             'id' => $u->id,
             'time' => $u->created_at->format('g:i A'),
+            'at' => $u->created_at->toIso8601String(),
             'person' => $video->user?->name ?? 'Someone',
             'person_id' => $video->user_id,
             'by' => $u->user_id && $u->user_id !== $video->user_id ? $u->user?->name : null,
