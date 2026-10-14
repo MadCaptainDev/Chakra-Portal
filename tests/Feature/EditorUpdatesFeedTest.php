@@ -33,5 +33,24 @@ class EditorUpdatesFeedTest extends TestCase
         $this->assertSame(['SVA - Cotton Frock'], $feed['people'][0]['working']);
         $this->assertSame('working', $feed['people'][0]['state']);
         $this->assertSame('Correction', $feed['people'][0]['last_label']);
+
+        // The board, as the admin reads it.
+        $board = $feed['board'];
+        $this->assertSame('working', $board['editors'][0]['state']);
+        $this->assertSame('SVA - Cotton Frock', $board['editors'][0]['title']);
+        $this->assertSame(30, $board['editors'][0]['minutes']);
+        $this->assertSame([], $board['needs']);
+
+        // Finished: it waits for review, and that is what needs the admin.
+        $this->travelTo(today()->setTime(11, 30));
+        $fix = \App\Models\Todo::whereNotNull('parent_id')->sole();
+        $this->postJson(route('my.editing.act', $fix->id), ['action' => 'done']);
+        $this->postJson(route('my.editing.act', $id), ['action' => 'done']);
+        $this->travelTo(today()->setTime(12, 30));
+        Artisan::call('editor-updates:feed');
+        $board = json_decode(Artisan::output(), true)['board'];
+        $this->assertSame('review', $board['needs'][0]['kind']);
+        $this->assertSame('1 waiting for review · oldest 1h 0m', $board['needs'][0]['detail']);
+        $this->assertSame(1, $board['flow']['review']);
     }
 }
