@@ -149,6 +149,7 @@ class Server
             // The studio's own outgoings: EMIs, salaries, bills, one-time spends.
             new Expenses\ExpensesDue,
             new Expenses\LogExpense,
+            new Expenses\CreateEmi,
             new Expenses\RecordExpensePayment,
             // Insights, read-only, behind the Insights module.
             new Insights\NeedsAttention,

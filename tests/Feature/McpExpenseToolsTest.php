@@ -84,6 +84,64 @@ class McpExpenseToolsTest extends TestCase
         ]);
     }
 
+    // ——— create_emi ———
+
+    public function test_create_emi_adds_the_full_plan_on_the_existing_bank_spelling(): void
+    {
+        $this->emi(); // payee "HDFC"
+
+        $data = $this->data($this->admin(), 'create_emi', [
+            'name' => 'Sony 70-200 lens', 'bank_account' => 'hdfc', 'amount' => 4200,
+            'tenure_months' => 12, 'start_month' => '2026-11', 'notes' => 'Loan a/c 1234',
+        ]);
+
+        $this->assertSame('HDFC', $data['bank_account']);
+        $this->assertSame('2027-10', $data['last_month']);
+        $this->assertEquals(50400, $data['total_payable']);
+
+        $emi = Expense::findOrFail($data['expense_id']);
+        $this->assertSame(Expense::TYPE_EMI, $emi->type);
+        $this->assertSame('2026-11-01', $emi->start_month->toDateString());
+        $this->assertSame(12, $emi->installments);
+        $this->assertTrue($emi->isDueIn(Carbon::parse('2027-10-01')));
+        $this->assertFalse($emi->isDueIn(Carbon::parse('2026-10-01')));
+    }
+
+    public function test_create_emi_files_installments_already_paid_for_a_running_loan(): void
+    {
+        $data = $this->data($this->admin(), 'create_emi', [
+            'name' => 'Old gimbal', 'bank_account' => 'BOI', 'amount' => 2000,
+            'tenure_months' => 6, 'start_month' => '2026-07', 'already_paid' => 3,
+        ]);
+
+        $this->assertSame(3, $data['installments_left']);
+        $this->assertSame(['2026-07-01', '2026-08-01', '2026-09-01'],
+            ExpensePayment::where('expense_id', $data['expense_id'])->orderBy('period')->pluck('period')
+                ->map(fn ($p) => Carbon::parse($p)->toDateString())->all());
+
+        // Only July to September fell before October.
+        $this->assertStringContainsString('Only 3', $this->error($this->admin(), 'create_emi', [
+            'name' => 'Other', 'bank_account' => 'BOI', 'amount' => 2000,
+            'tenure_months' => 6, 'start_month' => '2026-07', 'already_paid' => 4,
+        ]));
+    }
+
+    public function test_create_emi_refuses_a_running_duplicate_and_needs_the_create_permission(): void
+    {
+        $this->emi();
+
+        $this->assertStringContainsString('already a running EMI', $this->error($this->admin(), 'create_emi', [
+            'name' => 'hdfc camera loan', 'bank_account' => 'HDFC', 'amount' => 1, 'tenure_months' => 1,
+        ]));
+
+        $viewer = $this->employeeWith(['expenses' => ['view']]);
+        $this->withHeaders(['Authorization' => 'Bearer '.McpToken::issue($viewer, 'Test client')['plain']])
+            ->postJson(route('mcp'), ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/call',
+                'params' => ['name' => 'create_emi', 'arguments' => ['name' => 'X', 'bank_account' => 'Axis', 'amount' => 1, 'tenure_months' => 1]]])
+            ->assertJsonPath('result', null);
+        $this->assertSame(1, Expense::where('type', Expense::TYPE_EMI)->count());
+    }
+
     // ——— log_expense ———
 
     public function test_a_one_time_expense_is_logged_as_paid_in_its_month(): void
