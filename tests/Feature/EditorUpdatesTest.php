@@ -44,6 +44,8 @@ class EditorUpdatesTest extends TestCase
         $this->postJson(route('my.editing.act', $fixId), ['action' => 'done']);
         $this->at('11:45');
         $this->postJson(route('my.editing.act', $id), ['action' => 'done']);
+        $this->at('12:00');
+        $this->postJson(route('my.editing.act', $id), ['action' => 'ready', 'publish_at' => today()->setTime(18, 30)->toDateTimeString()]);
         $this->at('18:42');
         $this->postJson(route('my.editing.act', $id), ['action' => 'post', 'kind' => 'reel']);
 

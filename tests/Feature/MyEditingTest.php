@@ -127,6 +127,7 @@ class MyEditingTest extends TestCase
         $this->travel(30)->minutes();
         $this->act($video, 'done')->assertJsonPath('card.status', 'completed')->assertJsonPath('card.working_minutes', 30);
 
+        $this->act($video, 'ready', ['publish_at' => now()->addHour()->toDateTimeString()])->assertJsonPath('card.ready', true);
         $this->act($video, 'post', ['kind' => 'reel', 'post_url' => 'https://instagram.com/reel/abc'])
             ->assertJsonPath('card.kind', 'reel')->assertJsonPath('card.post_url', 'https://instagram.com/reel/abc');
         $this->assertTrue($video->fresh()->isPosted());
@@ -137,7 +138,9 @@ class MyEditingTest extends TestCase
         $this->actingAs($this->sanjai)->postJson(route('my.editing.store'), ['title' => 'SVA - Frock']);
         $video = Todo::sole();
         $this->act($video, 'start');
-        $this->act($video, 'post', ['kind' => 'reel']);
+        $this->act($video, 'done');
+        $this->act($video, 'ready', ['publish_at' => now()->addHour()->toDateTimeString()]);
+        $this->act($video, 'post', ['kind' => 'reel'])->assertOk();
 
         $this->actingAs($this->sanjai)->postJson(route('my.editing.correct', $video), ['title' => 'Logo at 0:12'])
             ->assertJsonPath('card.status', 'started')->assertJsonPath('card.posted_at', null);

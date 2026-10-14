@@ -23,6 +23,7 @@
         'todo' => ['To do', 'To do', 'bg-white/10 text-brand-100/80'],
         'working' => ['Working', 'Working', 'bg-amber-400/15 text-amber-200'],
         'done' => ['Under review', 'Review', 'bg-sky-400/15 text-sky-200'],
+        'ready' => ['Video ready', 'Ready', 'bg-violet-400/15 text-violet-200'],
         'posted' => ['Posted / Delivered', 'Out', 'bg-emerald-400/15 text-emerald-200'],
     ];
 @endphp
@@ -154,7 +155,7 @@
         </div>
 
         {{-- Lane tabs: phones only, one lane at a time. --}}
-        <div class="grid grid-cols-4 gap-1 rounded-2xl bg-white/5 p-1 ring-1 ring-white/10 md:hidden" role="tablist">
+        <div class="grid grid-cols-5 gap-1 rounded-2xl bg-white/5 p-1 ring-1 ring-white/10 md:hidden" role="tablist">
             @foreach ($lanes as $lane => [$label, $short, $chip])
                 <button type="button" role="tab" @click="tab = '{{ $lane }}'" :aria-selected="tab === '{{ $lane }}'"
                         class="flex min-h-[48px] flex-col items-center justify-center rounded-xl text-xs font-semibold transition"
@@ -166,7 +167,7 @@
         </div>
 
         {{-- The board --}}
-        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             @foreach ($lanes as $lane => [$label, $short, $chip])
                 <section class="rounded-2xl bg-white/[0.03] p-2 ring-1 ring-white/10 md:block" :class="tab === '{{ $lane }}' ? 'block' : 'hidden'">
                     <h2 class="hidden items-center justify-between px-2 pb-2 pt-1 text-xs font-semibold uppercase tracking-[0.14em] text-brand-100/60 md:flex">
@@ -174,7 +175,7 @@
                         <span class="rounded-full px-2 py-0.5 text-[11px] normal-case tracking-normal {{ $chip }}" x-text="lane('{{ $lane }}').length"></span>
                     </h2>
                     @if ($lane === 'done')
-                        <p class="px-2 pb-2 pt-1 text-xs text-brand-100/50 md:hidden">Needs a change? Add a correction. All good? Mark it posted or delivered.</p>
+                        <p class="px-2 pb-2 pt-1 text-xs text-brand-100/50 md:hidden">Needs a change? Add a correction. All good? Make it Video ready with its publishing time — or Delivered.</p>
                     @endif
                     <div class="space-y-2">
                         <template x-for="card in lane('{{ $lane }}')" :key="card.id">
@@ -267,10 +268,31 @@
                                 </div>
 
                                 {{-- Under review: a correction (the button above) sends it back
-                                     to Working; otherwise it goes out, posted or delivered. --}}
-                                <template x-if="card.status === 'completed' && !card.posted_at">
+                                     to Working; otherwise it is Video ready with its publishing
+                                     time, or delivered to the client. --}}
+                                <template x-if="card.status === 'completed' && !card.posted_at && !card.ready">
                                     <div class="mt-2.5 space-y-2 rounded-lg bg-sky-400/[0.06] p-2 ring-1 ring-sky-400/20">
-                                        <p class="text-xs font-semibold text-sky-200">In review — needs a change? <span class="font-normal text-sky-100/70">Add a correction. All good? Send it out:</span></p>
+                                        <p class="text-xs font-semibold text-sky-200">In review — needs a change? <span class="font-normal text-sky-100/70">Add a correction. All good? Set when it goes out:</span></p>
+                                        <form @submit.prevent="act(card, 'ready', { publish_at: when[card.id] || card.publish_default })" class="flex flex-wrap gap-1.5">
+                                            <input type="datetime-local" required :value="when[card.id] || card.publish_default" @input="when[card.id] = $event.target.value"
+                                                   class="min-h-[44px] min-w-0 flex-1 rounded-lg border-0 bg-white/10 px-3 text-base text-white [color-scheme:dark] focus:ring-2 focus:ring-violet-400 sm:min-h-[32px] sm:text-xs">
+                                            <button :disabled="openFixes(card) > 0 || !!busy[card.id + 'ready']"
+                                                    class="min-h-[44px] shrink-0 rounded-lg bg-violet-500 px-3.5 text-sm font-bold text-white hover:bg-violet-400 disabled:opacity-40 sm:min-h-[32px] sm:text-xs">✓ Video ready</button>
+                                        </form>
+                                        <button type="button" @click="act(card, 'deliver')" :disabled="openFixes(card) > 0 || !!busy[card.id + 'deliver']"
+                                                class="min-h-[44px] w-full rounded-lg bg-teal-500/90 px-3 text-sm font-bold text-white hover:bg-teal-400 disabled:opacity-40 sm:min-h-[32px] sm:text-xs">📦 Delivered to client instead</button>
+                                        <button type="button" @click="act(card, 'reopen')" class="min-h-[36px] text-xs text-brand-100/50 underline underline-offset-2 hover:text-white sm:min-h-0 sm:text-[11px]">Back to working</button>
+                                    </div>
+                                </template>
+
+                                {{-- Video ready: publish it at its time, then mark it posted. --}}
+                                <template x-if="card.ready && !card.posted_at">
+                                    <div class="mt-2.5 space-y-2 rounded-lg p-2 ring-1"
+                                         :class="publishLate(card) ? 'bg-red-500/10 ring-red-400/40' : 'bg-violet-400/[0.07] ring-violet-400/25'">
+                                        <p class="text-xs font-semibold" :class="publishLate(card) ? 'text-red-200' : 'text-violet-200'">
+                                            <span x-text="publishLate(card) ? '⚠ Was due ' : '🕒 Publish '"></span><span x-text="card.publish_label"></span>
+                                            <span class="font-normal opacity-80" x-text="publishIn(card)"></span>
+                                        </p>
                                         <div class="grid grid-cols-3 gap-1">
                                             <template x-for="key in ['reel', 'post', 'story']" :key="key">
                                                 <button type="button" @click="act(card, 'kind', { kind: key })"
@@ -278,16 +300,20 @@
                                                         class="min-h-[40px] rounded-md px-1 text-xs font-semibold sm:min-h-[30px] sm:text-[11px]" x-text="kinds[key]"></button>
                                             </template>
                                         </div>
-                                        <template x-if="['reel', 'post', 'story'].includes(card.kind)">
-                                            <form @submit.prevent="act(card, 'post', { kind: card.kind, post_url: links[card.id] || null })" class="flex gap-1.5">
-                                                <input x-model="links[card.id]" type="url" inputmode="url" placeholder="Link (optional)"
-                                                       class="min-h-[44px] min-w-0 flex-1 rounded-lg border-0 bg-white/10 px-3 text-base text-white placeholder:text-brand-100/40 focus:ring-2 focus:ring-emerald-400 sm:min-h-[32px] sm:text-xs">
-                                                <button class="shrink-0 rounded-lg bg-emerald-500 px-3.5 text-sm font-bold text-white hover:bg-emerald-400 sm:text-xs">Mark posted</button>
+                                        <form @submit.prevent="act(card, 'post', { kind: ['reel', 'post', 'story'].includes(card.kind) ? card.kind : 'reel', post_url: links[card.id] || null })" class="flex gap-1.5">
+                                            <input x-model="links[card.id]" type="url" inputmode="url" placeholder="Link (optional)"
+                                                   class="min-h-[44px] min-w-0 flex-1 rounded-lg border-0 bg-white/10 px-3 text-base text-white placeholder:text-brand-100/40 focus:ring-2 focus:ring-emerald-400 sm:min-h-[32px] sm:text-xs">
+                                            <button class="shrink-0 rounded-lg bg-emerald-500 px-3.5 text-sm font-bold text-white hover:bg-emerald-400 sm:text-xs">Mark posted</button>
+                                        </form>
+                                        <details class="text-xs text-brand-100/60">
+                                            <summary class="min-h-[32px] cursor-pointer py-1 hover:text-white">Change the time, or deliver instead</summary>
+                                            <form @submit.prevent="act(card, 'ready', { publish_at: when[card.id] || card.publish_at })" class="mt-1 flex gap-1.5">
+                                                <input type="datetime-local" required :value="when[card.id] || card.publish_at" @input="when[card.id] = $event.target.value"
+                                                       class="min-h-[40px] min-w-0 flex-1 rounded-lg border-0 bg-white/10 px-3 text-sm text-white [color-scheme:dark] sm:min-h-[30px] sm:text-xs">
+                                                <button class="shrink-0 rounded-lg bg-white/10 px-3 text-xs font-semibold text-white hover:bg-white/15">Save time</button>
                                             </form>
-                                        </template>
-                                        <button type="button" @click="act(card, 'deliver')" :disabled="openFixes(card) > 0 || !!busy[card.id + 'deliver']"
-                                                class="min-h-[44px] w-full rounded-lg bg-teal-500/90 px-3 text-sm font-bold text-white hover:bg-teal-400 disabled:opacity-40 sm:min-h-[32px] sm:text-xs">📦 Delivered to client</button>
-                                        <button type="button" @click="act(card, 'reopen')" class="min-h-[36px] text-xs text-brand-100/50 underline underline-offset-2 hover:text-white sm:min-h-0 sm:text-[11px]">Back to working</button>
+                                            <button type="button" @click="act(card, 'deliver')" class="mt-1.5 min-h-[36px] w-full rounded-lg bg-teal-500/80 px-3 text-xs font-bold text-white hover:bg-teal-400">📦 Delivered to client instead</button>
+                                        </details>
                                     </div>
                                 </template>
 

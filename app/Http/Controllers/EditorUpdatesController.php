@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Todo;
 use App\Models\TodoUpdate;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -22,7 +23,39 @@ class EditorUpdatesController extends Controller
 {
     public function index(Request $request): View
     {
-        $day = rescue(fn () => Carbon::parse($request->query('date', today()->toDateString()))->startOfDay(), today(), false);
+        $day = $this->day($request);
+        [$people, $todos] = $this->people($day);
+
+        return view('editor-updates.index', [
+            'day' => $day,
+            'review' => $this->queue(false),
+            'ready' => $this->queue(true),
+            'people' => $people,
+            'timeline' => $this->timeline($day, $people, $todos),
+            'totals' => $this->totals($people),
+        ]);
+    }
+
+    /**
+     * The timeline as JSON, for the page to poll while it is open -- the same
+     * thing the "Editor Updates" live pane in Claude Code reads, drawn as lanes.
+     */
+    public function live(Request $request): JsonResponse
+    {
+        $day = $this->day($request);
+        [$people, $todos] = $this->people($day);
+
+        return response()->json($this->timeline($day, $people, $todos));
+    }
+
+    private function day(Request $request): Carbon
+    {
+        return rescue(fn () => Carbon::parse($request->query('date', today()->toDateString()))->startOfDay(), today(), false);
+    }
+
+    /** @return array{0: Collection<int, array<string, mixed>>, 1: Collection<int, Todo>} */
+    private function people(Carbon $day): array
+    {
         $dayEnd = $day->copy()->endOfDay();
 
         // Every video touched that day, plus everything still on a board.
@@ -48,28 +81,149 @@ class EditorUpdatesController extends Controller
             ->sortByDesc(fn (array $p) => [$p['moves'], $p['open']])
             ->values();
 
-        // The review queue is now, not that day: every finished video waiting
-        // for a correction or to go out, oldest first.
-        $review = Todo::query()
+        return [$people, $todos];
+    }
+
+    /**
+     * Now, not the day shown: finished videos waiting in review (ready =
+     * false), or Video ready and waiting to be posted (ready = true, by
+     * publishing time, so the late ones lead).
+     *
+     * @return Collection<int, Todo>
+     */
+    private function queue(bool $ready): Collection
+    {
+        return Todo::query()
             ->whereNull('parent_id')
             ->where('status', Todo::STATUS_COMPLETED)
             ->whereNull('posted_at')
-            ->whereDate('closed_on', '>=', today()->subDays(14))
+            ->when($ready,
+                fn ($q) => $q->whereNotNull('ready_at')->orderBy('publish_at'),
+                fn ($q) => $q->whereNull('ready_at')->whereDate('closed_on', '>=', today()->subDays(14))->orderBy('closed_on')->orderBy('updated_at'))
             ->with(['user', 'contentItem', 'corrections'])
-            ->orderBy('closed_on')->orderBy('updated_at')
             ->get();
+    }
 
-        return view('editor-updates.index', [
-            'day' => $day,
-            'review' => $review,
-            'people' => $people,
-            'totals' => [
-                'added' => $people->sum('stats.added'),
-                'done' => $people->sum('stats.done'),
-                'posted' => $people->sum('stats.posted'),
-                'fixes' => $people->sum('stats.fixes'),
+    /** @return array<string, int> */
+    private function totals(Collection $people): array
+    {
+        return [
+            'added' => $people->sum('stats.added'),
+            'done' => $people->sum('stats.done'),
+            'posted' => $people->sum('stats.posted'),
+            'fixes' => $people->sum('stats.fixes'),
+        ];
+    }
+
+    /**
+     * One lane per person across the day: blocks of time Working (and On
+     * hold) on each video, a marker for every move, and where they are now --
+     * what the animated timeline draws.
+     *
+     * @return array<string, mixed>
+     */
+    private function timeline(Carbon $day, Collection $people, Collection $todos): array
+    {
+        $isToday = $day->isToday();
+        $dayEnd = $day->copy()->endOfDay();
+        $until = $isToday ? now() : $dayEnd;
+        $ms = fn (Carbon $c) => $c->getTimestampMs();
+
+        $lanes = $people->map(function (array $p) use ($todos, $day, $until, $isToday, $ms) {
+            $mine = $todos->where('user_id', $p['user']->id);
+            $blocks = [];
+            foreach ($mine as $t) {
+                $from = null;
+                $type = null;
+                $close = function (Carbon $to) use (&$blocks, &$from, &$type, $t, $day, $until, $ms) {
+                    if ($from !== null) {
+                        $a = $from->max($day);
+                        $b = $to->min($until);
+                        if ($b->gt($a)) {
+                            $blocks[] = ['id' => $t->id.'-'.$ms($a), 'type' => $type, 'title' => $t->title, 'client' => $t->venture,
+                                'from' => $ms($a), 'to' => $ms($b), 'open' => $to->gte($until)];
+                        }
+                    }
+                    $from = null;
+                };
+                foreach ($t->updates as $u) {
+                    if (! in_array($u->action, [TodoUpdate::STATUS, TodoUpdate::CREATED], true) || ! $u->to_status) {
+                        continue;
+                    }
+                    $close($u->created_at);
+                    if (in_array($u->to_status, [Todo::STATUS_STARTED, Todo::STATUS_BLOCKED], true)) {
+                        $from = $u->created_at;
+                        $type = $u->to_status === Todo::STATUS_STARTED ? 'work' : 'hold';
+                    }
+                }
+                $close($until);
+            }
+
+            $marks = $p['moved']->flatMap(fn (array $v) => collect($v['events'])->map(fn (array $e) => [
+                'id' => $e['order'].'-'.$e['type'],
+                'at' => $ms($e['at']),
+                'time' => $e['at']->format('g:i A'),
+                'type' => $e['type'],
+                'label' => $e['label'],
+                'detail' => $e['detail'],
+                'title' => $v['title'],
+                'by' => $e['by'],
+            ]))->sortBy('at')->values();
+
+            $working = $isToday ? $mine->firstWhere('status', Todo::STATUS_STARTED) : null;
+            $holding = $isToday && ! $working ? $mine->firstWhere('status', Todo::STATUS_BLOCKED) : null;
+            $last = $marks->last();
+            $state = match (true) {
+                $working !== null => 'working',
+                $holding !== null => 'hold',
+                $last && $last['type'] === 'posted' && $isToday && now()->getTimestampMs() - $last['at'] < 15 * 60_000 => 'celebrate',
+                $last !== null && $isToday && now()->getTimestampMs() - $last['at'] < 20 * 60_000 => 'active',
+                default => 'idle',
+            };
+
+            return [
+                'id' => $p['user']->id,
+                'name' => $p['user']->name,
+                'initial' => mb_strtoupper(mb_substr($p['user']->name, 0, 1)),
+                'hue' => crc32($p['user']->name) % 360,
+                'state' => $state,
+                'doing' => $working?->title ?? $holding?->title ?? ($last ? $last['label'].' · '.$last['title'] : null),
+                'at' => $working || $holding ? $ms($until) : ($last['at'] ?? null),
+                'minutes' => $p['minutes'],
+                'stats' => $p['stats'],
+                'blocks' => $blocks,
+                'marks' => $marks->all(),
+            ];
+        })->values();
+
+        $edges = $lanes->flatMap(fn (array $l) => array_merge(array_column($l['blocks'], 'from'), array_column($l['blocks'], 'to'), array_column($l['marks'], 'at')));
+        $start = $day->copy()->setTime(9, 0);
+        $end = $day->copy()->setTime(21, 0);
+        if ($edges->isNotEmpty()) {
+            $start = $start->min(Carbon::createFromTimestampMs($edges->min())->startOfHour());
+            $end = $end->max(Carbon::createFromTimestampMs($edges->max())->addHour()->startOfHour());
+        }
+        if ($isToday) {
+            $end = $end->max(now()->addHour()->startOfHour());
+        }
+
+        $ready = $this->queue(true);
+
+        return [
+            'date' => $day->toDateString(),
+            'is_today' => $isToday,
+            'now' => $ms(now()),
+            'generated' => now()->format('g:i:s A'),
+            'from' => $ms($start->max($day)),
+            'to' => $ms($end->min($day->copy()->endOfDay())),
+            'lanes' => $lanes->all(),
+            'waiting' => [
+                'review' => $this->queue(false)->count(),
+                'ready' => $ready->count(),
+                'late' => $ready->filter->isLateToPublish()->count(),
             ],
-        ]);
+            'totals' => $this->totals($people),
+        ];
     }
 
     /** @return array<string, mixed> */
@@ -77,7 +231,7 @@ class EditorUpdatesController extends Controller
     {
         $videos = $todos->map(fn (Todo $t) => $this->video($t, $user, $day, $dayEnd));
         $moved = $videos->filter(fn (array $v) => $v['events'] !== [])->sortBy('first_at')->values();
-        $still = $videos->filter(fn (array $v) => $v['events'] === [] && (in_array($v['status'], Todo::OPEN_STATUSES, true) || $v['status'] === 'review'))->values();
+        $still = $videos->filter(fn (array $v) => $v['events'] === [] && (in_array($v['status'], Todo::OPEN_STATUSES, true) || in_array($v['status'], ['review', 'ready'], true)))->values();
         $events = $moved->flatMap(fn (array $v) => $v['events']);
         $count = fn (string $type) => $events->where('type', $type)->count();
 
@@ -148,6 +302,7 @@ class EditorUpdatesController extends Controller
             $u->action === TodoUpdate::CREATED => $this->make($u, $owner, 'added', 'Added'),
             $u->action === TodoUpdate::POSTED => $this->make($u, $owner, 'posted', 'Posted', $u->note),
             $u->action === TodoUpdate::DELIVERED => $this->make($u, $owner, 'posted', 'Delivered', $u->note),
+            $u->action === TodoUpdate::READY => $this->make($u, $owner, 'ready', 'Video ready', $u->note),
             $u->action === TodoUpdate::UNPOSTED => $this->make($u, $owner, 'other', 'Post undone'),
             $u->action === TodoUpdate::REVIEWED => $this->make($u, $owner, 'other', 'Checked', $u->note),
             $u->action === TodoUpdate::MOVED => $u->to_on?->isSameDay($u->created_at)
@@ -195,7 +350,7 @@ class EditorUpdatesController extends Controller
             return $t->kind === Todo::KIND_DELIVERED ? 'delivered' : 'posted';
         }
 
-        return 'review';
+        return $t->ready_at && $t->ready_at->lte($dayEnd) ? 'ready' : 'review';
     }
 
     private function rawStatusAt(Todo $t, Carbon $dayEnd): string

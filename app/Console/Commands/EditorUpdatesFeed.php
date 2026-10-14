@@ -55,6 +55,11 @@ class EditorUpdatesFeed extends Command
             ],
             'people' => $people,
             'moves' => $moves->take((int) $this->option('limit'))->values(),
+            // Video ready past its publishing time and not posted, for the pane.
+            'late' => Todo::query()->whereNull('parent_id')->where('status', Todo::STATUS_COMPLETED)
+                ->whereNotNull('ready_at')->whereNull('posted_at')->where('publish_at', '<', now())->where('publish_at', '>=', now()->subDay())
+                ->with('user')->orderBy('publish_at')->get()
+                ->map(fn (Todo $t) => ['id' => $t->id, 'title' => $t->title, 'person' => $t->user?->name, 'due' => $t->publish_at->format('g:i A'), 'minutes' => (int) $t->publish_at->diffInMinutes(now())])->values(),
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
         return self::SUCCESS;
@@ -77,6 +82,7 @@ class EditorUpdatesFeed extends Command
             $u->action === TodoUpdate::CREATED => ['added', 'Added', null],
             $u->action === TodoUpdate::POSTED => ['posted', 'Posted', $u->note],
             $u->action === TodoUpdate::DELIVERED => ['posted', 'Delivered', $u->note],
+            $u->action === TodoUpdate::READY => ['ready', 'Video ready', $u->note],
             $u->action === TodoUpdate::UNPOSTED => ['other', 'Post undone', null],
             $u->action === TodoUpdate::MOVED => ['moved', $u->to_on?->isSameDay($u->created_at) ? 'Back to today' : 'Moved to '.$u->to_on?->format('D j M'), null],
             $u->action === TodoUpdate::STATUS && $u->to_status === Todo::STATUS_BLOCKED => ['hold', 'On hold', $u->note],

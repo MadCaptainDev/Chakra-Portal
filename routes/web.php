@@ -1012,6 +1012,7 @@ Route::middleware(['auth', 'module:insights,view'])->group(function () {
 Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('studio-map', [StudioMapController::class, 'index'])->name('studio-map');
     Route::get('editor-updates', [EditorUpdatesController::class, 'index'])->name('editor-updates');
+    Route::get('editor-updates/live', [EditorUpdatesController::class, 'live'])->name('editor-updates.live');
     Route::redirect('daily-checks', '/editor-updates');
     Route::get('studio-map/data', [StudioMapController::class, 'data'])->name('studio-map.data');
 

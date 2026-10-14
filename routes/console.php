@@ -70,6 +70,10 @@ Schedule::command('notion:sync-shoots')->everyThirtyMinutes();
 // bypasses this scheduler mutex entirely, for instance).
 Schedule::command('whatsapp:dispatch-campaigns')->everyMinute()->withoutOverlapping();
 
+// A Video ready still not posted 30 minutes after its publishing time:
+// push the editor and the admins (once per video).
+Schedule::command('editing:publish-reminders')->everyFiveMinutes()->withoutOverlapping();
+
 // "Your report is ready" -- a nudge, not the PDF itself (see
 // NotifyReportsReady's own doc block). The 2nd of the month, not the 1st,
 // so the 01:00/02:00 Notion/Instagram syncs above have a full day's head

@@ -32,7 +32,7 @@ async function post(url, body = {}) {
 function laneOf(c) {
     if (c.next_on) return 'later';
     if (c.posted_at) return 'posted';
-    if (c.status === 'completed') return 'done'; // under review
+    if (c.status === 'completed') return c.ready ? 'ready' : 'done'; // done = under review
     if (c.status === 'started') return 'working';
     if (['waiting', 'blocked'].includes(c.status)) return 'todo';
     return null;
@@ -62,6 +62,7 @@ export function editingDay({ cards, planner, hints, kinds, urls }) {
         holding: null, // card id with the hold box open
         holdText: '',
         links: {},
+        when: {}, // publish times being picked, by card id
         refreshing: false,
 
         init() {
@@ -157,6 +158,17 @@ export function editingDay({ cards, planner, hints, kinds, urls }) {
             return h ? `${h}h ${m}m` : `${m}m`;
         },
 
+        // ——— Video ready: its publishing time ———
+        publishLate(card) {
+            return !!card.publish_ms && card.publish_ms < this.now;
+        },
+        publishIn(card) {
+            if (!card.publish_ms) return '';
+            const mins = Math.round((card.publish_ms - this.now) / 60000);
+            const span = (m) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`);
+            return mins >= 0 ? `· in ${span(mins)}` : `· ${span(-mins)} late — post it now`;
+        },
+
         openFixes(card) {
             return card.corrections.filter((c) => c.status !== 'completed').length;
         },
@@ -217,7 +229,7 @@ export function editingDay({ cards, planner, hints, kinds, urls }) {
             this.run(`${card.id}${action}`, async () => {
                 const { card: fresh } = await post(urls.act.replace('__ID__', card.id), { action, ...extra });
                 this.put(fresh);
-                const said = { done: 'Sent for review.', post: 'Posted ✓', deliver: 'Delivered ✓' }[action];
+                const said = { done: 'Sent for review.', ready: 'Video ready ✓', post: 'Posted ✓', deliver: 'Delivered ✓' }[action];
                 if (said) this.say(said);
             });
         },

@@ -69,7 +69,10 @@ class EditingReviewTest extends TestCase
         $reel = $this->finished('SVA - Reel one');
         $film = $this->finished('Janet - Doctor interview');
 
-        $this->actingAs($this->admin)->postJson(route('my.editing.act', $reel), ['action' => 'post', 'kind' => 'story'])
+        // Posting needs Video ready, with its publishing time, first.
+        $this->actingAs($this->admin)->postJson(route('my.editing.act', $reel), ['action' => 'post', 'kind' => 'story'])->assertStatus(422);
+        $this->postJson(route('my.editing.act', $reel), ['action' => 'ready', 'publish_at' => now()->addHour()->toDateTimeString()])->assertOk()->assertJsonPath('card.ready', true);
+        $this->postJson(route('my.editing.act', $reel), ['action' => 'post', 'kind' => 'story'])
             ->assertOk()->assertJsonPath('card.kind', 'story');
         $this->postJson(route('my.editing.act', $film), ['action' => 'deliver'])
             ->assertOk()->assertJsonPath('card.kind', Todo::KIND_DELIVERED);

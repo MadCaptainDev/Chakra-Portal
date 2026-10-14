@@ -10,6 +10,7 @@ import { inboxDesk } from './inbox-desk.js';
 import { serviceExplorer, hoursPipeline } from './home-studio.js';
 import { loginMascot } from './login-mascot.js';
 import { editingDay } from './editing-day.js';
+import { editorTimeline } from './editor-timeline.js';
 import { shootScripts, shootLive } from './shoot-scripts.js';
 
 window.Alpine = Alpine;
@@ -25,6 +26,8 @@ Alpine.data('proposalComment', proposalComment);
 
 // The editors' video board -- see resources/js/editing-day.js.
 Alpine.data('editingDay', editingDay);
+// The live timeline on Editor Updates -- see resources/js/editor-timeline.js.
+Alpine.data('editorTimeline', editorTimeline);
 Alpine.data('shootScripts', shootScripts);
 Alpine.data('shootLive', shootLive);
 

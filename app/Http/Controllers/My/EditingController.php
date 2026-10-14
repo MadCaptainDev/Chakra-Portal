@@ -12,6 +12,7 @@ use App\Support\ClientGuess;
 use App\Support\TimesheetVenture;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 
 /**
@@ -90,22 +91,26 @@ class EditingController extends Controller
     }
 
     /**
-     * start | done | reopen | post | deliver | unpost | kind | hold | next | today
+     * start | done | reopen | ready | post | deliver | unpost | kind | hold | next | today
      *
      * Done sends a video to review (completed, not out yet). From review it
-     * either gets a correction (back to Working, see correct()) or goes out:
-     * posted as a Reel, Post or Story, or delivered to the client.
+     * gets a correction (back to Working, see correct()), is delivered to the
+     * client, or is approved as Video ready with the time it is to be
+     * published (ready, again to change the time). Only a ready video is
+     * marked posted, as a Reel, Post or Story; PublishReminders pushes when
+     * one is still not posted 30 minutes after its time.
      */
     public function act(Request $request, Todo $todo): JsonResponse
     {
         $user = $request->user();
         $this->authorise($todo, $user);
         $data = $request->validate([
-            'action' => ['required', 'in:start,done,reopen,post,deliver,unpost,kind,hold,next,today'],
+            'action' => ['required', 'in:start,done,reopen,ready,post,deliver,unpost,kind,hold,next,today'],
             'kind' => ['nullable', 'in:'.implode(',', array_keys(Todo::KINDS))],
             'post_url' => ['nullable', 'url', 'max:500'],
             'note' => ['nullable', 'string', 'max:255'],
-        ]);
+            'publish_at' => ['required_if:action,ready', 'nullable', 'date'],
+        ], ['publish_at.required_if' => 'Set when it is to be published.']);
         if (in_array($data['action'], ['hold', 'next', 'today'], true) && ($todo->parent_id || ! $todo->isOpen())) {
             return response()->json(['message' => 'Only a video still on your board can be held or moved.'], 422);
         }
@@ -127,17 +132,33 @@ class EditingController extends Controller
                 break;
             case 'reopen':
                 $todo->moveTo(Todo::STATUS_STARTED, $user, 'Reopened');
-                $todo->forceFill(['posted_at' => null, 'post_url' => null, 'posted_by_id' => null])->save();
+                $todo->forceFill(['posted_at' => null, 'post_url' => null, 'posted_by_id' => null, 'ready_at' => null, 'publish_at' => null, 'publish_reminded_at' => null])->save();
                 break;
             case 'kind':
                 $todo->forceFill(['kind' => $data['kind'] ?? null])->save();
+                break;
+            case 'ready':
+                if ($todo->parent_id || $todo->status !== Todo::STATUS_COMPLETED || $todo->posted_at) {
+                    return response()->json(['message' => 'Only a video in review can be made ready.'], 422);
+                }
+                if ($todo->corrections()->open()->exists()) {
+                    return response()->json(['message' => 'Finish the open corrections first.'], 422);
+                }
+                $at = Carbon::parse($data['publish_at']);
+                $wasReady = $todo->ready_at !== null;
+                $todo->forceFill([
+                    'ready_at' => $todo->ready_at ?? now(),
+                    'publish_at' => $at,
+                    'publish_reminded_at' => null,
+                ])->save();
+                TodoUpdate::record($todo, $user, TodoUpdate::READY, ['note' => ($wasReady ? 'New time: ' : 'Publish ').$at->format('D j M, g:i A')]);
                 break;
             case 'post':
                 if ($todo->corrections()->open()->exists()) {
                     return response()->json(['message' => 'Finish the open corrections first.'], 422);
                 }
-                if ($todo->status !== Todo::STATUS_COMPLETED) {
-                    $todo->moveTo(Todo::STATUS_COMPLETED, $user);
+                if (! $todo->ready_at) {
+                    return response()->json(['message' => 'Make it Video ready, with its publishing time, first.'], 422);
                 }
                 $kind = $data['kind'] ?? $todo->kind;
                 $todo->forceFill([
@@ -165,7 +186,7 @@ class EditingController extends Controller
                 break;
             case 'unpost':
                 $wasDelivered = $todo->kind === Todo::KIND_DELIVERED;
-                $todo->forceFill(['posted_at' => null, 'post_url' => null, 'posted_by_id' => null] + ($wasDelivered ? ['kind' => null] : []))->save();
+                $todo->forceFill(['posted_at' => null, 'post_url' => null, 'posted_by_id' => null, 'publish_reminded_at' => null] + ($wasDelivered ? ['kind' => null] : []))->save();
                 TodoUpdate::record($todo, $user, TodoUpdate::UNPOSTED, ['note' => $wasDelivered ? 'Delivery undone' : null]);
                 break;
             case 'hold':
@@ -223,7 +244,7 @@ class EditingController extends Controller
 
         if ($todo->status === Todo::STATUS_COMPLETED) {
             $todo->moveTo(Todo::STATUS_STARTED, $user, 'Correction: '.$fix->title);
-            $todo->forceFill(['posted_at' => null, 'post_url' => null, 'posted_by_id' => null])->save();
+            $todo->forceFill(['posted_at' => null, 'post_url' => null, 'posted_by_id' => null, 'ready_at' => null, 'publish_at' => null, 'publish_reminded_at' => null])->save();
         }
 
         return response()->json(['card' => $this->card($todo->fresh()->load('corrections', 'updates', 'contentItem'))]);
@@ -272,6 +293,11 @@ class EditingController extends Controller
             'starts_on' => $t->starts_on?->toDateString(),
             'publishes' => $publish ? ($publish->isToday() ? 'Today' : ($publish->isTomorrow() ? 'Tomorrow' : $publish->format('D j M'))) : null,
             'posted_at' => $t->posted_at?->format('g:i A'),
+            'ready' => $t->ready_at !== null,
+            'publish_at' => $t->publish_at?->format('Y-m-d\TH:i'),
+            'publish_label' => $t->publish_at ? ($t->publish_at->isToday() ? 'Today ' : ($t->publish_at->isTomorrow() ? 'Tomorrow ' : $t->publish_at->format('D j M '))).$t->publish_at->format('g:i A') : null,
+            'publish_ms' => $t->publish_at?->getTimestampMs(),
+            'publish_default' => ($publish && $publish->gte(today()) ? $publish->copy()->setTime(18, 0) : now()->addHour()->startOfHour())->format('Y-m-d\TH:i'),
             'post_url' => $t->post_url,
             'working_minutes' => $t->workingMinutes(),
             'working_since' => $t->status === Todo::STATUS_STARTED ? optional($t->updates->last(fn ($u) => $u->to_status === Todo::STATUS_STARTED))->created_at?->getTimestampMs() : null,

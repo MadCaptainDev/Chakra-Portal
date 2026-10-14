@@ -39,6 +39,9 @@ class TodoUpdate extends Model
     /** A reviewed video was handed to the client rather than posted. */
     public const DELIVERED = 'delivered';
 
+    /** Approved in review: ready, with the time it is to be published (note). */
+    public const READY = 'ready';
+
     /** @var array<string, string> */
     public const ACTIONS = [
         self::CREATED => 'Added',
@@ -49,6 +52,7 @@ class TodoUpdate extends Model
         self::POSTED => 'Posted',
         self::UNPOSTED => 'Post undone',
         self::DELIVERED => 'Delivered',
+        self::READY => 'Video ready',
     ];
 
     /**

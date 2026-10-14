@@ -36,11 +36,11 @@
             .eg-ot { font-size:11.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
             .eg-os { font-size:9.5px; color:rgba(228,242,247,.55); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
             .eg-os .late { color:var(--red); font-weight:700; }
-            .eg-tabs { margin-top:9px; display:grid; grid-template-columns:repeat(4,1fr); gap:3px; padding:3px; border-radius:14px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); }
+            .eg-tabs { margin-top:9px; display:grid; grid-template-columns:repeat(5,1fr); gap:3px; padding:3px; border-radius:14px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); }
             .eg-tab { height:38px; border-radius:11px; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:10px; font-weight:600; color:rgba(228,242,247,.6); transition: background .25s; }
             .eg-tab.on { background:rgba(255,255,255,.15); color:#fff; }
             .eg-tab .n { margin-top:1px; border-radius:99px; padding:0 6px; font-size:9.5px; }
-            .n.todo { background:rgba(255,255,255,.1); } .n.working { background:rgba(251,191,36,.15); color:#fde68a; } .n.done { background:rgba(56,189,248,.15); color:#bae6fd; } .n.posted { background:rgba(16,185,129,.15); color:#a7f3d0; }
+            .n.todo { background:rgba(255,255,255,.1); } .n.working { background:rgba(251,191,36,.15); color:#fde68a; } .n.done { background:rgba(56,189,248,.15); color:#bae6fd; } .n.posted { background:rgba(16,185,129,.15); color:#a7f3d0; } .n.ready { background:rgba(139,92,246,.2); color:#ddd6fe; }
             .eg-tab .n.bump { animation: egBump .5s ease; }
             @keyframes egBump { 40% { transform:scale(1.45); } }
             .eg-lane { margin-top:8px; display:flex; flex-direction:column; gap:7px; }
@@ -89,7 +89,8 @@
             'Add — tap the box, pick from <em>Up next</em>, or type.',
             '▶ Start working when you open the project.',
             'Corrections go on the video. Tick them off.',
-            '✓ Done sends it to review: a correction, or Posted / 📦 Delivered.',
+            '✓ Done → review: a correction, or ✓ Video ready with its time (or 📦 Delivered).',
+            'At its time, post it and Mark posted — 30 min late, phones buzz.',
         ], 'Tomorrow’s videos are already in the planner — edit ahead.'],
         'open' => [route('my.editing'), 'Open My Editing'],
     ])

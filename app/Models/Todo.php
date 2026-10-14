@@ -119,6 +119,9 @@ class Todo extends Model
         'closed_on' => 'date',
         'reviewed_at' => 'datetime',
         'posted_at' => 'datetime',
+        'ready_at' => 'datetime',
+        'publish_at' => 'datetime',
+        'publish_reminded_at' => 'datetime',
     ];
 
     /** Whose job it is. The board is grouped by this. */
@@ -182,7 +185,7 @@ class Todo extends Model
     {
         static::saved(function (self $todo) {
             if ($todo->content_item_id && $todo->parent_id === null
-                && ($todo->wasRecentlyCreated || $todo->wasChanged(['status', 'posted_at', 'user_id', 'content_item_id']))) {
+                && ($todo->wasRecentlyCreated || $todo->wasChanged(['status', 'posted_at', 'ready_at', 'publish_at', 'user_id', 'content_item_id']))) {
                 ContentItem::query()->find($todo->content_item_id)?->touch();
             }
         });
@@ -196,6 +199,29 @@ class Todo extends Model
     public function isPosted(): bool
     {
         return $this->posted_at !== null;
+    }
+
+    /** Approved in review, waiting to be published at publish_at. */
+    public function isReady(): bool
+    {
+        return $this->status === self::STATUS_COMPLETED && $this->ready_at !== null && $this->posted_at === null;
+    }
+
+    /** Ready and past its publish time with nothing posted. */
+    public function isLateToPublish(?Carbon $now = null): bool
+    {
+        return $this->isReady() && $this->publish_at !== null && $this->publish_at->lt($now ?? now());
+    }
+
+    /** The four stages after Done, as the screens name them. */
+    public function stage(): ?string
+    {
+        return match (true) {
+            $this->status !== self::STATUS_COMPLETED => null,
+            $this->posted_at !== null => $this->kind === self::KIND_DELIVERED ? 'delivered' : 'posted',
+            $this->ready_at !== null => 'ready',
+            default => 'review',
+        };
     }
 
     /**

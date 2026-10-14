@@ -37,14 +37,16 @@ if (root) startGuide(root, (g) => {
             h += `<div class="eg-acts"><div class="eg-a done ${open ? 'off' : ''}" data-t="done-${c.id}">✓ Done — for review</div><div class="eg-a fix" data-t="fix-${c.id}">+ Correction</div></div>`;
         } else if (lane === 'done') {
             h += `<div class="eg-acts"><div class="eg-a fix" data-t="fix-${c.id}">+ Correction</div></div>`;
-            h += '<div class="eg-where"><div style="font-size:9.5px;font-weight:700;color:#bae6fd;margin-bottom:4px">In review — change? Correction. Good? Send it out:</div><div class="eg-kinds" style="grid-template-columns:repeat(3,1fr)">' + Object.entries(KINDS).map(([k, l]) =>
+            h += `<div class="eg-where"><div style="font-size:9.5px;font-weight:700;color:#bae6fd;margin-bottom:4px">In review — change? Correction. Good? Set when it goes out:</div>
+                  <div class="eg-post"><div class="eg-input" data-t="when-${c.id}">📅 ${esc(c.when ?? 'Tomorrow, 6:00 PM')}</div>
+                  <div class="eg-a" style="background:#8b5cf6;color:#fff" data-t="ready-${c.id}">✓ Video ready</div></div>
+                  <div class="eg-a" style="margin-top:5px;justify-content:center;background:#14b8a6;color:#fff" data-t="deliver-${c.id}">📦 Delivered to client instead</div></div>`;
+        } else if (lane === 'ready') {
+            h += `<div class="eg-where" style="${c.late ? 'background:rgba(239,68,68,.12)' : ''}"><div style="font-size:10px;font-weight:700;color:${c.late ? '#fca5a5' : '#ddd6fe'};margin-bottom:4px">${c.late ? '⚠ Was due' : '🕒 Publish'} ${esc(c.when ?? 'Tomorrow, 6:00 PM')}${c.late ? ' · 35m late — post it now' : ''}</div>
+                  <div class="eg-kinds" style="grid-template-columns:repeat(3,1fr)">` + Object.entries(KINDS).map(([k, l]) =>
                 `<div class="eg-k ${c.kind === k ? 'on' : ''}" data-t="kind-${c.id}-${k}">${l}</div>`).join('') + '</div>';
-            h += `<div class="eg-a" style="margin-top:5px;justify-content:center;background:#14b8a6;color:#fff" data-t="deliver-${c.id}">📦 Delivered to client</div>`;
-            if (c.kind) {
-                h += `<div class="eg-post"><div class="eg-input" data-t="link-${c.id}">${c.link ? esc(c.link) : '<span class="ph">Link (optional)</span>'}${c.typingLink ? '<span class="eg-caret"></span>' : ''}</div>
-                      <div class="eg-a posted" data-t="posted-${c.id}">Mark posted</div></div>`;
-            }
-            h += '</div>';
+            h += `<div class="eg-post"><div class="eg-input" data-t="link-${c.id}">${c.link ? esc(c.link) : '<span class="ph">Link (optional)</span>'}${c.typingLink ? '<span class="eg-caret"></span>' : ''}</div>
+                  <div class="eg-a posted" data-t="posted-${c.id}">Mark posted</div></div></div>`;
         } else {
             h += `<div class="eg-ok"><span>✓ ${c.kind === 'delivered' ? 'Delivered' : `${KINDS[c.kind] ?? 'Posted'} posted`} ${esc(c.posted)}</span><span>Open · Undo</span></div>`;
         }
@@ -52,7 +54,7 @@ if (root) startGuide(root, (g) => {
     }
 
     function render(s) {
-        const counts = { todo: 0, working: 0, done: 0, posted: 0 };
+        const counts = { todo: 0, working: 0, done: 0, ready: 0, posted: 0 };
         s.cards.forEach((c) => { counts[laneOf(c)]++; });
         const lane = s.cards.filter((c) => laneOf(c) === s.tab);
         const date = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -75,7 +77,7 @@ if (root) startGuide(root, (g) => {
               <div class="eg-chips">${['SVA', 'Suryas', 'TPC', 'Janet'].map((c) => `<span class="eg-chip" data-t="chip-${c}">${c} –</span>`).join('')}</div>
               ${drop}
             </div>
-            <div class="eg-tabs">${Object.entries({ todo: 'To do', working: 'Working', done: 'Review', posted: 'Out' }).map(([k, l]) =>
+            <div class="eg-tabs">${Object.entries({ todo: 'To do', working: 'Working', done: 'Review', ready: 'Ready', posted: 'Out' }).map(([k, l]) =>
                 `<div class="eg-tab ${s.tab === k ? 'on' : ''}" data-t="tab-${k}">${l}<span class="n ${k} ${s.bump === k ? 'bump' : ''}">${counts[k]}</span></div>`).join('')}</div>
             <div class="eg-lane">${lane.length ? lane.map((c) => cardHtml(s, c)).join('') : `<div class="eg-empty">${s.tab === 'todo' ? 'Nothing to do yet — type above or pick from Up next.' : 'Nothing here'}</div>`}</div>`;
         fresh.clear();
@@ -247,28 +249,48 @@ if (root) startGuide(root, (g) => {
             },
         },
         {
-            step: 'Review', title: 'Posted or delivered',
+            step: 'Review', title: 'Video ready',
             from: () => ({ ...blank(), tab: 'done', cards: [{ ...A(), lane: 'done', minutes: 41, fixes: fixedA() }, B(), C()] }),
             async play(s) {
-                g.say('In review, all good? Pick <b>Reel, Post or Story</b>. Only for the client? Tap <b>📦 Delivered</b> instead.');
-                await g.wait(1500);
+                g.say('In review, all good? Set <b>when it will be published</b> and tap <b>✓ Video ready</b>. Only for the client? <b>📦 Delivered</b> instead.');
+                await g.wait(1800);
+                await g.tap('when-1');
+                s.cards[0].when = 'Tomorrow, 6:00 PM';
+                await g.wait(400);
+                await g.tap('ready-1');
+                s.cards[0].lane = 'ready';
+                Object.assign(s, { tab: 'ready', bump: 'ready' });
+                fresh.add(1);
+                g.draw();
+                await g.toast('Video ready ✓', 1300);
+                await g.wait(600);
+            },
+        },
+        {
+            step: 'Publish', title: 'Posted at its time',
+            from: () => ({ ...blank(), tab: 'ready', cards: [{ ...A(), lane: 'ready', when: 'Today, 6:00 PM', minutes: 41, fixes: fixedA() }, B(), C()] }),
+            async play(s) {
+                g.say('At the publishing time, post it — then pick <b>Reel, Post or Story</b>, paste the link and tap <b>Mark posted</b>.');
+                await g.wait(1600);
                 await g.tap('kind-1-reel');
                 s.cards[0].kind = 'reel';
                 g.draw();
-                await g.wait(900);
-                g.say('Once it is live, paste the link (optional) and tap <b>Mark posted</b>.');
-                await g.wait(1200);
                 await g.tap('link-1');
                 s.cards[0].typingLink = true;
-                await g.type('instagram.com/reel/DK8h2', (v) => { s.cards[0].link = v; }, 55);
+                await g.type('instagram.com/reel/DK8h2', (v) => { s.cards[0].link = v; }, 50);
                 s.cards[0].typingLink = false;
+                g.say('Not marked posted <b>30 minutes</b> after its time? You and the admins get a reminder on your phone.');
+                s.cards[0].late = true;
+                s.cards[0].when = 'Today, 6:00 PM';
+                g.draw();
+                await g.wait(2600);
                 await g.tap('posted-1');
-                s.cards[0].posted = '6:42 PM';
+                Object.assign(s.cards[0], { posted: '6:35 PM', late: false });
                 Object.assign(s, { tab: 'posted', bump: 'posted' });
                 fresh.add(1);
                 g.draw();
                 await g.toast('Posted ✓', 1400);
-                await g.wait(1200);
+                await g.wait(1000);
             },
         },
         {
