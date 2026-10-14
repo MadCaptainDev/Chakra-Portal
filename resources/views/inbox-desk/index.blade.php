@@ -251,7 +251,7 @@
                                                         <p class="text-brand-100/50">Skipped<span x-show="cell(account, cp).by" x-text="` by ${cell(account, cp).by}`"></span></p>
                                                     </template>
                                                     <template x-if="cell(account, cp).state === 'none'">
-                                                        <p class="text-brand-100/40">Not due today</p>
+                                                        <p class="text-brand-100/40" x-text="cell(account, cp).opens ? 'Opens at ' + cell(account, cp).opens : 'Not due today'"></p>
                                                     </template>
                                                 </div>
                                             </button>

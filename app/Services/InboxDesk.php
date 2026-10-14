@@ -31,6 +31,11 @@ use Illuminate\Support\Facades\DB;
  */
 class InboxDesk
 {
+    /** Evening checks open at this hour (3 PM). */
+    public const EVENING_FROM = 15;
+
+    public const EVENING_LABEL = '3 PM';
+
     /**
      * A webhook feed quieter than this is treated as not set up for the
      * account. Comment webhooks have been known to stop arriving without any
@@ -298,6 +303,9 @@ class InboxDesk
             'short' => $this->shortName($cp?->name),
             'kind' => $this->kindOf($cp?->name),
             'field' => $this->countField($routine, $cp?->id),
+            // An "Evening …" check opens in the afternoon, so the day's two rounds
+            // are two rounds and not four taps at ten in the morning.
+            'opens' => $this->isEvening($cp?->name) ? self::EVENING_LABEL : null,
         ])->values();
 
         $accounts = $rows
@@ -309,12 +317,19 @@ class InboxDesk
 
                 $cells = [];
                 foreach ($checkpointRows as $cp) {
-                    $cells[$cp['id']] = $this->cell(
+                    $cell = $this->cell(
                         $user,
                         $accountRows->filter(fn (RoutineOccurrence $o) => (int) $o->checkpoint_id === $cp['id']),
                         $cp['field'],
                         $today,
                     );
+                    // Today's evening check, before it opens: not due yet (a missed
+                    // one from yesterday stays open, late).
+                    if ($cp['opens'] && $cell['state'] === 'open' && $cell['late_days'] === 0 && (int) now()->format('G') < self::EVENING_FROM) {
+                        $cell = ['state' => 'none', 'id' => null, 'late_days' => 0, 'outstanding' => 0, 'by' => null,
+                            'at' => null, 'at_label' => null, 'count' => null, 'can_undo' => false];
+                    }
+                    $cells[$cp['id']] = $cell + ['opens' => $cp['opens']];
                 }
 
                 $due = collect($cells)->reject(fn (array $c) => $c['state'] === 'none');
@@ -617,11 +632,23 @@ class InboxDesk
 
     private function shortName(?string $name): string
     {
+        // "Morning DMs" and "Evening DMs" must not both read "DMs".
+        $round = match (true) {
+            str_contains(mb_strtolower((string) $name), 'morning') => 'Morning ',
+            $this->isEvening($name) => 'Evening ',
+            default => '',
+        };
+
         return match ($this->kindOf($name)) {
-            'messages' => 'DMs',
-            'comments' => 'Comments',
+            'messages' => $round.'DMs',
+            'comments' => $round.'Comments',
             default => $name ?: 'Check',
         };
+    }
+
+    private function isEvening(?string $name): bool
+    {
+        return str_contains(mb_strtolower((string) $name), 'evening');
     }
 
     private function accountName(mixed $subject): ?string

@@ -190,6 +190,28 @@ class InboxDeskTest extends TestCase
         $this->actingAs(User::factory()->create())->get(route('inbox-desk.guide'))->assertOk();
     }
 
+    public function test_twice_a_day_the_evening_round_opens_at_three(): void
+    {
+        Carbon::setTestNow(today()->setTime(10, 0));
+        [$routine, $sanjai] = $this->deskRoutine(['brand_a']);
+        $routine->checkpoints->each(fn ($cp) => $cp->update(['name' => 'Morning '.$cp->name]));
+        $routine->checkpoints()->create(['name' => 'Evening DMs', 'sort_order' => 2]);
+        $routine->checkpoints()->create(['name' => 'Evening Comments', 'sort_order' => 3]);
+        app(RoutineOccurrenceGenerator::class)->run();
+
+        $board = $this->actingAs($sanjai)->getJson(route('inbox-desk.state'))->json();
+        $this->assertSame(['Morning DMs', 'Morning Comments', 'Evening DMs', 'Evening Comments'], array_column($board['routines'][0]['checkpoints'], 'short'));
+        $this->assertSame(2, $board['totals']['total'], 'only the morning round is due at 10');
+        $evening = collect($board['routines'][0]['checkpoints'])->firstWhere('short', 'Evening DMs');
+        $cell = $board['routines'][0]['accounts'][0]['cells'][$evening['id']];
+        $this->assertSame(['none', '3 PM'], [$cell['state'], $cell['opens']]);
+
+        Carbon::setTestNow(today()->setTime(15, 30));
+        $board = $this->actingAs($sanjai)->getJson(route('inbox-desk.state'))->json();
+        $this->assertSame(4, $board['totals']['total']);
+        $this->assertSame('open', $board['routines'][0]['accounts'][0]['cells'][$evening['id']]['state']);
+    }
+
     public function test_setup_is_admin_only(): void
     {
         [, $sanjai] = $this->deskRoutine(['brand_a']);
