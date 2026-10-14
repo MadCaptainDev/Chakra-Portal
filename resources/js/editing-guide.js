@@ -7,7 +7,7 @@ import { startGuide } from './guide-player.js';
 
 const root = document.querySelector('[data-guide]');
 
-const KINDS = { reel: 'Reel', post: 'Post', story: 'Story', none: 'Not posting' };
+const KINDS = { reel: 'Reel', post: 'Post', story: 'Story' };
 const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 const laneOf = (c) => (c.posted ? 'posted' : c.lane);
 
@@ -34,18 +34,19 @@ if (root) startGuide(root, (g) => {
         if (lane === 'todo') {
             h += `<div class="eg-acts"><div class="eg-a start" data-t="start-${c.id}">▶ Start working</div><div class="eg-a fix" data-t="fix-${c.id}">+ Correction</div></div>`;
         } else if (lane === 'working') {
-            h += `<div class="eg-acts"><div class="eg-a done ${open ? 'off' : ''}" data-t="done-${c.id}">✓ Done</div><div class="eg-a fix" data-t="fix-${c.id}">+ Correction</div></div>`;
+            h += `<div class="eg-acts"><div class="eg-a done ${open ? 'off' : ''}" data-t="done-${c.id}">✓ Done — for review</div><div class="eg-a fix" data-t="fix-${c.id}">+ Correction</div></div>`;
         } else if (lane === 'done') {
             h += `<div class="eg-acts"><div class="eg-a fix" data-t="fix-${c.id}">+ Correction</div></div>`;
-            h += '<div class="eg-where"><div class="eg-kinds">' + Object.entries(KINDS).map(([k, l]) =>
+            h += '<div class="eg-where"><div style="font-size:9.5px;font-weight:700;color:#bae6fd;margin-bottom:4px">In review — change? Correction. Good? Send it out:</div><div class="eg-kinds" style="grid-template-columns:repeat(3,1fr)">' + Object.entries(KINDS).map(([k, l]) =>
                 `<div class="eg-k ${c.kind === k ? 'on' : ''}" data-t="kind-${c.id}-${k}">${l}</div>`).join('') + '</div>';
-            if (c.kind && c.kind !== 'none') {
+            h += `<div class="eg-a" style="margin-top:5px;justify-content:center;background:#14b8a6;color:#fff" data-t="deliver-${c.id}">📦 Delivered to client</div>`;
+            if (c.kind) {
                 h += `<div class="eg-post"><div class="eg-input" data-t="link-${c.id}">${c.link ? esc(c.link) : '<span class="ph">Link (optional)</span>'}${c.typingLink ? '<span class="eg-caret"></span>' : ''}</div>
                       <div class="eg-a posted" data-t="posted-${c.id}">Mark posted</div></div>`;
             }
             h += '</div>';
         } else {
-            h += `<div class="eg-ok"><span>✓ ${KINDS[c.kind] ?? 'Posted'} posted ${esc(c.posted)}</span><span>Open · Undo</span></div>`;
+            h += `<div class="eg-ok"><span>✓ ${c.kind === 'delivered' ? 'Delivered' : `${KINDS[c.kind] ?? 'Posted'} posted`} ${esc(c.posted)}</span><span>Open · Undo</span></div>`;
         }
         return h + '</div>';
     }
@@ -74,7 +75,7 @@ if (root) startGuide(root, (g) => {
               <div class="eg-chips">${['SVA', 'Suryas', 'TPC', 'Janet'].map((c) => `<span class="eg-chip" data-t="chip-${c}">${c} –</span>`).join('')}</div>
               ${drop}
             </div>
-            <div class="eg-tabs">${Object.entries({ todo: 'To do', working: 'Working', done: 'Done', posted: 'Posted' }).map(([k, l]) =>
+            <div class="eg-tabs">${Object.entries({ todo: 'To do', working: 'Working', done: 'Review', posted: 'Out' }).map(([k, l]) =>
                 `<div class="eg-tab ${s.tab === k ? 'on' : ''}" data-t="tab-${k}">${l}<span class="n ${k} ${s.bump === k ? 'bump' : ''}">${counts[k]}</span></div>`).join('')}</div>
             <div class="eg-lane">${lane.length ? lane.map((c) => cardHtml(s, c)).join('') : `<div class="eg-empty">${s.tab === 'todo' ? 'Nothing to do yet — type above or pick from Up next.' : 'Nothing here'}</div>`}</div>`;
         fresh.clear();
@@ -232,10 +233,10 @@ if (root) startGuide(root, (g) => {
             },
         },
         {
-            step: 'Finish', title: 'Done',
+            step: 'Finish', title: 'Done → review',
             from: () => ({ ...blank(), tab: 'working', cards: [{ ...A(), lane: 'working', minutes: 41, fixes: fixedA() }, B(), C()] }),
             async play(s) {
-                g.say('Finished the edit? Tap <b>✓ Done</b>.');
+                g.say('Finished the edit? Tap <b>✓ Done</b>. It goes to <b>Under review</b>.');
                 await g.wait(1200);
                 await g.tap('done-1');
                 s.cards[0].lane = 'done';
@@ -246,10 +247,10 @@ if (root) startGuide(root, (g) => {
             },
         },
         {
-            step: 'Finish', title: 'Where does it go?',
+            step: 'Review', title: 'Posted or delivered',
             from: () => ({ ...blank(), tab: 'done', cards: [{ ...A(), lane: 'done', minutes: 41, fixes: fixedA() }, B(), C()] }),
             async play(s) {
-                g.say('Pick where it goes: <b>Reel, Post, Story</b> — or <b>Not posting</b> if it is only for the client.');
+                g.say('In review, all good? Pick <b>Reel, Post or Story</b>. Only for the client? Tap <b>📦 Delivered</b> instead.');
                 await g.wait(1500);
                 await g.tap('kind-1-reel');
                 s.cards[0].kind = 'reel';
@@ -271,10 +272,10 @@ if (root) startGuide(root, (g) => {
             },
         },
         {
-            step: 'Changes later', title: 'Sent back after Done',
+            step: 'Review', title: 'A correction in review',
             from: () => ({ ...blank(), tab: 'done', cards: [{ ...A(), posted: '6:42 PM', kind: 'reel', lane: 'done' }, { ...B(), lane: 'done', minutes: 35 }, C()] }),
             async play(s) {
-                g.say('Client wants a change after it is done? Add a correction — the video goes back to <b>Working</b> on its own.');
+                g.say('Review found a change? Add a correction — the video goes back to <b>Working</b> on its own. Fix it, Done, and it is back in review.');
                 await g.wait(1600);
                 await addFix(s, 2, 'Change thumbnail text', 21);
                 Object.assign(s.cards[1], { lane: 'working', kind: null });

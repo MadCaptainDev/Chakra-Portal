@@ -89,7 +89,7 @@
             'Add — tap the box, pick from <em>Up next</em>, or type.',
             '▶ Start working when you open the project.',
             'Corrections go on the video. Tick them off.',
-            '✓ Done, pick Reel / Post / Story, then Mark posted.',
+            '✓ Done sends it to review: a correction, or Posted / 📦 Delivered.',
         ], 'Tomorrow’s videos are already in the planner — edit ahead.'],
         'open' => [route('my.editing'), 'Open My Editing'],
     ])

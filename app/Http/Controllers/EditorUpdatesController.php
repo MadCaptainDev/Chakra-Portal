@@ -48,8 +48,20 @@ class EditorUpdatesController extends Controller
             ->sortByDesc(fn (array $p) => [$p['moves'], $p['open']])
             ->values();
 
+        // The review queue is now, not that day: every finished video waiting
+        // for a correction or to go out, oldest first.
+        $review = Todo::query()
+            ->whereNull('parent_id')
+            ->where('status', Todo::STATUS_COMPLETED)
+            ->whereNull('posted_at')
+            ->whereDate('closed_on', '>=', today()->subDays(14))
+            ->with(['user', 'contentItem', 'corrections'])
+            ->orderBy('closed_on')->orderBy('updated_at')
+            ->get();
+
         return view('editor-updates.index', [
             'day' => $day,
+            'review' => $review,
             'people' => $people,
             'totals' => [
                 'added' => $people->sum('stats.added'),
@@ -65,7 +77,7 @@ class EditorUpdatesController extends Controller
     {
         $videos = $todos->map(fn (Todo $t) => $this->video($t, $user, $day, $dayEnd));
         $moved = $videos->filter(fn (array $v) => $v['events'] !== [])->sortBy('first_at')->values();
-        $still = $videos->filter(fn (array $v) => $v['events'] === [] && in_array($v['status'], Todo::OPEN_STATUSES, true))->values();
+        $still = $videos->filter(fn (array $v) => $v['events'] === [] && (in_array($v['status'], Todo::OPEN_STATUSES, true) || $v['status'] === 'review'))->values();
         $events = $moved->flatMap(fn (array $v) => $v['events']);
         $count = fn (string $type) => $events->where('type', $type)->count();
 
@@ -135,6 +147,7 @@ class EditorUpdatesController extends Controller
         return match (true) {
             $u->action === TodoUpdate::CREATED => $this->make($u, $owner, 'added', 'Added'),
             $u->action === TodoUpdate::POSTED => $this->make($u, $owner, 'posted', 'Posted', $u->note),
+            $u->action === TodoUpdate::DELIVERED => $this->make($u, $owner, 'posted', 'Delivered', $u->note),
             $u->action === TodoUpdate::UNPOSTED => $this->make($u, $owner, 'other', 'Post undone'),
             $u->action === TodoUpdate::REVIEWED => $this->make($u, $owner, 'other', 'Checked', $u->note),
             $u->action === TodoUpdate::MOVED => $u->to_on?->isSameDay($u->created_at)
@@ -148,7 +161,7 @@ class EditorUpdatesController extends Controller
                 default => $this->make($u, $owner, 'started', 'Started'),
             },
             $u->to_status === Todo::STATUS_WAITING && $u->from_status === Todo::STATUS_STARTED => $this->make($u, $owner, 'other', 'Paused'),
-            $u->to_status === Todo::STATUS_COMPLETED => $this->make($u, $owner, 'done', 'Done'),
+            $u->to_status === Todo::STATUS_COMPLETED => $this->make($u, $owner, 'done', 'Done → review'),
             default => $this->make($u, $owner, 'other', Todo::STATUSES[$u->to_status] ?? ucfirst((string) $u->to_status), $u->note),
         };
     }
@@ -167,8 +180,25 @@ class EditorUpdatesController extends Controller
         ];
     }
 
-    /** Where the to-do stood at the end of that day (now, for today). */
+    /**
+     * Where the to-do stood at the end of that day (now, for today): its
+     * status, except that a finished video is 'review' until it went out,
+     * then 'posted' or 'delivered'.
+     */
     private function statusAt(Todo $t, Carbon $dayEnd): string
+    {
+        $status = $this->rawStatusAt($t, $dayEnd);
+        if ($status !== Todo::STATUS_COMPLETED) {
+            return $status;
+        }
+        if ($t->posted_at && $t->posted_at->lte($dayEnd)) {
+            return $t->kind === Todo::KIND_DELIVERED ? 'delivered' : 'posted';
+        }
+
+        return 'review';
+    }
+
+    private function rawStatusAt(Todo $t, Carbon $dayEnd): string
     {
         if ($dayEnd->isFuture()) {
             return $t->status;

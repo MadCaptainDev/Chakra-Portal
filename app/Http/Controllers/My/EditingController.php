@@ -89,13 +89,19 @@ class EditingController extends Controller
         return response()->json(['card' => $this->card($todo->load('corrections', 'updates', 'contentItem'))]);
     }
 
-    /** start | done | reopen | post | unpost | kind | hold | next | today */
+    /**
+     * start | done | reopen | post | deliver | unpost | kind | hold | next | today
+     *
+     * Done sends a video to review (completed, not out yet). From review it
+     * either gets a correction (back to Working, see correct()) or goes out:
+     * posted as a Reel, Post or Story, or delivered to the client.
+     */
     public function act(Request $request, Todo $todo): JsonResponse
     {
         $user = $request->user();
         $this->authorise($todo, $user);
         $data = $request->validate([
-            'action' => ['required', 'in:start,done,reopen,post,unpost,kind,hold,next,today'],
+            'action' => ['required', 'in:start,done,reopen,post,deliver,unpost,kind,hold,next,today'],
             'kind' => ['nullable', 'in:'.implode(',', array_keys(Todo::KINDS))],
             'post_url' => ['nullable', 'url', 'max:500'],
             'note' => ['nullable', 'string', 'max:255'],
@@ -115,10 +121,7 @@ class EditingController extends Controller
                     return response()->json(['message' => 'Finish the open corrections first.'], 422);
                 }
                 $todo->moveTo(Todo::STATUS_COMPLETED, $user);
-                if ($todo->parent_id) {
-                    break;
-                }
-                if (isset($data['kind'])) {
+                if (! $todo->parent_id && isset($data['kind']) && in_array($data['kind'], Todo::POST_KINDS, true)) {
                     $todo->forceFill(['kind' => $data['kind']])->save();
                 }
                 break;
@@ -130,20 +133,40 @@ class EditingController extends Controller
                 $todo->forceFill(['kind' => $data['kind'] ?? null])->save();
                 break;
             case 'post':
+                if ($todo->corrections()->open()->exists()) {
+                    return response()->json(['message' => 'Finish the open corrections first.'], 422);
+                }
                 if ($todo->status !== Todo::STATUS_COMPLETED) {
                     $todo->moveTo(Todo::STATUS_COMPLETED, $user);
                 }
+                $kind = $data['kind'] ?? $todo->kind;
                 $todo->forceFill([
-                    'kind' => $data['kind'] ?? $todo->kind ?? 'reel',
+                    'kind' => in_array($kind, Todo::POST_KINDS, true) ? $kind : 'reel',
                     'posted_at' => now(),
                     'post_url' => $data['post_url'] ?? null,
                     'posted_by_id' => $user->id,
                 ])->save();
                 TodoUpdate::record($todo, $user, TodoUpdate::POSTED, ['note' => trim((Todo::KINDS[$todo->kind] ?? 'Posted').' '.($todo->post_url ?? ''))]);
                 break;
+            case 'deliver':
+                if ($todo->corrections()->open()->exists()) {
+                    return response()->json(['message' => 'Finish the open corrections first.'], 422);
+                }
+                if ($todo->status !== Todo::STATUS_COMPLETED) {
+                    $todo->moveTo(Todo::STATUS_COMPLETED, $user);
+                }
+                $todo->forceFill([
+                    'kind' => Todo::KIND_DELIVERED,
+                    'posted_at' => now(),
+                    'post_url' => $data['post_url'] ?? null,
+                    'posted_by_id' => $user->id,
+                ])->save();
+                TodoUpdate::record($todo, $user, TodoUpdate::DELIVERED, ['note' => $todo->post_url]);
+                break;
             case 'unpost':
-                $todo->forceFill(['posted_at' => null, 'post_url' => null, 'posted_by_id' => null])->save();
-                TodoUpdate::record($todo, $user, TodoUpdate::UNPOSTED);
+                $wasDelivered = $todo->kind === Todo::KIND_DELIVERED;
+                $todo->forceFill(['posted_at' => null, 'post_url' => null, 'posted_by_id' => null] + ($wasDelivered ? ['kind' => null] : []))->save();
+                TodoUpdate::record($todo, $user, TodoUpdate::UNPOSTED, ['note' => $wasDelivered ? 'Delivery undone' : null]);
                 break;
             case 'hold':
                 // Stuck on something outside the editor's hands. Stops the
@@ -226,7 +249,7 @@ class EditingController extends Controller
             ->where('user_id', $user->id)
             ->whereNull('parent_id')
             ->where(fn ($q) => $q->open()->orWhereDate('closed_on', today())->orWhereDate('posted_at', today())
-                ->orWhere(fn ($q) => $q->where('status', Todo::STATUS_COMPLETED)->whereNull('posted_at')->where(fn ($q) => $q->whereNull('kind')->orWhere('kind', '!=', 'none'))->whereDate('closed_on', '>=', today()->subDays(3))))
+                ->orWhere(fn ($q) => $q->where('status', Todo::STATUS_COMPLETED)->whereNull('posted_at')->whereDate('closed_on', '>=', today()->subDays(14))))
             ->with('corrections', 'updates', 'contentItem')
             ->orderBy('starts_on')->orderBy('id')
             ->get()

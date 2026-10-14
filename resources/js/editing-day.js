@@ -32,7 +32,7 @@ async function post(url, body = {}) {
 function laneOf(c) {
     if (c.next_on) return 'later';
     if (c.posted_at) return 'posted';
-    if (c.status === 'completed') return c.kind === 'none' ? 'posted' : 'done';
+    if (c.status === 'completed') return 'done'; // under review
     if (c.status === 'started') return 'working';
     if (['waiting', 'blocked'].includes(c.status)) return 'todo';
     return null;
@@ -217,6 +217,8 @@ export function editingDay({ cards, planner, hints, kinds, urls }) {
             this.run(`${card.id}${action}`, async () => {
                 const { card: fresh } = await post(urls.act.replace('__ID__', card.id), { action, ...extra });
                 this.put(fresh);
+                const said = { done: 'Sent for review.', post: 'Posted ✓', deliver: 'Delivered ✓' }[action];
+                if (said) this.say(said);
             });
         },
         hold(card, note = this.holdText) {

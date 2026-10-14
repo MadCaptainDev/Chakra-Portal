@@ -76,6 +76,7 @@ class EditorUpdatesFeed extends Command
             $isFix => [null, null, null],
             $u->action === TodoUpdate::CREATED => ['added', 'Added', null],
             $u->action === TodoUpdate::POSTED => ['posted', 'Posted', $u->note],
+            $u->action === TodoUpdate::DELIVERED => ['posted', 'Delivered', $u->note],
             $u->action === TodoUpdate::UNPOSTED => ['other', 'Post undone', null],
             $u->action === TodoUpdate::MOVED => ['moved', $u->to_on?->isSameDay($u->created_at) ? 'Back to today' : 'Moved to '.$u->to_on?->format('D j M'), null],
             $u->action === TodoUpdate::STATUS && $u->to_status === Todo::STATUS_BLOCKED => ['hold', 'On hold', $u->note],
@@ -84,7 +85,7 @@ class EditorUpdatesFeed extends Command
                 Todo::STATUS_BLOCKED => 'Resumed',
                 default => 'Started',
             }, $u->from_status === Todo::STATUS_COMPLETED ? $u->note : null],
-            $u->action === TodoUpdate::STATUS && $u->to_status === Todo::STATUS_COMPLETED => ['done', 'Done', null],
+            $u->action === TodoUpdate::STATUS && $u->to_status === Todo::STATUS_COMPLETED => ['done', 'Done → review', null],
             $u->action === TodoUpdate::STATUS => ['other', Todo::STATUSES[$u->to_status] ?? (string) $u->to_status, $u->note],
             default => [null, null, null],
         };

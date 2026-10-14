@@ -324,11 +324,17 @@ Route::middleware('auth')->get('oauth/instagram/callback', [InstagramConnectionC
  * clients are refused.
  */
 /*
- * The My Editing walkthrough sits outside the logs-work group below on
- * purpose: admins who keep no timesheet open it to watch it or save it as a
- * video for the editors.
+ * The My Editing walkthrough and a video's moves sit outside the logs-work
+ * group below on purpose: admins who keep no timesheet watch the guide, save
+ * it as a video, and review videos from Editor Updates.
  */
 Route::get('my/editing/guide', [MyEditingController::class, 'guide'])->middleware('auth')->name('my.editing.guide');
+// Moving a video, and its review: the editor, or an admin reviewing it from
+// Editor Updates (EditingController::authorise decides who may).
+Route::middleware('auth')->group(function () {
+    Route::post('my/editing/{todo}/act', [MyEditingController::class, 'act'])->name('my.editing.act');
+    Route::post('my/editing/{todo}/correct', [MyEditingController::class, 'correct'])->name('my.editing.correct');
+});
 
 Route::middleware(['auth', 'logs-work', 'recognitions.catchup', 'scheduled-flows.catchup'])->prefix('my')->name('my.')->group(function () {
     Route::get('dashboard', [MyDashboardController::class, 'index'])->name('dashboard');
@@ -363,8 +369,6 @@ Route::middleware(['auth', 'logs-work', 'recognitions.catchup', 'scheduled-flows
     Route::get('editing', [MyEditingController::class, 'index'])->name('editing');
     Route::post('editing', [MyEditingController::class, 'store'])->name('editing.store');
     Route::post('editing/refresh', [MyEditingController::class, 'refresh'])->middleware('throttle:4,1')->name('editing.refresh');
-    Route::post('editing/{todo}/act', [MyEditingController::class, 'act'])->name('editing.act');
-    Route::post('editing/{todo}/correct', [MyEditingController::class, 'correct'])->name('editing.correct');
 });
 
 /*

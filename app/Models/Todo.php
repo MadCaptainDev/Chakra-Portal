@@ -145,8 +145,15 @@ class Todo extends Model
         return $this->hasMany(TodoUpdate::class)->orderBy('created_at')->orderBy('id');
     }
 
-    /** What a finished video is for -- see the My Editing screen. */
-    public const KINDS = ['reel' => 'Reel', 'post' => 'Post', 'story' => 'Story', 'none' => 'Not for posting'];
+    /**
+     * Where a reviewed video went -- see the My Editing screen. Posted as one
+     * of the first three, or Delivered: handed to the client, not posted by us.
+     */
+    public const KINDS = ['reel' => 'Reel', 'post' => 'Post', 'story' => 'Story', 'delivered' => 'Delivered'];
+
+    public const POST_KINDS = ['reel', 'post', 'story'];
+
+    public const KIND_DELIVERED = 'delivered';
 
     /** The video a correction belongs to. */
     public function parent(): BelongsTo

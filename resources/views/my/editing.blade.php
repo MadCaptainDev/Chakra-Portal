@@ -22,8 +22,8 @@
     $lanes = [
         'todo' => ['To do', 'To do', 'bg-white/10 text-brand-100/80'],
         'working' => ['Working', 'Working', 'bg-amber-400/15 text-amber-200'],
-        'done' => ['Done — where does it go?', 'Done', 'bg-sky-400/15 text-sky-200'],
-        'posted' => ['Posted', 'Posted', 'bg-emerald-400/15 text-emerald-200'],
+        'done' => ['Under review', 'Review', 'bg-sky-400/15 text-sky-200'],
+        'posted' => ['Posted / Delivered', 'Out', 'bg-emerald-400/15 text-emerald-200'],
     ];
 @endphp
 
@@ -174,7 +174,7 @@
                         <span class="rounded-full px-2 py-0.5 text-[11px] normal-case tracking-normal {{ $chip }}" x-text="lane('{{ $lane }}').length"></span>
                     </h2>
                     @if ($lane === 'done')
-                        <p class="px-2 pb-2 pt-1 text-xs text-brand-100/50 md:hidden">Pick where each one goes, then mark it posted.</p>
+                        <p class="px-2 pb-2 pt-1 text-xs text-brand-100/50 md:hidden">Needs a change? Add a correction. All good? Mark it posted or delivered.</p>
                     @endif
                     <div class="space-y-2">
                         <template x-for="card in lane('{{ $lane }}')" :key="card.id">
@@ -250,7 +250,7 @@
                                     <template x-if="card.status === 'started'">
                                         <button type="button" @click="act(card, 'done')" :disabled="openFixes(card) > 0 || !!busy[card.id + 'done']"
                                                 :title="openFixes(card) > 0 ? 'Finish the corrections first' : ''"
-                                                class="min-h-[44px] flex-1 rounded-lg bg-sky-400 px-3 text-sm font-bold text-brand-900 hover:bg-sky-300 disabled:opacity-40 sm:min-h-[32px] sm:flex-none sm:text-xs">✓ Done</button>
+                                                class="min-h-[44px] flex-1 rounded-lg bg-sky-400 px-3 text-sm font-bold text-brand-900 hover:bg-sky-300 disabled:opacity-40 sm:min-h-[32px] sm:flex-none sm:text-xs">✓ Done — send for review</button>
                                     </template>
                                     <template x-if="['waiting', 'started'].includes(card.status)">
                                         <button type="button" @click="holding = card.id; holdText = ''; fixing = null"
@@ -266,30 +266,34 @@
                                     </template>
                                 </div>
 
-                                {{-- Done: where it goes, then posted. --}}
-                                <template x-if="card.status === 'completed' && !card.posted_at && card.kind !== 'none'">
-                                    <div class="mt-2.5 space-y-2 rounded-lg bg-white/5 p-2">
-                                        <div class="grid grid-cols-4 gap-1">
-                                            <template x-for="[key, label] in Object.entries(kinds)" :key="key">
+                                {{-- Under review: a correction (the button above) sends it back
+                                     to Working; otherwise it goes out, posted or delivered. --}}
+                                <template x-if="card.status === 'completed' && !card.posted_at">
+                                    <div class="mt-2.5 space-y-2 rounded-lg bg-sky-400/[0.06] p-2 ring-1 ring-sky-400/20">
+                                        <p class="text-xs font-semibold text-sky-200">In review — needs a change? <span class="font-normal text-sky-100/70">Add a correction. All good? Send it out:</span></p>
+                                        <div class="grid grid-cols-3 gap-1">
+                                            <template x-for="key in ['reel', 'post', 'story']" :key="key">
                                                 <button type="button" @click="act(card, 'kind', { kind: key })"
                                                         :class="card.kind === key ? 'bg-brand-400 text-brand-900' : 'bg-white/5 text-brand-100/70 hover:bg-white/10'"
-                                                        class="min-h-[40px] rounded-md px-1 text-xs font-semibold sm:min-h-[30px] sm:text-[11px]" x-text="key === 'none' ? 'Not posting' : label"></button>
+                                                        class="min-h-[40px] rounded-md px-1 text-xs font-semibold sm:min-h-[30px] sm:text-[11px]" x-text="kinds[key]"></button>
                                             </template>
                                         </div>
-                                        <template x-if="card.kind && card.kind !== 'none'">
+                                        <template x-if="['reel', 'post', 'story'].includes(card.kind)">
                                             <form @submit.prevent="act(card, 'post', { kind: card.kind, post_url: links[card.id] || null })" class="flex gap-1.5">
                                                 <input x-model="links[card.id]" type="url" inputmode="url" placeholder="Link (optional)"
                                                        class="min-h-[44px] min-w-0 flex-1 rounded-lg border-0 bg-white/10 px-3 text-base text-white placeholder:text-brand-100/40 focus:ring-2 focus:ring-emerald-400 sm:min-h-[32px] sm:text-xs">
                                                 <button class="shrink-0 rounded-lg bg-emerald-500 px-3.5 text-sm font-bold text-white hover:bg-emerald-400 sm:text-xs">Mark posted</button>
                                             </form>
                                         </template>
+                                        <button type="button" @click="act(card, 'deliver')" :disabled="openFixes(card) > 0 || !!busy[card.id + 'deliver']"
+                                                class="min-h-[44px] w-full rounded-lg bg-teal-500/90 px-3 text-sm font-bold text-white hover:bg-teal-400 disabled:opacity-40 sm:min-h-[32px] sm:text-xs">📦 Delivered to client</button>
                                         <button type="button" @click="act(card, 'reopen')" class="min-h-[36px] text-xs text-brand-100/50 underline underline-offset-2 hover:text-white sm:min-h-0 sm:text-[11px]">Back to working</button>
                                     </div>
                                 </template>
 
                                 <template x-if="card.posted_at">
                                     <div class="mt-2 flex items-center justify-between gap-2 text-sm sm:text-xs">
-                                        <span class="font-semibold text-emerald-300">✓ <span x-text="kinds[card.kind] ?? 'Posted'"></span> posted <span x-text="card.posted_at"></span></span>
+                                        <span class="font-semibold text-emerald-300">✓ <span x-text="card.kind === 'delivered' ? 'Delivered' : (kinds[card.kind] ?? 'Posted') + ' posted'"></span> <span x-text="card.posted_at"></span></span>
                                         <span class="flex gap-3 sm:gap-2">
                                             <template x-if="card.post_url"><a :href="card.post_url" target="_blank" rel="noopener" class="py-1.5 text-sky-300 hover:underline">Open</a></template>
                                             <button type="button" @click="act(card, 'unpost')" class="py-1.5 text-brand-100/40 hover:text-white">Undo</button>

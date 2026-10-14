@@ -36,6 +36,9 @@ class TodoUpdate extends Model
     /** A post was taken back. */
     public const UNPOSTED = 'unposted';
 
+    /** A reviewed video was handed to the client rather than posted. */
+    public const DELIVERED = 'delivered';
+
     /** @var array<string, string> */
     public const ACTIONS = [
         self::CREATED => 'Added',
@@ -45,6 +48,7 @@ class TodoUpdate extends Model
         self::REVIEWED => 'Checked',
         self::POSTED => 'Posted',
         self::UNPOSTED => 'Post undone',
+        self::DELIVERED => 'Delivered',
     ];
 
     /**
