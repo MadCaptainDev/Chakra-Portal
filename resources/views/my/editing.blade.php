@@ -298,7 +298,7 @@
                                     <div class="mt-2.5 space-y-2 rounded-lg p-2 ring-1"
                                          :class="publishLate(card) ? 'bg-red-500/10 ring-red-400/40' : 'bg-violet-400/[0.07] ring-violet-400/25'">
                                         <p class="text-xs font-semibold" :class="publishLate(card) ? 'text-red-200' : 'text-violet-200'">
-                                            <span x-text="publishLate(card) ? '⚠ Was due ' : '🕒 Publish '"></span><span x-text="card.publish_label"></span>
+                                            <span x-text="publishLate(card) ? '⚠ Was due ' : '🕒 Due '"></span><span x-text="card.publish_label"></span>
                                             <span class="font-normal opacity-80" x-text="publishIn(card)"></span>
                                         </p>
                                         <div class="grid grid-cols-3 gap-1">
@@ -313,14 +313,16 @@
                                                    class="min-h-[44px] min-w-0 flex-1 rounded-lg border-0 bg-white/10 px-3 text-base text-white placeholder:text-brand-100/40 focus:ring-2 focus:ring-emerald-400 sm:min-h-[32px] sm:text-xs">
                                             <button class="shrink-0 rounded-lg bg-emerald-500 px-3.5 text-sm font-bold text-white hover:bg-emerald-400 sm:text-xs">Mark posted</button>
                                         </form>
+                                        <div class="flex items-center gap-2 text-[11px] text-brand-100/45"><span class="h-px flex-1 bg-white/10"></span>or, if it goes to the client<span class="h-px flex-1 bg-white/10"></span></div>
+                                        <button type="button" @click="act(card, 'deliver', { post_url: links[card.id] || null })" :disabled="!!busy[card.id + 'deliver']"
+                                                class="min-h-[44px] w-full rounded-lg bg-teal-500/90 px-3 text-sm font-bold text-white hover:bg-teal-400 disabled:opacity-40 sm:min-h-[32px] sm:text-xs">📦 Mark delivered</button>
                                         <details class="text-xs text-brand-100/60">
-                                            <summary class="min-h-[32px] cursor-pointer py-1 hover:text-white">Change the time, or deliver instead</summary>
+                                            <summary class="min-h-[32px] cursor-pointer py-1 hover:text-white">Change the time</summary>
                                             <form @submit.prevent="act(card, 'ready', { publish_at: when[card.id] || card.publish_at })" class="mt-1 flex gap-1.5">
                                                 <input type="datetime-local" required :value="when[card.id] || card.publish_at" @input="when[card.id] = $event.target.value"
                                                        class="min-h-[40px] min-w-0 flex-1 rounded-lg border-0 bg-white/10 px-3 text-sm text-white [color-scheme:dark] sm:min-h-[30px] sm:text-xs">
                                                 <button class="shrink-0 rounded-lg bg-white/10 px-3 text-xs font-semibold text-white hover:bg-white/15">Save time</button>
                                             </form>
-                                            <button type="button" @click="act(card, 'deliver')" class="mt-1.5 min-h-[36px] w-full rounded-lg bg-teal-500/80 px-3 text-xs font-bold text-white hover:bg-teal-400">📦 Delivered to client instead</button>
                                         </details>
                                     </div>
                                 </template>

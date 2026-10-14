@@ -31,9 +31,9 @@ class VideoNotPublished extends Notification
         $mine = $notifiable->id === $this->video->user_id;
 
         return new PushMessage(
-            title: 'Not published yet',
+            title: 'Due and not out yet',
             body: Str::limit($this->video->title, 90).' was due at '.$this->video->publish_at->format('g:i A')
-                .' ('.$late.' min ago)'.($mine ? '. Post it, then mark it posted.' : ' — '.($this->video->user?->name ?? 'editor').'.'),
+                .' ('.$late.' min ago)'.($mine ? '. Mark it posted or delivered.' : ' — '.($this->video->user?->name ?? 'editor').'.'),
             url: $notifiable->isAdmin() && ! $mine ? route('editor-updates') : route('my.editing'),
             tag: 'publish-late-'.$this->video->id,
         );

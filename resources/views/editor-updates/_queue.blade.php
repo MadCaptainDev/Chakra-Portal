@@ -112,6 +112,9 @@
                     <button type="button" :disabled="busy === {{ $t->id }}"
                             @click="send(@js(route('my.editing.act', $t)), { action: 'post', kind: kind[{{ $t->id }}] }, {{ $t->id }})"
                             class="{{ $btn }} bg-emerald-500 text-white hover:bg-emerald-400">Posted</button>
+                    <button type="button" :disabled="busy === {{ $t->id }}"
+                            @click="send(@js(route('my.editing.act', $t)), { action: 'deliver' }, {{ $t->id }})"
+                            class="{{ $btn }} bg-teal-500/90 text-white hover:bg-teal-400">Delivered</button>
                     <input type="datetime-local" x-model="when[{{ $t->id }}]" class="h-10 rounded-[10px] border-0 bg-[#0f2230] px-2 text-[13px] text-white [color-scheme:dark]" aria-label="New publishing time">
                     <button type="button" :disabled="busy === {{ $t->id }}"
                             @click="send(@js(route('my.editing.act', $t)), { action: 'ready', publish_at: when[{{ $t->id }}] }, {{ $t->id }})"
@@ -122,7 +125,7 @@
             <div class="flex flex-1 flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-white/15 px-5 py-8 text-center">
                 <span class="text-3xl text-violet-300">◷</span>
                 <p class="text-[15px] font-semibold text-white">Nothing scheduled</p>
-                <p class="max-w-xs text-[13px] leading-relaxed text-brand-100/65">Approve a video with its publish time and it waits here. Not posted 30 minutes after its time, the editor and you get a reminder.</p>
+                <p class="max-w-xs text-[13px] leading-relaxed text-brand-100/65">Approve a video with its time and it waits here, to be posted or delivered. Not out 30 minutes after its time, the editor and you get a reminder.</p>
             </div>
         @endforelse
     </div>

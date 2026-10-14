@@ -90,6 +90,23 @@ class VideoReadyTest extends TestCase
         $this->assertNull(Todo::find($id)->publish_reminded_at);
     }
 
+    public function test_a_ready_video_can_go_to_the_client_instead_of_being_posted(): void
+    {
+        Notification::fake();
+        $id = $this->inReview('Janet - Doctor interview');
+        $this->postJson(route('my.editing.act', $id), ['action' => 'ready', 'publish_at' => today()->setTime(18, 0)->toDateTimeString()]);
+
+        $this->actingAs($this->admin)->get(route('editor-updates'))->assertSee('Ready to publish')->assertSee('Janet - Doctor interview');
+        $this->postJson(route('my.editing.act', $id), ['action' => 'deliver'])
+            ->assertOk()->assertJsonPath('card.kind', Todo::KIND_DELIVERED);
+
+        $todo = Todo::find($id);
+        $this->assertSame('delivered', $todo->stage());
+        $this->travelTo(today()->setTime(19, 0));
+        $this->artisan('editing:publish-reminders');
+        Notification::assertNothingSent();
+    }
+
     public function test_posted_in_time_is_never_reminded(): void
     {
         Notification::fake();

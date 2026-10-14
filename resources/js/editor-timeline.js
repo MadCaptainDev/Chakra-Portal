@@ -117,7 +117,7 @@ export function editorTimeline(initial, url, editorUrl = '') {
         },
         needTitle(n) {
             return {
-                late: `Not published: ${n.text}`,
+                late: `Due and not out: ${n.text}`,
                 review: `${n.count} ${n.count === 1 ? 'video' : 'videos'} waiting for your review`,
                 hold: `${n.person}: ${n.count} on hold`,
                 long: `${n.person} has been on one video a long time`,
