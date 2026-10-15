@@ -95,6 +95,12 @@ class ContentItem extends Model
         return $this->belongsTo(User::class, 'assigned_user_id');
     }
 
+    /** The portal's Video record for this item (links only; see VideoLinker). */
+    public function video(): HasOne
+    {
+        return $this->hasOne(Video::class);
+    }
+
     /**
      * The full, reviewable Script written for this reel -- distinct from
      * `script`, the plain free-text field Notion's own "Script" property

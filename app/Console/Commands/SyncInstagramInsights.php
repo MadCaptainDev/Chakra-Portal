@@ -70,7 +70,7 @@ class SyncInstagramInsights extends Command
             }
 
             try {
-                $result = $insights->syncAll($account, $since, $until);
+                $result = $insights->syncAll($account, $since, $until, mediaSince: now()->subDays(30)->startOfDay());
 
                 $account->forceFill(['last_synced_at' => now()])->save();
                 $account->clearFailure();
@@ -105,6 +105,14 @@ class SyncInstagramInsights extends Command
                 report($e);
                 $this->error('  FAILED — unexpected error, logged.');
             }
+        }
+
+        // New posts are in: pair them with what was planned in Notion.
+        try {
+            app(\App\Services\Instagram\InstagramContentMatcher::class)->matchAll();
+            app(\App\Services\Videos\VideoLinker::class)->run();
+        } catch (Throwable $e) {
+            report($e);
         }
 
         // Fresh view counts are in: announce any reel that crossed a milestone.

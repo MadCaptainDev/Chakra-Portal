@@ -39,8 +39,8 @@ class DashboardController extends Controller
         // —— Invoices (this month by invoice_date) ——
         $monthInvoices = Invoice::query()
             ->with(['client', 'payments'])
-            ->whereDate('invoice_date', '>=', $month->toDateString())
-            ->whereDate('invoice_date', '<=', $monthEnd->toDateString())
+            ->where('invoice_date', '>=', $month->toDateString())
+            ->where('invoice_date', '<', $monthEnd->copy()->addDay()->toDateString())
             ->whereIn('status', [Invoice::STATUS_UNPAID, Invoice::STATUS_PAID])
             ->get();
 

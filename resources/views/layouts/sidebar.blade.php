@@ -251,6 +251,9 @@
             <x-sidebar-link icon="film-cut" :href="route('editor-updates')" :active="request()->routeIs('editor-updates')">
                 Editor Updates
             </x-sidebar-link>
+            <x-sidebar-link icon="sparkles" :href="route('videos.index')" :active="request()->routeIs('videos.*')">
+                Videos
+            </x-sidebar-link>
             <x-sidebar-link icon="chat-check" :href="route('inbox-desk.index')" :active="request()->routeIs('inbox-desk.*')">
                 Comment &amp; Message Checker
             </x-sidebar-link>

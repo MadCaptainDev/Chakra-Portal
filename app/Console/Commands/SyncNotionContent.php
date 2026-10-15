@@ -61,6 +61,21 @@ class SyncNotionContent extends Command
             $this->info("assignments: {$assigned} item(s) auto-assigned from Notion's Assigned To/Editor.");
         }
 
+        // The nightly path used to leave this to whoever opened a dashboard
+        // next, so matches went stale until someone looked.
+        $matched = app(\App\Services\Instagram\InstagramContentMatcher::class)->matchAll();
+        if ($matched['matched'] > 0) {
+            $this->info("instagram: {$matched['matched']} item(s) matched to posts.");
+        }
+
+        try {
+            $videos = app(\App\Services\Videos\VideoLinker::class)->run();
+            $this->info("videos: {$videos['created']} created, {$videos['updated']} relinked.");
+        } catch (\Throwable $e) {
+            report($e);
+            $this->warn('videos: linking failed — see the log.');
+        }
+
         // Chakra Planner: fresh status colours, and one "re-fetch" event for every open app.
         \App\Services\Planner\PlannerSchema::forget();
         \App\Services\Planner\PlannerRealtime::refreshed('Nightly sync from Notion.');

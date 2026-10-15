@@ -64,6 +64,11 @@ class NotionSyncRunner
          */
         app(NotionShootImporter::class)->autoMapClients();
         $matched = app(InstagramContentMatcher::class)->matchAll();
+        try {
+            app(\App\Services\Videos\VideoLinker::class)->run();
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         $status = 'Refreshed from Notion. '.collect($counts)
             ->map(fn (int $count, string $source) => "{$source}: {$count}")

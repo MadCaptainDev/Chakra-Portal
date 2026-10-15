@@ -33,6 +33,7 @@ use App\Http\Controllers\ContentAccountController;
 use App\Http\Controllers\ContentDashboardController;
 use App\Http\Controllers\ContentItemAssignmentController;
 use App\Http\Controllers\EditorUpdatesController;
+use App\Http\Controllers\VideosController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardLayoutController;
 use App\Http\Controllers\DashboardWidgetController;
@@ -1014,6 +1015,11 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('studio-map', [StudioMapController::class, 'index'])->name('studio-map');
     Route::get('editor-updates', [EditorUpdatesController::class, 'index'])->name('editor-updates');
     Route::get('editor-updates/live', [EditorUpdatesController::class, 'live'])->name('editor-updates.live');
+    // data/ before {video}, or "data" binds as an id.
+    Route::get('videos', [VideosController::class, 'index'])->name('videos.index');
+    Route::get('videos/data', [VideosController::class, 'data'])->name('videos.data');
+    Route::get('videos/{video}', [VideosController::class, 'show'])->name('videos.show');
+    Route::get('videos/{video}/data', [VideosController::class, 'showData'])->name('videos.show-data');
     Route::get('editor-updates/editor/{user}', [EditorUpdatesController::class, 'editor'])->name('editor-updates.editor');
     Route::redirect('daily-checks', '/editor-updates');
     Route::get('studio-map/data', [StudioMapController::class, 'data'])->name('studio-map.data');
