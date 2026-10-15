@@ -22,6 +22,9 @@ class PlannerItems
         'editingTodos:id,content_item_id,user_id,status,posted_at',
         'editingTodos.user:id,name',
         'lastChange.user:id,name',
+        'scriptRecord:id,content_item_id,status,shot_at',
+        'video:id,content_item_id,short_content_item_id,posted_as',
+        'video.shortItem:id,title,published_date,notion_url',
     ];
 
     /** @return array<string, mixed> */
@@ -46,6 +49,14 @@ class PlannerItems
                 'status' => $t->posted_at ? 'posted' : $t->status,
             ])->values()->all(),
             'has_script' => filled($i->script),
+            // From the Reel and Shorts planners; null/false when the relations were not loaded.
+            'script_shot' => $i->relationLoaded('scriptRecord') ? $i->scriptRecord?->shot_at !== null : null,
+            'posted_as' => $i->relationLoaded('video') ? $i->video?->posted_as : null,
+            'short' => $i->relationLoaded('video') && $i->video?->shortItem ? [
+                'title' => $i->video->shortItem->title,
+                'date' => $i->video->shortItem->published_date?->toDateString(),
+                'notion_url' => $i->video->shortItem->notion_url,
+            ] : null,
             'notion_url' => $i->notion_url,
             'missing_from_notion' => $i->notion_missing_since !== null,
             'last_change' => $i->lastChange ? self::change($i->lastChange) : null,

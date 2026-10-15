@@ -216,6 +216,21 @@
                                         @if ($item->linkedShootLabel())
                                             <span class="text-[11px] text-brand-100/40 block">{{ $item->linkedShootLabel() }}</span>
                                         @endif
+                                        {{-- Read from Notion's Reel and Shorts planners: a reel that was also
+                                             uploaded as a Short, and a reel that went out as something else. --}}
+                                        @if ($item->video?->shortItem)
+                                            @php $short = $item->video->shortItem; @endphp
+                                            <a href="{{ $short->notion_url ?: '#' }}" target="_blank" rel="noopener"
+                                               class="text-[11px] text-sky-300 hover:text-sky-200 block">Also a Short{{ $short->published_date ? ' · '.$short->published_date->format('j M') : '' }} →</a>
+                                        @endif
+                                        @if ($item->shortOf?->contentItem)
+                                            @php $reelOf = $item->shortOf->contentItem; @endphp
+                                            <a href="{{ $reelOf->notion_url ?: '#' }}" target="_blank" rel="noopener"
+                                               class="text-[11px] text-sky-300 hover:text-sky-200 block">Short of the reel{{ $reelOf->published_date ? ' · '.$reelOf->published_date->format('j M') : '' }} →</a>
+                                        @endif
+                                        @if ($item->video?->hasFormatMismatch())
+                                            <span class="text-[11px] text-amber-300 block">Planned as a reel, posted as {{ $item->video->posted_as }}</span>
+                                        @endif
                                     </td>
                                     <td class="px-3 py-2.5 whitespace-nowrap">
                                         <x-badge :status="$item->status" />
@@ -253,6 +268,9 @@
                                                class="inline-flex items-center gap-1.5 text-xs text-brand-300 hover:text-white">
                                                 <x-badge :status="$item->scriptRecord->status" />
                                             </a>
+                                            @if ($item->scriptRecord->shot_at)
+                                                <span class="block text-[10px] text-emerald-300">Shot {{ $item->scriptRecord->shot_at->format('j M') }}</span>
+                                            @endif
                                         @elseif ($item->source === \App\Models\ContentItem::SOURCE_REEL)
                                             <a href="{{ route('scripts.create', ['content_item_id' => $item->id]) }}"
                                                class="text-xs font-semibold text-brand-300 hover:text-white">

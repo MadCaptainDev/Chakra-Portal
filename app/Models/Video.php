@@ -46,6 +46,12 @@ class Video extends Model
         return $this->belongsTo(Todo::class);
     }
 
+    /** The Shorts-planner row this reel was also uploaded as. */
+    public function shortItem(): BelongsTo
+    {
+        return $this->belongsTo(ContentItem::class, 'short_content_item_id');
+    }
+
     public function mediaItem(): BelongsTo
     {
         return $this->belongsTo(SocialMediaItem::class, 'social_media_item_id');

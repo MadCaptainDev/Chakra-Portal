@@ -95,6 +95,12 @@ class ContentItem extends Model
         return $this->belongsTo(User::class, 'assigned_user_id');
     }
 
+    /** Set on a Shorts-planner row: the reel's Video that it was paired with. */
+    public function shortOf(): HasOne
+    {
+        return $this->hasOne(Video::class, 'short_content_item_id');
+    }
+
     /** The portal's Video record for this item (links only; see VideoLinker). */
     public function video(): HasOne
     {

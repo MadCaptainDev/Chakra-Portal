@@ -118,6 +118,9 @@ Published.
   "shoot": { "title": "SVA Diwali shoot", "date": "2026-10-09" },
   "editing": [ { "user": { "id": 7, "name": "Sanjai" }, "status": "started" } ],
   "has_script": true,
+  "script_shot": true,
+  "posted_as": "reel",
+  "short": { "title": "SVA - Gold Cleaning", "date": "2026-10-16", "notion_url": "https://www.notion.so/…" },
   "notion_url": "https://www.notion.so/…",
   "missing_from_notion": false,
   "last_change": { "field": "published_date", "from": "2026-10-12", "to": "2026-10-14",
@@ -137,6 +140,9 @@ Published.
 | `editing` | My Editing cards made from this item: who is editing and how far (`waiting` / `started` / `blocked` = on hold / `completed` / `posted`). |
 | `missing_from_notion` | The page was deleted in Notion. Only appears in `updated_since` deltas, so the app can remove it. |
 | `last_change.origin` | `planner` (moved in this app) or `notion` (changed in Notion, via webhook). |
+
+`script_shot`: the portal script for this item has been marked shot (set from the Reel Planner status). `null` when not known. `posted_as`: `reel`, `post`, `story` or `delivered` once posted, else `null`. `short`: the Shorts-planner row paired to this reel by title, else `null`. All three are additive and read-only.
+
 
 ### `GET /items`
 

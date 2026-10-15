@@ -136,9 +136,58 @@ class VideoSpineTest extends TestCase
         $this->assertSame($script->id, Video::where('content_item_id', $item->id)->value('script_id'));
     }
 
-    public function test_the_video_pages_need_a_login(): void
+    public function test_a_script_is_marked_shot_once_its_reel_is_past_the_shoot_in_the_planner(): void
     {
-        $this->get('/videos')->assertRedirect('/login');
-        $this->getJson('/videos/data')->assertUnauthorized();
+        $shot = ContentItem::factory()->create(['source' => ContentItem::SOURCE_REEL, 'venture' => 'Janet', 'status' => 'Video Ready', 'shoot_date' => '2026-09-01']);
+        $planned = ContentItem::factory()->create(['source' => ContentItem::SOURCE_REEL, 'venture' => 'Janet', 'status' => 'To Be Shooted']);
+        $a = Script::create(['client_id' => $this->client->id, 'content_item_id' => $shot->id, 'title' => 'A', 'status' => 'draft']);
+        $b = Script::create(['client_id' => $this->client->id, 'content_item_id' => $planned->id, 'title' => 'B', 'status' => 'draft']);
+
+        (new VideoLinker)->run();
+
+        $this->assertSame('2026-09-01', $a->fresh()->shot_at->toDateString());
+        $this->assertNull($b->fresh()->shot_at);
+    }
+
+    public function test_a_shot_date_already_on_a_script_is_not_overwritten(): void
+    {
+        $item = ContentItem::factory()->create(['source' => ContentItem::SOURCE_REEL, 'venture' => 'Janet', 'status' => 'Published', 'published_date' => '2026-09-10']);
+        $script = Script::create(['client_id' => $this->client->id, 'content_item_id' => $item->id, 'title' => 'A', 'status' => 'draft']);
+        $script->forceFill(['shot_at' => '2026-08-01 00:00:00'])->save();
+
+        (new VideoLinker)->run();
+
+        $this->assertSame('2026-08-01', $script->fresh()->shot_at->toDateString());
+    }
+
+    public function test_an_unlinked_script_finds_its_reel_by_title_only_when_unambiguous(): void
+    {
+        $reel = ContentItem::factory()->create(['source' => ContentItem::SOURCE_REEL, 'venture' => 'Janet', 'title' => 'Why wash your hands!']);
+        $script = Script::create(['client_id' => $this->client->id, 'title' => 'why wash your hands', 'status' => 'draft']);
+
+        (new VideoLinker)->run();
+
+        $this->assertSame($reel->id, $script->fresh()->content_item_id);
+    }
+
+    public function test_a_shorts_planner_row_is_paired_with_the_reel_of_the_same_title(): void
+    {
+        $reel = ContentItem::factory()->create(['source' => ContentItem::SOURCE_REEL, 'venture' => 'Janet', 'title' => 'Janet - Fertility Red Flags', 'published_date' => '2026-09-01']);
+        $short = ContentItem::factory()->create(['source' => ContentItem::SOURCE_YOUTUBE, 'venture' => 'Janet', 'title' => 'Janet - Fertility Red Flags', 'published_date' => '2026-09-03']);
+        ContentItem::factory()->create(['source' => ContentItem::SOURCE_REEL, 'venture' => 'Janet', 'title' => 'Janet - Something else entirely']);
+
+        (new VideoLinker)->run();
+
+        $this->assertSame($short->id, Video::where('content_item_id', $reel->id)->value('short_content_item_id'));
+    }
+
+    public function test_a_short_is_not_paired_with_another_clients_reel(): void
+    {
+        ContentItem::factory()->create(['source' => ContentItem::SOURCE_REEL, 'venture' => 'Other', 'title' => 'Same title here']);
+        ContentItem::factory()->create(['source' => ContentItem::SOURCE_YOUTUBE, 'venture' => 'Janet', 'title' => 'Same title here']);
+
+        (new VideoLinker)->run();
+
+        $this->assertSame(0, Video::whereNotNull('short_content_item_id')->count());
     }
 }

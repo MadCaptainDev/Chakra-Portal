@@ -10,6 +10,8 @@ use App\Models\ShootVideo;
 use App\Models\SocialMediaItem;
 use App\Models\Todo;
 use App\Models\Video;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * Keeps one Video per Notion content item and fills in what it is linked to.
@@ -25,6 +27,9 @@ class VideoLinker
      */
     public function run(): array
     {
+        $this->linkScriptsByTitle();
+        $this->markScriptsShot();
+
         $ventureToClient = ContentAccountVenture::query()
             ->with('contentAccount')
             ->get()
@@ -79,7 +84,202 @@ class VideoLinker
             }
         });
 
+        $this->pairShorts();
+
         return ['videos' => $total, 'created' => $created, 'updated' => $updated];
+    }
+
+    /**
+     * Notion statuses that only come after the shoot. A script whose reel has
+     * reached one of these has been shot, whatever the script itself says.
+     */
+    public const PAST_SHOOT = ['To Be Edited', 'Edit in Progress', 'Under Review', 'Video Ready', 'Delivered', 'Published'];
+
+    /** A script written in the portal, not yet tied to its row in the Notion Reel Planner. */
+    private function linkScriptsByTitle(): int
+    {
+        $scripts = Script::query()->whereNull('content_item_id')
+            ->where('status', '!=', Script::STATUS_ARCHIVED)->get(['id', 'title', 'client_id']);
+
+        if ($scripts->isEmpty()) {
+            return 0;
+        }
+
+        $ventureToClient = $this->ventureToClient();
+        $claimed = Script::query()->whereNotNull('content_item_id')->pluck('content_item_id')->flip();
+        $reels = ContentItem::query()->visible()->where('source', ContentItem::SOURCE_REEL)
+            ->get(['id', 'title', 'venture'])
+            ->reject(fn (ContentItem $item) => $claimed->has($item->id))
+            ->groupBy(fn (ContentItem $item) => $this->norm($item->title));
+
+        $linked = 0;
+
+        foreach ($scripts as $script) {
+            $candidates = ($reels->get($this->norm($script->title)) ?? collect())
+                ->filter(fn (ContentItem $item) => $script->client_id === null
+                    || ($ventureToClient[$item->venture] ?? $script->client_id) === $script->client_id);
+
+            // Only an unambiguous title is a link; two reels with one title are a guess.
+            if ($candidates->count() === 1) {
+                Script::whereKey($script->id)->update(['content_item_id' => $candidates->first()->id]);
+                $reels->forget($this->norm($script->title));
+                $linked++;
+            }
+        }
+
+        return $linked;
+    }
+
+    /**
+     * The Reel Planner is where the shoot is tracked, so it decides whether a
+     * script has been shot. Only ever sets shot_at; one already set stays.
+     */
+    private function markScriptsShot(): int
+    {
+        $scripts = Script::query()->whereNotNull('content_item_id')->whereNull('shot_at')
+            ->get(['id', 'content_item_id']);
+
+        if ($scripts->isEmpty()) {
+            return 0;
+        }
+
+        $items = ContentItem::query()->visible()->whereIn('id', $scripts->pluck('content_item_id'))
+            ->whereIn('status', self::PAST_SHOOT)->with('notionShoot:id,shoot_date')
+            ->get(['id', 'shoot_date', 'notion_shoot_id', 'published_date'])->keyBy('id');
+
+        $marked = 0;
+
+        foreach ($scripts as $script) {
+            $item = $items->get($script->content_item_id);
+            $when = $item?->shoot_date ?? $item?->notionShoot?->shoot_date ?? $item?->published_date;
+
+            if ($when !== null) {
+                Script::whereKey($script->id)->update(['shot_at' => Carbon::parse($when)->startOfDay()]);
+                $marked++;
+            }
+        }
+
+        return $marked;
+    }
+
+    /**
+     * Each Shorts-planner row is the reel it shares a title with. Shorts are
+     * only ever re-uploaded reels, so the reel is the thing being paired to.
+     * A pairing already made is kept.
+     */
+    private function pairShorts(): int
+    {
+        $claimed = Video::query()->whereNotNull('short_content_item_id')->pluck('short_content_item_id')->flip();
+        $shorts = ContentItem::query()->visible()->where('source', ContentItem::SOURCE_YOUTUBE)
+            ->get(['id', 'title', 'venture', 'published_date'])
+            ->reject(fn (ContentItem $item) => $claimed->has($item->id));
+
+        if ($shorts->isEmpty()) {
+            return 0;
+        }
+
+        $reelsByVenture = ContentItem::query()->visible()->where('source', ContentItem::SOURCE_REEL)
+            ->get(['id', 'title', 'venture', 'published_date'])->groupBy('venture');
+
+        $taken = Video::query()->whereNotNull('short_content_item_id')->pluck('id')->flip();
+        $paired = 0;
+
+        foreach ($shorts as $short) {
+            $reel = $this->reelFor($short, $reelsByVenture->get($short->venture, collect()));
+
+            if ($reel === null) {
+                continue;
+            }
+
+            $video = Video::query()->where('content_item_id', $reel->id)->whereNull('short_content_item_id')->first();
+
+            if ($video !== null && ! $taken->has($video->id)) {
+                $video->forceFill(['short_content_item_id' => $short->id])->save();
+                $taken[$video->id] = true;
+                $paired++;
+            }
+        }
+
+        return $paired;
+    }
+
+    /**
+     * @param  Collection<int, ContentItem>  $reels  the same client's reels
+     */
+    private function reelFor(ContentItem $short, Collection $reels): ?ContentItem
+    {
+        $title = $this->norm($short->title);
+        $exact = $reels->filter(fn (ContentItem $r) => $this->norm($r->title) === $title);
+
+        if ($exact->isEmpty()) {
+            // The client's name is often typed differently in front of the same title.
+            $core = $this->core($short->title);
+            $exact = strlen($core) >= 8
+                ? $reels->filter(fn (ContentItem $r) => $this->core($r->title) === $core)
+                : collect();
+        }
+
+        if ($exact->isEmpty()) {
+            return $this->fuzzy($short, $reels);
+        }
+
+        return $exact->count() === 1 ? $exact->first() : $this->nearestInTime($short, $exact);
+    }
+
+    /** One clearly closest title, or nothing; a near-miss pairing is worse than none. */
+    private function fuzzy(ContentItem $short, Collection $reels): ?ContentItem
+    {
+        $core = $this->core($short->title);
+
+        if (strlen($core) < 12) {
+            return null;
+        }
+
+        $scored = $reels->map(function (ContentItem $r) use ($core) {
+            similar_text($core, $this->core($r->title), $percent);
+
+            return ['reel' => $r, 'score' => $percent];
+        })->sortByDesc('score')->values();
+
+        $best = $scored->get(0);
+        $next = $scored->get(1);
+
+        return $best && $best['score'] >= 90 && (! $next || $best['score'] - $next['score'] >= 5)
+            ? $best['reel']
+            : null;
+    }
+
+    /** Repeated titles: the reel published closest to the Short, within about six weeks. */
+    private function nearestInTime(ContentItem $short, Collection $reels): ?ContentItem
+    {
+        if ($short->published_date === null) {
+            return null;
+        }
+
+        $nearest = $reels->filter(fn (ContentItem $r) => $r->published_date !== null)
+            ->sortBy(fn (ContentItem $r) => abs($r->published_date->diffInDays($short->published_date)))
+            ->first();
+
+        return $nearest && abs($nearest->published_date->diffInDays($short->published_date)) <= 45 ? $nearest : null;
+    }
+
+    private function norm(?string $title): string
+    {
+        return trim((string) preg_replace('/\s+/', ' ', (string) preg_replace('/[^\p{L}\p{N}]+/u', ' ', mb_strtolower((string) $title))));
+    }
+
+    /** The title without a leading "Client - ". */
+    private function core(?string $title): string
+    {
+        return $this->norm(preg_replace('/^[^-–—:]{2,32}\s[-–—:]\s*/u', '', (string) $title));
+    }
+
+    /** @return Collection<string, int> */
+    private function ventureToClient(): Collection
+    {
+        return ContentAccountVenture::query()->with('contentAccount')->get()
+            ->mapWithKeys(fn (ContentAccountVenture $row) => [$row->venture => $row->contentAccount?->client_id])
+            ->filter();
     }
 
     /**
