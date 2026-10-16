@@ -101,7 +101,7 @@ class Permission
          * anything to grant.
          */
         'forecast' => [
-            'label' => 'Forecast',
+            'label' => 'Book shoots',
             'group' => 'Production',
             'icon' => 'trending-up',
             'abilities' => ['view'],

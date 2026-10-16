@@ -497,7 +497,7 @@ class DashboardController extends Controller
                     ? $ctx['forecastCriticalNames'].' — depleting soon with no shoot booked before then.'
                     : 'Depleting soon with no shoot booked before then.',
                 'href' => route('forecast.index'),
-                'cta' => 'Open forecast',
+                'cta' => 'Book shoots',
             ];
         }
 

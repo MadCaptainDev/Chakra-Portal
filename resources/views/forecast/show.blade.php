@@ -1,6 +1,6 @@
-<x-app-layout title="{{ $client->name }} — Forecast">
+<x-app-layout title="{{ $client->name }} — Book shoots">
     <x-slot name="header">
-        <x-page-header :title="$client->name" subtitle="Content forecast" eyebrow="Forecast">
+        <x-page-header :title="$client->name" subtitle="Content forecast" eyebrow="Book shoots">
             <x-slot name="actions">
                 <x-badge :status="$forecast['status']" class="text-sm" />
             </x-slot>
