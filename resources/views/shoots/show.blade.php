@@ -156,6 +156,36 @@
             @endcan
         </x-card>
 
+        {{-- ——— Videos shot: how many, and their names, ready to copy into Notion ——— --}}
+        @php $shotVideos = $shoot->videos()->orderBy('position')->orderBy('id')->get(['id', 'name', 'position']); @endphp
+        <x-card class="p-4 sm:p-5" x-data="{ copied: false }">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-sm font-semibold text-white">
+                    Videos shot
+                    <span class="ml-1.5 rounded-full bg-brand-400/20 px-2.5 py-0.5 text-sm font-bold text-brand-200">{{ $shotVideos->count() }}</span>
+                </h2>
+                @if ($shotVideos->isNotEmpty())
+                    <button type="button"
+                            @click="navigator.clipboard.writeText(@js($shotVideos->pluck('name')->implode("\n"))).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
+                            class="inline-flex min-h-[40px] items-center rounded-lg bg-white/10 px-3 text-sm font-semibold text-white hover:bg-white/15">
+                        <span x-text="copied ? 'Copied ✓' : 'Copy names'"></span>
+                    </button>
+                @endif
+            </div>
+            @if ($shotVideos->isEmpty())
+                <p class="mt-2 text-sm text-brand-100/50">No videos recorded on this shoot yet.</p>
+            @else
+                <ol class="mt-3 divide-y divide-white/5">
+                    @foreach ($shotVideos as $i => $v)
+                        <li class="flex gap-3 py-2 text-sm">
+                            <span class="w-6 shrink-0 text-right tabular-nums text-brand-100/40">{{ $i + 1 }}.</span>
+                            <span class="text-brand-100/90">{{ $v->name }}</span>
+                        </li>
+                    @endforeach
+                </ol>
+            @endif
+        </x-card>
+
         {{-- ——— Crew ——— --}}
         <x-card class="p-4 sm:p-5">
             <p class="text-sm font-semibold text-white mb-3">Crew</p>
