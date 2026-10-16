@@ -33,6 +33,12 @@ Route::prefix('api/planner')->name('api.planner.')->group(function () {
         Route::post('refresh', [PlannerAppController::class, 'refresh'])->name('refresh');
         Route::post('realtime/token', [PlannerAppController::class, 'realtimeToken'])->name('realtime.token');
 
+        // The top-bar editing widget: the same My Editing actions as the
+        // portal (EditingController decides who may do what to which video).
+        Route::get('editing', [\App\Http\Controllers\My\EditingController::class, 'board'])->name('editing.board');
+        Route::post('editing', [\App\Http\Controllers\My\EditingController::class, 'store'])->name('editing.store');
+        Route::post('editing/{todo}/act', [\App\Http\Controllers\My\EditingController::class, 'act'])->middleware(\Illuminate\Routing\Middleware\SubstituteBindings::class)->whereNumber('todo')->name('editing.act');
+
         Route::get('items', [PlannerItemController::class, 'index'])->name('items.index');
         Route::get('items/{item}', [PlannerItemController::class, 'show'])->whereNumber('item')->name('items.show');
         Route::patch('items/{item}', [PlannerItemController::class, 'update'])->whereNumber('item')->name('items.update');

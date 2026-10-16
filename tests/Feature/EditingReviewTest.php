@@ -95,6 +95,9 @@ class EditingReviewTest extends TestCase
         $id = $this->finished();
         $other = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
 
-        $this->actingAs($other)->postJson(route('my.editing.act', $id), ['action' => 'deliver'])->assertNotFound();
+        // Not theirs to edit, and not theirs to decide while it is in review.
+        $this->actingAs($other)->postJson(route('my.editing.act', $id), ['action' => 'start'])->assertNotFound();
+        $this->postJson(route('my.editing.act', $id), ['action' => 'deliver'])->assertStatus(422);
+        $this->assertNull(\App\Models\Todo::find($id)->posted_at);
     }
 }

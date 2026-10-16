@@ -30,6 +30,7 @@
 
 <x-app-layout title="My Editing">
     <div class="mx-auto max-w-6xl space-y-4 pb-10" x-data="editingDay(@js($state))">
+        @include('my._team-ready')
 
         {{-- Header, with the Notion refresh kept small on purpose. --}}
         <div class="flex items-end justify-between gap-3">

@@ -331,6 +331,7 @@ Route::get('my/editing/guide', [MyEditingController::class, 'guide'])->middlewar
 // Moving a video, and its review: the editor, or an admin reviewing it from
 // Editor Updates (EditingController::authorise decides who may).
 Route::middleware('auth')->group(function () {
+    Route::get('my/editing/board', [MyEditingController::class, 'board'])->name('my.editing.board');
     Route::post('my/editing/{todo}/act', [MyEditingController::class, 'act'])->name('my.editing.act');
     Route::post('my/editing/{todo}/correct', [MyEditingController::class, 'correct'])->name('my.editing.correct');
 });

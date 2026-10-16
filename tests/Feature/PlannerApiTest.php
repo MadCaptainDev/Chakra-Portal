@@ -121,10 +121,12 @@ class PlannerApiTest extends TestCase
 
     // ——— Signing in ———
 
-    public function test_signing_in_needs_the_planner_permission_and_the_token_is_the_only_way_in(): void
+    public function test_any_teammate_signs_in_but_the_planners_need_the_permission(): void
     {
-        $this->postJson(route('api.planner.login'), ['email' => 'sanjai@chakra.test', 'password' => 'secret-pass', 'device_name' => 'Mac'])
-            ->assertForbidden()->assertJsonPath('code', 'no_access');
+        $widget = $this->postJson(route('api.planner.login'), ['email' => 'sanjai@chakra.test', 'password' => 'secret-pass', 'device_name' => 'Mac'])
+            ->assertCreated()->assertJsonPath('abilities.view', false)->assertJsonPath('abilities.editing', true)->json('token');
+        $this->api($widget)->getJson(route('api.planner.editing.board'))->assertOk();
+        $this->api($widget)->getJson(route('api.planner.items.index'))->assertForbidden()->assertJsonPath('code', 'no_access');
 
         $this->grant($this->editor, 'view');
         $this->postJson(route('api.planner.login'), ['email' => 'sanjai@chakra.test', 'password' => 'wrong', 'device_name' => 'Mac'])
@@ -138,12 +140,13 @@ class PlannerApiTest extends TestCase
         $token = $login->json('token');
         $this->assertStringStartsWith('chakraplanner_', $token);
 
-        $this->getJson(route('api.planner.me'))->assertUnauthorized();
+        $this->flushHeaders()->getJson(route('api.planner.me'))->assertUnauthorized();
         $this->api($token)->getJson(route('api.planner.me'))->assertOk()->assertJsonPath('session.device_name', 'Sanjai’s MacBook');
 
-        // Taking the permission away locks every device out at once.
+        // Taking the permission away locks the planners on every device at once; the widget stays.
         UserPermission::query()->where('user_id', $this->editor->id)->delete();
-        $this->api($token)->getJson(route('api.planner.me'))->assertForbidden()->assertJsonPath('code', 'no_access');
+        $this->api($token)->getJson(route('api.planner.items.index'))->assertForbidden()->assertJsonPath('code', 'no_access');
+        $this->api($token)->getJson(route('api.planner.me'))->assertOk();
     }
 
     public function test_clients_cannot_sign_in_and_signing_out_kills_the_token(): void
@@ -505,5 +508,31 @@ class PlannerApiTest extends TestCase
         $this->assertSame($to, $reel->fresh()->published_date->toDateString());
 
         $this->actingAs(User::factory()->create(['role' => User::ROLE_EMPLOYEE]))->get(route('planner.index'))->assertForbidden();
+    }
+    // ——— The top-bar editing widget ———
+
+    public function test_the_widget_adds_and_moves_your_videos_and_anyone_posts_a_ready_one(): void
+    {
+        $token = $this->token($this->editor);
+        $id = $this->api($token)->postJson(route('api.planner.editing.store'), ['title' => 'SVA - Cotton Frock'])->assertOk()->json('card.id');
+        $this->api($token)->postJson(route('api.planner.editing.act', $id), ['action' => 'start'])->assertOk();
+        $this->api($token)->postJson(route('api.planner.editing.act', $id), ['action' => 'hold', 'note' => 'Waiting for music'])->assertOk();
+        $this->api($token)->postJson(route('api.planner.editing.act', $id), ['action' => 'start'])->assertOk();
+        $this->api($token)->postJson(route('api.planner.editing.act', $id), ['action' => 'done'])->assertOk();
+        $this->api($token)->getJson(route('api.planner.editing.board'))->assertOk()->assertJsonPath('cards.0.title', 'SVA - Cotton Frock');
+
+        // Someone else: cannot edit it, cannot deliver it while in review...
+        $other = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'email' => 'gokul@chakra.test', 'password' => 'secret-pass']);
+        $theirs = $this->token($other);
+        $this->api($theirs)->postJson(route('api.planner.editing.act', $id), ['action' => 'start'])->assertNotFound();
+        $this->api($theirs)->postJson(route('api.planner.editing.act', $id), ['action' => 'deliver'])->assertStatus(422);
+
+        // ...but once approved, it is on their widget and they can post it.
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $this->actingAs($admin)->postJson(route('my.editing.act', $id), ['action' => 'ready', 'publish_at' => now()->addHour()->format('Y-m-d H:i')])->assertOk();
+        $this->api($theirs)->getJson(route('api.planner.editing.board'))->assertJsonPath('team_ready.0.id', $id);
+        $this->api($theirs)->postJson(route('api.planner.editing.act', $id), ['action' => 'post', 'kind' => 'reel'])->assertOk();
+        $this->assertNotNull(\App\Models\Todo::find($id)->posted_at);
+        $this->assertSame($other->id, \App\Models\Todo::find($id)->posted_by_id);
     }
 }

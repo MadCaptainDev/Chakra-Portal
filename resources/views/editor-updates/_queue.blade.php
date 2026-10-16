@@ -107,7 +107,7 @@
                         {{ $late ? 'was due' : '◷' }} {{ $t->publish_at?->isToday() ? $t->publish_at->format('g:i A') : $t->publish_at?->format('D j M, g:i A') }}
                     </span>
                 </div>
-                @if ($canAct)
+                {{-- Posting is anyone's job; changing the time is the admin's. --}}
                 <div class="flex flex-wrap items-center gap-2">
                     <select x-model="kind[{{ $t->id }}]" class="h-10 rounded-[10px] border-0 bg-[#0f2230] py-0 pl-3 pr-8 text-[13px] text-white focus:ring-2 focus:ring-emerald-400">
                         @foreach ($kinds as $k)
@@ -120,12 +120,13 @@
                     <button type="button" :disabled="busy === {{ $t->id }}"
                             @click="send(@js(route('my.editing.act', $t)), { action: 'deliver' }, {{ $t->id }})"
                             class="{{ $btn }} bg-teal-500/90 text-white hover:bg-teal-400">Delivered</button>
+                    @if ($canAct)
                     <input type="datetime-local" x-model="when[{{ $t->id }}]" class="h-10 rounded-[10px] border-0 bg-[#0f2230] px-2 text-[13px] text-white [color-scheme:dark]" aria-label="New publishing time">
                     <button type="button" :disabled="busy === {{ $t->id }}"
                             @click="send(@js(route('my.editing.act', $t)), { action: 'ready', publish_at: when[{{ $t->id }}] }, {{ $t->id }})"
                             class="{{ $btn }} bg-white/10 text-white hover:bg-white/15">New time</button>
+                    @endif
                 </div>
-                @endif
             </div>
         @empty
             <div class="flex flex-1 flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-white/15 px-5 py-8 text-center">

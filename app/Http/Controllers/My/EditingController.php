@@ -40,10 +40,30 @@ class EditingController extends Controller
         $user = $request->user();
 
         return view('my.editing', [
+            'teamReady' => $this->teamReady($user),
             'cards' => $this->cards($user),
             'planner' => $this->planner($user),
             'hints' => $this->hints($user),
             'kinds' => Todo::KINDS,
+        ]);
+    }
+
+    /**
+     * The board as JSON, for Chakra Planner's top-bar widget
+     * (GET api/planner/editing) and anything else that wants it: your
+     * videos, the team's ready-to-post videos anyone can post, and the
+     * planner's suggestions to add.
+     */
+    public function board(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user->isClient(), 403);
+
+        return response()->json([
+            'cards' => $this->cards($user),
+            'team_ready' => $this->teamReady($user),
+            'suggestions' => $this->hints($user),
+            'server_time' => now()->toIso8601String(),
         ]);
     }
 
@@ -104,7 +124,10 @@ class EditingController extends Controller
     public function act(Request $request, Todo $todo): JsonResponse
     {
         $user = $request->user();
-        $this->authorise($todo, $user);
+        // Getting a ready video out is anyone's job; editing it is its editor's.
+        in_array($request->input('action'), self::ANYONE, true) && ! $user->isClient()
+            ? abort_unless($todo->parent_id === null && $todo->user_id !== null, 404)
+            : $this->authorise($todo, $user);
         $data = $request->validate([
             'action' => ['required', 'in:start,done,reopen,ready,post,deliver,unpost,kind,hold,next,today,remove'],
             'kind' => ['nullable', 'in:'.implode(',', array_keys(Todo::KINDS))],
@@ -189,6 +212,10 @@ class EditingController extends Controller
             case 'deliver':
                 if ($todo->corrections()->open()->exists()) {
                     return response()->json(['message' => 'Finish the open corrections first.'], 422);
+                }
+                // From review only its editor or an admin decides; anyone else delivers a ready video.
+                if (! $todo->ready_at && ! ($todo->user_id === $user->id || $todo->assigned_by_id === $user->id || $user->isAdmin())) {
+                    return response()->json(['message' => 'This video is still in review. Once it is Video ready, anyone can deliver it.'], 422);
                 }
                 if ($todo->status !== Todo::STATUS_COMPLETED) {
                     $todo->moveTo(Todo::STATUS_COMPLETED, $user);
@@ -275,6 +302,13 @@ class EditingController extends Controller
         return response()->json(['message' => "Reel Planner refreshed — {$count} items."]);
     }
 
+    /**
+     * What anyone on the team may do to someone else's video: mark a ready
+     * video posted or delivered (or undo that), and say what kind of post it
+     * was. Starting, holding, finishing and removing stay the editor's.
+     */
+    private const ANYONE = ['post', 'deliver', 'unpost', 'kind'];
+
     private function authorise(Todo $todo, User $user): void
     {
         abort_unless($todo->user_id === $user->id || $todo->assigned_by_id === $user->id || $user->isAdmin(), 404);
@@ -295,6 +329,29 @@ class EditingController extends Controller
             ->map(fn (Todo $t) => $this->card($t))
             ->values()
             ->all();
+    }
+
+    /**
+     * Everyone else's approved videos waiting to go out, by publishing time:
+     * posting is anyone's job, so whoever is free can mark them posted.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function teamReady(User $user): array
+    {
+        return Todo::query()->whereNull('parent_id')->where('status', Todo::STATUS_COMPLETED)
+            ->whereNotNull('ready_at')->whereNull('posted_at')->where('user_id', '!=', $user->id)
+            ->with('user:id,name')->orderBy('publish_at')->get()
+            ->map(fn (Todo $t) => [
+                'id' => $t->id,
+                'title' => $t->title,
+                'client' => $t->venture,
+                'editor' => $t->user?->name,
+                'kind' => in_array($t->kind, Todo::POST_KINDS, true) ? $t->kind : 'reel',
+                'publish_label' => $t->publish_at ? ($t->publish_at->isToday() ? 'Today ' : ($t->publish_at->isTomorrow() ? 'Tomorrow ' : $t->publish_at->format('D j M '))).$t->publish_at->format('g:i A') : null,
+                'publish_ms' => $t->publish_at?->getTimestampMs(),
+                'late' => $t->isLateToPublish(),
+            ])->values()->all();
     }
 
     /** @return array<string, mixed> */

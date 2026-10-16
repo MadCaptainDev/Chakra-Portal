@@ -50,11 +50,10 @@ class PlannerAuthController extends Controller
         }
         RateLimiter::clear($key);
 
-        if ($user->isClient() || ! $user->can('planner.view')) {
-            return response()->json([
-                'message' => 'Your account does not have Chakra Planner access yet. Ask an admin to tick it under Users → Permissions.',
-                'code' => 'no_access',
-            ], 403);
+        // Any teammate signs in: the editing widget is everyone's. abilities.view
+        // says whether the planners themselves are theirs too.
+        if ($user->isClient()) {
+            return response()->json(['message' => 'Chakra Planner is for the studio team.', 'code' => 'no_access'], 403);
         }
 
         $issued = PlannerSession::issue($user, $data);
@@ -83,7 +82,10 @@ class PlannerAuthController extends Controller
         return [
             'user' => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email, 'role' => $user->role],
             'abilities' => [
-                'view' => true,
+                'view' => $user->can('planner.view'),
+                // The top-bar editing widget (api/planner/editing): every teammate.
+                'editing' => true,
+                'review' => $user->isAdmin(),
                 'edit' => $user->can('planner.edit'),
                 'manage' => $user->can('planner.manage'),
             ],

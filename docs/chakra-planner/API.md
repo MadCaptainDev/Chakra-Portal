@@ -27,7 +27,7 @@ Validation errors (422) are Laravel's shape:
 | Status | `code` | Meaning / what the app does |
 |---|---|---|
 | 401 | `unauthenticated` | Token missing, wrong or signed out. Show the sign-in screen. |
-| 403 | `no_access` | The person lost the Chakra Planner permission. Sign out and show the message. |
+| 403 | `no_access` | On `/items`, `/meta`, `/refresh`: the person has no Chakra Planner `view` (widget-only account) — hide the planners, keep the widget. On every route: a client account. |
 | 403 | `no_edit` | Viewer tried to change something. Should not happen if the UI respects `abilities.edit`. |
 | 403 | `no_manage` | Release upload without Manage. |
 | 404 | — | Item does not exist (or is not a planner item). |
@@ -39,17 +39,21 @@ Validation errors (422) are Laravel's shape:
 
 ## Permissions
 
-Set per person in the portal (Users → Permissions → Chakra Planner). Admins have
-all three.
+**Every teammate can sign in** (not clients) — the top-bar editing widget is
+everyone's. The planners are behind Chakra Planner permissions, set per person
+in the portal (Users → Permissions → Chakra Planner). Admins have all three.
 
-| Ability | Gives |
+| Ability (`abilities` in the profile) | Gives |
 |---|---|
-| `view` | Sign in, see every planner, Refresh, live updates |
+| `editing` (always `true`) | The editing widget: `/editing` (below) |
+| `review` (admins) | Approving videos from review; the app does not need it yet |
+| `view` | See every planner, Refresh, live updates |
 | `edit` | Move publish dates (written to Notion) |
 | `manage` | Upload releases. In the portal: Ably key, Notion webhook, everyone's computers |
 
-The token is checked against the permission on **every** request, so taking it
-away locks every device out at once (`403 no_access`).
+The token is checked on **every** request, so taking `view` away hides the
+planners on every device at once (`403 no_access` on the planner routes); the
+widget keeps working.
 
 ---
 
@@ -68,7 +72,7 @@ away locks every device out at once (`403 no_access`).
 {
   "token": "chakraplanner_…",
   "user": { "id": 7, "name": "Sanjai", "email": "sanjai@…", "role": "employee" },
-  "abilities": { "view": true, "edit": true, "manage": false },
+  "abilities": { "view": true, "edit": true, "manage": false, "editing": true, "review": false },
   "session": { "id": 12, "device_name": "Sanjai's MacBook Air" },
   "realtime": {
     "enabled": true, "provider": "ably", "channel": "planner",
@@ -92,6 +96,70 @@ and `realtime`.
 `204`. The token stops working.
 
 ---
+
+## Editing widget
+
+The person's My Editing board, the same one the portal's My Editing page shows,
+for the top-bar widget. Everyone signed in can use it. **Who may do what:**
+
+- **Their own videos**: add, start, hold, done (→ under review), next day, remove.
+- **Anyone's video that is Video ready** (approved, with a publishing time): post or deliver.
+  Posting is anyone's job.
+- **Under review → ready / correction** is the admin's decision (portal Editor Updates).
+  The widget only shows the state.
+
+### `GET /editing`
+
+```json
+{
+  "cards": [{
+    "id": 81, "title": "SVA - Cotton Frock", "client": "SVA Silks",
+    "status": "started",            // waiting | started | blocked (on hold) | completed (done)
+    "kind": "reel",                 // reel | post | story | delivered | null
+    "ready": false,                 // approved as Video ready
+    "publish_label": "Today 6:30 PM", "publish_ms": 1792240200000,
+    "posted_at": null,              // "6:42 PM" once out
+    "working_minutes": 42, "working_since": 1792231000000,
+    "held": null,                   // the hold note while on hold
+    "sent_back": null,              // the admin's note when a correction came back
+    "next_on": null,                // "Tomorrow" when moved to another day
+    "corrections": [{ "id": 90, "title": "Logo cut at the end", "status": "waiting" }]
+  }],
+  "team_ready": [{
+    "id": 77, "title": "Janet - 5 Scans", "client": "Janet", "editor": "Gokul",
+    "kind": "reel", "publish_label": "Today 7:00 PM", "publish_ms": 1792242000000, "late": false
+  }],
+  "suggestions": [ … ],            // the planner's videos for this editor to add (same as the portal)
+  "server_time": "2026-10-17T15:10:00+05:30"
+}
+```
+
+A card's stage: `waiting` = to start · `started` = editing · `blocked` = on hold ·
+`completed` with `ready: false` and no `posted_at` = **under review** ·
+`completed` + `ready: true` = **ready to post** · `posted_at` set = out.
+Poll every 30 s while the widget is open (or on the `planner` Ably channel's
+next event).
+
+### `POST /editing`
+`{ "title": "SVA - Skirt and Top" }` or `{ "content_item_id": 1234 }` (a planner item, from `suggestions` or `/items`).
+`200 { "card": {…} }`. Already on the board → `{ "card": {…}, "existing": true }`.
+
+### `POST /editing/{id}/act`
+`{ "action": "…" }`, returns `{ "card": {…} }` (or `{ "removed": id }`).
+
+| `action` | Extra fields | Who |
+|---|---|---|
+| `start` | | the editor (also resumes from hold, or reopens a correction's video) |
+| `hold` | `note` (why, ≤255) | the editor |
+| `done` | | the editor → under review. 422 while a correction is open |
+| `next` / `today` | | the editor: move to tomorrow / back to today |
+| `remove` | `note` | the editor; not once it is out |
+| `post` | `kind`: `reel` \| `post` \| `story`, optional `post_url` | **anyone**, only when `ready` |
+| `deliver` | optional `post_url` | **anyone** when `ready`; from review only the editor or an admin |
+| `unpost` | | anyone: undo a post marked by mistake |
+
+Errors: `404` = not your video for that action; `422` with `message` = not
+allowed in its current state (show the message as-is).
 
 ## Items
 

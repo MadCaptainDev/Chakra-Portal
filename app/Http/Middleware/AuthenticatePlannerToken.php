@@ -25,9 +25,15 @@ class AuthenticatePlannerToken
         }
 
         $user = $session->user;
-        if ($user->isClient() || ! $user->can('planner.view')) {
+        if ($user->isClient()) {
+            return response()->json(['message' => 'Chakra Planner is for the studio team.', 'code' => 'no_access'], 403);
+        }
+        // Every teammate signs in for the editing widget (api/planner/editing,
+        // me, logout); the planners themselves need Chakra Planner → View.
+        $widgetOnly = $request->routeIs('api.planner.editing.*', 'api.planner.me', 'api.planner.logout');
+        if (! $widgetOnly && ! $user->can('planner.view')) {
             return response()->json([
-                'message' => 'Your account no longer has Chakra Planner access. Ask an admin to tick it under Users → Permissions.',
+                'message' => 'Your account can use the editing widget but not the planners. Ask an admin to tick Chakra Planner under Users → Permissions.',
                 'code' => 'no_access',
             ], 403);
         }
