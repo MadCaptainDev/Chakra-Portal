@@ -72,7 +72,7 @@ class ContentForecast
 
         // No Notion venture spelling matches this client, so none of their
         // videos are counted: "0 left" would be a false alarm, not a fact.
-        $linked = TimesheetVenture::rawVenturesFor($client) !== [];
+        $linked = $client->contentVentures() !== [];
 
         return [
             'client' => $client,

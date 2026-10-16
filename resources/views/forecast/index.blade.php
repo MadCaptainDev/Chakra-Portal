@@ -67,16 +67,16 @@
             </details>
             @if ($unknown->isNotEmpty())
                 <details class="rounded-2xl border border-white/10 bg-white/[0.03]">
-                    <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-amber-200">{{ $unknown->count() }} {{ Str::plural('client', $unknown->count()) }} can't be counted <span class="font-normal text-brand-100/50">— not linked to Notion, or no reel target</span></summary>
+                    <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-amber-200">{{ $unknown->count() }} {{ Str::plural('client', $unknown->count()) }} can't be counted <span class="font-normal text-brand-100/50">— not connected to Notion, or no reel target</span></summary>
                     <div class="divide-y divide-white/5 border-t border-white/10">
                         @foreach ($unknown as $row)
                             <div class="flex justify-between gap-2 px-4 py-2.5 text-sm">
                                 <span class="font-medium text-white">{{ $row['client']->name }}
-                                    <span class="block text-xs font-normal text-brand-100/50">{{ $row['linked'] ? 'No monthly reel target set' : 'Notion venture not set — their videos are not counted' }}</span>
+                                    <span class="block text-xs font-normal text-brand-100/50">{{ $row['linked'] ? 'No monthly reel target set' : 'No Notion venture connected to their accounts — their videos are not counted' }}</span>
                                 </span>
-                                @can('clients.edit')
-                                    <a href="{{ route('clients.edit', $row['client']) }}" class="shrink-0 text-brand-300 hover:text-white">{{ $row['linked'] ? 'Set reel target' : 'Set Notion venture' }}</a>
-                                @endcan
+                                @if (Route::has('content-accounts.edit'))
+                                    <a href="{{ route('content-accounts.edit') }}" class="shrink-0 text-brand-300 hover:text-white">{{ $row['linked'] ? 'Set reel target' : 'Connect in Notion setup' }}</a>
+                                @endif
                             </div>
                         @endforeach
                     </div>
