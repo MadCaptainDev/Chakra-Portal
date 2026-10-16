@@ -675,7 +675,15 @@ Route::middleware(['auth', 'module:shoots,view'])->scopeBindings()->group(functi
  * itself is the app; see routes/planner-api.php.
  */
 Route::middleware(['auth', 'module:planner,view'])->prefix('planner')->name('planner.')->group(function () {
-    Route::get('/', [\App\Http\Controllers\PlannerPageController::class, 'index'])->name('index');
+    // The planner itself, in the browser: the same endpoints the desktop app
+    // calls (Api\Planner\*), signed in by the portal session instead of a token.
+    Route::get('/', [\App\Http\Controllers\PlannerPageController::class, 'web'])->name('index');
+    Route::get('data/meta', [\App\Http\Controllers\Api\Planner\PlannerAppController::class, 'meta'])->name('data.meta');
+    Route::post('data/refresh', [\App\Http\Controllers\Api\Planner\PlannerAppController::class, 'refresh'])->name('data.refresh');
+    Route::get('data/items', [\App\Http\Controllers\Api\Planner\PlannerItemController::class, 'index'])->name('data.items');
+    Route::get('data/items/{item}', [\App\Http\Controllers\Api\Planner\PlannerItemController::class, 'show'])->whereNumber('item')->name('data.item');
+    Route::patch('data/items/{item}', [\App\Http\Controllers\Api\Planner\PlannerItemController::class, 'update'])->whereNumber('item')->name('data.move');
+    Route::get('setup', [\App\Http\Controllers\PlannerPageController::class, 'index'])->name('setup');
     Route::delete('sessions/{session}', [\App\Http\Controllers\PlannerPageController::class, 'revokeSession'])->whereNumber('session')->name('sessions.destroy');
     Route::middleware('module:planner,manage')->group(function () {
         Route::put('settings', [\App\Http\Controllers\PlannerPageController::class, 'updateSettings'])->name('settings');

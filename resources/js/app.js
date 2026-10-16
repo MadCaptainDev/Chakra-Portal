@@ -11,6 +11,7 @@ import { serviceExplorer, hoursPipeline } from './home-studio.js';
 import { loginMascot } from './login-mascot.js';
 import { editingDay } from './editing-day.js';
 import { editorTimeline } from './editor-timeline.js';
+import { plannerWeb } from './planner-web.js';
 import { shootScripts, shootLive } from './shoot-scripts.js';
 
 window.Alpine = Alpine;
@@ -28,6 +29,7 @@ Alpine.data('proposalComment', proposalComment);
 Alpine.data('editingDay', editingDay);
 // The live timeline on Editor Updates -- see resources/js/editor-timeline.js.
 Alpine.data('editorTimeline', editorTimeline);
+Alpine.data('plannerWeb', plannerWeb);
 Alpine.data('shootScripts', shootScripts);
 Alpine.data('shootLive', shootLive);
 

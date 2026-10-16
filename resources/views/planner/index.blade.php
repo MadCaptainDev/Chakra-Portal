@@ -10,7 +10,7 @@
 
 <x-app-layout title="Chakra Planner">
     <x-slot name="header">
-        <x-page-header title="Chakra Planner" eyebrow="Production"
+        <x-page-header title="Chakra Planner · Desktop app" eyebrow="Production"
                        subtitle="The content planner app for Windows and Mac — Notion's planners, live for the whole team. Sign in with your portal email and password." />
     </x-slot>
 

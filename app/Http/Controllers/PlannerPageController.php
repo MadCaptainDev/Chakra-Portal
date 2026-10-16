@@ -18,6 +18,13 @@ use Illuminate\View\View;
  */
 class PlannerPageController extends Controller
 {
+    /** The planner in the browser: a month of the four Notion planners. */
+    public function web(Request $request): View
+    {
+        return view('planner.web', ['canEdit' => $request->user()->can('planner.edit')]);
+    }
+
+    /** The desktop app: downloads, signed-in computers and (Manage) live-update setup. */
     public function index(Request $request): View
     {
         $user = $request->user();

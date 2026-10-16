@@ -469,15 +469,41 @@ class PlannerApiTest extends TestCase
     {
         $this->grant($this->editor, 'view');
         $this->withoutVite();
-        $this->actingAs($this->editor)->get(route('planner.index'))
+        $this->actingAs($this->editor)->get(route('planner.setup'))
             ->assertOk()->assertSee('Download')->assertSee('Open Anyway')->assertDontSee('Live updates (Ably)');
 
         $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
         Http::fake(['main.realtime.ably.net/*' => Http::response([], 201)]);
-        $this->actingAs($admin)->get(route('planner.index'))->assertSee('Live updates (Ably)')->assertSee(route('webhooks.notion'));
+        $this->actingAs($admin)->get(route('planner.setup'))->assertSee('Live updates (Ably)')->assertSee(route('webhooks.notion'));
         $this->actingAs($admin)->put(route('planner.settings'), ['ably_key' => 'appid.keyid:sekret'])
             ->assertSessionHas('status', 'Ably key saved — live updates are on.');
         $this->assertTrue(PlannerSetting::current()->realtimeEnabled());
         $this->actingAs($this->editor)->put(route('planner.settings'), ['ably_key' => 'x.y:z'])->assertForbidden();
+    }
+    // ——— The web version ———
+
+    public function test_the_web_planner_reads_and_moves_dates_with_the_portal_login(): void
+    {
+        $this->grant($this->editor, 'view');
+        $reel = $this->reel();
+        $from = $reel->published_date->toDateString();
+        $to = today()->addDays(5)->toDateString();
+        $this->withoutVite();
+
+        $this->actingAs($this->editor)->get(route('planner.index'))->assertOk()->assertSee('plannerWeb', false);
+        $this->getJson(route('planner.data.items', ['from' => today()->subDays(3)->toDateString(), 'to' => today()->addDays(40)->toDateString()]))
+            ->assertOk()->assertJsonPath('data.0.id', $reel->id);
+        $this->getJson(route('planner.data.meta'))->assertOk()->assertJsonPath('sources.0.count', 1);
+
+        // View only: the date stays put.
+        $this->patchJson(route('planner.data.move', $reel->id), ['published_date' => $to, 'from' => $from])->assertForbidden();
+
+        $this->grant($this->editor, 'edit');
+        $this->fakeNotion($from);
+        $this->actingAs($this->editor->fresh())->patchJson(route('planner.data.move', $reel->id), ['published_date' => $to, 'from' => $from])
+            ->assertOk()->assertJsonPath('item.published_date', $to);
+        $this->assertSame($to, $reel->fresh()->published_date->toDateString());
+
+        $this->actingAs(User::factory()->create(['role' => User::ROLE_EMPLOYEE]))->get(route('planner.index'))->assertForbidden();
     }
 }

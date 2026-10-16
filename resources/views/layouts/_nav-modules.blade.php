@@ -46,6 +46,9 @@
                  it just does not get a fourth top-level Production row of its
                  own. Rendered nested under Shoots below instead. --}}
             @continue($module === 'equipment')
+            {{-- Master Data is not a place anyone goes: it is opened from the
+                 client form (industries) and Portfolio (tags) where it is used. --}}
+            @continue($module === 'taxonomy')
 
             @php
                 // Badges are counts, and a zero is not worth a pill.
