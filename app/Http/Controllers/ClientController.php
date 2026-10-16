@@ -9,6 +9,7 @@ use App\Models\TaxonomyTerm;
 use App\Models\User;
 use App\Support\PublicUpload;
 use App\Support\TimesheetStats;
+use App\Support\ClientHub;
 use App\Support\TimesheetVenture;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -150,9 +151,12 @@ class ClientController extends Controller
                 ->get()
             : collect();
 
+        // The Overview: reels, this month, the works, shoots and money owed.
+        $hub = ClientHub::for($client, $request->user()->isAdmin());
+
         return view('clients.show', compact(
             'client', 'invoices', 'timesheet', 'ventureLabel', 'login', 'credentials',
-            'competitors', 'competitorSettings', 'teamMembers', 'assignableStaff',
+            'competitors', 'competitorSettings', 'teamMembers', 'assignableStaff', 'hub',
         ));
     }
 

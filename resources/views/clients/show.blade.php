@@ -10,9 +10,14 @@
                 </span>
             </x-slot>
             <x-slot name="actions">
-                <a href="{{ route('clients.edit', $client) }}" class="inline-flex items-center justify-center min-h-[44px] px-4 py-2 bg-brand-400 border border-transparent rounded-md font-semibold text-xs text-brand-900 uppercase tracking-widest hover:bg-brand-500">
-                    Edit Client
-                </a>
+                <div class="flex flex-wrap gap-2">
+                    @if (Route::has('shoots.create') && auth()->user()->can('shoots.create'))
+                        <a href="{{ route('shoots.create', ['client_id' => $client->id]) }}" class="inline-flex h-11 items-center rounded-xl bg-brand-400 px-4 text-sm font-bold text-brand-900 hover:bg-brand-300">Book shoot</a>
+                    @endif
+                    @can('clients.edit')
+                        <a href="{{ route('clients.edit', $client) }}" class="inline-flex h-11 items-center rounded-xl border border-white/15 px-4 text-sm font-semibold text-white hover:bg-white/10">Edit</a>
+                    @endcan
+                </div>
             </x-slot>
         </x-page-header>
     </x-slot>
@@ -27,30 +32,29 @@
     {{-- The Instagram insights page links back with a #social fragment;
          reading it once on load is what makes that landing on the right tab
          instead of always Overview. --}}
+    {{-- Five tabs: the client at a glance, what they told us, money, their
+         social accounts (and competitors), and access (logins we hold, their
+         login, their team). Old #fragments land on the tab that now holds them. --}}
     <div class="space-y-6" x-data="{ tab: 'overview' }"
-         x-init="if (['overview','brief','social','competitors','credentials','login','team'].includes(window.location.hash.slice(1))) tab = window.location.hash.slice(1)">
+         x-init="const h = window.location.hash.slice(1); tab = ({ competitors: 'social', credentials: 'access', login: 'access', team: 'access' })[h] ?? (['overview', 'brief', 'money', 'social', 'access'].includes(h) ? h : 'overview')">
         <div class="overflow-x-auto -mx-1 px-1 pb-1">
             <x-tab-nav model="tab" :tabs="array_filter([
                 'overview' => ['label' => 'Overview'],
                 'brief' => ['label' => 'Brand Brief', 'count' => $client->brief?->exists
                     ? $client->brief->requiredAnswered().'/'.$client->brief->requiredTotal()
                     : null],
-                'social' => ['label' => 'Social Media', 'count' => $client->socialAccounts
+                'money' => ['label' => auth()->user()->isAdmin() ? 'Money & hours' : 'Hours'],
+                'social' => ['label' => 'Social', 'count' => $client->socialAccounts
                     ->where('status', App\Models\SocialAccount::STATUS_CONNECTED)->count() ?: null],
-                'competitors' => auth()->user()->can('competitors.view')
-                    ? ['label' => 'Competitors', 'count' => $competitors->count() ?: null]
-                    : null,
-                'credentials' => auth()->user()->can('clients.credentials')
-                    ? ['label' => 'Logins We Hold', 'count' => $client->credentials()->count() ?: null]
-                    : null,
-                'login' => auth()->user()->can('clients.manage') ? ['label' => 'Client Login'] : null,
-                'team' => auth()->user()->can('clients.manage')
-                    ? ['label' => 'Their Team', 'count' => $client->teamMembers()->count() ?: null]
+                'access' => auth()->user()->can('clients.credentials') || auth()->user()->can('clients.manage')
+                    ? ['label' => 'Access']
                     : null,
             ])" />
         </div>
 
         <div x-show="tab === 'overview'" x-cloak class="space-y-6">
+        @include('clients._hub')
+
         {{-- Contact info --}}
         <x-card class="p-4 sm:p-6 border border-white/10">
             <h3 class="font-semibold text-white mb-3">Contact Info</h3>
@@ -228,7 +232,7 @@
 
         </div>
 
-        <div x-show="tab === 'overview'" x-cloak class="space-y-6">
+        <div x-show="tab === 'money'" x-cloak class="space-y-6">
         {{-- Production hours against this client --}}
         <div>
             <h3 class="font-semibold text-white mb-3">Timesheet hours</h3>
@@ -308,12 +312,12 @@
         </div>
 
         @can('competitors.view')
-        <div x-show="tab === 'competitors'" x-cloak class="space-y-6">
+        <div x-show="tab === 'social'" x-cloak class="space-y-6">
             @include('clients._competitors')
         </div>
         @endcan
 
-        <div x-show="tab === 'credentials'" x-cloak class="space-y-6">
+        <div x-show="tab === 'access'" x-cloak class="space-y-6">
         {{-- The logins the studio holds FOR them, as opposed to the login they
              sign in with below. Only rendered for somebody granted the
              separate credentials ability. --}}
@@ -323,7 +327,7 @@
 
         </div>
 
-        <div x-show="tab === 'login'" x-cloak class="space-y-6">
+        <div x-show="tab === 'access'" x-cloak class="space-y-6">
         {{-- ——— Their login ———
              Password set here and handed over by phone: the app sends no real
              mail (MAIL_MAILER is log), so an invite link would go to a log
@@ -486,7 +490,7 @@
 
         </div>
 
-        <div x-show="tab === 'team'" x-cloak class="space-y-6">
+        <div x-show="tab === 'access'" x-cloak class="space-y-6">
         @can('clients.manage')
             @include('clients._team')
         @endcan
