@@ -5,7 +5,8 @@
     $knownValues = collect($ventureOptions)->pluck('value')->all();
     // ?venture= arrives with ?task= when a finished to-do hands its work over.
     $currentVenture = old('venture', $entry->venture ?? ($entry ? '' : (string) request('venture')));
-    $currentType = old('task_type', $entry->task_type ?? '');
+    // A new row can arrive prefilled from a link (a to-do's "Log the hours", a timesheet hint).
+    $currentType = old('task_type', $entry->task_type ?? ($entry ? '' : (string) request('task_type')));
     // ?task= lets a finished to-do hand its title straight to the timesheet, so
     // the same work is not typed twice. Only ever seeds a new entry.
     $initialTask = old('task', $entry->task ?? ($entry ? '' : (string) request('task')));
@@ -21,7 +22,7 @@
       x-data="{
           task: @js($initialTask),
           taskType: @js($currentType),
-          typeTouched: {{ $entry || old('task_type') ? 'true' : 'false' }},
+          typeTouched: {{ $entry || old('task_type') || request('task_type') ? 'true' : 'false' }},
           suggestType() {
               if (this.typeTouched) return;
               const t = (this.task || '').toLowerCase();
@@ -45,7 +46,7 @@
         <div>
             <x-input-label :for="'ts_date_'.$uid" value="Date" />
             <x-text-input :id="'ts_date_'.$uid" name="worked_on" type="date" class="mt-1 block w-full"
-                          value="{{ old('worked_on', $entry?->worked_on?->format('Y-m-d') ?? today()->format('Y-m-d')) }}" required />
+                          value="{{ old('worked_on', $entry?->worked_on?->format('Y-m-d') ?? (request('worked_on') ?: today()->format('Y-m-d'))) }}" required />
             <x-input-error :messages="$errors->get('worked_on')" class="mt-2" />
         </div>
 
@@ -146,8 +147,8 @@
 
     <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4"
          x-data="{
-             start: '{{ old('started_at', $entry?->started_at ? substr($entry->started_at, 0, 5) : '') }}',
-             end: '{{ old('ended_at', $entry?->ended_at ? substr($entry->ended_at, 0, 5) : '') }}',
+             start: '{{ old('started_at', $entry?->started_at ? substr($entry->started_at, 0, 5) : ($entry ? '' : (preg_match('/^\d{2}:\d{2}$/', (string) request('started_at')) ? request('started_at') : ''))) }}',
+             end: '{{ old('ended_at', $entry?->ended_at ? substr($entry->ended_at, 0, 5) : ($entry ? '' : (preg_match('/^\d{2}:\d{2}$/', (string) request('ended_at')) ? request('ended_at') : ''))) }}',
              minutes: {{ (int) old('minutes', $entry->minutes ?? 0) }},
              /* Mirrors TimesheetEntry::minutesBetween() so the figure shown
                 matches what the server will store. */

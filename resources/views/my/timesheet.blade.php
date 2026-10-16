@@ -23,6 +23,8 @@
             </x-card>
         </div>
 
+        @include('my._timesheet-hints')
+
         {{-- ——— Entries that need a second look ———
              Shown to the person who wrote them, because they are the only one
              who knows what actually happened that day. The tone is deliberate:
@@ -124,7 +126,7 @@
             </x-btn>
         </div>
 
-        <div x-show="adding" x-cloak x-transition.opacity.duration.200ms>
+        <div id="add-entry" class="scroll-mt-24" x-show="adding" x-cloak x-transition.opacity.duration.200ms>
             <x-card padding="md" tone="brand">
                 <h3 class="font-semibold text-white mb-4">New entry</h3>
                 @include('my._entry-form', ['ventureOptions' => $ventureOptions])

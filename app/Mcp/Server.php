@@ -115,6 +115,12 @@ class Server
             new GetScript,
             new UpdateScript,
             new ReelPlannerToday,
+            // Editing and the day's work, by role: an editor's own board and
+            // timesheet hints, the crew's shoots, the admin's/manager's floor.
+            new \App\Tools\Editing\MyEditing,
+            new \App\Tools\Editing\TimesheetHint,
+            new \App\Tools\Shoots\MyShoots,
+            new \App\Tools\Editing\EditorUpdates,
             /*
              * Proposals, end to end: writing the document, working through
              * the client's comments, sharing and sending it. MCP only (see
@@ -194,6 +200,7 @@ class Server
             // Through the Gate rather than asking the user directly, so admins
             // are answered by Gate::before exactly as they are everywhere else.
             fn (Tool $tool) => (! $tool->requiresAdmin() || $user->isAdmin())
+                && $tool->availableTo($user)
                 && ($tool->permission() === null
                     || Gate::forUser($user)->allows($tool->permission()))
         ));
