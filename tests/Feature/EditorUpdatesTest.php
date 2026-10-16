@@ -126,6 +126,18 @@ class EditorUpdatesTest extends TestCase
         $this->actingAs($this->sanjai)->get(route('editor-updates.editor', $this->sanjai))->assertForbidden();
     }
 
+    public function test_a_new_day_with_videos_on_the_board_but_no_moves_yet_opens(): void
+    {
+        $this->at('18:00');
+        $this->actingAs($this->sanjai)->postJson(route('my.editing.store'), ['title' => 'Janet - 10 Foods']);
+
+        // Just after midnight: still on the board, nothing touched today.
+        $this->travelTo(today()->addDay()->setTime(0, 30));
+        $this->actingAs($this->admin)->get(route('editor-updates'))
+            ->assertOk()
+            ->assertSee('Janet - 10 Foods');
+    }
+
     public function test_it_is_admin_only_and_the_old_eod_link_redirects(): void
     {
         $this->actingAs($this->sanjai)->get(route('editor-updates'))->assertForbidden();

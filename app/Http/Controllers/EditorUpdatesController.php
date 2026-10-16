@@ -90,6 +90,7 @@ class EditorUpdatesController extends Controller
             ->whereBetween('created_at', [$day, $dayEnd])
             ->with('todo:id,parent_id')
             ->get()
+            ->toBase()
             ->map(fn (TodoUpdate $u) => $u->todo?->parent_id ?? $u->todo_id)
             ->filter();
         $onBoard = Todo::query()->whereNull('parent_id')->onDay($day)
