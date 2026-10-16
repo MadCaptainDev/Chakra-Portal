@@ -17,13 +17,25 @@ use Illuminate\View\View;
  * and how it moved that day (added, started, corrections, on hold, moved to
  * the next day, done, posted),
  * read from the to-do history that My Editing and My To-dos already write.
- * Admin-only. Replaces the WhatsApp "EOD CHECK" page: nobody has to report
+ * Admins see everyone, a manager their own team (scope()). Replaces the WhatsApp "EOD CHECK" page: nobody has to report
  * anything, the moves are the report.
  */
 class EditorUpdatesController extends Controller
 {
+    /** @var list<int>|null Whose videos this request may see; null is everyone (an admin). */
+    private ?array $only = null;
+
+    /** An admin sees everyone; a manager their reports and themselves; nobody else gets in. */
+    private function scope(Request $request): void
+    {
+        $user = $request->user();
+        abort_unless($user->isAdmin() || $user->managesAnyone(), 403);
+        $this->only = $user->isAdmin() ? null : $user->reports()->pluck('users.id')->push($user->id)->all();
+    }
+
     public function index(Request $request): View
     {
+        $this->scope($request);
         $day = $this->day($request);
         [$people, $todos] = $this->people($day);
 
@@ -43,6 +55,7 @@ class EditorUpdatesController extends Controller
      */
     public function live(Request $request): JsonResponse
     {
+        $this->scope($request);
         $day = $this->day($request);
         [$people, $todos] = $this->people($day);
 
@@ -52,6 +65,8 @@ class EditorUpdatesController extends Controller
     /** One editor's day: their lane drawn large, every video with its steps, and what is on hold and why. */
     public function editor(Request $request, User $user): View
     {
+        $this->scope($request);
+        abort_unless($this->only === null || in_array($user->id, $this->only, true), 403);
         $day = $this->day($request);
         [$people, $todos] = $this->people($day);
         $timeline = $this->timeline($day, $people, $todos);
@@ -99,6 +114,7 @@ class EditorUpdatesController extends Controller
         $todos = Todo::query()
             ->whereNull('parent_id')
             ->whereIn('id', $touched->merge($onBoard)->unique()->values())
+            ->when($this->only !== null, fn ($q) => $q->whereIn('user_id', $this->only))
             ->with(['user', 'contentItem', 'updates.user', 'corrections.updates.user'])
             ->get();
 
@@ -128,6 +144,7 @@ class EditorUpdatesController extends Controller
             ->when($ready,
                 fn ($q) => $q->whereNotNull('ready_at')->orderBy('publish_at'),
                 fn ($q) => $q->whereNull('ready_at')->whereDate('closed_on', '>=', today()->subDays(14))->orderBy('closed_on')->orderBy('updated_at'))
+            ->when($this->only !== null, fn ($q) => $q->whereIn('user_id', $this->only))
             ->with(['user', 'contentItem', 'corrections', 'updates'])
             ->get();
     }
@@ -214,6 +231,7 @@ class EditorUpdatesController extends Controller
                 'name' => $p['user']->name,
                 'initial' => mb_strtoupper(mb_substr($p['user']->name, 0, 1)),
                 'hue' => crc32($p['user']->name) % 360,
+                'photo' => $p['user']->avatarUrl(),
                 'state' => $state,
                 'doing' => $working?->title ?? $holding?->title ?? ($last ? $last['label'].' · '.$last['title'] : null),
                 'at' => $working || $holding ? $ms($until) : ($last['at'] ?? null),
@@ -252,7 +270,7 @@ class EditorUpdatesController extends Controller
             ],
             'totals' => $this->totals($people),
             // Now, for today only: what needs the admin and each editor in a card.
-            'board' => $isToday ? (fn (EditorBoard $b) => $b->board($b->moves($day)))(app(EditorBoard::class)) : null,
+            'board' => $isToday ? (fn (EditorBoard $b) => $b->board($b->moves($day)))(app(EditorBoard::class)->only($this->only)) : null,
         ];
     }
 

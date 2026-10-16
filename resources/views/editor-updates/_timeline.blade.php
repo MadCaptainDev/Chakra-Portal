@@ -92,7 +92,8 @@
                     {{-- Who and what now --}}
                     <div class="flex min-w-0 items-center gap-2.5 pr-3">
                         <span class="relative shrink-0">
-                            <span class="et-av h-9 w-9 text-sm" :style="`background:${color(lane)}`" x-text="lane.initial"></span>
+                            <template x-if="lane.photo"><img :src="lane.photo" :alt="lane.name" class="et-av h-9 w-9 object-cover"></template>
+                            <template x-if="!lane.photo"><span class="et-av h-9 w-9 text-sm" :style="`background:${color(lane)}`" x-text="lane.initial"></span></template>
                             <span class="et-z" x-show="lane.state === 'hold'">z</span>
                         </span>
                         <span class="min-w-0">
@@ -129,7 +130,8 @@
 
                         {{-- Where they are now --}}
                         <span class="et-walker absolute bottom-0 z-10 -translate-x-1/2 translate-y-1/3" :style="`left:${avatarX(lane)}%`" x-show="lane.at || data.is_today">
-                            <span class="et-av h-6 w-6 text-[10px] ring-2 ring-brand-900" :style="`background:${color(lane)}`" x-text="lane.initial"></span>
+                            <template x-if="lane.photo"><img :src="lane.photo" :alt="" class="et-av h-6 w-6 object-cover ring-2 ring-brand-900"></template>
+                            <template x-if="!lane.photo"><span class="et-av h-6 w-6 text-[10px] ring-2 ring-brand-900" :style="`background:${color(lane)}`" x-text="lane.initial"></span></template>
                             <span class="et-burst" x-show="lane.state === 'celebrate'">🎉</span>
                         </span>
 

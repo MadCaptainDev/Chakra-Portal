@@ -402,6 +402,16 @@ Route::middleware('auth')->group(function () {
     Route::post('my/shoots/{shoot}/finish', [ShootRunController::class, 'finish'])->name('my.shoots.finish');
 });
 
+/*
+ * Editor Updates: admins see everyone; a manager sees their own team (the
+ * controller scopes it), the same rule as my/team and the to-do tracker.
+ */
+Route::middleware('auth')->group(function () {
+    Route::get('editor-updates', [EditorUpdatesController::class, 'index'])->name('editor-updates');
+    Route::get('editor-updates/live', [EditorUpdatesController::class, 'live'])->name('editor-updates.live');
+    Route::get('editor-updates/editor/{user}', [EditorUpdatesController::class, 'editor'])->name('editor-updates.editor');
+});
+
 Route::middleware('auth')->group(function () {
     Route::get('my/team', [MyTeamController::class, 'index'])->name('my.team');
 
@@ -1010,9 +1020,6 @@ Route::middleware(['auth', 'module:insights,view'])->group(function () {
  */
 Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('studio-map', [StudioMapController::class, 'index'])->name('studio-map');
-    Route::get('editor-updates', [EditorUpdatesController::class, 'index'])->name('editor-updates');
-    Route::get('editor-updates/live', [EditorUpdatesController::class, 'live'])->name('editor-updates.live');
-    Route::get('editor-updates/editor/{user}', [EditorUpdatesController::class, 'editor'])->name('editor-updates.editor');
     Route::redirect('daily-checks', '/editor-updates');
     Route::get('studio-map/data', [StudioMapController::class, 'data'])->name('studio-map.data');
 

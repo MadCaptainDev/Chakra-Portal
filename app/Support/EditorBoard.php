@@ -15,6 +15,22 @@ use Illuminate\Support\Collection;
  */
 class EditorBoard
 {
+    /** @var list<int>|null Only these people (a manager's team); null is everyone. */
+    private ?array $only = null;
+
+    /** A manager sees their own team; an admin passes null for everyone. */
+    public function only(?array $userIds): static
+    {
+        $this->only = $userIds === null ? null : array_values(array_map('intval', $userIds));
+
+        return $this;
+    }
+
+    private function scoped($query, string $column = 'user_id')
+    {
+        return $this->only === null ? $query : $query->whereIn($column, $this->only);
+    }
+
     /**
      * A day's moves, newest first, each as the screens word it.
      *
@@ -29,6 +45,7 @@ class EditorBoard
             ->get()
             ->map(fn (TodoUpdate $u) => $this->move($u))
             ->filter()
+            ->filter(fn (array $m) => $this->only === null || in_array((int) ($m['person_id'] ?? 0), $this->only, true))
             ->values();
     }
 
@@ -44,16 +61,16 @@ class EditorBoard
         $now = now();
         $ago = fn (?Carbon $at) => $at ? (int) $at->diffInMinutes($now) : null;
 
-        $open = Todo::query()->whereNull('parent_id')
+        $open = $this->scoped(Todo::query()->whereNull('parent_id'))
             ->whereIn('status', [Todo::STATUS_STARTED, Todo::STATUS_BLOCKED])
             ->with(['user', 'updates'])->get();
-        $review = Todo::query()->whereNull('parent_id')->where('status', Todo::STATUS_COMPLETED)
+        $review = $this->scoped(Todo::query()->whereNull('parent_id'))->where('status', Todo::STATUS_COMPLETED)
             ->whereNull('posted_at')->whereNull('ready_at')->whereDate('closed_on', '>=', today()->subDays(14))
             ->with(['user', 'updates'])->get()
             ->map(fn (Todo $t) => ['title' => $t->title, 'person' => $t->user?->name,
                 'waiting' => $ago($t->updates->last(fn ($u) => $u->to_status === Todo::STATUS_COMPLETED)?->created_at ?? $t->updated_at)])
             ->sortByDesc('waiting')->values();
-        $ready = Todo::query()->whereNull('parent_id')->where('status', Todo::STATUS_COMPLETED)
+        $ready = $this->scoped(Todo::query()->whereNull('parent_id'))->where('status', Todo::STATUS_COMPLETED)
             ->whereNotNull('ready_at')->whereNull('posted_at')->with('user')->orderBy('publish_at')->get();
 
         // When this video last went into its current status, and the note it carried.
@@ -85,8 +102,18 @@ class EditorBoard
 
         // ——— Each editor, in one line ———
         $todayOut = fn (string $person) => $moves->where('person', $person)->where('type', 'posted')->count();
-        $people = $moves->pluck('person')->merge($open->map(fn (Todo $t) => $t->user?->name))->filter()->unique()->values();
-        $editors = $people->map(function (string $person) use ($moves, $open, $since, $ago, $todayOut, $now) {
+        // Waiting on today's board, per editor: what they will pick up next.
+        $waiting = $this->scoped(Todo::query()->whereNull('parent_id'))->where('status', Todo::STATUS_WAITING)
+            ->onDay(today())->with('user')->orderBy('id')->get();
+        // Everyone who has edited in the last two weeks gets a card, moved today or not.
+        $crew = \App\Models\User::query()
+            ->whereIn('id', $this->scoped(Todo::query()->whereNull('parent_id'))->where('created_at', '>=', now()->subDays(14))->select('user_id'))
+            ->get(['id', 'name', 'avatar_path']);
+        $people = $moves->pluck('person')->merge($open->map(fn (Todo $t) => $t->user?->name))
+            ->merge($waiting->map(fn (Todo $t) => $t->user?->name))->merge($crew->pluck('name'))
+            ->filter()->unique()->values();
+        $photos = $crew->mapWithKeys(fn ($u) => [$u->name => $u->avatarUrl()])->all();
+        $editors = $people->map(function (string $person) use ($moves, $open, $since, $ago, $todayOut, $now, $waiting, $photos) {
             $mine = $open->filter(fn (Todo $t) => $t->user?->name === $person);
             $working = $mine->firstWhere('status', Todo::STATUS_STARTED);
             $last = $moves->firstWhere('person', $person);
@@ -100,6 +127,10 @@ class EditorBoard
                 'held' => $mine->where('status', Todo::STATUS_BLOCKED)->count(),
                 'idle' => $working ? null : $idle,
                 'last' => $last ? ['label' => $last['label'], 'title' => $last['title'], 'time' => $last['time']] : null,
+                'photo' => $photos[$person] ?? null,
+                'next' => $waiting->filter(fn (Todo $t) => $t->user?->name === $person)->take(3)->pluck('title')->values()->all(),
+                'waiting' => $waiting->filter(fn (Todo $t) => $t->user?->name === $person)->count(),
+                'fixes' => $moves->where('person', $person)->where('type', 'fix')->count(),
                 'done' => $moves->where('person', $person)->where('type', 'done')->count(),
                 'out' => $todayOut($person),
                 'added' => $moves->where('person', $person)->where('type', 'added')->count(),
@@ -136,7 +167,8 @@ class EditorBoard
         }
 
         // Who is who: every need and card carries the editor's id, for a link to their day.
-        $ids = $moves->pluck('person_id', 'person')->all() + $open->filter(fn (Todo $t) => $t->user)->mapWithKeys(fn (Todo $t) => [$t->user->name => $t->user_id])->all();
+        $ids = $moves->pluck('person_id', 'person')->all() + $open->filter(fn (Todo $t) => $t->user)->mapWithKeys(fn (Todo $t) => [$t->user->name => $t->user_id])->all()
+            + $crew->pluck('id', 'name')->all();
         $needs = array_map(fn (array $n) => $n + ['user_id' => $ids[$n['person'] ?? ''] ?? null], $needs);
         $editors = $editors->map(fn (array $e) => $e + ['user_id' => $ids[$e['person']] ?? null]);
 

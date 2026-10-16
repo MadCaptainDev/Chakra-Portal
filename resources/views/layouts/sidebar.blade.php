@@ -173,6 +173,9 @@
             {{-- Only appears once somebody actually reports to this person.
                  Managing is not a role here, it is a fact about the org chart. --}}
             @if ($user?->managesAnyone())
+                <x-sidebar-link icon="film-cut" :href="route('editor-updates')" :active="request()->routeIs('editor-updates', 'editor-updates.editor')">
+                    Editor Updates
+                </x-sidebar-link>
                 <x-sidebar-link icon="users" :href="route('my.team')" :active="request()->routeIs('my.team')">
                     Team Timesheet
                 </x-sidebar-link>

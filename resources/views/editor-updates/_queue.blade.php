@@ -9,6 +9,7 @@
     $labels = \App\Models\Todo::KINDS;
     $span = fn (int $m) => $m >= 60 ? intdiv($m, 60).'h '.($m % 60).'m' : $m.'m';
     $btn = 'inline-flex h-10 items-center rounded-[10px] px-3.5 text-[13px] font-semibold disabled:opacity-40';
+    $canAct = auth()->user()->isAdmin();
 @endphp
 <section class="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]"
          x-data="{
@@ -52,6 +53,8 @@
                     </div>
                     <span class="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $waitCls }}">waiting {{ $span($wait) }}</span>
                 </div>
+                {{-- Managers see their team's queue; deciding on a video is the admin's. --}}
+                @if ($canAct)
                 <div class="flex flex-wrap gap-2" x-show="fixFor !== {{ $t->id }}">
                     <button type="button" @click="fixFor = {{ $t->id }}; fixText = ''; $nextTick(() => $refs['fix{{ $t->id }}'].focus())"
                             class="{{ $btn }} border border-amber-400/45 text-amber-300 hover:bg-amber-400/10">+ Correction</button>
@@ -73,6 +76,7 @@
                     <button class="{{ $btn }} bg-amber-400 font-bold text-brand-900" :disabled="busy === {{ $t->id }}">Send back</button>
                     <button type="button" @click="fixFor = null" class="px-2 text-sm text-brand-100/50" aria-label="Cancel">✕</button>
                 </form>
+                @endif
             </div>
         @empty
             <p class="border-t border-white/[0.06] px-6 py-8 text-center text-sm text-brand-100/45">Nothing waiting for review.</p>
@@ -103,6 +107,7 @@
                         {{ $late ? 'was due' : '◷' }} {{ $t->publish_at?->isToday() ? $t->publish_at->format('g:i A') : $t->publish_at?->format('D j M, g:i A') }}
                     </span>
                 </div>
+                @if ($canAct)
                 <div class="flex flex-wrap items-center gap-2">
                     <select x-model="kind[{{ $t->id }}]" class="h-10 rounded-[10px] border-0 bg-[#0f2230] py-0 pl-3 pr-8 text-[13px] text-white focus:ring-2 focus:ring-emerald-400">
                         @foreach ($kinds as $k)
@@ -120,6 +125,7 @@
                             @click="send(@js(route('my.editing.act', $t)), { action: 'ready', publish_at: when[{{ $t->id }}] }, {{ $t->id }})"
                             class="{{ $btn }} bg-white/10 text-white hover:bg-white/15">New time</button>
                 </div>
+                @endif
             </div>
         @empty
             <div class="flex flex-1 flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-white/15 px-5 py-8 text-center">

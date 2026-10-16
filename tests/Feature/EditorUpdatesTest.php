@@ -145,4 +145,32 @@ class EditorUpdatesTest extends TestCase
         $this->actingAs($this->admin)->get(route('editor-updates'))->assertOk()->assertSee('Nothing on anyone')->assertSee(route('editors.index'));
         $this->get('/editors')->assertRedirect('/editor-updates/output');
     }
+    public function test_a_manager_sees_only_their_teams_editing_without_the_admin_buttons(): void
+    {
+        $gokul = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'name' => 'Gokul']);
+        $other = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'name' => 'Outsider']);
+        $sanjaiManager = $this->sanjai;
+        $gokul->managers()->attach($sanjaiManager->id);
+
+        $this->at('10:00');
+        $mine = $this->actingAs($gokul)->postJson(route('my.editing.store'), ['title' => 'Gokul - Team video'])->json('card.id');
+        $this->postJson(route('my.editing.act', $mine), ['action' => 'start']);
+        $this->postJson(route('my.editing.act', $mine), ['action' => 'done']);
+        $theirs = $this->actingAs($other)->postJson(route('my.editing.store'), ['title' => 'Outsider - Not yours'])->json('card.id');
+        $this->postJson(route('my.editing.act', $theirs), ['action' => 'start']);
+
+        $this->at('11:00');
+        $this->actingAs($sanjaiManager)->get(route('editor-updates'))
+            ->assertOk()
+            ->assertSee('Gokul - Team video')
+            ->assertDontSee('Outsider - Not yours')
+            ->assertDontSee('✓ Video ready')
+            ->assertDontSee(route('editors.index'));
+        $this->getJson(route('editor-updates.live'))->assertOk()->assertJsonMissing(['name' => 'Outsider']);
+        $this->get(route('editor-updates.editor', $gokul))->assertOk();
+        $this->get(route('editor-updates.editor', $other))->assertForbidden();
+
+        // An admin still sees everyone, with the buttons.
+        $this->actingAs($this->admin)->get(route('editor-updates'))->assertSee('Outsider - Not yours')->assertSee('✓ Video ready');
+    }
 }
