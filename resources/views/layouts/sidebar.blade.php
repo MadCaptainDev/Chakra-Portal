@@ -254,16 +254,7 @@
             <x-sidebar-link icon="chat-check" :href="route('inbox-desk.index')" :active="request()->routeIs('inbox-desk.*')">
                 Comment &amp; Message Checker
             </x-sidebar-link>
-            {{-- A working admin already has this under My work. --}}
-            @unless ($user?->logsWork())
-                <x-sidebar-link icon="camera" :href="route('my.shoots')" :active="request()->routeIs('my.shoots*')">
-                    Shoot Updater
-                </x-sidebar-link>
-            @endunless
 
-            <x-sidebar-link icon="template" :href="route('content-dashboard.index')" :active="request()->routeIs('content-dashboard.*')">
-                Content Dashboard
-            </x-sidebar-link>
         </x-nav-section>
 
         <x-nav-section label="Team">

@@ -13,6 +13,8 @@
              'refresh' => route('planner.data.refresh'),
          ]), @js($canEdit))">
 
+        @include('planner._tabs')
+
         {{-- Month and actions --}}
         <header class="flex flex-wrap items-center gap-3">
             <div class="mr-auto">

@@ -65,7 +65,9 @@
             @endphp
             <x-sidebar-link :icon="$config['icon'] ?? 'document'"
                             :href="$href"
-                            :active="request()->routeIs($module.'.*')">
+                            :active="request()->routeIs($module.'.*')
+                                || ($module === 'planner' && request()->routeIs('content-dashboard.*'))
+                                || ($module === 'shoots' && request()->routeIs('my.shoots*'))">
                 {{ $config['label'] }}
                 @if ($badge > 0)
                     <span class="ml-auto shrink-0 inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-brand-400 text-brand-900 text-[11px] font-bold">

@@ -101,7 +101,6 @@ use App\Http\Controllers\ShootKitController;
 use App\Http\Controllers\StudioMapActionController;
 use App\Http\Controllers\StudioMapController;
 use App\Http\Controllers\TaxonomyTermController;
-use App\Http\Controllers\TeamMemberController;
 use App\Http\Controllers\TimesheetAdminController;
 use App\Http\Controllers\TimesheetDayController;
 use App\Http\Controllers\TodoReviewController;
@@ -900,15 +899,6 @@ Route::middleware(['auth', 'module:portfolio,view'])->group(function () {
     });
 });
 
-Route::middleware(['auth', 'module:team,view'])->group(function () {
-    Route::get('team', [TeamMemberController::class, 'index'])->name('team.index');
-    Route::post('team', [TeamMemberController::class, 'store'])
-        ->middleware('module:team,create')->name('team.store');
-    Route::put('team/{team}', [TeamMemberController::class, 'update'])
-        ->middleware('module:team,edit')->name('team.update');
-    Route::delete('team/{team}', [TeamMemberController::class, 'destroy'])
-        ->middleware('module:team,delete')->name('team.destroy');
-});
 
 /*
  * Master lists shared across the app -- platforms, formats, objectives,

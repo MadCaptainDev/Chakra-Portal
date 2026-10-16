@@ -33,10 +33,10 @@
     };
 @endphp
 
-<x-app-layout title="Content Dashboard">
+<x-app-layout title="Chakra Planner · Targets">
     <x-slot name="header">
-        <x-page-header title="Content Dashboard"
-                       subtitle="Track pipeline progress — published, in progress, and scheduled.">
+        <x-page-header title="Chakra Planner"
+                       subtitle="Each account's month against its targets — published, in progress, and scheduled.">
             <x-slot name="actions">
                 <form method="POST" action="{{ route('content-dashboard.refresh') }}">
                     @csrf
@@ -48,6 +48,7 @@
     </x-slot>
 
     <div class="space-y-5">
+        @include('planner._tabs')
 
         <div class="flex flex-wrap items-center justify-between gap-3">
             <form method="GET" action="{{ route('content-dashboard.index') }}" class="flex items-center gap-2">

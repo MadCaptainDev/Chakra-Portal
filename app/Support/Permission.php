@@ -149,12 +149,7 @@ class Permission
             'icon' => 'sparkles',
             'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
-        'team' => [
-            'label' => 'Team Page',
-            'group' => 'Website',
-            'icon' => 'user',
-            'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
-        ],
+
 
         /*
          * Running the studio. Enquiries has no `create` -- the only thing that
