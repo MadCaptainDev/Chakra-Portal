@@ -1531,7 +1531,9 @@ Route::middleware(['auth', 'admin', 'recurring.catchup', 'instagram.catchup', 'r
      * ranks people against each other, and who sees it is the owner's call to
      * make on purpose rather than by ticking a permission box.
      */
-    Route::get('editors', [EditorOutputController::class, 'index'])->name('editors.index');
+    // Merged into Editor Updates as its Output tab; the old address still works.
+    Route::get('editor-updates/output', [EditorOutputController::class, 'index'])->name('editors.index');
+    Route::redirect('editors', '/editor-updates/output');
 
     /*
      * Videos published per client account per month, against target.

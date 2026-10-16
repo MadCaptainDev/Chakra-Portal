@@ -142,6 +142,7 @@ class EditorUpdatesTest extends TestCase
     {
         $this->actingAs($this->sanjai)->get(route('editor-updates'))->assertForbidden();
         $this->actingAs($this->admin)->get('/daily-checks')->assertRedirect('/editor-updates');
-        $this->actingAs($this->admin)->get(route('editor-updates'))->assertOk()->assertSee('Nothing on anyone');
+        $this->actingAs($this->admin)->get(route('editor-updates'))->assertOk()->assertSee('Nothing on anyone')->assertSee(route('editors.index'));
+        $this->get('/editors')->assertRedirect('/editor-updates/output');
     }
 }

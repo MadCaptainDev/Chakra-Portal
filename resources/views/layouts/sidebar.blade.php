@@ -248,7 +248,7 @@
             <x-sidebar-link icon="map-pin" :href="route('studio-map')" :active="request()->routeIs('studio-map')">
                 Studio Map
             </x-sidebar-link>
-            <x-sidebar-link icon="film-cut" :href="route('editor-updates')" :active="request()->routeIs('editor-updates')">
+            <x-sidebar-link icon="film-cut" :href="route('editor-updates')" :active="request()->routeIs('editor-updates', 'editor-updates.editor', 'editors.*')">
                 Editor Updates
             </x-sidebar-link>
             <x-sidebar-link icon="chat-check" :href="route('inbox-desk.index')" :active="request()->routeIs('inbox-desk.*')">
@@ -260,9 +260,7 @@
                     Shoot Updater
                 </x-sidebar-link>
             @endunless
-            <x-sidebar-link icon="trending-up" :href="route('editors.index')" :active="request()->routeIs('editors.*')">
-                Editor Output
-            </x-sidebar-link>
+
             <x-sidebar-link icon="template" :href="route('content-dashboard.index')" :active="request()->routeIs('content-dashboard.*')">
                 Content Dashboard
             </x-sidebar-link>

@@ -63,6 +63,8 @@
             </div>
         </header>
 
+        @include('editor-updates._tabs')
+
         {{-- Read top-down: what needs you, each editor now, the day's flow (live,
              today), the queues to act on, the timeline; detail last. --}}
         <div class="space-y-7" x-data="editorTimeline(@js($timeline), @js(route('editor-updates.live', ['date' => $day->toDateString()])), @js(route('editor-updates.editor', ['user' => '__ID__', 'date' => $day->toDateString()])))">
