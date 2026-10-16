@@ -309,7 +309,7 @@ class ShootRunTest extends TestCase
 
         $this->actingAs($crew)->get(route('my.shoots'))
             ->assertOk()
-            ->assertSeeInOrder(['Live now', 'Live one', 'Today', 'Later today', 'Coming up', 'Next week'])
+            ->assertSeeInOrder(['Rolling now', 'Live one', 'Continue shooting', 'Scripts to shoot', 'Also coming up', 'Later today', 'Next week'])
             ->assertSee(route('my.shoots.run', $live), false)
             ->assertDontSee('Next year')
             ->assertDontSee('Not mine');
@@ -446,6 +446,18 @@ class ShootRunTest extends TestCase
         return $script;
     }
 
+    public function test_my_shoots_opens_on_the_next_shoot_with_its_scripts_to_read(): void
+    {
+        $client = Client::create(['name' => 'Squad Architects']);
+        $shoot = $this->shoot(['client_id' => $client->id, 'starts_at' => now()->addDay(), 'location' => 'Trichy office']);
+        $crew = $this->crewMember($shoot);
+        $this->script($client, 'Italian marble', Script::STATUS_COMPLETED, 'ZERO dhaan hook');
+        $this->script($client, 'Tile showroom', Script::STATUS_READY);
+
+        $this->actingAs($crew)->get(route('my.shoots'))
+            ->assertOk()
+            ->assertSeeInOrder(['Next shoot · Tomorrow', 'Trichy office', 'Open shoot', 'Scripts to shoot', '2 ready', 'Italian marble', 'Approved', 'ZERO dhaan hook']);
+    }
     public function test_the_rolling_screen_carries_the_clients_scripts_unshot_and_approved_first(): void
     {
         $client = Client::create(['name' => 'Squad Architects']);

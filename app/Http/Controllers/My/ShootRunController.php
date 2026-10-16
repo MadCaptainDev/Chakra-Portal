@@ -58,7 +58,16 @@ class ShootRunController extends Controller
         $today = $shoots->reject(fn (Shoot $s) => $s->isInProgress())
             ->filter(fn (Shoot $s) => $s->starts_at->isToday());
 
+        // The one to get ready for: rolling now, else today's, else the next one.
+        $next = $live->first()
+            ?? $shoots->first(fn (Shoot $s) => ! $s->hasWrapped() && $s->starts_at->gte(today()))
+            ?? $shoots->first();
+        // Scripts for every shoot on the page, so each says what is ready to shoot.
+        $scripts = $shoots->mapWithKeys(fn (Shoot $s) => [$s->id => $this->scripts($s)]);
+
         return view('my.shoots.index', [
+            'next' => $next,
+            'scripts' => $scripts,
             'live' => $live,
             'today' => $today,
             'upcoming' => $shoots->reject(fn (Shoot $s) => $live->contains($s) || $today->contains($s)),
