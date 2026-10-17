@@ -128,6 +128,7 @@ Route::get('/', LandingController::class)->name('home');
 // Public portfolio screen. Kept off the /portfolio-items admin path so the two
 // can never shadow each other.
 Route::get('/portfolio', [PublicPortfolioController::class, 'index'])->name('portfolio');
+Route::get('/portfolio/live', [PublicPortfolioController::class, 'live'])->middleware('throttle:60,1')->name('portfolio.live');
 
 // The case study for one piece. Named portfolio.detail rather than
 // portfolio.show because the portfolio.* names belong to the admin CRUD.

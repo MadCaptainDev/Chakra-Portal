@@ -30,9 +30,15 @@
     foreach ($tabs as $tab) {
         $counts[$tab->slug] = $items->where('portfolio_category_id', $tab->id)->count();
     }
+
+    // The top performers pop up one at a time (PublicPortfolioController::STAR_VIEWS).
+    $stars = ($stars ?? collect())->map(fn ($i) => [
+        'id' => $i->id, 'title' => $i->title, 'client' => $i->clientLabel(), 'views' => (int) $i->views,
+        'thumb' => $i->thumbnailUrl(), 'src' => $i->playbackUrl(), 'kind' => $i->isUploaded() ? 'file' : 'link',
+    ])->values();
 @endphp
 
-<div x-data="portfolioGrid(@js($tabs->contains('slug', $activeCategory) ? $activeCategory : 'all'), @js($counts))">
+<div x-data="portfolioGrid(@js($tabs->contains('slug', $activeCategory) ? $activeCategory : 'all'), @js($counts), @js($stars), @js($liveUrl ?? null))">
     @if ($tabs->isNotEmpty())
         <div class="-mx-3 sm:mx-0 px-3 sm:px-0 overflow-x-auto">
             <div class="flex gap-2 min-w-max sm:min-w-0 sm:flex-wrap" role="tablist" aria-label="Portfolio categories">
@@ -75,12 +81,15 @@
             @php $slug = $item->category?->slug ?? 'other'; @endphp
 
             <article x-show="active === 'all' || active === @js($slug)"
-                     class="group rounded-xl overflow-hidden bg-white/5 border border-white/10 hover:border-brand-400/40 transition-colors">
+                     x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+                     data-pf-card style="--i: {{ $loop->index % 10 }}"
+                     class="pf-card group rounded-xl overflow-hidden bg-white/5 border border-white/10 hover:border-brand-400/40 hover:shadow-[0_18px_40px_-18px_rgba(103,188,212,0.45)]">
                 <button type="button"
                         @click="open($el)"
                         data-video="{{ $item->playbackUrl() }}"
                         data-kind="{{ $item->isUploaded() ? 'file' : 'link' }}"
                         data-title="{{ $item->title }}"
+                        data-id="{{ $item->id }}"
                         @unless ($item->playbackUrl()) disabled @endunless
                         class="block w-full text-left">
                     <div class="relative {{ $item->isVertical() ? 'aspect-[9/16]' : 'aspect-video' }} bg-brand-900/60 overflow-hidden">
@@ -122,7 +131,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M2.46 12C3.73 7.94 7.52 5 12 5c4.48 0 8.27 2.94 9.54 7-1.27 4.06-5.06 7-9.54 7-4.48 0-8.27-2.94-9.54-7z" />
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
-                                {{ Metric::count($headline) }}
+                                <span @if ($item->social_media_item_id && $item->views !== null) data-pf-views="{{ $item->id }}" @endif>{{ Metric::count($headline) }}</span>
                                 <span class="sr-only">{{ $headlineLabel }}</span>
                             </span>
                         @endif
@@ -191,35 +200,143 @@
 
             {{-- Rebuilt per open so the <video> starts from the top and the
                  previous file stops downloading. --}}
-            <template x-if="player">
+            <template x-if="player && ! player.embed">
                 <video controls autoplay playsinline class="w-full max-h-[75vh] rounded-lg bg-black"
                        :src="player.src"></video>
             </template>
+            {{-- An Instagram reel plays right here, in Instagram's own player. --}}
+            <template x-if="player && player.embed">
+                <div class="mx-auto w-full max-w-[400px]">
+                    <iframe :src="player.embed" class="h-[min(78vh,720px)] w-full rounded-lg bg-white" allowtransparency="true" allow="autoplay; encrypted-media; picture-in-picture" loading="lazy" title="Instagram reel"></iframe>
+                    <a :href="player.src" target="_blank" rel="noopener" class="mt-2 block text-center text-xs text-white/60 hover:text-white">Open on Instagram ↗</a>
+                </div>
+            </template>
         </div>
     </div>
+
+    {{-- Top performer: one of the best reels pops up in the corner. --}}
+    <template x-if="star">
+        <div class="pf-pop fixed bottom-4 left-4 right-4 z-40 sm:left-auto sm:right-6 sm:bottom-6 sm:w-[340px]" role="status">
+            <div class="flex items-center gap-3 rounded-2xl border border-amber-300/30 bg-[#102633]/95 p-3 shadow-2xl backdrop-blur">
+                <button type="button" @click="playStar()" class="relative h-[86px] w-[60px] shrink-0 overflow-hidden rounded-lg bg-brand-900" aria-label="Play this reel">
+                    <template x-if="star.thumb"><img :src="star.thumb" alt="" class="h-full w-full object-cover"></template>
+                    <span class="absolute inset-0 flex items-center justify-center bg-black/25 text-white">▶</span>
+                </button>
+                <div class="min-w-0 flex-1">
+                    <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-300">🔥 Top performer</p>
+                    <p class="mt-0.5 truncate text-sm font-semibold text-white" x-text="star.title"></p>
+                    <p class="text-xs text-brand-100/70"><span class="font-bold text-white" x-text="fmt(star.views)"></span> views<span x-show="star.client" x-text="' · ' + star.client"></span></p>
+                    <button type="button" @click="playStar()" class="mt-1.5 text-xs font-semibold text-brand-300 hover:text-white">Watch it →</button>
+                </div>
+                <button type="button" @click="dismissStars()" class="self-start rounded-md p-1 text-white/50 hover:bg-white/10 hover:text-white" aria-label="Close">✕</button>
+            </div>
+        </div>
+    </template>
 </div>
 
 @once
+    @push('styles')
+        <style>
+            .pf-rise { animation: pfRise .7s cubic-bezier(.2,.8,.2,1) both; animation-delay: var(--d, 0ms); }
+            .pf-card { opacity: 0; transform: translateY(18px); }
+            .pf-card.pf-in { opacity: 1; transform: none; transition: opacity .55s ease, transform .55s cubic-bezier(.2,.8,.2,1), border-color .3s, box-shadow .3s; transition-delay: calc(var(--i) * 45ms), calc(var(--i) * 45ms), 0s, 0s; }
+            .pf-card.pf-in:hover { transform: translateY(-4px); transition-delay: 0s; }
+            .pf-bump { animation: pfBump .9s ease; }
+            .pf-pop { animation: pfPop .55s cubic-bezier(.2,1.3,.4,1) both; }
+            @keyframes pfRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+            @keyframes pfBump { 0% { color: #fff; } 30% { color: #6ee7b7; transform: scale(1.18); } 100% { color: #fff; transform: none; } }
+            @keyframes pfPop { from { opacity: 0; transform: translateY(24px) scale(.96); } to { opacity: 1; transform: none; } }
+            @media (prefers-reduced-motion: reduce) { .pf-rise, .pf-pop, .pf-bump { animation: none; } .pf-card { opacity: 1; transform: none; } }
+        </style>
+    @endpush
     @push('scripts')
         <script>
-            function portfolioGrid(initial, counts) {
+            function portfolioGrid(initial, counts, stars, liveUrl) {
                 return {
                     active: initial || 'all',
                     counts: counts || {},
                     player: null,
+                    stars: stars || [],
+                    star: null,
+                    starAt: 0,
 
-                    open(el) {
-                        const src = el.dataset.video;
-                        if (! src) return;
-
-                        // A linked video lives on someone else's player, so
-                        // send the visitor there rather than embedding it.
-                        if (el.dataset.kind === 'link') {
-                            window.open(src, '_blank', 'noopener');
-                            return;
+                    init() {
+                        // Cards rise in as they scroll into view.
+                        const cards = this.$el.querySelectorAll('[data-pf-card]');
+                        if ('IntersectionObserver' in window) {
+                            const io = new IntersectionObserver((entries) => entries.forEach((e) => {
+                                if (e.isIntersecting) { e.target.classList.add('pf-in'); io.unobserve(e.target); }
+                            }), { rootMargin: '0px 0px -40px 0px' });
+                            cards.forEach((c) => io.observe(c));
+                        } else {
+                            cards.forEach((c) => c.classList.add('pf-in'));
                         }
 
-                        this.player = { src, mime: el.dataset.mime, title: el.dataset.title };
+                        // A top performer pops up after a few seconds, then the next one.
+                        let off = false;
+                        try { off = sessionStorage.getItem('pf-stars-off') === '1'; } catch (e) {}
+                        if (this.stars.length && ! off) {
+                            setTimeout(() => this.nextStar(), 6000);
+                            this.starTimer = setInterval(() => { if (! this.player && ! document.hidden) this.nextStar(); }, 14000);
+                        }
+
+                        // Live numbers: re-read every minute while the page is open.
+                        if (liveUrl) setInterval(() => { if (! document.hidden) this.live(liveUrl); }, 60000);
+                    },
+
+                    nextStar() {
+                        this.star = null;
+                        this.$nextTick(() => { this.star = this.stars[this.starAt % this.stars.length]; this.starAt++; });
+                    },
+                    playStar() {
+                        const s = this.star;
+                        if (! s) return;
+                        this.openSrc(s.src, s.kind, s.title);
+                    },
+                    dismissStars() {
+                        this.star = null;
+                        clearInterval(this.starTimer);
+                        try { sessionStorage.setItem('pf-stars-off', '1'); } catch (e) {}
+                    },
+
+                    async live(url) {
+                        try {
+                            const r = await fetch(url, { headers: { Accept: 'application/json' } });
+                            if (! r.ok) return;
+                            const d = await r.json();
+                            Object.entries(d.items || {}).forEach(([id, n]) => {
+                                const el = this.$el.querySelector(`[data-pf-views="${id}"]`);
+                                const next = this.fmt(n.views);
+                                if (el && n.views !== null && el.textContent.trim() !== next) {
+                                    el.textContent = next;
+                                    el.classList.remove('pf-bump'); void el.offsetWidth; el.classList.add('pf-bump');
+                                }
+                            });
+                        } catch (e) {}
+                    },
+
+                    fmt(n) {
+                        if (n === null || n === undefined) return '';
+                        if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M';
+                        if (n >= 1e3) return (n / 1e3).toFixed(n >= 1e4 ? 0 : 1).replace(/\.0$/, '') + 'K';
+                        return String(n);
+                    },
+
+                    open(el) {
+                        this.openSrc(el.dataset.video, el.dataset.kind, el.dataset.title);
+                    },
+
+                    openSrc(src, kind, title) {
+                        if (! src) return;
+                        let embed = null;
+                        if (kind === 'link') {
+                            // An Instagram reel plays here in Instagram's player; any other link opens where it lives.
+                            const m = src.match(/instagram\.com\/(?:[^/]+\/)?(reel|reels|p|tv)\/([A-Za-z0-9_-]+)/);
+                            if (! m) { window.open(src, '_blank', 'noopener'); return; }
+                            embed = `https://www.instagram.com/${m[1] === 'reels' ? 'reel' : m[1]}/${m[2]}/embed`;
+                        }
+                        this.star = null;
+                        this.player = { src, embed, title };
                         document.body.classList.add('overflow-hidden');
                     },
 
@@ -232,3 +349,4 @@
         </script>
     @endpush
 @endonce
+

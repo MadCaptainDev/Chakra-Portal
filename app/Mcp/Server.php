@@ -121,6 +121,15 @@ class Server
             new \App\Tools\Editing\TimesheetHint,
             new \App\Tools\Shoots\MyShoots,
             new \App\Tools\Editing\EditorUpdates,
+            // The public website portfolio: list, add a client's top reels, write case studies.
+            new \App\Tools\Portfolio\ListPortfolio,
+            new \App\Tools\Portfolio\AddPortfolioTopReels,
+            new \App\Tools\Portfolio\UpdatePortfolioItem,
+            // Leads, the team, shoots to book and the WhatsApp inbox.
+            new \App\Tools\Studio\ListEnquiries,
+            new \App\Tools\Studio\PostAnnouncement,
+            new \App\Tools\Studio\BookShoots,
+            new \App\Tools\Studio\WhatsappInbox,
             /*
              * Proposals, end to end: writing the document, working through
              * the client's comments, sharing and sending it. MCP only (see
