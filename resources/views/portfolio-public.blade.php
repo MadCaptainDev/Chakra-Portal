@@ -9,7 +9,7 @@
 
     // The hero wall: covers spread over columns, each column twice so it loops.
     $wallColumns = 6;
-    $columns = collect(range(0, $wallColumns - 1))->map(fn ($c) => $wall->isEmpty() ? collect()
+    $wallCols = collect(range(0, $wallColumns - 1))->map(fn ($c) => $wall->isEmpty() ? collect()
         : collect(range(0, 5))->map(fn ($k) => $wall[($c * 3 + $k * 7) % $wall->count()]));
 
     $hitsMax = collect(['views', 'reach', 'shares', 'saves'])
@@ -52,7 +52,7 @@
     <section class="relative isolate flex min-h-[86svh] items-end overflow-hidden" x-data>
         <div class="absolute inset-0 -z-10" aria-hidden="true">
             <div class="absolute -inset-x-16 -top-24 bottom-0 grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4 lg:grid-cols-6 -rotate-6 scale-110 opacity-70">
-                @foreach ($columns as $c => $covers)
+                @foreach ($wallCols as $c => $covers)
                     <div class="overflow-hidden {{ $c >= 4 ? 'hidden lg:block' : ($c >= 3 ? 'hidden sm:block' : '') }}">
                         <div class="pf-col space-y-3 sm:space-y-4" style="animation-duration: {{ 70 + $c * 9 }}s; animation-direction: {{ $c % 2 ? 'reverse' : 'normal' }}">
                             @foreach ($covers->concat($covers) as $src)
