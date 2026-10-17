@@ -224,11 +224,8 @@
 
     {{-- ═══════════════════════════════════════ All the work ═══ --}}
     <section id="work" class="scroll-mt-16">
-        <div class="mx-auto max-w-7xl px-3 py-16 sm:px-5 sm:py-24">
-            <div class="mb-8 px-2 sm:px-3">
-                <p class="text-xs font-semibold uppercase tracking-[0.25em] text-brand-300">All the work</p>
-                <h2 class="mt-3 text-[clamp(2rem,5vw,3.5rem)] font-extrabold leading-[1.05] tracking-tight">Every reel, in one place.</h2>
-            </div>
+        <div class="mx-auto max-w-7xl px-3 py-10 sm:px-5 sm:py-14">
+            <h2 class="mb-2 px-2 text-xs font-semibold uppercase tracking-[0.25em] text-brand-300 sm:px-3">All the work · {{ $totals['pieces'] }} reels</h2>
             @if ($items->isEmpty())
                 <div class="py-20 text-center">
                     <p class="text-xl font-semibold">Nothing published yet.</p>
