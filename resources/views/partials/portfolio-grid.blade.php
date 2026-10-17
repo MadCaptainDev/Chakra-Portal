@@ -329,7 +329,7 @@
                             this.starTimer = setInterval(() => { if (! this.player && ! document.hidden) this.nextStar(); }, 14000);
                         }
 
-                        // Live numbers: re-read every minute while the page is open.
+                        // The view counts are re-read every minute while the page is open.
                         if (liveUrl) setInterval(() => { if (! document.hidden) this.live(liveUrl); }, 60000);
                     },
 
