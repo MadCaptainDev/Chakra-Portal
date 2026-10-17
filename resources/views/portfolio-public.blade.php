@@ -128,41 +128,41 @@
 
     {{-- ═══════════════════════════════════════ The hits ═══ --}}
     @if ($hits->isNotEmpty())
-        <section class="relative overflow-hidden py-20 sm:py-28" x-data="pfHits(@js($hits), @js($hitsMax))" @mouseenter="paused = true" @mouseleave="paused = false">
+        <section class="relative overflow-hidden py-14 sm:py-20" x-data="pfHits(@js($hits), @js($hitsMax))" @mouseenter="paused = true" @mouseleave="paused = false">
             <div class="pf-glow pointer-events-none absolute -left-40 top-10 h-[520px] w-[520px]" aria-hidden="true"></div>
             <div class="mx-auto max-w-7xl px-5 sm:px-8">
                 <p class="text-xs font-semibold uppercase tracking-[0.25em] text-brand-300">The hits</p>
                 <h2 class="mt-3 max-w-3xl text-[clamp(2.2rem,6vw,4.5rem)] font-extrabold leading-[1.02] tracking-tight">{{ $hits->count() }} reels that broke out.</h2>
 
-                <div x-ref="stage" class="pf-swap mt-12 grid items-center gap-10 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] lg:gap-16">
+                <div x-ref="stage" class="pf-swap mt-8 grid items-center gap-8 sm:grid-cols-[240px_minmax(0,1fr)] lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-12">
                     {{-- The reel --}}
-                    <button type="button" @click="play()" class="group relative mx-auto block w-full max-w-[360px] lg:max-w-none" :aria-label="'Watch ' + h.title">
-                        <span class="absolute -inset-6 -z-10 rounded-[2.5rem] bg-brand-400/20 blur-2xl" aria-hidden="true"></span>
-                        <span class="relative block aspect-[9/16] overflow-hidden rounded-[2rem] bg-brand-800 ring-1 ring-white/15 shadow-2xl shadow-black/50">
+                    <button type="button" @click="play()" class="group relative mx-auto block w-[220px] sm:w-full" :aria-label="'Watch ' + h.title">
+                        <span class="absolute -inset-4 -z-10 rounded-[2rem] bg-brand-400/15 blur-2xl" aria-hidden="true"></span>
+                        <span class="relative block aspect-[9/16] w-full overflow-hidden rounded-2xl bg-brand-800 ring-1 ring-white/15 shadow-2xl shadow-black/50">
                             <img :src="h.cover" :alt="h.title" class="h-full w-full object-cover transition duration-700 group-hover:scale-105">
                             <span class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent"></span>
                             <span class="absolute left-4 top-4 rounded-full bg-black/55 px-3 py-1 text-xs font-bold text-white backdrop-blur" x-text="'#' + (i + 1)"></span>
                             <span class="absolute inset-0 flex items-center justify-center">
-                                <span class="flex h-20 w-20 items-center justify-center rounded-full bg-white/90 text-brand-900 shadow-xl transition group-hover:scale-110">
-                                    <svg class="ml-1 h-8 w-8" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.3 2.84A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.27l9.34-5.89a1.5 1.5 0 000-2.54L6.3 2.84z" /></svg>
+                                <span class="flex h-14 w-14 items-center justify-center rounded-full bg-white/90 text-brand-900 shadow-xl transition group-hover:scale-110">
+                                    <svg class="ml-1 h-6 w-6" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.3 2.84A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.27l9.34-5.89a1.5 1.5 0 000-2.54L6.3 2.84z" /></svg>
                                 </span>
                             </span>
                             <span class="absolute bottom-4 left-4 right-4 text-left">
-                                <span class="block text-3xl font-extrabold text-white" x-text="fmt(h.stats.views) + ' views'"></span>
+                                <span class="block text-xl font-extrabold text-white" x-text="fmt(h.stats.views) + ' views'"></span>
                             </span>
                         </span>
                     </button>
 
                     {{-- Why it worked --}}
                     <div class="min-w-0">
-                        <p class="pf-outline text-[clamp(4rem,12vw,8rem)] font-extrabold leading-none" x-text="String(i + 1).padStart(2, '0')" aria-hidden="true"></p>
+                        <p class="pf-outline text-5xl font-extrabold leading-none sm:text-6xl" x-text="String(i + 1).padStart(2, '0')" aria-hidden="true"></p>
                         <p class="mt-2 text-sm font-semibold uppercase tracking-[0.2em] text-brand-300" x-text="h.client"></p>
-                        <h3 class="mt-2 text-2xl font-bold leading-snug sm:text-4xl" x-text="h.title"></h3>
+                        <h3 class="mt-1.5 text-xl font-bold leading-snug sm:text-2xl" x-text="h.title"></h3>
                         <template x-if="h.hook">
-                            <blockquote class="mt-5 border-l-2 border-brand-400 pl-4 text-lg italic text-brand-100/85" x-text="'“' + h.hook + '”'"></blockquote>
+                            <blockquote class="mt-3 border-l-2 border-brand-400 pl-3 text-base italic text-brand-100/85" x-text="'“' + h.hook + '”'"></blockquote>
                         </template>
 
-                        <dl class="mt-8 space-y-4">
+                        <dl class="mt-5 max-w-xl space-y-2.5">
                             <template x-for="row in rows" :key="row.key">
                                 <div>
                                     <div class="flex items-baseline justify-between text-sm">
@@ -176,20 +176,20 @@
                             </template>
                         </dl>
 
-                        <p class="mt-6 line-clamp-3 max-w-2xl leading-relaxed text-brand-100/70" x-text="h.summary" x-show="h.summary"></p>
+                        <p class="mt-4 line-clamp-2 max-w-2xl text-sm leading-relaxed text-brand-100/70" x-text="h.summary" x-show="h.summary"></p>
 
-                        <div class="mt-7 flex flex-wrap gap-3">
-                            <button type="button" @click="play()" class="inline-flex min-h-[50px] items-center rounded-full bg-brand-400 px-6 text-sm font-bold text-brand-900 transition hover:bg-brand-300">Watch the reel</button>
-                            <a x-show="h.detail" :href="h.detail" class="inline-flex min-h-[50px] items-center rounded-full border border-white/25 px-6 text-sm font-semibold text-white transition hover:bg-white/10">Read the case study →</a>
+                        <div class="mt-5 flex flex-wrap gap-3">
+                            <button type="button" @click="play()" class="inline-flex min-h-[44px] items-center rounded-full bg-brand-400 px-5 text-sm font-bold text-brand-900 transition hover:bg-brand-300">Watch the reel</button>
+                            <a x-show="h.detail" :href="h.detail" class="inline-flex min-h-[44px] items-center rounded-full border border-white/25 px-5 text-sm font-semibold text-white transition hover:bg-white/10">Read the case study →</a>
                         </div>
                     </div>
                 </div>
 
                 {{-- Pick a hit; the bar under the current one runs to the next --}}
-                <div class="mt-12 flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div class="mt-8 flex gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <template x-for="(x, n) in hits" :key="x.id">
-                        <button type="button" @click="go(n)" class="group w-[92px] shrink-0 text-left sm:w-[110px]" :aria-label="'Show #' + (n + 1)" :aria-current="n === i ? 'true' : 'false'">
-                            <span class="block aspect-[9/16] overflow-hidden rounded-xl ring-2 transition" :class="n === i ? 'ring-brand-400' : 'ring-transparent opacity-55 group-hover:opacity-90'">
+                        <button type="button" @click="go(n)" class="group w-14 shrink-0 text-left sm:w-16" :aria-label="'Show #' + (n + 1)" :aria-current="n === i ? 'true' : 'false'">
+                            <span class="block aspect-[9/16] w-full overflow-hidden rounded-lg ring-2 transition" :class="n === i ? 'ring-brand-400' : 'ring-transparent opacity-55 group-hover:opacity-90'">
                                 <img :src="x.cover" alt="" class="h-full w-full object-cover" loading="lazy">
                             </span>
                             <span class="mt-2 block h-1 overflow-hidden rounded-full bg-white/10">
