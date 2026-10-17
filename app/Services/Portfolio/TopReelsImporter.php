@@ -7,6 +7,7 @@ use App\Models\PortfolioItem;
 use App\Models\SocialAccount;
 use App\Models\SocialMediaItem;
 use App\Models\TaxonomyTerm;
+use App\Services\Instagram\InstagramGraph;
 use App\Support\PublicUpload;
 use Illuminate\Support\Str;
 
@@ -45,7 +46,7 @@ class TopReelsImporter
                 'portfolio_category_id' => $category,
                 'format_id' => $format,
                 'title' => self::title($media, $client),
-                'thumbnail_path' => ($thumb = $media->thumbnail_url ?: $media->media_url) ? PublicUpload::storeFromUrl($thumb, 'portfolio/thumbnails') : null,
+                'thumbnail_path' => $this->cover($media, $account),
                 'is_visible' => true,
                 'sort_order' => 0,
             ]);
@@ -55,6 +56,29 @@ class TopReelsImporter
         }
 
         return $added;
+    }
+
+    /**
+     * The reel's cover, saved locally. Instagram's CDN links expire after a
+     * few days, so an older cached one is asked for again before giving up.
+     */
+    private function cover(SocialMediaItem $media, SocialAccount $account): ?string
+    {
+        $saved = ($url = $media->thumbnail_url ?: $media->media_url) ? PublicUpload::storeFromUrl($url, 'portfolio/thumbnails') : null;
+        if ($saved || ! $account->access_token) {
+            return $saved;
+        }
+
+        try {
+            $fresh = app(InstagramGraph::class)->get($media->platform_media_id, $account->access_token, ['fields' => 'thumbnail_url,media_url']);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
+        }
+        $media->forceFill(array_filter(['thumbnail_url' => $fresh['thumbnail_url'] ?? null, 'media_url' => $fresh['media_url'] ?? null]))->save();
+
+        return ($url = $fresh['thumbnail_url'] ?? $fresh['media_url'] ?? null) ? PublicUpload::storeFromUrl($url, 'portfolio/thumbnails') : null;
     }
 
     /** The caption's first line, without hashtags and mentions, as a short title. */
