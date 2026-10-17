@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\PortfolioCategory;
 use App\Models\PortfolioItem;
+use App\Support\HomePage;
+use App\Support\ImageVariant;
 use App\Support\Seo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
@@ -53,9 +55,38 @@ class PublicPortfolioController extends Controller
         // marketing Trichy"), so it gets its own title, canonical and list.
         $listed = $activeModel ? $items->where('portfolio_category_id', $activeModel->id) : $items;
 
+        $cover = fn (PortfolioItem $i, int $w, int $h) => $i->thumbnail_path && is_file(public_path($i->thumbnail_path))
+            ? ImageVariant::url($i->thumbnail_path, $w, $h) : null;
+
+        // The hero's wall of reels, and the five biggest for the spotlight.
+        $wall = $items->map(fn (PortfolioItem $i) => $cover($i, 360, 640))->filter()->values();
+        $hits = $items->sortByDesc('views')->filter(fn (PortfolioItem $i) => $i->views)->take(5)->values()
+            ->map(fn (PortfolioItem $i) => [
+                'id' => $i->id,
+                'title' => $i->title,
+                'client' => $i->clientLabel(),
+                'hook' => $i->creative_hook,
+                'summary' => $i->summary,
+                'cover' => $cover($i, 540, 960),
+                'src' => $i->playbackUrl(),
+                'kind' => $i->isUploaded() ? 'file' : 'link',
+                'detail' => $i->hasCaseStudy() ? route('portfolio.detail', $i) : null,
+                'stats' => array_filter(['views' => $i->views, 'reach' => $i->reach, 'shares' => $i->shares, 'saves' => $i->saves]),
+            ]);
+
         return view('portfolio-public', [
             'stars' => $stars,
-            'lastSynced' => PortfolioItem::visible()->max('instagram_refreshed_at'),
+            'wall' => $wall,
+            'hits' => $hits,
+            'brands' => HomePage::clients($items),
+            'totals' => [
+                'views' => (int) $items->sum('views'),
+                'reach' => (int) $items->sum('reach'),
+                'shares' => (int) $items->sum('shares'),
+                'saves' => (int) $items->sum('saves'),
+                'pieces' => $items->count(),
+                'brands' => $items->map(fn (PortfolioItem $i) => $i->clientLabel())->filter()->unique()->count(),
+            ],
             'categories' => $categories,
             'items' => $items,
             'activeCategory' => $active,

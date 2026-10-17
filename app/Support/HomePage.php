@@ -123,7 +123,7 @@ class HomePage
      *
      * @return Collection<int, array{name: string, logo: ?string}>
      */
-    private static function clients(Collection $published): Collection
+    public static function clients(Collection $published): Collection
     {
         $withLogo = Client::query()
             ->whereNotNull('logo_path')

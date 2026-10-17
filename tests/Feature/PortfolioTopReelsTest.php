@@ -57,7 +57,7 @@ class PortfolioTopReelsTest extends TestCase
 
         $this->withoutVite();
         $this->get(route('portfolio'))->assertOk()
-            ->assertSee('Live numbers from Instagram')
+            ->assertDontSee('Live numbers from Instagram')->assertSee('reels that broke out')->assertSee('data-pf-count', false)
             ->assertSee('Meta')
             ->assertSee('data-pf-views="'.$items[0]->id.'"', false)
             ->assertSee('Top performer');
