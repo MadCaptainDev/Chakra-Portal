@@ -1023,6 +1023,8 @@ Route::middleware(['auth', 'module:insights,view'])->group(function () {
  * hours side by side, which no single module's permission covers.
  */
 Route::middleware(['auth', 'admin'])->group(function () {
+    // Money, on one screen: in, out, overdue, to come in, to pay. Admin only.
+    Route::get('money', [\App\Http\Controllers\MoneyOverviewController::class, 'index'])->name('money.index');
     Route::get('studio-map', [StudioMapController::class, 'index'])->name('studio-map');
     Route::redirect('daily-checks', '/editor-updates');
     Route::get('studio-map/data', [StudioMapController::class, 'data'])->name('studio-map.data');

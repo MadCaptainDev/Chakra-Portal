@@ -58,6 +58,7 @@ class AdminNav
                 ], 'WhatsApp'),
             ],
             'Money' => [
+                self::link('money', 'Overview', 'wallet', 'money.index', ['money.index']),
                 self::module($user, 'insights'),
                 self::module($user, 'invoices', ['invoices.*', 'recurring.*'], null, [
                     self::gated($user, 'invoices.manage', self::link('recurring', 'Recurring', 'refresh', 'recurring.index', ['recurring.*'])),

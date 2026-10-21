@@ -27,6 +27,7 @@ export function plannerWeb(urls, canEdit) {
         note: '',
         dragId: null,
         overDay: null,
+        view: (() => { try { return new URLSearchParams(location.search).get('view') || localStorage.getItem('planner-view') || 'calendar'; } catch { return 'calendar'; } })(),
 
         async init() {
             this.meta = await this.get(urls.meta).catch(() => this.meta);
@@ -93,6 +94,40 @@ export function plannerWeb(urls, canEdit) {
             const m = this.month.getMonth();
             const inMonth = this.items.filter((i) => this.shows(i) && new Date(i.published_date).getMonth() === m);
             return { total: inMonth.length, out: inMonth.filter((i) => i.status === 'Published').length };
+        },
+        setView(v) {
+            this.view = v;
+            try { localStorage.setItem('planner-view', v); } catch { /* private mode */ }
+        },
+        /** This month's videos (plus undated ones), the ones the filters show. */
+        get monthItems() {
+            const m = this.month.getMonth(), y = this.month.getFullYear();
+            return [...this.items.filter((i) => { const d = new Date(i.published_date); return d.getMonth() === m && d.getFullYear() === y; }), ...this.undated]
+                .filter((i) => this.shows(i));
+        },
+        get board() {
+            const stages = [
+                ['Idea', ['Idea'], '#9aa9b1'],
+                ['To shoot', ['To Be Shooted'], '#facc15'],
+                ['To edit', ['To Be Edited'], '#fb923c'],
+                ['Editing & review', ['Edit in Progress', 'Under Review', 'Video Ready'], '#60a5fa'],
+                ['Scheduled', ['Scheduled'], '#c084fc'],
+                ['Published', ['Published'], '#4ade80'],
+            ];
+            const known = stages.flatMap((s) => s[1]);
+            const items = this.monthItems.filter((i) => i.status !== 'Canceled');
+            return stages.map(([name, statuses, color], n) => ({
+                name, color,
+                // Anything with a status the stages do not name sits with Idea.
+                items: items.filter((i) => statuses.includes(i.status) || (n === 0 && ! known.includes(i.status)))
+                    .sort((a, b) => (a.published_date || '9').localeCompare(b.published_date || '9')),
+            }));
+        },
+        get tableRows() {
+            return this.monthItems.slice().sort((a, b) => (a.published_date || '9').localeCompare(b.published_date || '9'));
+        },
+        fmtDay(iso) {
+            return new Date(iso).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
         },
         color(i) {
             return NOTION[i.status_color] ?? NOTION.default;

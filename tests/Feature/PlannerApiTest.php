@@ -493,7 +493,7 @@ class PlannerApiTest extends TestCase
         $to = today()->addDays(5)->toDateString();
         $this->withoutVite();
 
-        $this->actingAs($this->editor)->get(route('planner.index'))->assertOk()->assertSee('plannerWeb', false);
+        $this->actingAs($this->editor)->get(route('planner.index'))->assertOk()->assertSee('plannerWeb', false)->assertSee("view === 'board'", false)->assertSee("view === 'table'", false);
         $this->getJson(route('planner.data.items', ['from' => today()->subDays(3)->toDateString(), 'to' => today()->addDays(40)->toDateString()]))
             ->assertOk()->assertJsonPath('data.0.id', $reel->id);
         $this->getJson(route('planner.data.meta'))->assertOk()->assertJsonPath('sources.0.count', 1);

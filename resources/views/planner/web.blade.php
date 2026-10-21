@@ -29,6 +29,14 @@
                 <button type="button" @click="thisMonth()" class="h-9 rounded-lg px-3 text-sm font-semibold text-white hover:bg-white/10">Today</button>
                 <button type="button" @click="shift(1)" class="flex h-9 w-9 items-center justify-center rounded-lg text-lg text-brand-100/70 hover:bg-white/10 hover:text-white" aria-label="Next month">›</button>
             </nav>
+            {{-- The same month, three ways (Content Board / Dashboard / Planner in one). --}}
+            <div class="inline-flex h-11 items-center gap-1 rounded-xl border border-white/[0.08] bg-[#15303f] p-1" role="group" aria-label="View">
+                <template x-for="v in [['calendar', 'Calendar'], ['board', 'Board'], ['table', 'Table']]" :key="v[0]">
+                    <button type="button" @click="setView(v[0])" :aria-pressed="view === v[0] ? 'true' : 'false'"
+                            class="h-9 rounded-lg px-3 text-sm font-semibold"
+                            :class="view === v[0] ? 'bg-white text-brand-900' : 'text-brand-100/70 hover:text-white'" x-text="v[1]"></button>
+                </template>
+            </div>
             <button type="button" @click="refresh()" :disabled="refreshing"
                     class="inline-flex h-11 items-center rounded-xl bg-brand-400 px-4 text-sm font-bold text-brand-900 hover:bg-brand-300 disabled:opacity-50"
                     x-text="refreshing ? 'Refreshing…' : 'Refresh from Notion'"></button>
@@ -59,8 +67,56 @@
         <p x-show="note" x-cloak x-text="note" class="rounded-lg bg-white/[0.06] px-3 py-2 text-sm text-brand-100/90" role="status"></p>
 
         <div class="flex flex-col gap-4 xl:flex-row">
+            {{-- Board: the month's videos by stage --}}
+            <div class="min-w-0 flex-1 overflow-x-auto" x-show="view === 'board'" x-cloak>
+                <div class="grid min-w-[1080px] grid-cols-6 gap-3" :class="loading && 'opacity-60'">
+                    <template x-for="col in board" :key="col.name">
+                        <div class="flex flex-col gap-2 rounded-xl bg-[#0f2230] p-2">
+                            <div class="flex items-center gap-2 px-1.5 pt-1">
+                                <span class="h-2 w-2 rounded-full" :style="`background:${col.color}`"></span>
+                                <span class="text-[13px] font-semibold text-white" x-text="col.name"></span>
+                                <span class="text-xs text-brand-100/50" x-text="col.items.length"></span>
+                            </div>
+                            <template x-for="i in col.items.slice(0, 40)" :key="i.id">
+                                <button type="button" @click="show(i)" class="rounded-lg bg-[#1a3a4b] p-2.5 text-left ring-1 ring-white/[0.06] hover:ring-brand-400/40">
+                                    <span class="block text-[12.5px] font-medium leading-snug text-white" x-text="i.title"></span>
+                                    <span class="mt-1.5 flex flex-wrap gap-1 text-[10.5px]">
+                                        <span class="rounded-full bg-brand-400/15 px-1.5 py-0.5 text-brand-200" x-text="i.client || '—'"></span>
+                                        <span class="rounded-full bg-white/[0.07] px-1.5 py-0.5 text-brand-100/75" x-text="i.published_date ? fmtDay(i.published_date) : 'No date'"></span>
+                                        <span class="rounded-full bg-white/[0.07] px-1.5 py-0.5 text-brand-100/75" x-text="label(i.source)"></span>
+                                    </span>
+                                </button>
+                            </template>
+                            <p x-show="col.items.length > 40" class="px-1.5 text-[11px] text-brand-100/50" x-text="'+' + (col.items.length - 40) + ' more'"></p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            {{-- Table: the month's videos, by date --}}
+            <div class="min-w-0 flex-1 overflow-x-auto rounded-xl border border-white/[0.06] bg-[#15303f]" x-show="view === 'table'" x-cloak>
+                <table class="w-full min-w-[820px] text-[13px]" :class="loading && 'opacity-60'">
+                    <thead class="text-left text-[11px] font-semibold uppercase tracking-wider text-brand-100/45">
+                        <tr><th class="px-4 py-3">Video</th><th class="px-3 py-3">Planner</th><th class="px-3 py-3">Client</th><th class="px-3 py-3">Status</th><th class="px-3 py-3">Publish</th><th class="px-4 py-3">Editor</th></tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="i in tableRows" :key="i.id">
+                            <tr class="cursor-pointer border-t border-white/[0.05] hover:bg-white/[0.03]" @click="show(i)">
+                                <td class="px-4 py-2.5 text-white" x-text="i.title"></td>
+                                <td class="px-3 py-2.5 text-brand-100/70" x-text="label(i.source)"></td>
+                                <td class="px-3 py-2.5 text-brand-100/70" x-text="i.client || '—'"></td>
+                                <td class="px-3 py-2.5"><span class="inline-flex items-center gap-1.5 text-white"><span class="h-2 w-2 rounded-full" :style="`background:${color(i)}`"></span><span x-text="i.status"></span></span></td>
+                                <td class="px-3 py-2.5 text-brand-100/70" x-text="i.published_date ? fmtDay(i.published_date) : 'No date'"></td>
+                                <td class="px-4 py-2.5 text-brand-100/70" x-text="(i.editing && i.editing[0] && i.editing[0].user && i.editing[0].user.name) || i.editor || '—'"></td>
+                            </tr>
+                        </template>
+                        <tr x-show="!tableRows.length"><td colspan="6" class="px-4 py-8 text-center text-brand-100/50">No videos this month.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
             {{-- The month --}}
-            <div class="min-w-0 flex-1 overflow-x-auto">
+            <div class="min-w-0 flex-1 overflow-x-auto" x-show="view === 'calendar'">
                 <div class="min-w-[860px]" :class="loading && 'opacity-60'">
                     <div class="grid grid-cols-7 gap-px pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-brand-100/45">
                         @foreach (['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as $d)
