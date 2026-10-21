@@ -29,7 +29,7 @@
     .planner-types > * { animation-delay: 180ms; }
     .planner-row { transition: background-color .15s ease; }
     .planner-row:hover { background-color: rgba(255, 255, 255, .035); }
-    .planner-well { animation: planner-glow 2.4s ease-in-out infinite; }
+    .planner-well { animation: planner-glow 2.4s ease-in-out 3; }
     .planner-nudge { transition: transform .15s ease, background-color .15s ease; }
     .planner-nudge:hover { transform: translateY(-1px); }
     .planner-nudge:active { transform: scale(.97); }
@@ -135,7 +135,7 @@
                             <span class="text-lg text-amber-300 font-normal">/ {{ $planned }}</span>
                         @endif
                         @if ($target !== null)
-                            <span class="text-lg text-brand-100/50 font-normal">of {{ $target }}</span>
+                            <span class="text-lg text-brand-100/70 font-normal">of {{ $target }}</span>
                         @endif
                     </p>
                     @if ($planned > $published)
@@ -209,7 +209,7 @@
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-sm">
                         <thead>
-                            <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-brand-100/60 border-b border-white/10">
+                            <tr class="text-left text-xs font-semibold uppercase tracking-wider text-brand-100/70 border-b border-white/10">
                                 <th class="px-4 sm:px-5 py-2.5">Piece</th>
                                 <th class="px-3 py-2.5">Status</th>
                                 <th class="px-3 py-2.5">Type</th>
@@ -236,7 +236,7 @@
                                     <td class="px-4 sm:px-5 py-2.5">
                                         @if ($item->notion_url)
                                             <a href="{{ $item->notion_url }}" target="_blank" rel="noopener"
-                                               class="text-white hover:text-brand-300 font-medium truncate block max-w-sm">
+                                               class="text-white hover:text-brand-300 font-medium truncate block max-w-sm py-1">
                                                 {{ $item->title ?: '(untitled)' }}
                                             </a>
                                         @else
@@ -244,10 +244,10 @@
                                         @endif
                                         @if ($media?->permalink)
                                             <a href="{{ $media->permalink }}" target="_blank" rel="noopener"
-                                               class="text-[11px] text-brand-300 hover:text-brand-200">View on Instagram →</a>
+                                               class="text-xs text-brand-300 hover:text-brand-200 inline-block py-2 -my-1">View on Instagram →</a>
                                         @endif
                                         @if ($item->linkedShootLabel())
-                                            <span class="text-[11px] text-brand-100/40 block">{{ $item->linkedShootLabel() }}</span>
+                                            <span class="text-xs text-brand-100/60 block">{{ $item->linkedShootLabel() }}</span>
                                         @endif
                                     </td>
                                     <td class="px-3 py-2.5 whitespace-nowrap">
@@ -259,7 +259,7 @@
                                     <td class="px-3 py-2.5 whitespace-nowrap text-brand-100/70">
                                         {{ $item->published_date?->format('j M') }}
                                         @if ($item->published_date?->isFuture())
-                                            <span class="text-[10px] text-amber-300 block">upcoming</span>
+                                            <span class="text-xs text-amber-300 block">upcoming</span>
                                         @endif
                                     </td>
                                     <td class="px-3 py-2.5 whitespace-nowrap text-brand-100/60">{{ $item->editor ?: '—' }}</td>
@@ -270,7 +270,8 @@
                                             @csrf
                                             @method('PATCH')
                                             <select name="assigned_user_id" onchange="this.form.submit()"
-                                                    class="rounded-md border-white/15 bg-transparent text-xs py-1 pr-7 text-brand-100/80">
+                                                    aria-label="Assign {{ $item->title ?: 'this piece' }}"
+                                                    class="rounded-md border-white/15 bg-transparent text-xs py-2.5 pr-7 text-brand-100/80">
                                                 <option value="">Unassigned</option>
                                                 @foreach ($staff as $person)
                                                     <option value="{{ $person->id }}" @selected($item->assigned_user_id === $person->id)>
@@ -283,16 +284,16 @@
                                     <td class="px-3 py-2.5 whitespace-nowrap">
                                         @if ($item->scriptRecord)
                                             <a href="{{ route('scripts.show', $item->scriptRecord) }}"
-                                               class="inline-flex items-center gap-1.5 text-xs text-brand-300 hover:text-white">
+                                               class="inline-flex items-center gap-1.5 text-xs text-brand-300 hover:text-white py-2">
                                                 <x-badge :status="$item->scriptRecord->status" />
                                             </a>
                                         @elseif ($item->source === \App\Models\ContentItem::SOURCE_REEL)
                                             <a href="{{ route('scripts.create', ['content_item_id' => $item->id]) }}"
-                                               class="text-xs font-semibold text-brand-300 hover:text-white">
+                                               class="text-xs font-semibold text-brand-300 hover:text-white inline-block py-3 -my-1">
                                                 + Write script
                                             </a>
                                         @else
-                                            <span class="text-brand-100/30">—</span>
+                                            <span class="text-brand-100/70" aria-label="No script">—</span>
                                         @endif
                                     </td>
                                     @foreach (['reach', 'views', 'likes'] as $metric)
@@ -300,7 +301,7 @@
                                             @if ($metrics[$metric] !== null)
                                                 <span class="text-white">{{ number_format($metrics[$metric]) }}</span>
                                             @else
-                                                <span class="text-brand-100/40">—</span>
+                                                <span class="text-brand-100/70" aria-label="No data yet">—</span>
                                             @endif
                                         </td>
                                     @endforeach
@@ -312,7 +313,7 @@
                                                 && $views >= $goodViewsThreshold;
                                         @endphp
                                         @if ($doingWell)
-                                            <span class="planner-well inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-green-300 bg-green-400/10 mb-1">Doing well</span>
+                                            <span class="planner-well inline-block rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-green-300 bg-green-400/10 mb-1">Doing well</span>
                                             @if ($account->client?->phone)
                                                 <form method="POST"
                                                       action="{{ route('content-dashboard.nudge', [$account, $item]) }}"
@@ -321,7 +322,7 @@
                                                     <x-secondary-button type="submit" class="planner-nudge">Nudge client</x-secondary-button>
                                                 </form>
                                             @else
-                                                <span class="text-[11px] text-brand-100/40">No client phone</span>
+                                                <span class="text-xs text-brand-100/60">No client phone</span>
                                             @endif
                                         @endif
                                     </td>
