@@ -289,4 +289,21 @@ class Script extends Model
             'body' => $note,
         ]);
     }
+
+    /**
+     * The script has been shot: it is Completed (not left in Draft or
+     * review), with the day it was shot. An archived script stays archived,
+     * and a shot day already on record is kept.
+     */
+    public function markRecorded(?\Illuminate\Support\Carbon $at = null): void
+    {
+        if ($this->status !== self::STATUS_ARCHIVED) {
+            $this->status = self::STATUS_COMPLETED;
+        }
+        $this->shot_at ??= $at ?? now();
+
+        if ($this->isDirty()) {
+            $this->save();
+        }
+    }
 }

@@ -132,7 +132,7 @@ class VideoLinker
 
     /**
      * The Reel Planner is where the shoot is tracked, so it decides whether a
-     * script has been shot. Only ever sets shot_at; one already set stays.
+     * script has been shot: marks it recorded (Completed, with the shot day; one already set stays).
      */
     private function markScriptsShot(): int
     {
@@ -154,7 +154,7 @@ class VideoLinker
             $when = $item?->shoot_date ?? $item?->notionShoot?->shoot_date ?? $item?->published_date;
 
             if ($when !== null) {
-                Script::whereKey($script->id)->update(['shot_at' => Carbon::parse($when)->startOfDay()]);
+                Script::find($script->id)?->markRecorded(Carbon::parse($when)->startOfDay());
                 $marked++;
             }
         }

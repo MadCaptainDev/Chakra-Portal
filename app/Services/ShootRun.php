@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Script;
 use App\Models\Shoot;
 use App\Models\ShootVideo;
 use App\Models\User;
@@ -209,6 +210,11 @@ class ShootRun
         // The twin kept its own still; this one's upload is not needed.
         if ($photoPath && $video->photo_path !== $photoPath) {
             PublicUpload::delete($photoPath);
+        }
+
+        // Recording a script's video means the script is done.
+        if ($video->script_id) {
+            Script::find($video->script_id)?->markRecorded($video->created_at);
         }
 
         return $video;

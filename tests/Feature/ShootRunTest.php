@@ -646,4 +646,20 @@ class ShootRunTest extends TestCase
 
         $this->actingAs($stranger)->getJson(route('my.shoots.live', $shoot))->assertNotFound();
     }
+    public function test_recording_a_scripts_video_marks_the_script_completed(): void
+    {
+        $client = Client::create(['name' => 'Squad Architects']);
+        $shoot = $this->shoot(['client_id' => $client->id]);
+        $crew = $this->crewMember($shoot);
+        ShootRun::start($shoot, $crew);
+        $draft = $this->script($client, 'Italian marble');
+        $archived = $this->script($client, 'Old one', Script::STATUS_ARCHIVED);
+
+        ShootRun::recordVideo($shoot, $crew, 'Italian marble', scriptId: $draft->id);
+        ShootRun::recordVideo($shoot, $crew, 'Old one', scriptId: $archived->id);
+
+        $this->assertSame(Script::STATUS_COMPLETED, $draft->fresh()->status);
+        $this->assertNotNull($draft->fresh()->shot_at);
+        $this->assertSame(Script::STATUS_ARCHIVED, $archived->fresh()->status);
+    }
 }
