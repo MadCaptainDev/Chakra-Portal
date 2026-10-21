@@ -69,7 +69,7 @@ class DashboardTest extends TestCase
         $response = $this->actingAs($user)->get(route('dashboard'));
 
         $response->assertOk();
-        $response->assertSee('Needs attention');
+        $response->assertSee('Shoots this week')->assertSee('Editing now')->assertSee('Due on the planner today');
         $response->assertSee('Collected vs paid out');
         $response->assertSee('Unpaid invoices');
     }

@@ -63,10 +63,10 @@ class SidebarRestructureTest extends TestCase
 
     public function test_equipment_is_reachable_but_not_a_standalone_production_module_row(): void
     {
-        $response = $this->actingAs($this->admin())->get(route('dashboard'));
+        // Still reachable -- under Shoots, shown while you are in Shoots.
+        $response = $this->actingAs($this->admin())->get(route('shoots.calendar'));
 
-        // Still reachable -- its own permission/routes are untouched.
-        $response->assertOk()->assertSeeInOrder([route('shoots.index'), route('equipment.index')]);
+        $response->assertOk()->assertSeeInOrder([route('shoots.calendar'), route('equipment.index')]);
     }
 
     public function test_saas_api_page_is_reachable_by_someone_who_can_manage_saas_products(): void
@@ -96,7 +96,7 @@ class SidebarRestructureTest extends TestCase
         $employee = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
         $employee->syncPermissions(['saas-products' => ['view']]);
 
-        $this->actingAs($admin)->get(route('dashboard'))->assertSee(route('developer.saas-api'));
+        $this->actingAs($admin)->get(route('saas-products.index'))->assertSee(route('developer.saas-api'));
 
         // Granted view but not manage: sees the module, not the API reference.
         $this->actingAs($employee->refresh())->get(route('my.dashboard'))->assertDontSee(route('developer.saas-api'));
@@ -108,8 +108,17 @@ class SidebarRestructureTest extends TestCase
 
         $response->assertOk()
             ->assertSee('Filter menu', false)
-            ->assertSee('Production', false)
-            ->assertSee('Finance', false)
+            ->assertSeeInOrder(['Today', 'Content', 'Clients', 'Money', 'Team &amp; setup'], false)
             ->assertSee(route('settings.edit'));
+    }
+    public function test_an_admin_pins_rows_to_favourites(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->postJson(route('nav.favourites'), ['key' => 'editor-updates'])->assertOk()->assertJsonPath('favourites', ['editor-updates']);
+        $this->get(route('dashboard'))->assertSeeInOrder(['★ Favourites', 'Editor Updates', 'Today', 'Dashboard'], false);
+
+        $this->postJson(route('nav.favourites'), ['key' => 'editor-updates'])->assertJsonPath('favourites', []);
+        $this->postJson(route('nav.favourites'), ['key' => 'no-such-row'])->assertStatus(422);
     }
 }

@@ -30,30 +30,10 @@
 <x-app-layout title="Dashboard" dark>
     <div class="space-y-10">
 
-        {{-- ——— Header: the month, and nothing else competing with it.
-             Everything that used to sit here as descriptive text is one of
-             the widgets below now. ——— --}}
-        <div class="animate-rise-in flex flex-wrap items-end justify-between gap-5">
-            <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight">{{ $month->format('F Y') }}</h1>
+        {{-- ——— Today, as designed: greeting, what needs you, the day in four panels. ——— --}}
+        @include('dashboard._today')
 
-            <div class="flex items-center gap-3">
-                <button type="button" @click="$dispatch('open-modal', 'customize-dashboard')"
-                        class="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-md
-                               border border-white/15 text-xs font-semibold uppercase tracking-widest
-                               text-brand-100/80 hover:bg-white/[0.09] transition-colors">
-                    <x-icon name="cog" class="w-4 h-4" />
-                    Customize
-                </button>
-
-                <a href="{{ route('invoices.create') }}"
-                   class="inline-flex items-center justify-center gap-2 min-h-[44px] px-5 rounded-md
-                          bg-brand-400 text-brand-900 text-xs font-semibold uppercase tracking-widest
-                          hover:bg-brand-500 transition-colors">
-                    <x-icon name="plus" class="w-4 h-4" />
-                    New invoice
-                </a>
-            </div>
-        </div>
+        <h2 class="pt-2 text-sm font-semibold uppercase tracking-[0.16em] text-brand-300">{{ $month->format('F Y') }}</h2>
 
         {{-- ——— The widgets themselves, in this person's own order. A
              widget that is its own conditional (Missed duties, only when
@@ -61,7 +41,8 @@
              renders nothing -- visibility and "is there anything to show"
              are two different questions. ——— --}}
         @foreach ($dashboardWidgets as $widget)
-            @if ($widget['visible'])
+            {{-- Needs attention is the Today block's "Needs you" now. --}}
+            @if ($widget['visible'] && $widget['key'] !== 'needs_attention')
                 @include('dashboard.widgets.'.$widget['key'])
             @endif
         @endforeach

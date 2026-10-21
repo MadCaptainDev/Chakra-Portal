@@ -91,7 +91,7 @@ class DashboardLayoutTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertDontSee('Hours this month')
-            ->assertSee('Needs attention');
+            ->assertSee('Shoots this week');
     }
 
     public function test_an_unknown_widget_key_is_rejected(): void

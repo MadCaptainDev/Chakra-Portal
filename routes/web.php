@@ -408,6 +408,8 @@ Route::middleware('auth')->group(function () {
  * Editor Updates: admins see everyone; a manager sees their own team (the
  * controller scopes it), the same rule as my/team and the to-do tracker.
  */
+Route::post('nav/favourites', [\App\Http\Controllers\NavFavouriteController::class, 'toggle'])->middleware('auth')->name('nav.favourites');
+
 Route::middleware('auth')->group(function () {
     Route::get('editor-updates', [EditorUpdatesController::class, 'index'])->name('editor-updates');
     Route::get('editor-updates/live', [EditorUpdatesController::class, 'live'])->name('editor-updates.live');
