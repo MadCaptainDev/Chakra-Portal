@@ -127,7 +127,66 @@ class VideoLinker
             }
         }
 
+        return $linked + $this->linkScriptsByLikeness($ventureToClient);
+    }
+
+    /**
+     * The titles rarely match exactly: Notion's carry a "Revanth - " prefix,
+     * and Tamil words are spelled more than one way ("Naattu Katu Podalama"
+     * in Notion, "Nattu Kattu Podalaamaa?" in the script). So, for a script
+     * still unlinked, its own client's unclaimed reels are compared with
+     * doubled letters collapsed and the client prefix dropped; one title
+     * containing the other counts too ("Veetla Slipper" against "Veetla
+     * Slipper – Aadambaram Illa"). Only a clear winner links: at least 75%
+     * alike and 12 points ahead of the next reel. Never across clients.
+     */
+    private function linkScriptsByLikeness(Collection $ventureToClient): int
+    {
+        $scripts = Script::query()->whereNull('content_item_id')->whereNotNull('client_id')
+            ->where('status', '!=', Script::STATUS_ARCHIVED)->get(['id', 'title', 'client_id']);
+        if ($scripts->isEmpty()) {
+            return 0;
+        }
+
+        $claimed = Script::query()->whereNotNull('content_item_id')->pluck('content_item_id')->flip();
+        $reels = ContentItem::query()->visible()->where('source', ContentItem::SOURCE_REEL)
+            ->where('created_at', '>=', now()->subMonths(6))->get(['id', 'title', 'venture'])
+            ->reject(fn (ContentItem $item) => $claimed->has($item->id))
+            ->groupBy(fn (ContentItem $item) => $ventureToClient[$item->venture] ?? 0);
+
+        $linked = 0;
+        foreach ($scripts as $script) {
+            $mine = ($reels->get($script->client_id) ?? collect())
+                ->map(fn (ContentItem $item) => ['item' => $item, 'score' => $this->likeness($this->core($item->title), $this->norm($script->title))])
+                ->sortByDesc('score')->values();
+            $best = $mine->first();
+            if (! $best || $best['score'] < 75 || $best['score'] - ($mine->get(1)['score'] ?? 0) < 12) {
+                continue;
+            }
+
+            Script::whereKey($script->id)->update(['content_item_id' => $best['item']->id]);
+            $reels->put($script->client_id, $reels->get($script->client_id)->reject(fn ($i) => $i->id === $best['item']->id));
+            $linked++;
+        }
+
         return $linked;
+    }
+
+    /** How alike two titles are, 0-100, forgiving transliteration and a short title inside a long one. */
+    private function likeness(string $a, string $b): float
+    {
+        $skel = fn (string $t) => (string) preg_replace('/(.)\1+/u', '$1', str_replace(' ', '', $t));
+        [$x, $y] = [$skel($a), $skel($b)];
+        if ($x === '' || $y === '') {
+            return 0;
+        }
+        [$short, $long] = mb_strlen($x) <= mb_strlen($y) ? [$x, $y] : [$y, $x];
+        if (mb_strlen($short) >= 8 && str_contains($long, $short)) {
+            return 90;
+        }
+        similar_text($x, $y, $percent);
+
+        return $percent;
     }
 
     /**

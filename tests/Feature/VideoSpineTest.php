@@ -190,4 +190,29 @@ class VideoSpineTest extends TestCase
 
         $this->assertSame(0, Video::whereNotNull('short_content_item_id')->count());
     }
+    public function test_a_script_finds_its_notion_reel_despite_the_prefix_and_tamil_spellings_and_is_marked_done(): void
+    {
+        $reel = fn (string $title, string $venture = 'Janet') => ContentItem::factory()->create([
+            'source' => ContentItem::SOURCE_REEL, 'venture' => $venture, 'title' => $title, 'status' => 'To Be Edited', 'shoot_date' => '2026-10-20',
+        ]);
+        $fracture = $reel('Janet - Fracture Ku Naattu Katu Podalama');
+        $slipper = $reel('Janet - Veetla Slipper');
+        $reel('Janet - Kaal Sulukku');
+        $other = $reel('Someone Else - Office-la Ukkaarnthu Back Pain', 'Someone Else');
+
+        $s1 = Script::create(['client_id' => $this->client->id, 'title' => 'Fracture-ku Nattu Kattu Podalaamaa?', 'status' => 'draft']);
+        $s2 = Script::create(['client_id' => $this->client->id, 'title' => 'Veetla Slipper – Aadambaram Illa, Avasiyam', 'status' => 'draft']);
+        $s3 = Script::create(['client_id' => $this->client->id, 'title' => 'Office-la Ukkaarndhe Back Pain', 'status' => 'draft']);
+
+        (new VideoLinker)->run();
+
+        $this->assertSame($fracture->id, $s1->fresh()->content_item_id);
+        $this->assertSame($slipper->id, $s2->fresh()->content_item_id);
+        // Another client's reel is never a match, however alike the title.
+        $this->assertNull($s3->fresh()->content_item_id);
+        $this->assertNotSame($other->id, $s3->fresh()->content_item_id);
+        // Shot in Notion, so the script is done.
+        $this->assertSame(Script::STATUS_COMPLETED, $s1->fresh()->status);
+        $this->assertSame('2026-10-20', $s1->fresh()->shot_at->toDateString());
+    }
 }
