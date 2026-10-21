@@ -90,9 +90,11 @@ class ShootController extends Controller
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
         return view('shoots.create', $this->formData(new Shoot([
+            // From Book shoots: the client who is running out.
+            'client_id' => $request->integer('client_id') ?: null,
             'status' => Shoot::STATUS_PLANNED,
             'starts_at' => now()->addDay()->setTime(9, 0),
         ])));

@@ -33,11 +33,13 @@ class SocialAccount extends Model
     /**
      * How close to expiry counts as "refresh now".
      *
-     * Instagram long-lived tokens last ~60 days and are refreshed by being
-     * used. Ten days of margin means a fortnight of failed syncs still leaves
-     * room to notice before the connection actually dies.
+     * Instagram long-lived tokens last ~60 days and are NOT renewed by being
+     * used -- they must be refreshed explicitly while still alive, or they
+     * die and the client has to log in again (five did, Oct 2026).
+     * InstagramSyncQueue::renewIfDue() does it, nightly and on every
+     * "Sync all"; twenty days of margin survives a few weeks of failures.
      */
-    private const REFRESH_MARGIN_DAYS = 10;
+    private const REFRESH_MARGIN_DAYS = 20;
 
     /*
      * access_token is absent: it is written by the connector from a token

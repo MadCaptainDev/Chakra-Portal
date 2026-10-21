@@ -63,6 +63,7 @@ class Client extends Model
         'shoots' => 'Shoots',
         'social' => 'Social',
         'scripts' => 'Script Approvals',
+        'proposals' => 'Proposals',
     ];
 
     /**
@@ -127,6 +128,8 @@ class Client extends Model
         'report_sections_disabled' => 'array',
         'portal_sections_disabled' => 'array',
         'is_active' => 'boolean',
+        'latitude' => 'float',
+        'longitude' => 'float',
         'forecast_alert_depletion_date' => 'date',
         'forecast_alert_sent_at' => 'datetime',
         'script_approval_token_issued_at' => 'datetime',
@@ -379,7 +382,7 @@ class Client extends Model
      */
     public function contentItems(): Builder
     {
-        $ventures = TimesheetVenture::rawVenturesFor($this);
+        $ventures = $this->contentVentures();
 
         return ContentItem::query()
             ->visible()
@@ -387,6 +390,28 @@ class Client extends Model
             // whereIn is a no-op in some drivers, so the impossible value is
             // what keeps "nothing" meaning nothing.
             ->whereIn('venture', $ventures ?: ['\0__no_such_venture__']);
+    }
+
+    /**
+     * The Notion venture spellings that are this client's content: the ones
+     * connected to its content accounts (Content accounts > Notion
+     * connections), which is the setup people actually maintain. Name
+     * guessing (TimesheetVenture) only for a client with no connection at
+     * all -- it missed "Dr.Revanth" for "Dr.Revanth, Ortho" and pulled
+     * "thinkwithpriya" into Riya.
+     *
+     * @return list<string>
+     */
+    public function contentVentures(): array
+    {
+        $connected = ContentAccountVenture::query()
+            ->whereIn('content_account_id', $this->contentAccounts()->select('id'))
+            ->pluck('venture')
+            ->unique()
+            ->values()
+            ->all();
+
+        return $connected !== [] ? $connected : TimesheetVenture::rawVenturesFor($this);
     }
 
     /** Shoots booked for this client, past and future. */

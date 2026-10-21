@@ -62,6 +62,10 @@
         toggleGroup(key) {
             this.openGroups[key] = !this.openGroups[key];
         },
+        async toggleFav(key) {
+            await fetch(@js(route('nav.favourites')), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }, body: JSON.stringify({ key }) });
+            window.location.reload();
+        },
         hasNavMatches() {
             const q = this.navQ.trim().toLowerCase();
             if (!q) return true;
@@ -135,6 +139,11 @@
                     Script Approvals
                 </x-sidebar-link>
             @endif
+            @if ($client?->portalSectionEnabled('proposals'))
+                <x-sidebar-link icon="template" :href="route('client.proposals')" :active="request()->routeIs('client.proposals*')">
+                    Proposals
+                </x-sidebar-link>
+            @endif
         </x-nav-section>
     @elseif (! $isAdmin)
         {{-- Employees get timesheet, calendar, and their own profile. The admin
@@ -143,16 +152,19 @@
             <x-sidebar-link icon="home" :href="route('my.dashboard')" :active="request()->routeIs('my.dashboard')">
                 Dashboard
             </x-sidebar-link>
+            <x-sidebar-link icon="film-cut" :href="route('my.editing')" :active="request()->routeIs('my.editing')">
+                My Editing
+            </x-sidebar-link>
+            <x-sidebar-link icon="camera" :href="route('my.shoots')" :active="request()->routeIs('my.shoots*')">
+                My Shoots
+            </x-sidebar-link>
             <x-sidebar-link icon="check-circle" :href="route('my.todos')" :active="request()->routeIs('my.todos*')">
                 My To-dos
             </x-sidebar-link>
-            <x-sidebar-link icon="refresh" :href="route('my.routines')" :active="request()->routeIs('my.routines*')">
-                My Routines
-            </x-sidebar-link>
-            {{-- Only for whoever is on an Instagram check routine. --}}
+            {{-- Only for whoever is on the checker's people list. --}}
             @if ($user && app(\App\Services\InboxDesk::class)->hasAccess($user))
-                <x-sidebar-link icon="inbox" :href="route('inbox-desk.index')" :active="request()->routeIs('inbox-desk.*')">
-                    Inbox Check
+                <x-sidebar-link icon="chat-check" :href="route('inbox-desk.index')" :active="request()->routeIs('inbox-desk.*')">
+                    Comment &amp; Message Checker
                 </x-sidebar-link>
             @endif
             <x-sidebar-link icon="clock" :href="route('my.timesheet')" :active="request()->routeIs('my.timesheet*')">
@@ -165,6 +177,9 @@
             {{-- Only appears once somebody actually reports to this person.
                  Managing is not a role here, it is a fact about the org chart. --}}
             @if ($user?->managesAnyone())
+                <x-sidebar-link icon="film-cut" :href="route('editor-updates')" :active="request()->routeIs('editor-updates', 'editor-updates.editor')">
+                    Editor Updates
+                </x-sidebar-link>
                 <x-sidebar-link icon="users" :href="route('my.team')" :active="request()->routeIs('my.team')">
                     Team Timesheet
                 </x-sidebar-link>
@@ -209,11 +224,14 @@
                 <x-sidebar-link icon="home" :href="route('my.dashboard')" :active="request()->routeIs('my.dashboard')">
                     My Dashboard
                 </x-sidebar-link>
+                <x-sidebar-link icon="film-cut" :href="route('my.editing')" :active="request()->routeIs('my.editing')">
+                    My Editing
+                </x-sidebar-link>
+                <x-sidebar-link icon="camera" :href="route('my.shoots')" :active="request()->routeIs('my.shoots*')">
+                    My Shoots
+                </x-sidebar-link>
                 <x-sidebar-link icon="check-circle" :href="route('my.todos')" :active="request()->routeIs('my.todos*')">
                     My To-dos
-                </x-sidebar-link>
-                <x-sidebar-link icon="refresh" :href="route('my.routines')" :active="request()->routeIs('my.routines*')">
-                    My Routines
                 </x-sidebar-link>
                 <x-sidebar-link icon="clock" :href="route('my.timesheet')" :active="request()->routeIs('my.timesheet*')">
                     My Timesheet
@@ -229,54 +247,7 @@
             </x-nav-section>
         @endif
 
-        <x-nav-section label="Overview">
-            <x-sidebar-link icon="home" :href="route('dashboard')" :active="request()->routeIs('dashboard')">
-                Dashboard
-            </x-sidebar-link>
-            {{-- Admin-only, and inside the admin branch of this file already. --}}
-            <x-sidebar-link icon="trending-up" :href="route('editors.index')" :active="request()->routeIs('editors.*')">
-                Editor Output
-            </x-sidebar-link>
-            <x-sidebar-link icon="template" :href="route('content-dashboard.index')" :active="request()->routeIs('content-dashboard.*')">
-                Content Dashboard
-            </x-sidebar-link>
-        </x-nav-section>
-
-        <x-nav-section label="Team">
-            <x-sidebar-link icon="check-circle" :href="route('todos.index')" :active="request()->routeIs('todos.index')">
-                {{ $user?->logsWork() ? 'Team To-dos' : 'To-dos' }}
-            </x-sidebar-link>
-            @if (Route::has('users.index'))
-                <x-sidebar-link icon="user" :href="route('users.index')" :active="request()->routeIs('users.*')">
-                    Users
-                </x-sidebar-link>
-            @endif
-        </x-nav-section>
-
-        {{-- Same partial as the employee branch: an admin passes every gate,
-             so they see every module without a second list to maintain.
-
-             Invoices, Enquiries, Expenses, Salaries, Timesheets, Announcements,
-             Portfolio, Team and Master Data all used to be hardcoded above.
-             They are permissioned modules now, and listing them in two places
-             would show an admin two links to the same screen. What stays here
-             is what the registry cannot describe: an admin-only screen, or a
-             personal one that nobody needs granting for. --}}
-        @include('layouts._nav-modules')
-
-        <x-nav-section label="Setup">
-            {{-- Was nine separate links (Settings, WhatsApp, Instagram, Notion,
-                 Notifications, Competitor Analysis, Content Accounts, Brief
-                 Questions, PDF Template) -- now one destination. Each is still
-                 its own page and its own route; x-settings-layout is what
-                 turns them into tabs of one screen instead of nine unrelated
-                 sidebar rows. Active state matches any of them, not just
-                 settings.* -- this row should read as "current" on all nine. --}}
-            <x-sidebar-link icon="cog" :href="route('settings.edit')"
-                            :active="request()->routeIs(['settings.*', 'whatsapp.*', 'instagram-settings.*', 'notion.*', 'push.*', 'competitor-settings.*', 'content-accounts.*', 'brief-questions.*', 'invoice-template.*'])">
-                Settings
-            </x-sidebar-link>
-        </x-nav-section>
+        @include('layouts._admin-nav')
     @endif
     </nav>
 

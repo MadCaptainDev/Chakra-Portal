@@ -83,6 +83,8 @@ class InstagramContentMatcher
         $candidates = ContentItem::query()
             ->whereNull('social_media_item_id')
             ->where('status', 'Published')
+            // A YouTube row is never an Instagram post, whatever else went out that day.
+            ->whereIn('source', [ContentItem::SOURCE_REEL, ContentItem::SOURCE_POST, ContentItem::SOURCE_STORY])
             ->whereNotNull('published_date')
             ->whereIn('venture', $ventureToClient->keys())
             ->orderBy('published_date')

@@ -14,6 +14,7 @@ use App\Http\Controllers\Client\InstagramInsightsController as ClientInstagramIn
 use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\Client\MonthlyReportController as ClientMonthlyReportController;
 use App\Http\Controllers\Client\PortfolioController as ClientPortfolioController;
+use App\Http\Controllers\Client\ProposalController as ClientProposalController;
 use App\Http\Controllers\Client\ScriptApprovalController as ClientScriptApprovalController;
 use App\Http\Controllers\Client\ShootController as ClientShootController;
 use App\Http\Controllers\Client\ShootRequestController as ClientShootRequestController;
@@ -31,6 +32,7 @@ use App\Http\Controllers\CompetitorSettingController;
 use App\Http\Controllers\ContentAccountController;
 use App\Http\Controllers\ContentDashboardController;
 use App\Http\Controllers\ContentItemAssignmentController;
+use App\Http\Controllers\EditorUpdatesController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardLayoutController;
 use App\Http\Controllers\DashboardWidgetController;
@@ -44,6 +46,7 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\GoogleKeepImportController;
 use App\Http\Controllers\InboxDeskController;
+use App\Http\Controllers\InboxDeskSetupController;
 use App\Http\Controllers\InsightsController;
 use App\Http\Controllers\InstagramConnectionController;
 use App\Http\Controllers\InstagramInsightsController;
@@ -56,11 +59,11 @@ use App\Http\Controllers\McpTokenController;
 use App\Http\Controllers\MonthlyReportController;
 use App\Http\Controllers\My\CalendarController as MyCalendarController;
 use App\Http\Controllers\My\DashboardController as MyDashboardController;
-use App\Http\Controllers\My\RoutineController as MyRoutineController;
 use App\Http\Controllers\My\SalaryController as MySalaryController;
 use App\Http\Controllers\My\ShootRunController;
 use App\Http\Controllers\My\TeamController as MyTeamController;
 use App\Http\Controllers\My\TimesheetController as MyTimesheetController;
+use App\Http\Controllers\My\EditingController as MyEditingController;
 use App\Http\Controllers\My\TodoController as MyTodoController;
 use App\Http\Controllers\NotificationCenterController;
 use App\Http\Controllers\NotionSettingController;
@@ -85,9 +88,6 @@ use App\Http\Controllers\PushSettingController;
 use App\Http\Controllers\PushTokenController;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\RecurringInvoiceController;
-use App\Http\Controllers\RoutineCalendarController;
-use App\Http\Controllers\RoutineCheckingController;
-use App\Http\Controllers\RoutineController;
 use App\Http\Controllers\SaasProductController;
 use App\Http\Controllers\SalaryController;
 use App\Http\Controllers\ScriptCommentController;
@@ -98,8 +98,9 @@ use App\Http\Controllers\ShootCalendarController;
 use App\Http\Controllers\ShootController;
 use App\Http\Controllers\ShootCrewController;
 use App\Http\Controllers\ShootKitController;
+use App\Http\Controllers\StudioMapActionController;
+use App\Http\Controllers\StudioMapController;
 use App\Http\Controllers\TaxonomyTermController;
-use App\Http\Controllers\TeamMemberController;
 use App\Http\Controllers\TimesheetAdminController;
 use App\Http\Controllers\TimesheetDayController;
 use App\Http\Controllers\TodoReviewController;
@@ -127,6 +128,7 @@ Route::get('/', LandingController::class)->name('home');
 // Public portfolio screen. Kept off the /portfolio-items admin path so the two
 // can never shadow each other.
 Route::get('/portfolio', [PublicPortfolioController::class, 'index'])->name('portfolio');
+Route::get('/portfolio/live', [PublicPortfolioController::class, 'live'])->middleware('throttle:60,1')->name('portfolio.live');
 
 // The case study for one piece. Named portfolio.detail rather than
 // portfolio.show because the portfolio.* names belong to the admin CRUD.
@@ -321,6 +323,20 @@ Route::middleware('auth')->get('oauth/instagram/callback', [InstagramConnectionC
  * middleware admits employees and salary-linked admins; pure admins and
  * clients are refused.
  */
+/*
+ * The My Editing walkthrough and a video's moves sit outside the logs-work
+ * group below on purpose: admins who keep no timesheet watch the guide, save
+ * it as a video, and review videos from Editor Updates.
+ */
+Route::get('my/editing/guide', [MyEditingController::class, 'guide'])->middleware('auth')->name('my.editing.guide');
+// Moving a video, and its review: the editor, or an admin reviewing it from
+// Editor Updates (EditingController::authorise decides who may).
+Route::middleware('auth')->group(function () {
+    Route::get('my/editing/board', [MyEditingController::class, 'board'])->name('my.editing.board');
+    Route::post('my/editing/{todo}/act', [MyEditingController::class, 'act'])->name('my.editing.act');
+    Route::post('my/editing/{todo}/correct', [MyEditingController::class, 'correct'])->name('my.editing.correct');
+});
+
 Route::middleware(['auth', 'logs-work', 'recognitions.catchup', 'scheduled-flows.catchup'])->prefix('my')->name('my.')->group(function () {
     Route::get('dashboard', [MyDashboardController::class, 'index'])->name('dashboard');
     Route::get('calendar', [MyCalendarController::class, 'index'])->name('calendar');
@@ -350,16 +366,10 @@ Route::middleware(['auth', 'logs-work', 'recognitions.catchup', 'scheduled-flows
     Route::post('todos/{todo}/status', [MyTodoController::class, 'status'])->name('todos.status');
     Route::post('todos/{todo}/defer', [MyTodoController::class, 'defer'])->name('todos.defer');
 
-    /*
-     * Repeating duties assigned to this person (or shared team duties they
-     * are permitted on). Complete is ownership-checked in the controller —
-     * wrong user gets 404, matching timesheet.
-     */
-    Route::middleware('routines.catchup')->group(function () {
-        Route::get('routines', [MyRoutineController::class, 'index'])->name('routines');
-        Route::post('routines/complete', [MyRoutineController::class, 'completeMany'])->name('routines.complete-many');
-        Route::post('routines/{occurrence}/complete', [MyRoutineController::class, 'complete'])->name('routines.complete');
-    });
+    // My Editing: the editors' video board -- see My\EditingController.
+    Route::get('editing', [MyEditingController::class, 'index'])->name('editing');
+    Route::post('editing', [MyEditingController::class, 'store'])->name('editing.store');
+    Route::post('editing/refresh', [MyEditingController::class, 'refresh'])->middleware('throttle:4,1')->name('editing.refresh');
 });
 
 /*
@@ -384,10 +394,26 @@ Route::middleware(['auth', 'logs-work', 'recognitions.catchup', 'scheduled-flows
  * shoot because no middleware can.
  */
 Route::middleware('auth')->group(function () {
+    Route::get('my/shoots', [ShootRunController::class, 'index'])->name('my.shoots');
     Route::get('my/shoots/{shoot}/run', [ShootRunController::class, 'show'])->name('my.shoots.run');
+    Route::post('my/shoots/{shoot}/on-the-way', [ShootRunController::class, 'depart'])->name('my.shoots.depart');
+    Route::post('my/shoots/{shoot}/reached', [ShootRunController::class, 'reached'])->name('my.shoots.reached');
     Route::post('my/shoots/{shoot}/start', [ShootRunController::class, 'start'])->name('my.shoots.start');
     Route::post('my/shoots/{shoot}/videos', [ShootRunController::class, 'storeVideo'])->name('my.shoots.videos.store');
+    Route::get('my/shoots/{shoot}/live', [ShootRunController::class, 'live'])->name('my.shoots.live');
     Route::post('my/shoots/{shoot}/finish', [ShootRunController::class, 'finish'])->name('my.shoots.finish');
+});
+
+/*
+ * Editor Updates: admins see everyone; a manager sees their own team (the
+ * controller scopes it), the same rule as my/team and the to-do tracker.
+ */
+Route::post('nav/favourites', [\App\Http\Controllers\NavFavouriteController::class, 'toggle'])->middleware('auth')->name('nav.favourites');
+
+Route::middleware('auth')->group(function () {
+    Route::get('editor-updates', [EditorUpdatesController::class, 'index'])->name('editor-updates');
+    Route::get('editor-updates/live', [EditorUpdatesController::class, 'live'])->name('editor-updates.live');
+    Route::get('editor-updates/editor/{user}', [EditorUpdatesController::class, 'editor'])->name('editor-updates.editor');
 });
 
 Route::middleware('auth')->group(function () {
@@ -579,6 +605,16 @@ Route::middleware(['auth', 'client'])->prefix('client')->name('client.')->group(
     Route::post('scripts/{script}/comment', [ClientScriptApprovalController::class, 'comment'])->name('scripts.comment')->middleware('portal:scripts');
     Route::post('scripts/{script}/approve', [ClientScriptApprovalController::class, 'approve'])->name('scripts.approve')->middleware('portal:scripts');
     Route::post('scripts/{script}/request-changes', [ClientScriptApprovalController::class, 'requestChanges'])->name('scripts.request-changes')->middleware('portal:scripts');
+
+    /*
+     * Proposals the studio has sent, read and commented on inside the
+     * portal. {proposal} is a plain int for the same reason as {script}
+     * above -- see Client\ProposalController.
+     */
+    Route::get('proposals', [ClientProposalController::class, 'index'])->name('proposals')->middleware('portal:proposals');
+    Route::get('proposals/{proposal}', [ClientProposalController::class, 'show'])->name('proposals.show')->middleware('portal:proposals');
+    Route::get('proposals/{proposal}/pdf', [ClientProposalController::class, 'pdf'])->name('proposals.pdf')->middleware('portal:proposals');
+    Route::post('proposals/{proposal}/comments', [ClientProposalController::class, 'comment'])->name('proposals.comment')->middleware('portal:proposals');
 });
 
 /*
@@ -592,6 +628,7 @@ Route::middleware(['auth', 'module:shoots,view'])->scopeBindings()->group(functi
 
     // Before {shoot}, or "calendar" binds as a shoot id.
     Route::get('shoots/calendar', [ShootCalendarController::class, 'index'])->name('shoots.calendar');
+    Route::get('shoots/crew', [\App\Http\Controllers\ShootCrewRecordController::class, 'index'])->name('shoots.crew-record');
 
     /*
      * "Sync from Notion" on the Shoots screen. One action: fetch Notion's
@@ -620,7 +657,11 @@ Route::middleware(['auth', 'module:shoots,view'])->scopeBindings()->group(functi
     // Planning who and what goes: producer work.
     Route::middleware('module:shoots,edit')->group(function () {
         Route::post('shoots/{shoot}/crew', [ShootCrewController::class, 'store'])->name('shoots.crew.store');
-        Route::delete('shoots/{shoot}/crew/{crew}', [ShootCrewController::class, 'destroy'])->name('shoots.crew.destroy');
+        // Not scoped by the group: scopeBindings() would look for Shoot::crews(),
+        // and the relation is crew(). ShootCrewController::destroy() checks the
+        // row belongs to this shoot instead.
+        Route::delete('shoots/{shoot}/crew/{crew}', [ShootCrewController::class, 'destroy'])
+            ->withoutScopedBindings()->name('shoots.crew.destroy');
         Route::post('shoots/{shoot}/kit', [ShootKitController::class, 'store'])->name('shoots.kit.store');
         Route::post('shoots/{shoot}/kit/bulk-add', [ShootKitController::class, 'storeMany'])->name('shoots.kit.store-many');
         Route::delete('shoots/{shoot}/kit/{kit}', [ShootKitController::class, 'destroy'])->name('shoots.kit.destroy');
@@ -641,6 +682,28 @@ Route::middleware(['auth', 'module:shoots,view'])->scopeBindings()->group(functi
  * read-only over App\Support\ContentForecast, so `view` is the only
  * ability the module has anything to grant.
  */
+/*
+ * Chakra Planner: the desktop app's page here -- download, signed-in
+ * computers, and (manage) its Ably key and Notion webhook. The planner
+ * itself is the app; see routes/planner-api.php.
+ */
+Route::middleware(['auth', 'module:planner,view'])->prefix('planner')->name('planner.')->group(function () {
+    // The planner itself, in the browser: the same endpoints the desktop app
+    // calls (Api\Planner\*), signed in by the portal session instead of a token.
+    Route::get('/', [\App\Http\Controllers\PlannerPageController::class, 'web'])->name('index');
+    Route::get('data/meta', [\App\Http\Controllers\Api\Planner\PlannerAppController::class, 'meta'])->name('data.meta');
+    Route::post('data/refresh', [\App\Http\Controllers\Api\Planner\PlannerAppController::class, 'refresh'])->name('data.refresh');
+    Route::get('data/items', [\App\Http\Controllers\Api\Planner\PlannerItemController::class, 'index'])->name('data.items');
+    Route::get('data/items/{item}', [\App\Http\Controllers\Api\Planner\PlannerItemController::class, 'show'])->whereNumber('item')->name('data.item');
+    Route::patch('data/items/{item}', [\App\Http\Controllers\Api\Planner\PlannerItemController::class, 'update'])->whereNumber('item')->name('data.move');
+    Route::get('setup', [\App\Http\Controllers\PlannerPageController::class, 'index'])->name('setup');
+    Route::delete('sessions/{session}', [\App\Http\Controllers\PlannerPageController::class, 'revokeSession'])->whereNumber('session')->name('sessions.destroy');
+    Route::middleware('module:planner,manage')->group(function () {
+        Route::put('settings', [\App\Http\Controllers\PlannerPageController::class, 'updateSettings'])->name('settings');
+        Route::delete('webhook', [\App\Http\Controllers\PlannerPageController::class, 'forgetWebhook'])->name('webhook.forget');
+    });
+});
+
 Route::middleware(['auth', 'module:forecast,view'])->group(function () {
     Route::get('forecast', [ForecastController::class, 'index'])->name('forecast.index');
     Route::get('forecast/{client}', [ForecastController::class, 'show'])->name('forecast.show');
@@ -822,6 +885,9 @@ Route::middleware(['auth', 'module:portfolio,view'])->group(function () {
     // see PortfolioItemController::instagramMedia(). Sits at `view` like the
     // rest of this group; the controller itself asserts create-or-edit, since
     // there is no single ability that names "can see the picker".
+    // One client reel straight into the portfolio (the dashboard's "Ready for the portfolio").
+    Route::post('portfolio-items/from-instagram/{media}', [PortfolioItemController::class, 'addFromInstagram'])
+        ->middleware('module:portfolio,create')->name('portfolio.add-media');
     Route::get('portfolio-items/instagram-media', [PortfolioItemController::class, 'instagramMedia'])
         ->name('portfolio.instagram-media');
     Route::get('portfolio-items/create', [PortfolioItemController::class, 'create'])
@@ -850,15 +916,6 @@ Route::middleware(['auth', 'module:portfolio,view'])->group(function () {
     });
 });
 
-Route::middleware(['auth', 'module:team,view'])->group(function () {
-    Route::get('team', [TeamMemberController::class, 'index'])->name('team.index');
-    Route::post('team', [TeamMemberController::class, 'store'])
-        ->middleware('module:team,create')->name('team.store');
-    Route::put('team/{team}', [TeamMemberController::class, 'update'])
-        ->middleware('module:team,edit')->name('team.update');
-    Route::delete('team/{team}', [TeamMemberController::class, 'destroy'])
-        ->middleware('module:team,delete')->name('team.destroy');
-});
 
 /*
  * Master lists shared across the app -- platforms, formats, objectives,
@@ -877,50 +934,22 @@ Route::middleware(['auth', 'module:taxonomy,view'])->group(function () {
 });
 
 /*
- * Inbox Check -- Instagram DMs and comments, account by account. Not behind
- * a module permission: who sees what is decided per routine by InboxDesk
- * (permitted people, or admins), the same rule My Routines uses, so the
- * person doing the duty needs no extra grant to reach it.
+ * Comment & Message Checker -- Instagram DMs and comments, account by
+ * account. Not behind a module permission: who sees it is decided by the
+ * checker's own people list (InboxDesk), so whoever does the duty needs no
+ * extra grant. Setting it up (accounts, checks, people) is admin-only.
  */
 Route::middleware(['auth', 'routines.catchup'])->prefix('inbox-check')->name('inbox-desk.')->group(function () {
     Route::get('/', [InboxDeskController::class, 'index'])->name('index');
     Route::get('state', [InboxDeskController::class, 'state'])->name('state');
+    Route::get('guide', [InboxDeskController::class, 'guide'])->name('guide');
     Route::post('{occurrence}/check', [InboxDeskController::class, 'check'])->whereNumber('occurrence')->name('check');
     Route::post('{occurrence}/undo', [InboxDeskController::class, 'undo'])->whereNumber('occurrence')->name('undo');
-});
+    Route::post('round/start', [InboxDeskController::class, 'startRound'])->name('round.start');
 
-/*
- * Repeating studio duties. Definitions and calendar. Subjects toggle existing
- * Client Instagram (social_accounts) and Venture (content_accounts) IDs —
- * there is no separate Instagram handles master list.
- * routines.catchup materialises occurrences on first hit of the day.
- */
-Route::middleware(['auth', 'module:routines,view', 'routines.catchup'])->group(function () {
-    // "Who still owes what" is the daily question, so it is the front door;
-    // the calendar answers the occasional one and sits behind it.
-    Route::get('routines/check', [RoutineCheckingController::class, 'index'])->name('routines.checking');
-    Route::get('routines', [RoutineController::class, 'index'])->name('routines.index');
-    Route::get('routines/calendar', [RoutineCalendarController::class, 'index'])->name('routines.calendar');
-
-    Route::middleware('module:routines,create')->group(function () {
-        Route::post('routines', [RoutineController::class, 'store'])->name('routines.store');
-    });
-
-    Route::middleware('module:routines,edit')->group(function () {
-        Route::put('routines/{routine}', [RoutineController::class, 'update'])->name('routines.update');
-    });
-
-    Route::middleware('module:routines,delete')->group(function () {
-        Route::delete('routines/{routine}', [RoutineController::class, 'destroy'])->name('routines.destroy');
-    });
-
-    Route::middleware('module:routines,manage')->group(function () {
-        Route::post('routines/occurrences/{occurrence}/skip', [RoutineCalendarController::class, 'skip'])
-            ->name('routines.occurrences.skip');
-        Route::post('routines/check/{occurrence}/complete', [RoutineCheckingController::class, 'complete'])
-            ->name('routines.checking.complete');
-        Route::post('routines/check/{occurrence}/skip', [RoutineCheckingController::class, 'skip'])
-            ->name('routines.checking.skip');
+    Route::middleware('admin')->group(function () {
+        Route::get('setup', [InboxDeskSetupController::class, 'edit'])->name('setup');
+        Route::put('setup', [InboxDeskSetupController::class, 'update'])->name('setup.update');
     });
 });
 
@@ -988,6 +1017,37 @@ Route::middleware(['auth', 'module:timesheets,view'])->group(function () {
  */
 Route::middleware(['auth', 'module:insights,view'])->group(function () {
     Route::get('insights', [InsightsController::class, 'index'])->name('insights.index');
+});
+
+/*
+ * The Studio Map: every client as a building in a small 3D town, and the
+ * actions the map can take on them (admin-only, like the page).
+ * Plain `admin` rather than a module permission -- it shows money, shoots and
+ * hours side by side, which no single module's permission covers.
+ */
+Route::middleware(['auth', 'admin'])->group(function () {
+    // Money, on one screen: in, out, overdue, to come in, to pay. Admin only.
+    Route::get('money', [\App\Http\Controllers\MoneyOverviewController::class, 'index'])->name('money.index');
+    // Sync all Instagram, as a queue (InstagramSyncQueue).
+    Route::get('instagram-sync', [\App\Http\Controllers\InstagramSyncController::class, 'index'])->name('instagram-sync.index');
+    Route::post('instagram-sync', [\App\Http\Controllers\InstagramSyncController::class, 'store'])->middleware('throttle:6,1')->name('instagram-sync.store');
+    Route::get('instagram-sync/status', [\App\Http\Controllers\InstagramSyncController::class, 'status'])->name('instagram-sync.status');
+    Route::get('studio-map', [StudioMapController::class, 'index'])->name('studio-map');
+    Route::redirect('daily-checks', '/editor-updates');
+    Route::get('studio-map/data', [StudioMapController::class, 'data'])->name('studio-map.data');
+
+    // What the map can do. Client WhatsApp sends are preview-then-send; the
+    // map always shows the preview and asks first. See StudioMapActionController.
+    Route::prefix('studio-map/actions')->name('studio-map.actions.')->middleware('throttle:60,1')->group(function () {
+        Route::post('assign-crew', [StudioMapActionController::class, 'assignCrew'])->name('assign-crew');
+        Route::post('remove-crew', [StudioMapActionController::class, 'removeCrew'])->name('remove-crew');
+        Route::post('create-shoot', [StudioMapActionController::class, 'createShoot'])->name('create-shoot');
+        Route::post('create-todo', [StudioMapActionController::class, 'createTodo'])->name('create-todo');
+        Route::post('place', [StudioMapActionController::class, 'place'])->name('place');
+        Route::post('locate', [StudioMapActionController::class, 'locate'])->middleware('throttle:20,1')->name('locate');
+        Route::post('preview', [StudioMapActionController::class, 'preview'])->name('preview');
+        Route::post('send', [StudioMapActionController::class, 'send'])->middleware('throttle:10,1')->name('send');
+    });
 });
 Route::middleware(['auth', 'module:invoices,view', 'recurring.catchup'])->group(function () {
     Route::get('invoices/quantity-variables/preview', [InvoiceController::class, 'previewQuantityVariables'])
@@ -1489,7 +1549,9 @@ Route::middleware(['auth', 'admin', 'recurring.catchup', 'instagram.catchup', 'r
      * ranks people against each other, and who sees it is the owner's call to
      * make on purpose rather than by ticking a permission box.
      */
-    Route::get('editors', [EditorOutputController::class, 'index'])->name('editors.index');
+    // Merged into Editor Updates as its Output tab; the old address still works.
+    Route::get('editor-updates/output', [EditorOutputController::class, 'index'])->name('editors.index');
+    Route::redirect('editors', '/editor-updates/output');
 
     /*
      * Videos published per client account per month, against target.

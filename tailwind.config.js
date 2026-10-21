@@ -7,6 +7,9 @@ export default {
         './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
         './storage/framework/views/*.php',
         './resources/views/**/*.blade.php',
+        // Classes that only appear in script-built markup (the Studio Map's
+        // panels, dialogs and ticker) must be generated too.
+        './resources/js/**/*.js',
     ],
 
     theme: {

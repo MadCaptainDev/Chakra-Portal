@@ -17,8 +17,14 @@ class ForecastController extends Controller
 {
     public function index(): View
     {
+        $rows = ContentForecast::forAllClients()->groupBy('status');
+
+        // Book shoots: what needs booking first, the rest folded away.
         return view('forecast.index', [
-            'rows' => ContentForecast::forAllClients(),
+            'now' => $rows->get(ContentForecast::STATUS_CRITICAL, collect()),
+            'soon' => $rows->get(ContentForecast::STATUS_WARNING, collect()),
+            'covered' => $rows->get(ContentForecast::STATUS_OK, collect()),
+            'unknown' => $rows->get(ContentForecast::STATUS_UNKNOWN, collect()),
         ]);
     }
 

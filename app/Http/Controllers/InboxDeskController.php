@@ -2,13 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Routine;
+use App\Services\CheckRounds;
 use App\Services\InboxDesk;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 /**
- * The Inbox Check screen: Instagram DMs and comments, account by account.
+ * The Comment & Message Checker screen: Instagram DMs and comments, account by account.
  *
  * One page for both sides of the duty. The person doing it taps tiles; an
  * admin opening the same page watches them turn green, because the page
@@ -26,6 +28,14 @@ class InboxDeskController extends Controller
         return view('inbox-desk.index', [
             'board' => $this->desk->board($request->user()),
         ]);
+    }
+
+    /** The walkthrough: a self-playing "how this screen works". */
+    public function guide(Request $request): View
+    {
+        abort_if($request->user()->isClient(), 403);
+
+        return view('inbox-desk.guide');
     }
 
     public function state(Request $request): JsonResponse
@@ -47,6 +57,26 @@ class InboxDeskController extends Controller
 
         return response()->json([
             'message' => $result['done'] > 0 ? 'Checked.' : 'Somebody already checked that one.',
+            'board' => $this->desk->board($request->user()),
+        ]);
+    }
+
+    /** Start the morning or evening round's clock (it stops on the round's last tick). */
+    public function startRound(Request $request, CheckRounds $rounds): JsonResponse
+    {
+        abort_if($request->user()->isClient(), 403);
+        $data = $request->validate([
+            'routine_id' => ['required', 'integer'],
+            'round' => ['required', 'in:'.implode(',', array_keys(CheckRounds::ROUNDS))],
+        ]);
+        $routine = Routine::query()->where('subject_type', Routine::SUBJECT_ACCOUNTS)->with('checkpoints')->find($data['routine_id']);
+        abort_unless($routine && in_array($data['round'], $rounds->roundsOf($routine), true), 404);
+        abort_unless($request->user()->isAdmin() || $routine->users()->where('users.id', $request->user()->id)->exists(), 404);
+
+        $round = $rounds->start($request->user(), $routine, $data['round']);
+
+        return response()->json([
+            'message' => $round->wasRecentlyCreated ? CheckRounds::ROUNDS[$data['round']].' started.' : 'Already started at '.$round->started_at->format('g:i A').'.',
             'board' => $this->desk->board($request->user()),
         ]);
     }

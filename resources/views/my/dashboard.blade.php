@@ -118,8 +118,9 @@
         @include('dashboard._upcoming-shoots', [
             'shoots' => $myShoots,
             'title' => 'My upcoming shoots',
+            'runner' => true,
             'empty' => 'You are not on any shoot crew yet.',
-            'allHref' => auth()->user()->can('shoots.view') ? route('shoots.calendar') : null,
+            'allHref' => route('my.shoots'),
         ])
 
         {{-- Today's plan, as counts and a way in. The list itself lives on the
@@ -187,12 +188,15 @@
                 <div class="space-y-3">
                     @foreach ($announcements as $announcement)
                         <div class="flex items-start gap-3.5 rounded-xl bg-white/5 ring-1 ring-white/10 p-4 sm:p-5">
-                            <span class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg bg-brand-400/15 text-brand-300">
-                                <x-icon name="megaphone" class="w-5 h-5" />
+                            <span class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg {{ $announcement->isMilestone() ? 'bg-amber-300/15 text-amber-200' : 'bg-brand-400/15 text-brand-300' }}">
+                                <x-icon :name="$announcement->isMilestone() ? 'trending-up' : 'megaphone'" class="w-5 h-5" />
                             </span>
                             <div class="min-w-0">
                                 <p class="font-semibold">{{ $announcement->title }}</p>
                                 <p class="mt-1 text-sm text-brand-100/70 whitespace-pre-line leading-relaxed">{{ $announcement->body }}</p>
+                                @if ($announcement->link_url)
+                                    <a href="{{ $announcement->link_url }}" target="_blank" rel="noopener" class="mt-1.5 inline-flex items-center gap-1 text-sm font-semibold text-amber-200 hover:text-white">Watch on Instagram <x-icon name="chevron-right" class="w-4 h-4" /></a>
+                                @endif
                                 <p class="mt-2 text-[11px] text-brand-100/50">{{ $announcement->created_at->diffForHumans() }}</p>
                             </div>
                         </div>

@@ -27,9 +27,9 @@
     $plannerKeys = ET::PLANNERS;
 @endphp
 
-<x-app-layout title="Editor output">
+<x-app-layout title="Editor Updates · Output">
     <x-slot name="header">
-        <x-page-header title="Editor Output" eyebrow="Studio"
+        <x-page-header title="Editor Updates" eyebrow="Team · Editing"
                        subtitle="Planner counts (Reels, Posts, Stories) beside editing hours from the timesheet. YouTube is omitted — same videos as Reels.">
             <x-slot name="actions">
                 <form method="GET" class="inline">
@@ -44,6 +44,7 @@
     </x-slot>
 
     <div class="space-y-6">
+        @include('editor-updates._tabs')
 
         {{-- ——— Where the numbers come from, and what is missing from them ——— --}}
         <x-card class="p-4 sm:p-5 border border-white/10">

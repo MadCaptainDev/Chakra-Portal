@@ -51,6 +51,10 @@ class ShootCrewController extends Controller
 
     public function destroy(Shoot $shoot, ShootCrew $crew): RedirectResponse
     {
+        // The route is unscoped (see routes/web.php), so this is the check
+        // that stops one shoot's URL removing somebody from another shoot.
+        abort_unless((int) $crew->shoot_id === $shoot->id, 404);
+
         $crew->delete();
 
         return redirect()->route('shoots.show', $shoot)->with('status', 'Removed from the crew.');

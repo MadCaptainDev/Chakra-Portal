@@ -66,6 +66,7 @@ class ListScripts extends Tool
             'count' => $scripts->count(),
             'scripts' => $scripts->map(fn (Script $script) => array_filter([
                 'id' => $script->id,
+                'number' => '#'.$script->id,
                 'title' => $script->title,
                 'client' => $script->clientLabel(),
                 'status' => $script->statusLabel(),

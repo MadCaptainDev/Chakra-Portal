@@ -6,6 +6,7 @@
     <x-slot name="header">
         <x-page-header title="Shoot calendar" subtitle="Every shoot this month, by date.">
             <x-slot name="actions">
+                <x-btn :href="route('my.shoots')" variant="secondary">Shoot updater</x-btn>
                 <x-btn :href="route('shoots.index')" variant="secondary">List view</x-btn>
                 @can('shoots.create')
                     <x-btn :href="route('shoots.create')">Plan a shoot</x-btn>

@@ -90,6 +90,7 @@ class Script extends Model
         'target_seconds' => 'integer',
         'last_edited_at' => 'datetime',
         'sent_to_client_at' => 'datetime',
+        'shot_at' => 'datetime',
     ];
 
     public function client(): BelongsTo
@@ -152,6 +153,12 @@ class Script extends Model
     }
 
     /** "Check from each other" -- a flat review thread, oldest first. */
+    /** Videos shot from this script on set (ShootRunController links them). */
+    public function shootVideos(): HasMany
+    {
+        return $this->hasMany(ShootVideo::class);
+    }
+
     public function comments(): HasMany
     {
         return $this->hasMany(ScriptComment::class)->with('user')->oldest();
@@ -281,5 +288,22 @@ class Script extends Model
             'user_id' => $client->id,
             'body' => $note,
         ]);
+    }
+
+    /**
+     * The script has been shot: it is Completed (not left in Draft or
+     * review), with the day it was shot. An archived script stays archived,
+     * and a shot day already on record is kept.
+     */
+    public function markRecorded(?\Illuminate\Support\Carbon $at = null): void
+    {
+        if ($this->status !== self::STATUS_ARCHIVED) {
+            $this->status = self::STATUS_COMPLETED;
+        }
+        $this->shot_at ??= $at ?? now();
+
+        if ($this->isDirty()) {
+            $this->save();
+        }
     }
 }

@@ -69,76 +69,13 @@ class DashboardTest extends TestCase
         $response = $this->actingAs($user)->get(route('dashboard'));
 
         $response->assertOk();
-        $response->assertSee('Needs attention');
-        $response->assertSee('Collected vs paid out');
-        $response->assertSee('Unpaid invoices');
+        $response->assertSee('Shoots this week')->assertSee('Editing now')->assertSee('Due on the planner today');
+        // Money moved to its own page (/money); the dashboard links there.
+        $response->assertDontSee('Collected vs paid out')->assertSee(route('money.index'), false);
     }
 
-    public function test_bottleneck_rows_link_to_the_screen_that_clears_them(): void
-    {
-        $user = User::factory()->create();
 
-        // An unpaid salary is a bottleneck, and its row should deep-link to the
-        // salaries month that settles it.
-        \App\Models\Expense::create([
-            'name' => 'Kanishka', 'type' => \App\Models\Expense::TYPE_SALARY,
-            'amount' => 15000, 'is_active' => true,
-        ]);
 
-        $response = $this->actingAs($user)->get(route('dashboard'));
-
-        $response->assertOk();
-        $response->assertSee('Where cash is stuck');
-        $response->assertSee(route('salaries.index', ['month' => now()->format('Y-m')]), false);
-    }
-
-    public function test_dashboard_shows_this_months_outflow_alongside_invoices(): void
-    {
-        $user = User::factory()->create();
-        Invoice::factory()->create(['subtotal' => 10000, 'total' => 10000]);
-
-        // Due every month, so they land in the current month whenever this runs.
-        \App\Models\Expense::create(['name' => 'Rent', 'type' => \App\Models\Expense::TYPE_BILL, 'amount' => 7500, 'is_active' => true]);
-        \App\Models\Expense::create(['name' => 'Kanishka', 'type' => \App\Models\Expense::TYPE_SALARY, 'amount' => 15000, 'is_active' => true]);
-        \App\Models\Expense::create([
-            'name' => 'Gimbal', 'type' => \App\Models\Expense::TYPE_EMI, 'amount' => 2188,
-            'start_month' => now()->startOfMonth()->toDateString(), 'installments' => 12,
-        ]);
-
-        $response = $this->actingAs($user)->get(route('dashboard'));
-
-        $response->assertOk();
-        // Escaped, not raw: the heading now renders through x-section-heading,
-        // so the apostrophe reaches the page as &#039;. Same text on screen.
-        $response->assertSee("This Month's Outflow");
-        $response->assertViewHas('outflowDue', 24688.0);   // 7500 + 15000 + 2188
-        $response->assertViewHas('outflowPaid', 0.0);
-        $response->assertViewHas('outflowPending', 24688.0);
-        $response->assertViewHas('emiThisMonth', 2188.0);
-
-        // The invoice figures must survive the addition.
-        $response->assertSee('10,000.00');
-    }
-
-    public function test_expense_mix_bars_are_drawn_from_real_amounts(): void
-    {
-        // The bar widths are computed in Blade now that Chart.js is gone, so the
-        // arithmetic is worth pinning: the largest row is the 100% baseline and
-        // a smaller row scales against it.
-        $user = User::factory()->create();
-
-        \App\Models\Expense::create(['name' => 'Kanishka', 'type' => \App\Models\Expense::TYPE_SALARY, 'amount' => 20000, 'is_active' => true]);
-        \App\Models\Expense::create(['name' => 'Rent', 'type' => \App\Models\Expense::TYPE_BILL, 'amount' => 5000, 'is_active' => true]);
-
-        $response = $this->actingAs($user)->get(route('dashboard'));
-
-        $response->assertOk();
-        $response->assertSee('Expense mix');
-
-        // Salary is the largest, so it sets the baseline; bills are a quarter of it.
-        $response->assertSee('width: 100%; background-color: #16a34a', false);
-        $response->assertSee('width: 25%; background-color: #0284c7', false);
-    }
 
     public function test_guest_is_redirected_to_login(): void
     {

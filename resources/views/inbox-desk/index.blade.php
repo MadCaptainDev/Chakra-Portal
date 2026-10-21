@@ -1,6 +1,6 @@
 @php
     /**
-     * Inbox Check -- see App\Services\InboxDesk and resources/js/inbox-desk.js.
+     * Comment & Message Checker -- see App\Services\InboxDesk and resources/js/inbox-desk.js.
      *
      * Built for a phone first: one column of account cards, two big tiles
      * each (DMs, Comments), one tap to check. Everything below renders from
@@ -12,21 +12,22 @@
             'state' => route('inbox-desk.state'),
             'check' => route('inbox-desk.check', ['occurrence' => '__ID__']),
             'undo' => route('inbox-desk.undo', ['occurrence' => '__ID__']),
+            'round' => route('inbox-desk.round.start'),
         ],
     ];
-    $canEditRoutines = auth()->user()->can('routines.edit');
+    $canSetUp = auth()->user()->isAdmin();
 @endphp
 
-<x-app-layout title="Inbox Check">
+<x-app-layout title="Comment & Message Checker">
     <x-slot name="header">
-        <x-page-header eyebrow="Daily · Instagram" title="Inbox Check"
+        <x-page-header eyebrow="Daily · Instagram" title="Comment & Message Checker"
                        subtitle="DMs and comments, account by account. Tap a tile when it is done.">
-            @if ($canEditRoutines && Route::has('routines.index'))
-                <x-slot name="actions">
-                    <x-btn :href="route('routines.checking')" variant="secondary" size="sm" icon="clipboard-list">All routines</x-btn>
-                    <x-btn :href="route('routines.index')" variant="secondary" size="sm" icon="cog">Set up</x-btn>
-                </x-slot>
-            @endif
+            <x-slot name="actions">
+                <x-btn :href="route('inbox-desk.guide')" variant="secondary" size="sm" icon="chat-check">How it works</x-btn>
+                @if ($canSetUp)
+                    <x-btn :href="route('inbox-desk.setup')" variant="secondary" size="sm" icon="cog">Set up</x-btn>
+                @endif
+            </x-slot>
         </x-page-header>
     </x-slot>
 
@@ -36,19 +37,17 @@
         <template x-if="b.routines.length === 0">
             <x-card padding="lg" class="text-center">
                 <div class="mx-auto w-14 h-14 rounded-2xl bg-brand-400/15 text-brand-300 flex items-center justify-center mb-4">
-                    <x-icon name="inbox" class="w-7 h-7" />
+                    <x-icon name="chat-check" class="w-7 h-7" />
                 </div>
                 @if (auth()->user()->isAdmin())
-                    <p class="text-lg font-semibold text-white">No Instagram check is set up yet</p>
+                    <p class="text-lg font-semibold text-white">The checker is not set up yet</p>
                     <p class="mt-1 text-sm text-brand-100/60 max-w-sm mx-auto">
-                        Create a daily routine scoped to accounts, pick the Instagram accounts and who checks them. It shows up here the same day.
+                        Pick the Instagram accounts, what to check on each and who checks them. It shows up here the same day.
                     </p>
-                    @if (Route::has('routines.index'))
-                        <x-btn :href="route('routines.index')" class="mt-5" icon="plus">Set up a routine</x-btn>
-                    @endif
+                    <x-btn :href="route('inbox-desk.setup')" class="mt-5" icon="cog">Set up the checker</x-btn>
                 @else
                     <p class="text-lg font-semibold text-white">Nothing to check</p>
-                    <p class="mt-1 text-sm text-brand-100/60">No Instagram accounts are assigned to you. Your admin can add you on the routine.</p>
+                    <p class="mt-1 text-sm text-brand-100/60">No Instagram accounts are assigned to you. Your admin can add you in the checker's setup.</p>
                 @endif
             </x-card>
         </template>
@@ -132,6 +131,33 @@
                         </div>
                     </div>
                 </section>
+
+                {{-- ═════════ Rounds: one tap starts the clock, the last tick stops it ═════════ --}}
+                <template x-for="routine in b.routines" :key="'rounds-' + routine.id">
+                    <section class="flex flex-wrap gap-2" x-show="(b.rounds?.[routine.id] ?? []).length">
+                        <template x-for="r in (b.rounds?.[routine.id] ?? [])" :key="r.round">
+                            <div class="flex min-w-[220px] flex-1 items-center gap-3 rounded-2xl px-4 py-3 ring-1"
+                                 :class="{ 'bg-white/5 ring-white/10': r.state === 'idle', 'bg-amber-400/10 ring-amber-400/30': r.state === 'running', 'bg-emerald-400/10 ring-emerald-400/25': r.state === 'done' }">
+                                <span class="text-xl" x-text="r.round === 'evening' ? '🌙' : (r.round === 'morning' ? '☀️' : '⏱')"></span>
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-sm font-semibold text-white" x-text="r.label"></p>
+                                    <p class="text-xs" :class="r.state === 'running' ? 'text-amber-200' : (r.state === 'done' ? 'text-emerald-200' : 'text-brand-100/55')">
+                                        <template x-if="r.state === 'idle'"><span x-text="r.available ? 'Tap Start when you begin checking' : 'Opens at 3 PM'"></span></template>
+                                        <template x-if="r.state === 'running'"><span>Running · <span class="tabular-nums" x-text="roundRun(r)"></span> · stops by itself on the last tick</span></template>
+                                        <template x-if="r.state === 'done'"><span x-text="`Done in ${r.minutes} min · ${r.replies} replies` + (r.by ? ` · ${r.by}` : '')"></span></template>
+                                    </p>
+                                </div>
+                                <button type="button" x-show="r.state === 'idle' && r.available" @click="startRound(routine, r)"
+                                        class="min-h-[40px] shrink-0 rounded-xl bg-brand-400 px-4 text-sm font-bold text-brand-900 hover:bg-brand-300">▶ Start</button>
+                                <span x-show="r.state === 'running'" class="relative flex h-2.5 w-2.5 shrink-0">
+                                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-60"></span>
+                                    <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-400"></span>
+                                </span>
+                                <span x-show="r.state === 'done'" class="shrink-0 text-lg text-emerald-300">✓</span>
+                            </div>
+                        </template>
+                    </section>
+                </template>
 
                 {{-- ═════════ Filter ═════════ --}}
                 <div class="flex items-center gap-2 overflow-x-auto -mx-1 px-1" role="tablist" aria-label="Show accounts">
@@ -253,7 +279,7 @@
                                                         <p class="text-brand-100/50">Skipped<span x-show="cell(account, cp).by" x-text="` by ${cell(account, cp).by}`"></span></p>
                                                     </template>
                                                     <template x-if="cell(account, cp).state === 'none'">
-                                                        <p class="text-brand-100/40">Not due today</p>
+                                                        <p class="text-brand-100/40" x-text="cell(account, cp).opens ? 'Opens at ' + cell(account, cp).opens : 'Not due today'"></p>
                                                     </template>
                                                 </div>
                                             </button>
@@ -326,6 +352,49 @@
                                 </article>
                             </template>
                         </div>
+                    </section>
+                </template>
+
+                {{-- ═════════ Admins: a week of rounds -- days, not people ═════════ --}}
+                <template x-if="b.week">
+                    <section>
+                        <h2 class="mb-2 text-sm font-semibold uppercase tracking-wider text-brand-100/60">Rounds this week</h2>
+                        <x-card padding="sm">
+                            <p class="mb-2 text-xs text-brand-100/55">
+                                How long a round takes, to plan time — not a race.
+                                <template x-for="r in b.week.rounds" :key="'avg' + r.key">
+                                    <span class="ml-1 rounded-full bg-white/10 px-2 py-0.5 text-brand-100/80" x-show="b.week.average[r.key] !== null" x-text="r.label + ' ≈ ' + b.week.average[r.key] + ' min'"></span>
+                                </template>
+                            </p>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead>
+                                        <tr class="text-left text-[11px] uppercase tracking-wider text-brand-100/45">
+                                            <th class="py-1.5 pr-3 font-semibold">Day</th>
+                                            <template x-for="r in b.week.rounds" :key="'h' + r.key"><th class="py-1.5 pr-3 font-semibold" x-text="r.label"></th></template>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-white/5">
+                                        <template x-for="d in b.week.days" :key="d.label">
+                                            <tr>
+                                                <td class="py-2 pr-3 text-brand-100/70" x-text="d.label"></td>
+                                                <template x-for="r in b.week.rounds" :key="d.label + r.key">
+                                                    <td class="py-2 pr-3">
+                                                        <template x-if="!d.rounds[r.key]"><span class="text-brand-100/30">—</span></template>
+                                                        <template x-if="d.rounds[r.key]">
+                                                            <span>
+                                                                <span class="font-semibold tabular-nums text-white" x-text="d.rounds[r.key].running ? 'running' : d.rounds[r.key].minutes + ' min'"></span>
+                                                                <span class="text-xs text-brand-100/50" x-text="' · ' + d.rounds[r.key].replies + ' replies' + (d.rounds[r.key].auto ? ' · timed from first tick' : '')"></span>
+                                                            </span>
+                                                        </template>
+                                                    </td>
+                                                </template>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </x-card>
                     </section>
                 </template>
 

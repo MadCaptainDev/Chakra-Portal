@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * One metric, for one day or range, for an account or one of its media.
@@ -95,5 +96,42 @@ class SocialInsight extends Model
                 'fetched_at' => now(),
             ]
         );
+    }
+
+    /**
+     * The newest reading of each metric for each post.
+     *
+     * A post's views, reach and likes are lifetime totals that are stored
+     * once per sync day, so adding the rows up counts a post as many times
+     * as it has been synced. Only the latest day's row is the post's number.
+     *
+     * @param  iterable<int>  $itemIds
+     * @param  array<int, string>  $metrics
+     * @return array<int, array<string, int>> item id => metric => value
+     */
+    public static function latestPerItem(iterable $itemIds, array $metrics): array
+    {
+        $out = [];
+
+        foreach (collect($itemIds)->unique()->chunk(500) as $ids) {
+            $newest = DB::table('social_insights')
+                ->selectRaw('social_media_item_id, metric, MAX(period_start) as period_start')
+                ->whereIn('social_media_item_id', $ids)
+                ->whereIn('metric', $metrics)
+                ->groupBy('social_media_item_id', 'metric');
+
+            DB::table('social_insights as si')
+                ->joinSub($newest, 'n', fn ($join) => $join
+                    ->on('si.social_media_item_id', '=', 'n.social_media_item_id')
+                    ->on('si.metric', '=', 'n.metric')
+                    ->on('si.period_start', '=', 'n.period_start'))
+                ->orderBy('si.id')
+                ->get(['si.social_media_item_id', 'si.metric', 'si.value'])
+                ->each(function ($row) use (&$out) {
+                    $out[$row->social_media_item_id][$row->metric] = (int) $row->value;
+                });
+        }
+
+        return $out;
     }
 }

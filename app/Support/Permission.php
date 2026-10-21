@@ -3,7 +3,6 @@
 namespace App\Support;
 
 use App\Models\Enquiry;
-use App\Models\RoutineOccurrence;
 use App\Models\WhatsappConversation;
 
 /**
@@ -75,6 +74,19 @@ class Permission
             'icon' => 'camera',
             'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
+        /*
+         * Chakra Planner, the desktop content planner (routes/planner-api.php).
+         * `view` signs the app in and shows every planner; `edit` moves publish
+         * dates (written back to Notion); `manage` is the Ably key, Notion
+         * webhooks, everyone's signed-in computers and uploading releases.
+         * The portal link is only the download-and-setup page.
+         */
+        'planner' => [
+            'label' => 'Chakra Planner',
+            'group' => 'Production',
+            'icon' => 'calendar',
+            'abilities' => ['view', 'edit', 'manage'],
+        ],
         'equipment' => [
             'label' => 'Equipment',
             'group' => 'Production',
@@ -89,21 +101,9 @@ class Permission
          * anything to grant.
          */
         'forecast' => [
-            'label' => 'Forecast',
+            'label' => 'Book shoots',
             'group' => 'Production',
             'icon' => 'trending-up',
-            'abilities' => ['view'],
-        ],
-        /*
-         * Checks an export before it is posted or sent: shape, resolution,
-         * length, frame rate, loudness, clipping. The video is analysed in
-         * the browser and never uploaded -- only the verdict is kept, so
-         * `view` (use it, see your own history) is all there is to grant.
-         */
-        'video-check' => [
-            'label' => 'Video Checker',
-            'group' => 'Production',
-            'icon' => 'eye',
             'abilities' => ['view'],
         ],
         /*
@@ -149,12 +149,7 @@ class Permission
             'icon' => 'sparkles',
             'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
-        'team' => [
-            'label' => 'Team Page',
-            'group' => 'Website',
-            'icon' => 'user',
-            'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
-        ],
+
 
         /*
          * Running the studio. Enquiries has no `create` -- the only thing that
@@ -212,17 +207,6 @@ class Permission
             'group' => 'Production',
             'icon' => 'grip',
             'abilities' => ['view', 'manage'],
-        ],
-        /*
-         * Repeating studio duties (routines). Badge is overdue open
-         * occurrences — same shape as Enquiry::unreadCount.
-         */
-        'routines' => [
-            'label' => 'Routines',
-            'group' => 'Production',
-            'icon' => 'refresh',
-            'badge' => [RoutineOccurrence::class, 'overdueCount'],
-            'abilities' => ['view', 'create', 'edit', 'delete', 'manage'],
         ],
         /*
          * Scraping and analyzing a competitor's public Instagram, not one of

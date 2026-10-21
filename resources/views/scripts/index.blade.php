@@ -100,7 +100,7 @@
 
                         <div class="min-w-0 flex-1">
                             <div class="flex flex-wrap items-center gap-2">
-                                <p class="font-semibold text-white truncate group-hover:text-brand-200 transition">{{ $script->title }}</p>
+                                <p class="font-semibold text-white truncate group-hover:text-brand-200 transition"><span class="font-normal text-brand-100/50">#{{ $script->id }}</span> {{ $script->title }}</p>
                                 <x-badge :status="$script->status" />
                                 @if ($script->priority === \App\Models\Script::PRIORITY_HIGH)
                                     <x-badge status="overdue">High priority</x-badge>

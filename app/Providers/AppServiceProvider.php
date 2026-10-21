@@ -53,9 +53,8 @@ class AppServiceProvider extends ServiceProvider
             WhatsappSendLog::LOGGABLE_MORPH_MAP,
         ));
 
-        // The Video Checker's routes (see that file). loadRoutesFrom skips
-        // this when routes are cached, so route:cache still picks them up.
-        $this->loadRoutesFrom(base_path('routes/video-check.php'));
+        // Routes kept in their own file. loadRoutesFrom skips this when
+        // routes are cached, so route:cache still picks them up.
         $this->loadRoutesFrom(base_path('routes/showreel.php'));
 
         /*
@@ -121,5 +120,14 @@ class AppServiceProvider extends ServiceProvider
          * the one number Illuminate\Queue\Middleware\RateLimited needs.
          */
         RateLimiter::for('whatsapp-campaign', fn () => Limit::perMinute(40));
+
+        /*
+         * Chakra Planner. Per token like 'mcp': a whole team behind one
+         * office connection must not throttle each other. Generous because
+         * the app fetches a few pages of items on start and polls when live
+         * updates are off; sign-in has its own tighter per-email limit.
+         */
+        RateLimiter::for('planner-api', fn (Request $request) => Limit::perMinute(300)
+            ->by($request->bearerToken() ?: $request->ip()));
     }
 }

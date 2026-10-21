@@ -88,6 +88,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'nav_favourites' => 'array',
             'password' => 'hashed',
             // Not in $fillable -- set only via DashboardLayoutController,
             // never through the generic profile form. See the migration's

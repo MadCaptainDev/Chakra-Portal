@@ -66,6 +66,27 @@ class PublicProposalController extends Controller
             'parent_id' => ['nullable', 'integer'],
         ]);
 
+        $sectionKey = self::storeComment($proposal, $validated)->section_key;
+
+        $anchor = $sectionKey ? '#section-'.$sectionKey : '#feedback';
+
+        return redirect()->to(route('proposals.public', $token).$anchor)
+            ->with('status', 'Thank you — your comment has been sent to the team.');
+    }
+
+    /**
+     * File one comment from the client side -- this p/{token} page, and the
+     * signed-in portal's Client\ProposalController. One set of rules for
+     * both: a section key must name a section of this proposal, a reply may
+     * only hang off a top-level comment on it, and the author is told.
+     *
+     * user_id stays null either way: it is what marks a comment as the
+     * studio's own ("Team"), and a client's login is not the studio.
+     *
+     * @param  array{author_name: string, author_email?: ?string, body: string, section_key?: ?string, parent_id?: ?int}  $validated
+     */
+    public static function storeComment(Proposal $proposal, array $validated): ProposalComment
+    {
         $sectionKey = array_key_exists((string) ($validated['section_key'] ?? ''), $proposal->sectionLabels())
             ? $validated['section_key']
             : null;
@@ -99,10 +120,7 @@ class PublicProposalController extends Controller
             }
         }
 
-        $anchor = $sectionKey ? '#section-'.$sectionKey : '#feedback';
-
-        return redirect()->to(route('proposals.public', $token).$anchor)
-            ->with('status', 'Thank you — your comment has been sent to the team.');
+        return $comment;
     }
 
     public function pdf(string $token): Response

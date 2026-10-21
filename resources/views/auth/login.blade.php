@@ -1,4 +1,24 @@
 <x-guest-layout title="Sign in">
+  <div data-mascot-scope>
+    {{-- The studio's mascot (resources/js/login-mascot.js): it watches the
+         caret as you type your email, shuts its eyes for the password, and
+         looks surprised when a sign-in fails. Decorative, so hidden from
+         screen readers; the poke is a button only for the fun of it. --}}
+    <div x-data="loginMascot({ failed: @js($errors->any()) })" class="flex items-end gap-3 mb-5">
+        <button type="button" @click="boop()" aria-hidden="true" tabindex="-1"
+                class="relative block w-24 h-24 sm:w-28 sm:h-28 shrink-0 cursor-pointer select-none">
+            <span x-ref="face" class="relative block w-full h-full" style="transform-origin: 50% 78%">
+                @foreach (['directions', 'reactions'] as $sheet)
+                    <span class="absolute inset-0 bg-no-repeat [background-size:300%_300%]"
+                          style="background-image: url('{{ asset('images/mascot/chakra-'.$sheet.'.webp') }}'); background-position: {{ $sheet === 'directions' ? '50% 50%' : '0% 0%' }}; opacity: {{ $sheet === 'directions' ? 1 : 0 }}"
+                          :style="{ backgroundPosition: face.sheet === '{{ $sheet }}' ? face.at : '{{ $sheet === 'directions' ? '50% 50%' : '0% 0%' }}', opacity: face.sheet === '{{ $sheet }}' ? 1 : 0 }"></span>
+                @endforeach
+            </span>
+        </button>
+        <p class="pb-2 text-xs text-brand-100/50 leading-snug"
+           x-text="typingPassword ? 'Not looking, promise.' : (reaction === 'surprised' ? 'Hmm, try that again?' : (reaction === 'sleepy' ? 'Zzz… type to wake me.' : 'I\'ll keep an eye on it.'))">I'll keep an eye on it.</p>
+    </div>
+
     <h2 class="text-2xl sm:text-3xl font-extrabold">Sign in</h2>
     <p class="mt-2.5 mb-8 text-sm text-brand-100/70">Clients and staff sign in here with the email address the studio set up.</p>
 
@@ -35,4 +55,5 @@
     </form>
 
     <p class="mt-7 text-xs text-brand-100/60">Trouble signing in? Ask the studio to reset your access.</p>
+  </div>
 </x-guest-layout>

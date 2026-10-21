@@ -33,9 +33,6 @@
             if ($module === 'invoices' && request()->routeIs('recurring.*')) {
                 return true;
             }
-            if ($module === 'routines' && request()->routeIs('routines.calendar', 'inbox-desk.*')) {
-                return true;
-            }
             if ($module === 'saas-products' && request()->routeIs('developer.saas-api')) {
                 return true;
             }
@@ -49,26 +46,28 @@
                  it just does not get a fourth top-level Production row of its
                  own. Rendered nested under Shoots below instead. --}}
             @continue($module === 'equipment')
+            {{-- Master Data is not a place anyone goes: it is opened from the
+                 client form (industries) and Portfolio (tags) where it is used. --}}
+            @continue($module === 'taxonomy')
 
             @php
                 // Badges are counts, and a zero is not worth a pill.
                 $badge = isset($config['badge']) ? (int) call_user_func($config['badge']) : 0;
 
-                // Routines leads with "who still owes what", not the list of
-                // definitions -- checking is the daily job, editing is rare.
                 // Shoots leads with the month calendar for the same reason:
                 // "what's happening, and when" is the question someone opens
                 // this for; the filterable list (shoots.index) is still one
                 // click away from there.
                 $href = match (true) {
-                    $module === 'routines' && Route::has('routines.checking') => route('routines.checking'),
                     $module === 'shoots' && Route::has('shoots.calendar') => route('shoots.calendar'),
                     default => route($module.'.index'),
                 };
             @endphp
             <x-sidebar-link :icon="$config['icon'] ?? 'document'"
                             :href="$href"
-                            :active="request()->routeIs($module.'.*')">
+                            :active="request()->routeIs($module.'.*')
+                                || ($module === 'planner' && request()->routeIs('content-dashboard.*'))
+                                || ($module === 'shoots' && request()->routeIs('my.shoots*'))">
                 {{ $config['label'] }}
                 @if ($badge > 0)
                     <span class="ml-auto shrink-0 inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-brand-400 text-brand-900 text-[11px] font-bold">
@@ -84,20 +83,6 @@
             @if ($module === 'invoices' && Route::has('recurring.index') && auth()->user()?->can('invoices.manage'))
                 <x-sidebar-link icon="refresh" :href="route('recurring.index')" :active="request()->routeIs('recurring.*')">
                     Recurring
-                </x-sidebar-link>
-            @endif
-
-            {{-- Admins reach the Inbox Check from here; employees on the
-                 routine get it under My work instead. --}}
-            @if ($module === 'routines' && $isAdmin && Route::has('inbox-desk.index'))
-                <x-sidebar-link icon="inbox" :href="route('inbox-desk.index')" :active="request()->routeIs('inbox-desk.*')">
-                    Inbox Check
-                </x-sidebar-link>
-            @endif
-
-            @if ($module === 'routines' && Route::has('routines.calendar'))
-                <x-sidebar-link icon="calendar" :href="route('routines.calendar')" :active="request()->routeIs('routines.calendar')">
-                    Calendar
                 </x-sidebar-link>
             @endif
 

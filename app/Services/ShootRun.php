@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Script;
 use App\Models\Shoot;
 use App\Models\ShootVideo;
 use App\Models\User;
@@ -10,6 +11,8 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use App\Support\PublicUpload;
 use RuntimeException;
+
+use function Illuminate\Support\defer;
 
 /**
  * Running a shoot: starting it, filing each video, wrapping it.
@@ -22,6 +25,67 @@ use RuntimeException;
  */
 class ShootRun
 {
+    /** A video with the same name on the same shoot within this many minutes is the same video. */
+    public const DUPLICATE_WINDOW_MINUTES = 2;
+
+    /**
+     * The crew have set off for the location. Like reached(): anyone on the
+     * shoot may say so, the first one counts, and a shoot already reached or
+     * wrapped has nothing to set off for.
+     *
+     * @throws RuntimeException when the shoot has already wrapped
+     */
+    public static function depart(Shoot $shoot, User $crewMember): void
+    {
+        if ($shoot->hasWrapped()) {
+            throw new RuntimeException('This shoot has already been wrapped.');
+        }
+
+        if ($shoot->hasDeparted() || $shoot->hasReached()) {
+            return;
+        }
+
+        $shoot->forceFill([
+            'departed_at' => now(),
+            'departed_by_id' => $crewMember->id,
+        ])->save();
+    }
+
+    /**
+     * The crew are on location. Anyone on the shoot may say so -- director,
+     * camera, whoever gets there first -- and the first one to say it is the
+     * one recorded; a second tap from someone else is not news.
+     *
+     * @throws RuntimeException when the shoot has already wrapped
+     */
+    public static function reached(Shoot $shoot, User $crewMember): void
+    {
+        if ($shoot->hasWrapped()) {
+            throw new RuntimeException('This shoot has already been wrapped.');
+        }
+
+        if ($shoot->hasReached()) {
+            return;
+        }
+
+        $shoot->forceFill([
+            'reached_at' => now(),
+            'reached_by_id' => $crewMember->id,
+        ])->save();
+
+        self::announceReached($shoot, $crewMember);
+    }
+
+    /**
+     * Tell the studio, once per shoot. After the response, because the person
+     * tapping is standing on location on a phone signal, and a producer's
+     * WhatsApp delivery is not something they should wait on.
+     */
+    private static function announceReached(Shoot $shoot, User $crewMember): void
+    {
+        defer(fn () => ShootReachedAlert::send($shoot, $crewMember));
+    }
+
     /**
      * Begin the shoot.
      *
@@ -48,6 +112,8 @@ class ShootRun
          * signal is the normal way this gets called twice. Without the lock
          * both reads see "nothing running" and both write a start.
          */
+        $firstArrival = ! $shoot->hasReached();
+
         DB::transaction(function () use ($shoot, $crewMember) {
             $running = self::runningFor($crewMember, lock: true)->first();
 
@@ -57,7 +123,10 @@ class ShootRun
                 );
             }
 
+            // Rolling means they got there, even if nobody tapped Reached.
             $shoot->forceFill([
+                'reached_at' => $shoot->reached_at ?? now(),
+                'reached_by_id' => $shoot->reached_by_id ?? $crewMember->id,
                 'started_at' => now(),
                 'finished_at' => null,
                 'started_by_id' => $crewMember->id,
@@ -65,6 +134,11 @@ class ShootRun
         });
 
         NotionShootStatus::push($shoot, NotionShootStatus::SHOOTING);
+
+        // Nobody tapped Reached -- starting is the arrival, so say so once.
+        if ($firstArrival) {
+            self::announceReached($shoot, $crewMember);
+        }
     }
 
     /**
@@ -79,6 +153,8 @@ class ShootRun
         string $name,
         ?UploadedFile $photo = null,
         ?string $notes = null,
+        ?int $scriptId = null,
+        ?array $sectionLog = null,
     ): ShootVideo {
         /*
          * Two different refusals, because "not in progress" covers two
@@ -98,21 +174,50 @@ class ShootRun
         // table during an upload is not.
         $photoPath = $photo ? PublicUpload::store($photo, 'shoot-videos') : null;
 
-        return DB::transaction(function () use ($shoot, $crewMember, $name, $photoPath, $notes) {
+        $video = DB::transaction(function () use ($shoot, $crewMember, $name, $photoPath, $notes, $scriptId, $sectionLog) {
             $position = (int) ShootVideo::query()
                 ->where('shoot_id', $shoot->id)
                 ->lockForUpdate()
                 ->max('position');
 
+            // The same video sent twice -- a double tap on a slow signal, two
+            // requests a moment apart -- is one video. Under the lock above,
+            // so two at once cannot both miss each other. A real second take
+            // of a script, minutes later, is still its own video.
+            $twin = ShootVideo::query()
+                ->where('shoot_id', $shoot->id)
+                ->where('name', $name)
+                ->when($scriptId, fn ($q) => $q->where('script_id', $scriptId), fn ($q) => $q->whereNull('script_id'))
+                ->where('created_at', '>=', now()->subMinutes(self::DUPLICATE_WINDOW_MINUTES))
+                ->first();
+            if ($twin) {
+                return $twin;
+            }
+
             return ShootVideo::create([
                 'shoot_id' => $shoot->id,
+                'script_id' => $scriptId,
                 'recorded_by_id' => $crewMember->id,
                 'name' => $name,
                 'photo_path' => $photoPath,
                 'notes' => $notes,
+                'section_log' => $sectionLog ?: null,
+                'seconds' => $sectionLog ? array_sum(array_column($sectionLog, 'seconds')) : null,
                 'position' => $position + 1,
             ]);
         });
+
+        // The twin kept its own still; this one's upload is not needed.
+        if ($photoPath && $video->photo_path !== $photoPath) {
+            PublicUpload::delete($photoPath);
+        }
+
+        // Recording a script's video means the script is done.
+        if ($video->script_id) {
+            Script::find($video->script_id)?->markRecorded($video->created_at);
+        }
+
+        return $video;
     }
 
     /**

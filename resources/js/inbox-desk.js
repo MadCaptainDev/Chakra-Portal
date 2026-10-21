@@ -1,5 +1,5 @@
 /*
- * The Inbox Check screen (resources/views/inbox-desk/index.blade.php).
+ * The Comment & Message Checker screen (resources/views/inbox-desk/index.blade.php).
  *
  * One tap per tile, saved the moment it is made -- no form, no Save button.
  * The tile turns green before the server answers (optimistic), and the
@@ -131,6 +131,17 @@ export function inboxDesk(config) {
                     await this.check(routine, account, cp, cp.field ? 0 : null);
                 }
             }
+        },
+
+        // ---- rounds: one tap starts the clock, the last tick stops it ------
+        async startRound(routine, r) {
+            const data = await this.call(this.routes.round, { routine_id: routine.id, round: r.round });
+            if (data) this.toast(data.message);
+        },
+        roundRun(r) {
+            if (!r.started_ms) return '';
+            const m = Math.max(0, Math.floor((this.now - r.started_ms) / 60000));
+            return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m} min`;
         },
 
         async undo(routine, account, cp) {

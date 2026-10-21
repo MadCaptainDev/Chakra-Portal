@@ -5,10 +5,14 @@ import { whatsappInboxThread } from './whatsapp-inbox.js';
 import { proposalComment } from './proposal.js';
 import { proposalEditor, registerEditDirective } from './proposal-editor.js';
 import { installBanner } from './install.js';
-import { videoChecker } from './video-check.js';
 import { notionConnections } from './notion-connections.js';
 import { inboxDesk } from './inbox-desk.js';
 import { serviceExplorer, hoursPipeline } from './home-studio.js';
+import { loginMascot } from './login-mascot.js';
+import { editingDay } from './editing-day.js';
+import { editorTimeline } from './editor-timeline.js';
+import { plannerWeb } from './planner-web.js';
+import { shootScripts, shootLive } from './shoot-scripts.js';
 
 window.Alpine = Alpine;
 
@@ -21,6 +25,14 @@ Alpine.data('whatsappInboxThread', whatsappInboxThread);
 // The public proposal's comment boxes -- see resources/js/proposal.js.
 Alpine.data('proposalComment', proposalComment);
 
+// The editors' video board -- see resources/js/editing-day.js.
+Alpine.data('editingDay', editingDay);
+// The live timeline on Editor Updates -- see resources/js/editor-timeline.js.
+Alpine.data('editorTimeline', editorTimeline);
+Alpine.data('plannerWeb', plannerWeb);
+Alpine.data('shootScripts', shootScripts);
+Alpine.data('shootLive', shootLive);
+
 // The proposal editor: the document typed into directly -- see
 // resources/js/proposal-editor.js. x-edit is its contenteditable binding.
 registerEditDirective(Alpine);
@@ -30,8 +42,6 @@ Alpine.data('proposalEditor', proposalEditor);
 // resources/js/install.js.
 Alpine.data('installBanner', installBanner);
 
-// The Video Checker page -- see resources/js/video-check.js.
-Alpine.data('videoChecker', videoChecker);
 
 // The Notion ↔ Clients screen -- see resources/js/notion-connections.js.
 Alpine.data('notionConnections', notionConnections);
@@ -42,6 +52,9 @@ Alpine.data('inboxDesk', inboxDesk);
 // The homepage's What we do and How we work -- see resources/js/home-studio.js.
 Alpine.data('serviceExplorer', serviceExplorer);
 Alpine.data('hoursPipeline', hoursPipeline);
+
+// The sign-in page's mascot -- see resources/js/login-mascot.js.
+Alpine.data('loginMascot', loginMascot);
 
 Alpine.start();
 

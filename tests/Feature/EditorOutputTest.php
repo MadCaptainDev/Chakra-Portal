@@ -350,7 +350,7 @@ class EditorOutputTest extends TestCase
 
         $this->actingAs($admin)->get(route('editors.index'))
             ->assertOk()
-            ->assertSee('Editor Output')
+            ->assertSee('Editor Updates')
             ->assertSee('Sanjai')
             ->assertSee('Reels')
             ->assertSee('Posts')

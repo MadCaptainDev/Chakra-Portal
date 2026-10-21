@@ -68,6 +68,14 @@ Route::prefix('webhooks')->name('webhooks.')->group(function (): void {
 });
 
 /*
+ * Notion. One POST: the one-time verification token, then signed page
+ * events. The signature is checked inside the controller because the key
+ * is that verification token, which only the controller knows how to keep.
+ */
+Route::post('webhooks/notion', [\App\Http\Controllers\NotionWebhookController::class, 'receive'])
+    ->name('webhooks.notion');
+
+/*
  * Where a person checks what became of their deletion request. Public, and
  * unauthenticated on purpose -- they have no account here, which is rather the
  * point of having asked.

@@ -50,7 +50,17 @@ class TimesheetController extends Controller
             $request->user()
         );
 
+        // Today's work as they already recorded it elsewhere, as rows to add.
+        $hintDay = today();
+        $hints = \App\Support\TimesheetHints::for($request->user(), $hintDay);
+        if (collect($hints)->where('logged', false)->isEmpty() && now()->hour < 12) {
+            $hintDay = today()->subDay();
+            $hints = \App\Support\TimesheetHints::for($request->user(), $hintDay);
+        }
+
         return view('my.timesheet', [
+            'hints' => $hints,
+            'hintDay' => $hintDay,
             'month' => $month,
             'entries' => $entries,
             'flags' => $flags,

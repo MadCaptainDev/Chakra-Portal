@@ -95,6 +95,10 @@ class Todo extends Model
         'notes',
         'starts_on',
         'due_on',
+        'parent_id',
+        'content_item_id',
+        'kind',
+        'post_url',
     ];
 
     /**
@@ -114,6 +118,10 @@ class Todo extends Model
         'due_on' => 'date',
         'closed_on' => 'date',
         'reviewed_at' => 'datetime',
+        'posted_at' => 'datetime',
+        'ready_at' => 'datetime',
+        'publish_at' => 'datetime',
+        'publish_reminded_at' => 'datetime',
     ];
 
     /** Whose job it is. The board is grouped by this. */
@@ -138,6 +146,110 @@ class Todo extends Model
     public function updates(): HasMany
     {
         return $this->hasMany(TodoUpdate::class)->orderBy('created_at')->orderBy('id');
+    }
+
+    /**
+     * Where a reviewed video went -- see the My Editing screen. Posted as one
+     * of the first three, or Delivered: handed to the client, not posted by us.
+     */
+    public const KINDS = ['reel' => 'Reel', 'post' => 'Post', 'story' => 'Story', 'delivered' => 'Delivered'];
+
+    public const POST_KINDS = ['reel', 'post', 'story'];
+
+    public const KIND_DELIVERED = 'delivered';
+
+    /** The video a correction belongs to. */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    /** Corrections to this video, oldest first. */
+    public function corrections(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_id')->orderBy('id');
+    }
+
+    public function contentItem(): BelongsTo
+    {
+        return $this->belongsTo(ContentItem::class);
+    }
+
+    /**
+     * Chakra Planner shows who is editing a planner item and how far they
+     * are (ContentItem::editingTodos). Touching the item when its card moves
+     * is what puts that change in the app's ?updated_since= and, through
+     * ContentItem's own saved hook, in the live event.
+     */
+    protected static function booted(): void
+    {
+        static::saved(function (self $todo) {
+            if ($todo->content_item_id && $todo->parent_id === null
+                && ($todo->wasRecentlyCreated || $todo->wasChanged(['status', 'posted_at', 'ready_at', 'publish_at', 'user_id', 'content_item_id']))) {
+                ContentItem::query()->find($todo->content_item_id)?->touch();
+            }
+        });
+    }
+
+    public function postedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'posted_by_id');
+    }
+
+    public function isPosted(): bool
+    {
+        return $this->posted_at !== null;
+    }
+
+    /** Approved in review, waiting to be published at publish_at. */
+    public function isReady(): bool
+    {
+        return $this->status === self::STATUS_COMPLETED && $this->ready_at !== null && $this->posted_at === null;
+    }
+
+    /** Ready and past its publish time with nothing posted. */
+    public function isLateToPublish(?Carbon $now = null): bool
+    {
+        return $this->isReady() && $this->publish_at !== null && $this->publish_at->lt($now ?? now());
+    }
+
+    /** The four stages after Done, as the screens name them. */
+    public function stage(): ?string
+    {
+        return match (true) {
+            $this->status !== self::STATUS_COMPLETED => null,
+            $this->posted_at !== null => $this->kind === self::KIND_DELIVERED ? 'delivered' : 'posted',
+            $this->ready_at !== null => 'ready',
+            default => 'review',
+        };
+    }
+
+    /**
+     * Minutes spent in Started, from the status history: every stretch
+     * between moving to started and moving away from it, the open one up to
+     * now. Needs `updates` loaded to avoid a query each.
+     */
+    public function workingMinutes(): int
+    {
+        $total = 0;
+        $since = null;
+        foreach ($this->updates as $u) {
+            if ($u->action !== TodoUpdate::STATUS && $u->action !== TodoUpdate::CREATED) {
+                continue;
+            }
+            $to = $u->to_status;
+            if ($to === self::STATUS_STARTED && $since === null) {
+                $since = $u->created_at;
+            } elseif ($to !== self::STATUS_STARTED && $since !== null) {
+                $total += $since->diffInMinutes($u->created_at);
+                $since = null;
+            }
+        }
+        if ($since !== null && $this->status === self::STATUS_STARTED) {
+            $total += $since->diffInMinutes(now());
+        }
+
+        return (int) $total;
     }
 
     /**

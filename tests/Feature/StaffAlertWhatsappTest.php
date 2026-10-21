@@ -81,6 +81,8 @@ class StaffAlertWhatsappTest extends TestCase
         $admin = $this->admin();
         $client = Client::create(['name' => 'SVA Silks and Readymades']);
         ContentAccount::create(['client_id' => $client->id, 'name' => 'Instagram', 'target_reel' => 12]);
+        // Linked to Notion (one reel already out), so it can be counted.
+        \App\Models\ContentItem::factory()->create(['source' => 'reel', 'venture' => $client->name, 'status' => 'Published']);
         // No scheduled/in-progress reels and no upcoming shoot: remaining
         // is 0, depletion date is today -- critical (see
         // ContentForecast::forClient()).

@@ -16,21 +16,26 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
- * The Inbox Check: every account-scoped routine laid out as a grid of
+ * The Comment & Message Checker: every account-scoped routine laid out as a grid of
  * accounts × checkpoints (DMs, Comments) for today, ticked one tile at a time.
  *
  * Nothing here is a new kind of task. The routine engine already schedules,
  * fans out per account and records who did what -- this is the screen, the
- * widget feed and the tap-to-check over it, so the checking board, My
- * Routines and this all read and write the same rows.
+ * widget feed and the tap-to-check over it. Setting it up is
+ * InboxDeskSetupController; the old Routines screens are gone.
  *
- * Access mirrors My Routines exactly: admins see every active routine, anyone
+ * Access: admins see every active routine, anyone
  * else only routines they are permitted on, and only rows that are shared or
  * assigned to them. board(), check() and undo() all start from visible(), so
  * what can be seen and what can be acted on cannot drift apart.
  */
 class InboxDesk
 {
+    /** Evening checks open at this hour (3 PM). */
+    public const EVENING_FROM = 15;
+
+    public const EVENING_LABEL = '3 PM';
+
     /**
      * A webhook feed quieter than this is treated as not set up for the
      * account. Comment webhooks have been known to stop arriving without any
@@ -41,6 +46,7 @@ class InboxDesk
     public function __construct(
         private readonly RoutineCompleter $completer,
         private readonly RoutineOccurrenceGenerator $generator,
+        private readonly CheckRounds $rounds,
     ) {}
 
     /**
@@ -101,12 +107,15 @@ class InboxDesk
                 'accounts_left' => $boards->sum('accounts_left'),
             ],
             'feed' => $this->feed($rows),
+            // Each checker's rounds today, and for admins the last week of them.
+            'rounds' => $this->rounds->today($routines),
+            'week' => $user->isAdmin() && $routines->isNotEmpty() ? $this->rounds->week($routines) : null,
         ];
     }
 
     /**
      * Tick one tile. The tile stands for the oldest open row of its cell; a
-     * cell days behind closes its whole backlog, the same as My Routines --
+     * cell days behind closes its whole backlog, the same as the old My Routines --
      * you checked the inbox, you did not check it once per missed day.
      *
      * The reply count lands on the newest row only. Writing "replied to 6"
@@ -154,6 +163,12 @@ class InboxDesk
             RoutineOccurrence::query()->whereIn('id', $closed)->update(['completed_at' => now()]);
         }
 
+        // The round's clock: started by this tick if nobody tapped Start,
+        // stopped when this was the round's last open tile.
+        if ($closed !== []) {
+            $this->rounds->ticked($user, $target);
+        }
+
         return ['done' => count($closed), 'already' => $already];
     }
 
@@ -171,6 +186,8 @@ class InboxDesk
 
         abort_unless($row && $row->completed_at?->isToday(), 404);
         abort_unless($user->isAdmin() || (int) $row->completed_by === (int) $user->id, 403);
+
+        $this->rounds->unticked($row);
 
         return DB::transaction(fn () => RoutineOccurrence::query()
             ->where('status', RoutineOccurrence::STATUS_DONE)
@@ -266,7 +283,7 @@ class InboxDesk
 
     /**
      * Rows this person may see: on a routine they can see, and shared or
-     * assigned to them. The same rule as My Routines.
+     * assigned to them.
      */
     private function visible(User $user): Builder
     {
@@ -298,6 +315,9 @@ class InboxDesk
             'short' => $this->shortName($cp?->name),
             'kind' => $this->kindOf($cp?->name),
             'field' => $this->countField($routine, $cp?->id),
+            // An "Evening …" check opens in the afternoon, so the day's two rounds
+            // are two rounds and not four taps at ten in the morning.
+            'opens' => $this->isEvening($cp?->name) ? self::EVENING_LABEL : null,
         ])->values();
 
         $accounts = $rows
@@ -309,12 +329,19 @@ class InboxDesk
 
                 $cells = [];
                 foreach ($checkpointRows as $cp) {
-                    $cells[$cp['id']] = $this->cell(
+                    $cell = $this->cell(
                         $user,
                         $accountRows->filter(fn (RoutineOccurrence $o) => (int) $o->checkpoint_id === $cp['id']),
                         $cp['field'],
                         $today,
                     );
+                    // Today's evening check, before it opens: not due yet (a missed
+                    // one from yesterday stays open, late).
+                    if ($cp['opens'] && $cell['state'] === 'open' && $cell['late_days'] === 0 && (int) now()->format('G') < self::EVENING_FROM) {
+                        $cell = ['state' => 'none', 'id' => null, 'late_days' => 0, 'outstanding' => 0, 'by' => null,
+                            'at' => null, 'at_label' => null, 'count' => null, 'can_undo' => false];
+                    }
+                    $cells[$cp['id']] = $cell + ['opens' => $cp['opens']];
                 }
 
                 $due = collect($cells)->reject(fn (array $c) => $c['state'] === 'none');
@@ -528,7 +555,7 @@ class InboxDesk
      * Distinct people who messaged, or comments by anyone but the account,
      * since $since. Null when the account has no such feed at all.
      *
-     * Cached for a minute: every open Inbox Check polls, and the answer moves
+     * Cached for a minute: every open checker polls, and the answer moves
      * at the speed of Instagram, not of the poll.
      */
     private function newActivity(SocialAccount $account, string $kind, Carbon $since): ?int
@@ -617,11 +644,23 @@ class InboxDesk
 
     private function shortName(?string $name): string
     {
+        // "Morning DMs" and "Evening DMs" must not both read "DMs".
+        $round = match (true) {
+            str_contains(mb_strtolower((string) $name), 'morning') => 'Morning ',
+            $this->isEvening($name) => 'Evening ',
+            default => '',
+        };
+
         return match ($this->kindOf($name)) {
-            'messages' => 'DMs',
-            'comments' => 'Comments',
+            'messages' => $round.'DMs',
+            'comments' => $round.'Comments',
             default => $name ?: 'Check',
         };
+    }
+
+    private function isEvening(?string $name): bool
+    {
+        return str_contains(mb_strtolower((string) $name), 'evening');
     }
 
     private function accountName(mixed $subject): ?string

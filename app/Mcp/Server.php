@@ -8,8 +8,12 @@ use App\Models\McpUserLimit;
 use App\Models\User;
 use App\Tools\AdReports;
 use App\Tools\Clients;
+use App\Tools\CreateScript;
 use App\Tools\CreateTodo;
+use App\Tools\GetScript;
+use App\Tools\UpdateScript;
 use App\Tools\DescribeData;
+use App\Tools\Expenses;
 use App\Tools\Finance;
 use App\Tools\FindClient;
 use App\Tools\Insights;
@@ -76,8 +80,10 @@ class Server
         .'silently retry a write that failed. '
         .'6) Timesheets record work already done; to-dos record work still to do. '
         .'7) Proposals: read proposal_guide before writing one. '
-        .'8) There are no tools to record payments, approve invoices, read client passwords or delete '
-        .'clients -- send the person to the portal for those.';
+        .'8) The studio\'s own spending: log_expense for a one-time spend, record_expense_payment to '
+        .'mark an EMI, salary or bill paid (find its id with expenses_due). '
+        .'9) There are no tools to record a payment FROM a client, approve invoices, read client '
+        .'passwords or delete clients -- send the person to the portal for those.';
 
     /**
      * Every tool, in the order a model meets them.
@@ -105,7 +111,25 @@ class Server
             new Shoots\CreateShoot,
             new Shoots\AssignShootCrew,
             new ListScripts,
+            new CreateScript,
+            new GetScript,
+            new UpdateScript,
             new ReelPlannerToday,
+            // Editing and the day's work, by role: an editor's own board and
+            // timesheet hints, the crew's shoots, the admin's/manager's floor.
+            new \App\Tools\Editing\MyEditing,
+            new \App\Tools\Editing\TimesheetHint,
+            new \App\Tools\Shoots\MyShoots,
+            new \App\Tools\Editing\EditorUpdates,
+            // The public website portfolio: list, add a client's top reels, write case studies.
+            new \App\Tools\Portfolio\ListPortfolio,
+            new \App\Tools\Portfolio\AddPortfolioTopReels,
+            new \App\Tools\Portfolio\UpdatePortfolioItem,
+            // Leads, the team, shoots to book and the WhatsApp inbox.
+            new \App\Tools\Studio\ListEnquiries,
+            new \App\Tools\Studio\PostAnnouncement,
+            new \App\Tools\Studio\BookShoots,
+            new \App\Tools\Studio\WhatsappInbox,
             /*
              * Proposals, end to end: writing the document, working through
              * the client's comments, sharing and sending it. MCP only (see
@@ -137,6 +161,11 @@ class Server
             new Finance\MoneyDue,
             new Finance\ClientAdvancesOwed,
             new Finance\LogClientAdvance,
+            // The studio's own outgoings: EMIs, salaries, bills, one-time spends.
+            new Expenses\ExpensesDue,
+            new Expenses\LogExpense,
+            new Expenses\CreateEmi,
+            new Expenses\RecordExpensePayment,
             // Insights, read-only, behind the Insights module.
             new Insights\NeedsAttention,
             new Insights\PaymentBehaviour,
@@ -180,6 +209,7 @@ class Server
             // Through the Gate rather than asking the user directly, so admins
             // are answered by Gate::before exactly as they are everywhere else.
             fn (Tool $tool) => (! $tool->requiresAdmin() || $user->isAdmin())
+                && $tool->availableTo($user)
                 && ($tool->permission() === null
                     || Gate::forUser($user)->allows($tool->permission()))
         ));

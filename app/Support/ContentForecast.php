@@ -70,6 +70,10 @@ class ContentForecast
 
         $bookByDate = $depletionDate?->copy()->subDays(self::EDIT_BUFFER_DAYS);
 
+        // No Notion venture spelling matches this client, so none of their
+        // videos are counted: "0 left" would be a false alarm, not a fact.
+        $linked = $client->contentVentures() !== [];
+
         return [
             'client' => $client,
             'remaining' => $remaining,
@@ -79,7 +83,8 @@ class ContentForecast
             'depletion_date' => $depletionDate,
             'next_shoot_date' => $nextShootDate,
             'book_by_date' => $bookByDate,
-            'status' => self::statusFor($depletionDate, $nextShootDate),
+            'linked' => $linked,
+            'status' => $linked ? self::statusFor($depletionDate, $nextShootDate) : self::STATUS_UNKNOWN,
         ];
     }
 

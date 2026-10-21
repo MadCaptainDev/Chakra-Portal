@@ -30,6 +30,18 @@ class TodoUpdate extends Model
     /** A manager gave a verdict on the finished work. */
     public const REVIEWED = 'reviewed';
 
+    /** A finished video went out (My Editing): the note says where. */
+    public const POSTED = 'posted';
+
+    /** A post was taken back. */
+    public const UNPOSTED = 'unposted';
+
+    /** A reviewed video was handed to the client rather than posted. */
+    public const DELIVERED = 'delivered';
+
+    /** Approved in review: ready, with the time it is to be published (note). */
+    public const READY = 'ready';
+
     /** @var array<string, string> */
     public const ACTIONS = [
         self::CREATED => 'Added',
@@ -37,6 +49,10 @@ class TodoUpdate extends Model
         self::MOVED => 'Moved',
         self::EDITED => 'Edited',
         self::REVIEWED => 'Checked',
+        self::POSTED => 'Posted',
+        self::UNPOSTED => 'Post undone',
+        self::DELIVERED => 'Delivered',
+        self::READY => 'Video ready',
     ];
 
     /**

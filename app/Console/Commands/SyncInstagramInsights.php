@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\SocialAccount;
 use App\Services\Instagram\InstagramException;
 use App\Services\Instagram\InstagramInsights;
+use App\Services\ViewMilestones;
 use Illuminate\Console\Command;
 use Throwable;
 
@@ -68,8 +69,13 @@ class SyncInstagramInsights extends Command
                 continue;
             }
 
+            // Renew the connection before it can expire (see SocialAccount::REFRESH_MARGIN_DAYS).
+            if (app(\App\Services\Instagram\InstagramSyncQueue::class)->renewIfDue($account)) {
+                $this->info('  Connection renewed.');
+            }
+
             try {
-                $result = $insights->syncAll($account, $since, $until);
+                $result = $insights->syncAll($account, $since, $until, mediaSince: now()->subDays(30)->startOfDay());
 
                 $account->forceFill(['last_synced_at' => now()])->save();
                 $account->clearFailure();
@@ -104,6 +110,24 @@ class SyncInstagramInsights extends Command
                 report($e);
                 $this->error('  FAILED — unexpected error, logged.');
             }
+        }
+
+        // New posts are in: pair them with what was planned in Notion.
+        try {
+            app(\App\Services\Instagram\InstagramContentMatcher::class)->matchAll();
+            app(\App\Services\Videos\VideoLinker::class)->run();
+        } catch (Throwable $e) {
+            report($e);
+        }
+
+        // Fresh view counts are in: announce any reel that crossed a milestone.
+        try {
+            $posted = app(ViewMilestones::class)->run();
+            if ($posted > 0) {
+                $this->info("Posted {$posted} views milestone announcement(s).");
+            }
+        } catch (Throwable $e) {
+            report($e);
         }
 
         $this->newLine();

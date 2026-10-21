@@ -6,6 +6,8 @@ use App\Models\ContentItem;
 use App\Models\NotionSetting;
 use App\Models\NotionShoot;
 use App\Services\Instagram\InstagramContentMatcher;
+use App\Services\Planner\PlannerRealtime;
+use App\Services\Planner\PlannerSchema;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 
@@ -62,6 +64,11 @@ class NotionSyncRunner
          */
         app(NotionShootImporter::class)->autoMapClients();
         $matched = app(InstagramContentMatcher::class)->matchAll();
+        try {
+            app(\App\Services\Videos\VideoLinker::class)->run();
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         $status = 'Refreshed from Notion. '.collect($counts)
             ->map(fn (int $count, string $source) => "{$source}: {$count}")
@@ -70,6 +77,10 @@ class NotionSyncRunner
         if ($matched['matched'] > 0) {
             $status .= " Matched {$matched['matched']} to Instagram posts.";
         }
+
+        // Chakra Planner: new colours/options, and one "re-fetch" event for every open app.
+        PlannerSchema::forget();
+        PlannerRealtime::refreshed($status);
 
         return $status;
     }
@@ -94,26 +105,28 @@ class NotionSyncRunner
      * tapping it repeatedly from queuing sync after sync. Shares the lock
      * with ensureFresh(), so the two can never run at once.
      */
-    public static function syncIfOlderThan(int $seconds): void
+    public static function syncIfOlderThan(int $seconds): bool
     {
         if (! NotionSetting::current()->api_key) {
-            return;
+            return false;
         }
 
         $syncedAt = self::lastSyncedAt();
 
         if ($syncedAt !== null && $syncedAt->gt(now()->subSeconds($seconds))) {
-            return;
+            return false;
         }
 
         // TTL comfortably longer than a sync takes, so a request that dies
         // mid-sync cannot leave the lock held until the cache is cleared.
         if (! Cache::add(self::LOCK_KEY, true, now()->addMinutes(5))) {
-            return;
+            return false;
         }
 
         try {
             self::run();
+
+            return true;
         } finally {
             Cache::forget(self::LOCK_KEY);
         }

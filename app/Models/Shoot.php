@@ -41,6 +41,9 @@ class Shoot extends Model
     /** Staff alert for a completed shoot missing from the Reel Planner -- see SeedMissingContentAlertTemplate and SendMissingContentAlerts. */
     public const WHATSAPP_TEMPLATE_MISSING_CONTENT = 'shoot_content_missing_v1';
 
+    /** Staff alert when the crew reach a shoot's location -- see SeedShootReachedTemplate and ShootReachedAlert. */
+    public const WHATSAPP_TEMPLATE_REACHED = 'shoot_crew_reached_v1';
+
     protected $fillable = [
         'title',
         'client_id',
@@ -60,6 +63,8 @@ class Shoot extends Model
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
         'requested_at' => 'datetime',
+        'departed_at' => 'datetime',
+        'reached_at' => 'datetime',
         'started_at' => 'datetime',
         'finished_at' => 'datetime',
         'reminder_sent_at' => 'datetime',
@@ -142,6 +147,28 @@ class Shoot extends Model
     public function startedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'started_by_id');
+    }
+
+    public function reachedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reached_by_id');
+    }
+
+    public function departedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'departed_by_id');
+    }
+
+    /** The crew have set off; may or may not be there yet. */
+    public function hasDeparted(): bool
+    {
+        return $this->departed_at !== null;
+    }
+
+    /** The crew are on location; may or may not be rolling yet. */
+    public function hasReached(): bool
+    {
+        return $this->reached_at !== null;
     }
 
     /**

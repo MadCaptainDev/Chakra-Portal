@@ -99,6 +99,15 @@ abstract class Tool
      * would spend that budget on every "how many hours this week?" for
      * nothing, so they stay on the MCP side.
      */
+    /**
+     * Who the tool exists for, beyond module and admin gates: a manager's
+     * team view, say, belongs to admins and to anyone with reports.
+     */
+    public function availableTo(User $user): bool
+    {
+        return true;
+    }
+
     public function mcpOnly(): bool
     {
         return false;

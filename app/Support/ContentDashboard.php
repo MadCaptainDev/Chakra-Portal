@@ -400,13 +400,7 @@ class ContentDashboard
             return [];
         }
 
-        $metrics = SocialInsight::query()
-            ->selectRaw('social_media_item_id, metric, SUM(value) as total')
-            ->whereIn('social_media_item_id', $linked->pluck('social_media_item_id'))
-            ->whereIn('metric', ['reach', 'views', 'likes'])
-            ->groupBy('social_media_item_id', 'metric')
-            ->get()
-            ->groupBy('social_media_item_id');
+        $metrics = SocialInsight::latestPerItem($linked->pluck('social_media_item_id'), ['reach', 'views', 'likes']);
 
         $out = [];
 
@@ -420,8 +414,8 @@ class ContentDashboard
             $out[$accountId] ??= ['items' => 0, 'reach' => 0, 'views' => 0, 'likes' => 0];
             $out[$accountId]['items']++;
 
-            foreach ($metrics->get($item->social_media_item_id, collect()) as $metric) {
-                $out[$accountId][$metric->metric] += (int) $metric->total;
+            foreach ($metrics[$item->social_media_item_id] ?? [] as $metric => $value) {
+                $out[$accountId][$metric] += $value;
             }
         }
 
@@ -616,12 +610,8 @@ class ContentDashboard
             return [];
         }
 
-        $views = SocialInsight::query()
-            ->selectRaw('social_media_item_id, SUM(value) as total')
-            ->whereIn('social_media_item_id', $linked->pluck('social_media_item_id'))
-            ->where('metric', 'views')
-            ->groupBy('social_media_item_id')
-            ->pluck('total', 'social_media_item_id');
+        $views = collect(SocialInsight::latestPerItem($linked->pluck('social_media_item_id'), ['views']))
+            ->map(fn (array $metrics) => $metrics['views'] ?? 0);
 
         $best = [];
 
@@ -708,7 +698,7 @@ class ContentDashboard
                 // include a row per metric per day, and the page was loading
                 // all of them to display three numbers.
                 'socialMediaItem.insights' => fn ($q) => $q->whereIn('metric', ['reach', 'views', 'likes']),
-                'notionShoot', 'assignedUser', 'scriptRecord',
+                'notionShoot', 'assignedUser', 'scriptRecord', 'video.shortItem', 'shortOf.contentItem',
             ])
             ->whereIn('venture', $account->ventureNames() ?: ['__none__'])
             ->whereNotNull('published_date')

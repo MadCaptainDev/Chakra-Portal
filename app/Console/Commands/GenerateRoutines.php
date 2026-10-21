@@ -7,9 +7,9 @@ use Illuminate\Console\Command;
 
 class GenerateRoutines extends Command
 {
-    protected $signature = 'routines:generate';
+    protected $signature = 'inbox-check:generate';
 
-    protected $description = 'Generate open routine occurrences for every active routine that is due, catching up within catch_up_days.';
+    protected $description = 'Generate the Comment & Message Checker's open checks for today, catching up within catch_up_days.';
 
     public function handle(RoutineOccurrenceGenerator $generator): int
     {
