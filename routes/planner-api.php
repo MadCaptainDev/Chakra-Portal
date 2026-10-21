@@ -41,6 +41,7 @@ Route::prefix('api/planner')->name('api.planner.')->group(function () {
 
         Route::get('items', [PlannerItemController::class, 'index'])->name('items.index');
         Route::get('items/{item}', [PlannerItemController::class, 'show'])->whereNumber('item')->name('items.show');
+        Route::get('items/{item}/script', [\App\Http\Controllers\Api\Planner\PlannerScriptController::class, 'show'])->whereNumber('item')->name('items.script');
         Route::patch('items/{item}', [PlannerItemController::class, 'update'])->whereNumber('item')->name('items.update');
 
         Route::post('app/releases', [PlannerReleaseController::class, 'store'])->name('app.releases.store');

@@ -262,6 +262,20 @@ The item plus the heavy fields, for the side panel:
 `history` is the newest 50 changes. `field` is `published_date` or `status`.
 `by` is `null` for changes made in Notion.
 
+### `GET /items/{id}/script`: the portal script (needs `view`)
+
+The script written in the portal (Writing) for this item, read-only.
+
+```json
+{ "script": { "id": 258, "title": "Knee Cracking Sound — Is It Arthritis?", "status": "completed",
+  "updated_at": "2026-10-16T12:30:00+05:30", "url": "https://chakragroups.in/writing/258",
+  "sections": [ { "heading": "Hook", "body": "<p>…</p>" } ] } }
+```
+
+`sections`: every section in order, `body` the stored HTML as is. Several scripts
+on one item: the newest `updated_at`. **404 with `code: "no_script"`**: the item
+exists but has no portal script (fall back to Notion's `script`). 404 without a
+code: no such item.
 ### `PATCH /items/{id}`: move the publish date (needs `edit`)
 
 ```json

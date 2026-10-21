@@ -535,4 +535,34 @@ class PlannerApiTest extends TestCase
         $this->assertNotNull(\App\Models\Todo::find($id)->posted_at);
         $this->assertSame($other->id, \App\Models\Todo::find($id)->posted_by_id);
     }
+    // ——— The portal script for an item ———
+
+    public function test_the_app_reads_an_items_portal_script(): void
+    {
+        $this->grant($this->editor, 'view');
+        $reel = $this->reel();
+        $script = \App\Models\Script::create(['title' => 'Knee Cracking Sound — Is It Arthritis?', 'status' => \App\Models\Script::STATUS_COMPLETED, 'priority' => \App\Models\Script::PRIORITY_NORMAL, 'content_item_id' => $reel->id]);
+        foreach ([['Hook', '<p>Unga knee-la sound varudha?</p>'], ['CTA', '<p>Follow</p>']] as $i => [$heading, $body]) {
+            $section = $script->sections()->make(['heading' => $heading]);
+            $section->position = $i;
+            $section->body = $body;
+            $section->save();
+        }
+        $token = $this->token($this->editor);
+
+        $this->api($token)->getJson(route('api.planner.items.script', $reel->id))->assertOk()
+            ->assertJsonPath('script.id', $script->id)
+            ->assertJsonPath('script.url', route('scripts.show', $script->id))
+            ->assertJsonPath('script.sections.0.heading', 'Hook')
+            ->assertJsonPath('script.sections.0.body', '<p>Unga knee-la sound varudha?</p>')
+            ->assertJsonCount(2, 'script.sections');
+
+        $bare = $this->reel(['notion_page_id' => 'page-2', 'title' => 'No script yet']);
+        $this->api($token)->getJson(route('api.planner.items.script', $bare->id))->assertNotFound()->assertJsonPath('code', 'no_script');
+        $this->api($token)->getJson(route('api.planner.items.script', 999999))->assertNotFound()->assertJsonMissingPath('code');
+
+        // A widget-only account (no Chakra Planner "view") is refused like the other planner routes.
+        $widget = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'email' => 'widget@chakra.test', 'password' => 'secret-pass']);
+        $this->api($this->token($widget))->getJson(route('api.planner.items.script', $reel->id))->assertForbidden()->assertJsonPath('code', 'no_access');
+    }
 }
