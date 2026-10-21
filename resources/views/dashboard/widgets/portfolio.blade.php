@@ -20,7 +20,10 @@
     <section class="space-y-3" aria-labelledby="w-portfolio">
         <div class="flex items-baseline justify-between gap-3">
             <h2 id="w-portfolio" class="text-[17px] font-semibold text-white">Ready for the portfolio <span class="font-normal text-brand-100/55">· reels that crossed 10K+</span></h2>
-            <a href="{{ route('portfolio.index') }}" class="text-[13px] text-brand-300 hover:text-white">Portfolio</a>
+            <span class="flex gap-3">
+                <a href="{{ route('instagram-sync.index') }}" class="text-[13px] text-brand-300 hover:text-white">↻ Sync Instagram</a>
+                <a href="{{ route('portfolio.index') }}" class="text-[13px] text-brand-300 hover:text-white">Portfolio</a>
+            </span>
         </div>
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
             @foreach ($ready as $m)

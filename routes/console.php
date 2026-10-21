@@ -37,6 +37,10 @@ Schedule::command('notion:sync-content')->dailyAt('01:00')->timezone(config('app
 // clear of the 8am invoices job.
 Schedule::command('instagram:sync --force')->dailyAt('02:00')->timezone(config('app.timezone'));
 
+// "Sync all Instagram" (InstagramSyncQueue): one account at a time, a minute's
+// work per tick, so the button never holds a page open.
+Schedule::command('instagram:work-queue')->everyMinute()->withoutOverlapping(5);
+
 // The homepage's client Instagram grids, copied locally once the sync above
 // has fresh URLs (Instagram's expire) -- see App\Support\InstagramGrid.
 Schedule::command('home:refresh-grid')->dailyAt('03:00')->timezone(config('app.timezone'));

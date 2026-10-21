@@ -69,6 +69,11 @@ class SyncInstagramInsights extends Command
                 continue;
             }
 
+            // Renew the connection before it can expire (see SocialAccount::REFRESH_MARGIN_DAYS).
+            if (app(\App\Services\Instagram\InstagramSyncQueue::class)->renewIfDue($account)) {
+                $this->info('  Connection renewed.');
+            }
+
             try {
                 $result = $insights->syncAll($account, $since, $until, mediaSince: now()->subDays(30)->startOfDay());
 

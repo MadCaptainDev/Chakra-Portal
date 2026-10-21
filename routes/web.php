@@ -1028,6 +1028,10 @@ Route::middleware(['auth', 'module:insights,view'])->group(function () {
 Route::middleware(['auth', 'admin'])->group(function () {
     // Money, on one screen: in, out, overdue, to come in, to pay. Admin only.
     Route::get('money', [\App\Http\Controllers\MoneyOverviewController::class, 'index'])->name('money.index');
+    // Sync all Instagram, as a queue (InstagramSyncQueue).
+    Route::get('instagram-sync', [\App\Http\Controllers\InstagramSyncController::class, 'index'])->name('instagram-sync.index');
+    Route::post('instagram-sync', [\App\Http\Controllers\InstagramSyncController::class, 'store'])->middleware('throttle:6,1')->name('instagram-sync.store');
+    Route::get('instagram-sync/status', [\App\Http\Controllers\InstagramSyncController::class, 'status'])->name('instagram-sync.status');
     Route::get('studio-map', [StudioMapController::class, 'index'])->name('studio-map');
     Route::redirect('daily-checks', '/editor-updates');
     Route::get('studio-map/data', [StudioMapController::class, 'data'])->name('studio-map.data');

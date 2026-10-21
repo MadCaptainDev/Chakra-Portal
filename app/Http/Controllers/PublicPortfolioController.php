@@ -37,6 +37,8 @@ class PublicPortfolioController extends Controller
             // view, which is not filtered by category at all.
             ->reject(fn (PortfolioItem $item) => $item->portfolio_category_id
                 && ! $categories->contains('id', $item->portfolio_category_id))
+            // Nothing to show yet (an Instagram piece still waiting for its cover).
+            ->reject(fn (PortfolioItem $item) => $item->social_media_item_id && ! $item->thumbnailUrl() && ! $item->isUploaded())
             // A fresh order every visit, so every client's work gets seen;
             // featured pieces still lead.
             ->shuffle()

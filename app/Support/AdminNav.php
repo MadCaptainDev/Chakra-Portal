@@ -47,6 +47,7 @@ class AdminNav
                 self::module($user, 'proposals'),
                 self::module($user, 'quotations'),
                 self::module($user, 'portfolio'),
+                self::link('instagram-sync', 'Instagram sync', 'refresh', 'instagram-sync.index', ['instagram-sync.*']),
                 self::module($user, 'whatsapp-crm', ['whatsapp-crm.*'], 'whatsapp-crm.inbox.index', [
                     self::link('wa-activity', 'Activity', 'calendar', 'whatsapp-crm.activity.index', ['whatsapp-crm.activity.*']),
                     self::link('wa-campaigns', 'Campaigns', 'megaphone', 'whatsapp-crm.campaigns.index', ['whatsapp-crm.campaigns.*']),

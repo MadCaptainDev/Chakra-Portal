@@ -66,6 +66,23 @@ class TopReelsImporter
         return $item;
     }
 
+    /** Pieces from this account still without a cover get one (after a sync renews the links). */
+    public function fillMissingCovers(SocialAccount $account): int
+    {
+        $filled = 0;
+        PortfolioItem::query()->whereNull('thumbnail_path')
+            ->whereIn('social_media_item_id', $account->socialMediaItems()->select('id'))
+            ->with('socialMediaItem')->get()
+            ->each(function (PortfolioItem $item) use ($account, &$filled) {
+                if ($path = $this->cover($item->socialMediaItem, $account)) {
+                    $item->forceFill(['thumbnail_path' => $path])->save();
+                    $filled++;
+                }
+            });
+
+        return $filled;
+    }
+
     /**
      * The reel's cover, saved locally. Instagram's CDN links expire after a
      * few days, so an older cached one is asked for again before giving up.
