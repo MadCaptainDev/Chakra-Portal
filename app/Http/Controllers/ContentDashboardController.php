@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\ContentAccount;
+use App\Models\ContentItem;
 use App\Models\User;
+use App\Services\ReelPerformanceNudge;
+use RuntimeException;
 use App\Services\Notion\NotionSyncRunner;
 use App\Support\ContentDashboard;
 use Illuminate\Http\JsonResponse;
@@ -94,6 +97,34 @@ class ContentDashboardController extends Controller
             'activeStatuses' => $statuses,
             'statusGroups' => ContentDashboard::STATUS_GROUPS,
             'staff' => User::staff()->orderBy('name')->get(),
+            'goodViewsThreshold' => ReelPerformanceNudge::threshold(
+                ContentDashboard::itemsFor($contentAccount, $month, ['Published'])
+            ),
+        ]);
+    }
+
+    /**
+     * Tell the account's client one of their videos is getting good views.
+     */
+    public function nudge(Request $request, ContentAccount $contentAccount, ContentItem $contentItem): RedirectResponse
+    {
+        $client = $contentAccount->client;
+
+        if (! $client || ! in_array($contentItem->venture, $contentAccount->ventureNames(), true)) {
+            abort(404);
+        }
+
+        try {
+            $conversation = app(ReelPerformanceNudge::class)->send($client, $contentItem, $request->user());
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with([
+            'status' => 'Sent '.$client->name.' a note that "'.($contentItem->title ?: 'this video').'" is doing well.',
+            'whatsapp_crm_url' => $request->user()->can('whatsapp-crm.view')
+                ? route('whatsapp-crm.inbox.show', $conversation)
+                : null,
         ]);
     }
 

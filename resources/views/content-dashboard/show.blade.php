@@ -194,6 +194,7 @@
                                 <th class="px-3 py-2.5 text-right">Reach</th>
                                 <th class="px-3 py-2.5 text-right">Views</th>
                                 <th class="px-3 py-2.5 text-right">Likes</th>
+                                <th class="px-3 py-2.5"></th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-white/10">
@@ -271,6 +272,27 @@
                                             @endif
                                         </td>
                                     @endforeach
+                                    <td class="px-3 py-2.5 whitespace-nowrap">
+                                        @php
+                                            $views = $media?->metricValue('views');
+                                            $doingWell = $goodViewsThreshold !== null
+                                                && $views !== null
+                                                && $views >= $goodViewsThreshold;
+                                        @endphp
+                                        @if ($doingWell)
+                                            <span class="block text-[10px] font-semibold uppercase tracking-wider text-green-300 mb-1">Doing well</span>
+                                            @if ($account->client?->phone)
+                                                <form method="POST"
+                                                      action="{{ route('content-dashboard.nudge', [$account, $item]) }}"
+                                                      onsubmit="return confirm('Send {{ $account->client->name }} a WhatsApp saying this video is doing well?')">
+                                                    @csrf
+                                                    <x-secondary-button type="submit">Nudge client</x-secondary-button>
+                                                </form>
+                                            @else
+                                                <span class="text-[11px] text-brand-100/40">No client phone</span>
+                                            @endif
+                                        @endif
+                                    </td>
                                 </tr>
                             @endforeach
                         </tbody>
