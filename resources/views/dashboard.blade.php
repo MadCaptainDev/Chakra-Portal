@@ -41,8 +41,7 @@
              renders nothing -- visibility and "is there anything to show"
              are two different questions. ——— --}}
         @foreach ($dashboardWidgets as $widget)
-            {{-- Needs attention is the Today block's "Needs you" now. --}}
-            @if ($widget['visible'] && $widget['key'] !== 'needs_attention')
+            @if ($widget['visible'])
                 @include('dashboard.widgets.'.$widget['key'])
             @endif
         @endforeach

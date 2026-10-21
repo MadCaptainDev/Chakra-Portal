@@ -28,8 +28,6 @@ class TopReelsImporter
         }
 
         $taken = PortfolioItem::query()->whereNotNull('social_media_item_id')->pluck('social_media_item_id')->flip();
-        $category = PortfolioItem::query()->where('client_id', $client->id)->whereNotNull('portfolio_category_id')->value('portfolio_category_id');
-        $format = TaxonomyTerm::where('type', TaxonomyTerm::TYPE_FORMAT)->where('name', '9:16 vertical')->value('id');
 
         $picks = $account->socialMediaItems()->with('insights')->get()
             ->filter(fn (SocialMediaItem $m) => $m->isReel() && $m->metricValue('views'))
@@ -39,23 +37,33 @@ class TopReelsImporter
             ->take($count)
             ->reject(fn (SocialMediaItem $m) => $taken->has($m->id));
 
-        $added = [];
-        foreach ($picks as $media) {
-            $item = PortfolioItem::create([
-                'client_id' => $client->id,
-                'portfolio_category_id' => $category,
-                'format_id' => $format,
-                'title' => self::title($media, $client),
-                'thumbnail_path' => $this->cover($media, $account),
-                'is_visible' => true,
-                'sort_order' => 0,
-            ]);
-            $item->mapToInstagram($media);
-            $item->refreshFromInstagram($media);
-            $added[] = $item;
+        return $picks->map(fn (SocialMediaItem $media) => $this->addMedia($client, $media))->values()->all();
+    }
+
+    /**
+     * One reel into the portfolio (or the piece already made from it): the
+     * client's usual category, 9:16, its cover saved, mapped to its post.
+     */
+    public function addMedia(Client $client, SocialMediaItem $media): PortfolioItem
+    {
+        if ($existing = PortfolioItem::where('social_media_item_id', $media->id)->first()) {
+            return $existing;
         }
 
-        return $added;
+        $account = $media->socialAccount;
+        $item = PortfolioItem::create([
+            'client_id' => $client->id,
+            'portfolio_category_id' => PortfolioItem::query()->where('client_id', $client->id)->whereNotNull('portfolio_category_id')->value('portfolio_category_id'),
+            'format_id' => TaxonomyTerm::where('type', TaxonomyTerm::TYPE_FORMAT)->where('name', '9:16 vertical')->value('id'),
+            'title' => self::title($media, $client),
+            'thumbnail_path' => $this->cover($media, $account),
+            'is_visible' => true,
+            'sort_order' => 0,
+        ]);
+        $item->mapToInstagram($media);
+        $item->refreshFromInstagram($media);
+
+        return $item;
     }
 
     /**

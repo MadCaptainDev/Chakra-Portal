@@ -885,6 +885,9 @@ Route::middleware(['auth', 'module:portfolio,view'])->group(function () {
     // see PortfolioItemController::instagramMedia(). Sits at `view` like the
     // rest of this group; the controller itself asserts create-or-edit, since
     // there is no single ability that names "can see the picker".
+    // One client reel straight into the portfolio (the dashboard's "Ready for the portfolio").
+    Route::post('portfolio-items/from-instagram/{media}', [PortfolioItemController::class, 'addFromInstagram'])
+        ->middleware('module:portfolio,create')->name('portfolio.add-media');
     Route::get('portfolio-items/instagram-media', [PortfolioItemController::class, 'instagramMedia'])
         ->name('portfolio.instagram-media');
     Route::get('portfolio-items/create', [PortfolioItemController::class, 'create'])

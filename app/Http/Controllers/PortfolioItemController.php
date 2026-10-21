@@ -11,6 +11,7 @@ use App\Models\SocialMediaItem;
 use App\Models\TaxonomyTerm;
 use App\Services\Portfolio\PortfolioCreativeGenerator;
 use App\Support\PortfolioSuggestions;
+use App\Services\Portfolio\TopReelsImporter;
 use App\Support\PublicUpload;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -139,6 +140,17 @@ class PortfolioItemController extends Controller
             ]);
 
         return response()->json(['items' => $items]);
+    }
+
+    /** One client reel into the portfolio, with its cover, mapped to its post. */
+    public function addFromInstagram(SocialMediaItem $media, TopReelsImporter $importer): RedirectResponse
+    {
+        $client = $media->socialAccount?->client;
+        abort_unless($client, 404);
+
+        $item = $importer->addMedia($client, $media);
+
+        return back()->with('status', "Added “{$item->title}” to the portfolio.");
     }
 
     public function create(Request $request): View

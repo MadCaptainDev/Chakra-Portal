@@ -18,22 +18,23 @@ use Illuminate\Support\Collection;
 class DashboardLayout
 {
     /** @var array<string, string> key => label, in the order a fresh dashboard shows them. */
+    /*
+     * Under the Today block (dashboard/_today), which already carries what
+     * needs you, the planner due today, who is editing and money due -- so
+     * Reel Planner Today, Needs Attention, Team and Money went (2026-10-21);
+     * money has its own page (/money). A saved layout naming them is
+     * filtered below, as for any unknown key.
+     */
     public const WIDGETS = [
-        'reel_today' => 'Reel Planner — Today',
-        'needs_attention' => 'Needs Attention',
         'month_glance' => 'Month at a Glance',
-        'team' => 'Team',
+        'portfolio' => 'Ready for the portfolio',
         'delivery' => 'Delivery',
-        'money' => 'Money',
     ];
 
     public const DEFAULT_ORDER = [
-        'reel_today',
-        'needs_attention',
         'month_glance',
-        'team',
+        'portfolio',
         'delivery',
-        'money',
     ];
 
     /**

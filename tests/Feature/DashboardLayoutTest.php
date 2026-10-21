@@ -26,15 +26,15 @@ class DashboardLayoutTest extends TestCase
     public function test_a_saved_order_and_hidden_set_are_honoured(): void
     {
         $user = User::factory()->create([
-            'dashboard_widgets_order' => ['money', 'team', 'reel_today', 'needs_attention', 'month_glance', 'missed_duties', 'delivery'],
-            'dashboard_widgets_disabled' => ['team'],
+            'dashboard_widgets_order' => ['delivery', 'portfolio', 'reel_today', 'month_glance'],
+            'dashboard_widgets_disabled' => ['portfolio'],
         ]);
 
         $widgets = DashboardLayout::resolveFor($user);
 
-        $this->assertSame('money', $widgets->first()['key']);
-        $this->assertFalse($widgets->firstWhere('key', 'team')['visible']);
-        $this->assertTrue($widgets->firstWhere('key', 'money')['visible']);
+        $this->assertSame('delivery', $widgets->first()['key']);
+        $this->assertFalse($widgets->firstWhere('key', 'portfolio')['visible']);
+        $this->assertTrue($widgets->firstWhere('key', 'delivery')['visible']);
     }
 
     /**
@@ -44,15 +44,15 @@ class DashboardLayoutTest extends TestCase
     public function test_a_widget_missing_from_a_stale_saved_order_is_appended(): void
     {
         $user = User::factory()->create([
-            'dashboard_widgets_order' => ['money', 'team'],
+            'dashboard_widgets_order' => ['delivery', 'portfolio'],
             'dashboard_widgets_disabled' => null,
         ]);
 
         $keys = DashboardLayout::resolveFor($user)->pluck('key');
 
-        $this->assertSame(['money', 'team'], $keys->take(2)->all());
+        $this->assertSame(['delivery', 'portfolio'], $keys->take(2)->all());
         $this->assertCount(count(DashboardLayout::WIDGETS), $keys);
-        $this->assertTrue($keys->contains('delivery'));
+        $this->assertTrue($keys->contains('month_glance'));
     }
 
     /**
@@ -62,7 +62,7 @@ class DashboardLayoutTest extends TestCase
     public function test_an_unknown_key_in_a_saved_order_is_dropped(): void
     {
         $user = User::factory()->create([
-            'dashboard_widgets_order' => ['money', 'a_widget_that_was_removed', 'team'],
+            'dashboard_widgets_order' => ['delivery', 'a_widget_that_was_removed', 'portfolio'],
         ]);
 
         $keys = DashboardLayout::resolveFor($user)->pluck('key');
@@ -77,7 +77,7 @@ class DashboardLayoutTest extends TestCase
 
         $widgets = collect(DashboardLayout::DEFAULT_ORDER)->map(fn (string $key) => [
             'key' => $key,
-            'visible' => $key !== 'team',
+            'visible' => $key !== 'delivery',
         ])->values()->all();
 
         $this->actingAs($user)
@@ -85,12 +85,12 @@ class DashboardLayoutTest extends TestCase
             ->assertRedirect(route('dashboard'));
 
         $user->refresh();
-        $this->assertSame(['team'], $user->dashboard_widgets_disabled);
+        $this->assertSame(['delivery'], $user->dashboard_widgets_disabled);
 
         $this->actingAs($user)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertDontSee('Hours this month')
+            ->assertDontSee('Behind on reels this month')
             ->assertSee('Shoots this week');
     }
 
@@ -106,8 +106,8 @@ class DashboardLayoutTest extends TestCase
     public function test_resetting_clears_both_saved_preferences(): void
     {
         $user = User::factory()->create([
-            'dashboard_widgets_order' => ['money', 'team'],
-            'dashboard_widgets_disabled' => ['team'],
+            'dashboard_widgets_order' => ['delivery', 'portfolio'],
+            'dashboard_widgets_disabled' => ['portfolio'],
         ]);
 
         $this->actingAs($user)

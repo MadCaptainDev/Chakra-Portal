@@ -223,21 +223,4 @@ class ContributionGraphTest extends TestCase
         }
     }
 
-    public function test_the_admin_dashboard_defaults_to_this_month_and_offers_selectable_periods(): void
-    {
-        Carbon::setTestNow(Carbon::parse('2026-08-12'));
-
-        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
-        $employee = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
-        $this->entry($employee, '2026-08-10', 240);
-
-        $response = $this->actingAs($admin)->get(route('dashboard'))->assertOk();
-
-        $response->assertSee('Work logged')->assertSee('Busiest was Mon 10 Aug');
-        $response->assertSee('This month')->assertSee('Last month')->assertSee('This week');
-        $response->assertDontSee('Last 12 months');
-        $response->assertSee("range: 'month'", false);
-
-        Carbon::setTestNow();
-    }
 }

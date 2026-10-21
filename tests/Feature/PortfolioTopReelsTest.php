@@ -63,4 +63,25 @@ class PortfolioTopReelsTest extends TestCase
             ->assertSee('Top performer');
         $this->getJson(route('portfolio.live'))->assertOk()->assertJsonPath('items.'.$items[0]->id.'.views', 6_500_000);
     }
+    public function test_a_reel_that_crossed_10k_is_offered_on_the_dashboard_and_added_in_one_tap(): void
+    {
+        Http::fake(['scontent.cdninstagram.com/*' => Http::response(str_repeat("\xFF\xD8\xFF", 20), 200, ['Content-Type' => 'image/jpeg'])]);
+        $admin = \App\Models\User::factory()->create(['role' => \App\Models\User::ROLE_ADMIN]);
+        $client = Client::create(['name' => 'Suryas Groups of Companies']);
+        $account = SocialAccount::create(['client_id' => $client->id, 'platform' => SocialAccount::PLATFORM_INSTAGRAM,
+            'platform_user_id' => '17841400000000077', 'username' => 'suryas', 'status' => SocialAccount::STATUS_CONNECTED]);
+        $media = $this->reel($account, '9', 16_512, "One small mistake… and a delicious masterpiece was born!🥐✨\n#croissant");
+        $media->forceFill(['views_milestone' => 10_000])->save();
+
+        $this->withoutVite();
+        $this->actingAs($admin)->get(route('dashboard'))->assertOk()
+            ->assertSee('Ready for the portfolio')->assertSee(route('portfolio.add-media', $media), false);
+
+        $this->post(route('portfolio.add-media', $media))->assertRedirect();
+        $item = PortfolioItem::where('social_media_item_id', $media->id)->firstOrFail();
+        $this->assertSame('One small mistake… and a delicious masterpiece was born!🥐✨', $item->title);
+        $this->assertSame(16_512, $item->views);
+
+        $this->get(route('dashboard'))->assertDontSee(route('portfolio.add-media', $media), false);
+    }
 }
