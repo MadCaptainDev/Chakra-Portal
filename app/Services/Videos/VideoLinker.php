@@ -137,8 +137,9 @@ class VideoLinker
      * still unlinked, its own client's unclaimed reels are compared with
      * doubled letters collapsed and the client prefix dropped; one title
      * containing the other counts too ("Veetla Slipper" against "Veetla
-     * Slipper – Aadambaram Illa"). Only a clear winner links: at least 75%
-     * alike and 12 points ahead of the next reel. Never across clients.
+     * Slipper – Aadambaram Illa"). Only a clear winner links: at least 70%
+     * alike and 12 points ahead of the next different title. Never across
+     * clients. Anything less certain is linked by hand on the script page.
      */
     private function linkScriptsByLikeness(Collection $ventureToClient): int
     {
@@ -150,7 +151,7 @@ class VideoLinker
 
         $claimed = Script::query()->whereNotNull('content_item_id')->pluck('content_item_id')->flip();
         $reels = ContentItem::query()->visible()->where('source', ContentItem::SOURCE_REEL)
-            ->where('created_at', '>=', now()->subMonths(6))->get(['id', 'title', 'venture'])
+            ->where('created_at', '>=', now()->subMonths(6))->orderByDesc('id')->get(['id', 'title', 'venture'])
             ->reject(fn (ContentItem $item) => $claimed->has($item->id))
             ->groupBy(fn (ContentItem $item) => $ventureToClient[$item->venture] ?? 0);
 
@@ -160,7 +161,10 @@ class VideoLinker
                 ->map(fn (ContentItem $item) => ['item' => $item, 'score' => $this->likeness($this->core($item->title), $this->norm($script->title))])
                 ->sortByDesc('score')->values();
             $best = $mine->first();
-            if (! $best || $best['score'] < 75 || $best['score'] - ($mine->get(1)['score'] ?? 0) < 12) {
+            // Notion sometimes has the same reel twice: identical titles are one
+            // video, and the newest row (first, by id) is the one to link.
+            $rival = $mine->first(fn ($c) => $this->norm($c['item']->title) !== $this->norm($best['item']->title ?? ''));
+            if (! $best || $best['score'] < 70 || $best['score'] - ($rival['score'] ?? 0) < 12) {
                 continue;
             }
 
@@ -170,6 +174,37 @@ class VideoLinker
         }
 
         return $linked;
+    }
+
+    /**
+     * The client's Notion reels most like this script's title, best first,
+     * for linking by hand (the script page). A reel another script already
+     * claims is included but marked.
+     *
+     * @return Collection<int, array{item: ContentItem, score: float, taken_by: ?int}>
+     */
+    public function suggestionsFor(Script $script, int $limit = 8): Collection
+    {
+        if (! $script->client_id) {
+            return collect();
+        }
+        $ventures = ContentAccountVenture::query()->whereHas('contentAccount', fn ($q) => $q->where('client_id', $script->client_id))->pluck('venture');
+        $taken = Script::query()->whereNotNull('content_item_id')->whereKeyNot($script->id)->pluck('id', 'content_item_id');
+
+        return ContentItem::query()->visible()->where('source', ContentItem::SOURCE_REEL)
+            ->whereIn('venture', $ventures)->where('created_at', '>=', now()->subMonths(6))
+            ->orderByDesc('id')->get(['id', 'title', 'venture', 'status', 'published_date'])
+            ->map(fn (ContentItem $item) => ['item' => $item, 'score' => $this->likeness($this->core($item->title), $this->norm($script->title)), 'taken_by' => $taken[$item->id] ?? null])
+            ->sortByDesc('score')->take($limit)->values();
+    }
+
+    /** Link (or unlink, with null) by hand, then mark it shot if Notion says so. */
+    public function linkByHand(Script $script, ?ContentItem $item): void
+    {
+        $script->forceFill(['content_item_id' => $item?->id])->save();
+        if ($item) {
+            $this->markScriptsShot();
+        }
     }
 
     /** How alike two titles are, 0-100, forgiving transliteration and a short title inside a long one. */

@@ -79,7 +79,7 @@
                             </div>
                             <template x-for="i in col.items.slice(0, 40)" :key="i.id">
                                 <button type="button" @click="show(i)" class="rounded-lg bg-[#1a3a4b] p-2.5 text-left ring-1 ring-white/[0.06] hover:ring-brand-400/40">
-                                    <span class="block text-[12.5px] font-medium leading-snug text-white" x-text="i.title"></span>
+                                    <span class="block text-[12.5px] font-medium leading-snug text-white"><span x-text="i.title"></span><span x-show="i.has_script" class="ml-1 text-[10px]" title="Has a script">📝</span></span>
                                     <span class="mt-1.5 flex flex-wrap gap-1 text-[10.5px]">
                                         <span class="rounded-full bg-brand-400/15 px-1.5 py-0.5 text-brand-200" x-text="i.client || '—'"></span>
                                         <span class="rounded-full bg-white/[0.07] px-1.5 py-0.5 text-brand-100/75" x-text="i.published_date ? fmtDay(i.published_date) : 'No date'"></span>
@@ -102,7 +102,7 @@
                     <tbody>
                         <template x-for="i in tableRows" :key="i.id">
                             <tr class="cursor-pointer border-t border-white/[0.05] hover:bg-white/[0.03]" @click="show(i)">
-                                <td class="px-4 py-2.5 text-white" x-text="i.title"></td>
+                                <td class="px-4 py-2.5 text-white"><span x-text="i.title"></span><span x-show="i.has_script" class="ml-1 text-[11px]" title="Has a script">📝</span></td>
                                 <td class="px-3 py-2.5 text-brand-100/70" x-text="label(i.source)"></td>
                                 <td class="px-3 py-2.5 text-brand-100/70" x-text="i.client || '—'"></td>
                                 <td class="px-3 py-2.5"><span class="inline-flex items-center gap-1.5 text-white"><span class="h-2 w-2 rounded-full" :style="`background:${color(i)}`"></span><span x-text="i.status"></span></span></td>
@@ -137,6 +137,7 @@
                                             :title="label(i.source) + ' · ' + i.status + ' · ' + (i.client || '')">
                                         <span class="h-2 w-2 shrink-0 rounded-full" :style="`background:${color(i)}`"></span>
                                         <span class="truncate" x-text="i.title"></span>
+                                        <span x-show="i.has_script" class="ml-auto shrink-0 text-[10px] opacity-70" title="Has a script">📝</span>
                                     </button>
                                 </template>
                                 <span x-show="d.items.length > 6" class="px-1 text-[11px] text-brand-300" x-text="'+' + (d.items.length - 6) + ' more'"></span>
@@ -169,9 +170,28 @@
                             <dt class="text-brand-100/50">Editing</dt>
                             <dd class="text-white" x-text="open.editing?.length ? open.editing.map((e) => (e.user?.name || '?') + ' · ' + e.status).join(', ') : (open.editor || '—')"></dd>
                             <dt class="text-brand-100/50">Script</dt>
-                            <dd class="text-white"><span x-text="open.has_script ? (open.script_shot ? 'Written · shot' : 'Written') : 'None'"></span>
-                                <a x-show="open.portal_script_url" :href="open.portal_script_url" class="ml-1 text-brand-300 hover:text-white">Open</a></dd>
+                            <dd class="text-white">
+                                <template x-if="open.portal_script">
+                                    <span><a :href="open.portal_script.url" class="font-semibold text-brand-300 hover:text-white" x-text="open.portal_script.title"></a>
+                                        <span class="block text-xs text-brand-100/60" x-text="open.portal_script.status + (open.script_shot ? ' · shot' : '')"></span></span>
+                                </template>
+                                <span x-show="!open.portal_script" x-text="open.has_script ? 'Written in Notion' : 'None'"></span>
+                            </dd>
                         </dl>
+                    </template>
+                    {{-- The script itself, to read without leaving the planner. --}}
+                    <template x-if="open && ((open.portal_script_text && open.portal_script_text.length) || open.script)">
+                        <details class="mt-3 rounded-xl bg-[#0f2230] p-3" open>
+                            <summary class="cursor-pointer text-[13px] font-semibold text-white">Read the script</summary>
+                            <div class="mt-2 max-h-72 space-y-2.5 overflow-y-auto text-[13px] leading-relaxed text-brand-100/85">
+                                <template x-for="(p, n) in (open.portal_script_text && open.portal_script_text.length ? open.portal_script_text : [{ heading: '', text: open.script }])" :key="n">
+                                    <div>
+                                        <p x-show="p.heading" class="text-[11px] font-semibold uppercase tracking-wide text-brand-300" x-text="p.heading"></p>
+                                        <p class="whitespace-pre-line" x-text="p.text"></p>
+                                    </div>
+                                </template>
+                            </div>
+                        </details>
                     </template>
                     <a x-show="open?.notion_url" :href="open?.notion_url" target="_blank" rel="noopener"
                        class="mt-4 inline-flex h-9 items-center rounded-lg bg-white/10 px-3 text-[13px] font-semibold text-white hover:bg-white/15">Open in Notion ↗</a>

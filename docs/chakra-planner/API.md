@@ -209,7 +209,7 @@ Published.
 | `missing_from_notion` | The page was deleted in Notion. Only appears in `updated_since` deltas, so the app can remove it. |
 | `last_change.origin` | `planner` (moved in this app) or `notion` (changed in Notion, via webhook). |
 
-`script_shot`: the portal script for this item has been marked shot (set from the Reel Planner status). `null` when not known. `posted_as`: `reel`, `post`, `story` or `delivered` once posted, else `null`. `short`: the Shorts-planner row paired to this reel by title, else `null`. All three are additive and read-only.
+`has_script`: a script exists, in Notion or in the portal. `portal_script`: `{id, title, status, url}` of the portal script linked to this row, else `null`. `script_shot`: the portal script for this item has been marked shot (set from the Reel Planner status). `null` when not known. `posted_as`: `reel`, `post`, `story` or `delivered` once posted, else `null`. `short`: the Shorts-planner row paired to this reel by title, else `null`. All three are additive and read-only.
 
 
 ### `GET /items`
@@ -253,6 +253,7 @@ The item plus the heavy fields, for the side panel:
   "insta_csv_link": null, "yt_csv_link": null,
   "notion_created_at": "2026-09-01T10:00:00+05:30",
   "portal_script_url": "https://chakragroups.in/writing/42",
+  "portal_script_text": [{ "heading": "Hook", "text": "…" }],
   "history": [ { "field": "published_date", "from": "…", "to": "…",
                  "origin": "planner", "by": { "id": 7, "name": "Sanjai" }, "at": "…" } ]
 } }

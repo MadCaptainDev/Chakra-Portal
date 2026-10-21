@@ -215,4 +215,27 @@ class VideoSpineTest extends TestCase
         $this->assertSame(Script::STATUS_COMPLETED, $s1->fresh()->status);
         $this->assertSame('2026-10-20', $s1->fresh()->shot_at->toDateString());
     }
+    public function test_a_script_is_linked_by_hand_and_the_planner_shows_it(): void
+    {
+        $admin = \App\Models\User::factory()->create(['role' => \App\Models\User::ROLE_ADMIN]);
+        $reel = ContentItem::factory()->create(['source' => ContentItem::SOURCE_REEL, 'venture' => 'Janet', 'title' => 'Janet - Premium Door Actual Price', 'status' => 'To Be Edited', 'shoot_date' => '2026-10-15', 'script' => null]);
+        $script = Script::create(['client_id' => $this->client->id, 'title' => 'Premium Door Price — Guess the Budget', 'status' => 'draft']);
+        $section = $script->sections()->make(['heading' => 'Hook']);
+        $section->position = 0;
+        $section->body = '<p>Guess the price of this door</p>';
+        $section->save();
+
+        $this->withoutVite();
+        $this->actingAs($admin)->get(route('scripts.show', $script))->assertOk()
+            ->assertSee('Notion reel')->assertSee('Janet - Premium Door Actual Price');
+        $this->post(route('scripts.notion-reel', $script), ['content_item_id' => $reel->id])->assertRedirect();
+
+        $this->assertSame($reel->id, $script->fresh()->content_item_id);
+        $this->assertSame(Script::STATUS_COMPLETED, $script->fresh()->status);
+
+        $row = \App\Services\Planner\PlannerItems::detail($reel->fresh()->load(\App\Services\Planner\PlannerItems::RELATIONS));
+        $this->assertTrue($row['has_script']);
+        $this->assertSame('Premium Door Price — Guess the Budget', $row['portal_script']['title']);
+        $this->assertSame('Guess the price of this door', $row['portal_script_text'][0]['text']);
+    }
 }

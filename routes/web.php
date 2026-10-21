@@ -487,6 +487,10 @@ Route::middleware(['auth', 'module:scripts,view'])->scopeBindings()->group(funct
     Route::post('writing/{script}/comments', [ScriptCommentController::class, 'store'])
         ->middleware('module:scripts,comment')->name('scripts.comments.store');
 
+    // Which Notion reel this script is (VideoLinker matches most; this settles the rest).
+    Route::post('writing/{script}/notion-reel', [ScriptController::class, 'linkNotionReel'])
+        ->middleware('module:scripts,edit')->name('scripts.notion-reel');
+
     Route::get('writing/{script}/edit', [ScriptController::class, 'edit'])
         ->middleware('module:scripts,edit')->name('scripts.edit');
     Route::put('writing/{script}', [ScriptController::class, 'update'])

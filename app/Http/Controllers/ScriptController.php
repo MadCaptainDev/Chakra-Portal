@@ -116,6 +116,18 @@ class ScriptController extends Controller
             ->with('status', 'Script created. Start writing.');
     }
 
+    /** Tie this script to its row in the Notion Reel Planner, or untie it. */
+    public function linkNotionReel(Request $request, Script $script, \App\Services\Videos\VideoLinker $linker): RedirectResponse
+    {
+        $data = $request->validate(['content_item_id' => ['nullable', 'integer', 'exists:content_items,id']]);
+        $item = isset($data['content_item_id']) ? ContentItem::find($data['content_item_id']) : null;
+        abort_if($item && Script::whereKeyNot($script->id)->where('content_item_id', $item->id)->exists(), 422, 'Another script is already linked to that reel.');
+
+        $linker->linkByHand($script, $item);
+
+        return back()->with('status', $item ? 'Linked to “'.$item->title.'”.' : 'Notion link removed.');
+    }
+
     public function edit(Script $script): View
     {
         // client.brief.answers feeds the brief drawer beside the editor.

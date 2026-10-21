@@ -40,6 +40,8 @@
     </x-slot>
 
     <div class="max-w-3xl mx-auto space-y-5">
+        @include('scripts._notion-reel')
+
 
         <div class="flex flex-wrap items-center gap-2 print:hidden">
             <x-badge :status="$script->status" />
