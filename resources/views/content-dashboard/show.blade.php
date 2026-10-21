@@ -15,6 +15,32 @@
     $byStatus = $items->groupBy('status');
 @endphp
 
+<style>
+    /* Motion: transform/opacity only, short, staggered, and off entirely
+       for people who ask their OS for reduced motion. */
+    @keyframes planner-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    @keyframes planner-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); } 50% { box-shadow: 0 0 0 4px rgba(74, 222, 128, .18); } }
+    @keyframes planner-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    .planner-rise { opacity: 0; animation: planner-rise .38s cubic-bezier(.2, .7, .2, 1) forwards; animation-delay: calc(var(--i, 0) * 45ms); }
+    .planner-stats > *, .planner-types > * { opacity: 0; animation: planner-rise .38s cubic-bezier(.2, .7, .2, 1) forwards; }
+    .planner-stats > :nth-child(2) { animation-delay: 45ms; }
+    .planner-stats > :nth-child(3) { animation-delay: 90ms; }
+    .planner-stats > :nth-child(4) { animation-delay: 135ms; }
+    .planner-types > * { animation-delay: 180ms; }
+    .planner-row { transition: background-color .15s ease; }
+    .planner-row:hover { background-color: rgba(255, 255, 255, .035); }
+    .planner-well { animation: planner-glow 2.4s ease-in-out infinite; }
+    .planner-nudge { transition: transform .15s ease, background-color .15s ease; }
+    .planner-nudge:hover { transform: translateY(-1px); }
+    .planner-nudge:active { transform: scale(.97); }
+    @media (prefers-reduced-motion: reduce) {
+        .planner-rise, .planner-stats > *, .planner-types > * { animation: none; opacity: 1; }
+        .planner-well { animation: none; }
+        .planner-nudge, .planner-row { transition: none; }
+        .planner-nudge:hover, .planner-nudge:active { transform: none; }
+    }
+</style>
+
 <x-app-layout title="{{ $account->name }}">
     <x-slot name="header">
         <x-page-header :title="$account->name"
@@ -69,7 +95,7 @@
         </div>
 
         {{-- Pipeline overview for this account --}}
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 planner-stats">
             <x-stat-card label="Published"
                          :value="(string) $pipeline['published']"
                          icon="check-circle"
@@ -89,7 +115,7 @@
         </div>
 
         {{-- Per-type breakdown --}}
-        <div class="grid grid-cols-2 lg:grid-cols-{{ count($targeted) }} gap-3">
+        <div class="grid grid-cols-2 lg:grid-cols-{{ count($targeted) }} gap-3 planner-types">
             @foreach ($targeted as $source => $label)
                 @php
                     $published = $byType->get($source, collect())->where('status', 'Published')->count();
@@ -205,7 +231,8 @@
                                     $metrics = collect(['reach', 'views', 'likes'])
                                         ->mapWithKeys(fn ($m) => [$m => $media?->metricValue($m)]);
                                 @endphp
-                                <tr x-show="shouldShow(@js($item->status), @js($item->source))" x-cloak>
+                                <tr class="planner-row planner-rise" style="--i: {{ min($loop->index, 12) + 5 }}"
+                                    x-show="shouldShow(@js($item->status), @js($item->source))" x-cloak>
                                     <td class="px-4 sm:px-5 py-2.5">
                                         @if ($item->notion_url)
                                             <a href="{{ $item->notion_url }}" target="_blank" rel="noopener"
@@ -285,13 +312,13 @@
                                                 && $views >= $goodViewsThreshold;
                                         @endphp
                                         @if ($doingWell)
-                                            <span class="block text-[10px] font-semibold uppercase tracking-wider text-green-300 mb-1">Doing well</span>
+                                            <span class="planner-well inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-green-300 bg-green-400/10 mb-1">Doing well</span>
                                             @if ($account->client?->phone)
                                                 <form method="POST"
                                                       action="{{ route('content-dashboard.nudge', [$account, $item]) }}"
                                                       onsubmit="return confirm('Send {{ $account->client->name }} a WhatsApp saying this video is doing well?')">
                                                     @csrf
-                                                    <x-secondary-button type="submit">Nudge client</x-secondary-button>
+                                                    <x-secondary-button type="submit" class="planner-nudge">Nudge client</x-secondary-button>
                                                 </form>
                                             @else
                                                 <span class="text-[11px] text-brand-100/40">No client phone</span>
