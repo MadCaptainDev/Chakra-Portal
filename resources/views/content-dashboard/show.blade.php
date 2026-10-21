@@ -199,7 +199,12 @@
                         </thead>
                         <tbody class="divide-y divide-white/10">
                             @foreach ($items as $item)
-                                @php $media = $item->socialMediaItem; @endphp
+                                @php
+                                    $media = $item->socialMediaItem;
+                                    // Read each metric once per row, not once to test and again to print.
+                                    $metrics = collect(['reach', 'views', 'likes'])
+                                        ->mapWithKeys(fn ($m) => [$m => $media?->metricValue($m)]);
+                                @endphp
                                 <tr x-show="shouldShow(@js($item->status), @js($item->source))" x-cloak>
                                     <td class="px-4 sm:px-5 py-2.5">
                                         @if ($item->notion_url)
@@ -265,8 +270,8 @@
                                     </td>
                                     @foreach (['reach', 'views', 'likes'] as $metric)
                                         <td class="px-3 py-2.5 text-right tabular-nums">
-                                            @if ($media && $media->metricValue($metric) !== null)
-                                                <span class="text-white">{{ number_format($media->metricValue($metric)) }}</span>
+                                            @if ($metrics[$metric] !== null)
+                                                <span class="text-white">{{ number_format($metrics[$metric]) }}</span>
                                             @else
                                                 <span class="text-brand-100/40">—</span>
                                             @endif
@@ -274,7 +279,7 @@
                                     @endforeach
                                     <td class="px-3 py-2.5 whitespace-nowrap">
                                         @php
-                                            $views = $media?->metricValue('views');
+                                            $views = $metrics['views'];
                                             $doingWell = $goodViewsThreshold !== null
                                                 && $views !== null
                                                 && $views >= $goodViewsThreshold;

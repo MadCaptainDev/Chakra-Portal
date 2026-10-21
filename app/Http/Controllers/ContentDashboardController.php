@@ -87,18 +87,22 @@ class ContentDashboardController extends Controller
         $month = $this->resolveMonth($request);
         $statuses = $this->resolveStatuses($request);
 
+        $items = ContentDashboard::itemsFor($contentAccount, $month, $statuses);
+
         return view('content-dashboard.show', [
             'account' => $contentAccount->load(['client', 'ventures']),
             'month' => $month,
             'months' => ContentDashboard::availableMonths(),
-            'items' => ContentDashboard::itemsFor($contentAccount, $month, $statuses),
+            'items' => $items,
             'pipeline' => ContentDashboard::pipelineForAccount($contentAccount, $month),
             'targeted' => ContentDashboard::TARGETED,
             'activeStatuses' => $statuses,
             'statusGroups' => ContentDashboard::STATUS_GROUPS,
             'staff' => User::staff()->orderBy('name')->get(),
+            // From the rows already loaded -- a second query for the same
+            // month just to find the median is the page loading twice.
             'goodViewsThreshold' => ReelPerformanceNudge::threshold(
-                ContentDashboard::itemsFor($contentAccount, $month, ['Published'])
+                $items->where('status', 'Published')
             ),
         ]);
     }

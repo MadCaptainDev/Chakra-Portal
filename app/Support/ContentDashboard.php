@@ -703,7 +703,13 @@ class ContentDashboard
         [$since, $until] = self::monthRange($month);
 
         return ContentItem::query()->visible()
-            ->with(['socialMediaItem.insights', 'notionShoot', 'assignedUser', 'scriptRecord'])
+            ->with([
+                // Only the three columns this page shows: an item's insights
+                // include a row per metric per day, and the page was loading
+                // all of them to display three numbers.
+                'socialMediaItem.insights' => fn ($q) => $q->whereIn('metric', ['reach', 'views', 'likes']),
+                'notionShoot', 'assignedUser', 'scriptRecord',
+            ])
             ->whereIn('venture', $account->ventureNames() ?: ['__none__'])
             ->whereNotNull('published_date')
             ->whereBetween('published_date', [$since, $until])
