@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\Expense;
 use App\Models\Todo;
 use App\Models\TodoUpdate;
 use App\Models\User;
 use App\Support\TimesheetVenture;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Tests\TestCase;
 
 class TodoTest extends TestCase
@@ -55,7 +57,7 @@ class TodoTest extends TestCase
     }
 
     /** The board as the controller builds it, for one person on one day. */
-    private function boardFor(User $user, ?string $date = null): \Illuminate\Support\Collection
+    private function boardFor(User $user, ?string $date = null): Collection
     {
         return $this->actingAs($user)
             ->get(route('my.todos', array_filter(['date' => $date])))
@@ -545,6 +547,12 @@ class TodoTest extends TestCase
         $producer = $this->employee('The Producer');
         $editor = $this->employee('The Editor');
         $admin = User::factory()->create(['role' => User::ROLE_ADMIN, 'name' => 'Studio Admin']);
+        // A pure admin is turned away from /my altogether (403); the rule under
+        // test is about a working admin, one with a salary record, who gets in.
+        Expense::create([
+            'user_id' => $admin->id, 'name' => $admin->name,
+            'type' => Expense::TYPE_SALARY, 'amount' => 1000, 'is_active' => true,
+        ]);
 
         $todo = $this->todo($editor, ['assigned_by_id' => $producer->id]);
 

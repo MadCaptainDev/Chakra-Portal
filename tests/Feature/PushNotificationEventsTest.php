@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Mcp\Tools\CreateTodo;
+use App\Tools\CreateTodo;
 use App\Models\Announcement;
 use App\Models\Client;
 use App\Models\Enquiry;

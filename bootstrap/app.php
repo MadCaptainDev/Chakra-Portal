@@ -61,6 +61,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
             'client' => \App\Http\Middleware\EnsureUserIsClient::class,
             'module' => \App\Http\Middleware\EnsureModulePermission::class,
+            'portal' => \App\Http\Middleware\EnsurePortalSectionEnabled::class,
             'logs-work' => \App\Http\Middleware\EnsureUserLogsWork::class,
         ]);
     })

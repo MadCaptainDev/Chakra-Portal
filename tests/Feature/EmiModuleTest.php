@@ -166,7 +166,10 @@ class EmiModuleTest extends TestCase
         // them, so an EMI added with a typo could never be corrected.
         $emi = $this->gimbal();
 
-        $response = $this->actingAs(User::factory()->create())->get(route('emi.index'));
+        // Pinned to a month the gimbal is still running in: it finishes in
+        // Aug 2026, and a finished EMI has no edit form, so "today" would
+        // make this test pass or fail depending on the date it runs.
+        $response = $this->actingAs(User::factory()->create())->get(route('emi.index', ['month' => '2026-05']));
 
         $response->assertOk();
         $response->assertSee(route('emi.destroy', $emi), false);

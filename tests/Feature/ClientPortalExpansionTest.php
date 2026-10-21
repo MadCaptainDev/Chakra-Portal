@@ -192,7 +192,7 @@ class ClientPortalExpansionTest extends TestCase
 
     public function test_a_client_sees_their_own_published_portfolio_item(): void
     {
-        $client = $this->client();
+        $client = $this->client(['portal_sections_disabled' => []]);
         PortfolioItem::create(['client_id' => $client->id, 'title' => 'Launch Campaign', 'is_visible' => true, 'sort_order' => 1]);
 
         $this->actingAs($this->loginFor($client))->get(route('client.portfolio'))
@@ -202,7 +202,7 @@ class ClientPortalExpansionTest extends TestCase
 
     public function test_a_hidden_portfolio_item_is_not_shown(): void
     {
-        $client = $this->client();
+        $client = $this->client(['portal_sections_disabled' => []]);
         PortfolioItem::create(['client_id' => $client->id, 'title' => 'Not Ready Yet', 'is_visible' => false, 'sort_order' => 1]);
 
         $this->actingAs($this->loginFor($client))->get(route('client.portfolio'))
@@ -212,7 +212,7 @@ class ClientPortalExpansionTest extends TestCase
 
     public function test_an_item_under_a_hidden_category_is_not_shown(): void
     {
-        $client = $this->client();
+        $client = $this->client(['portal_sections_disabled' => []]);
         $category = PortfolioCategory::create(['name' => 'Archived', 'slug' => 'archived', 'is_visible' => false, 'sort_order' => 1]);
         PortfolioItem::create([
             'client_id' => $client->id, 'title' => 'Old Work', 'is_visible' => true,
@@ -226,7 +226,7 @@ class ClientPortalExpansionTest extends TestCase
 
     public function test_another_clients_portfolio_item_never_shows(): void
     {
-        $mine = $this->client();
+        $mine = $this->client(['portal_sections_disabled' => []]);
         $theirs = $this->client(['name' => 'Other Brand', 'notion_venture' => 'Other']);
         PortfolioItem::create(['client_id' => $theirs->id, 'title' => 'Their Reel', 'is_visible' => true, 'sort_order' => 1]);
 
