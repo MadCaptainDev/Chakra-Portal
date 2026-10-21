@@ -17,10 +17,10 @@ class PlannerItems
 {
     /** Eager loads row() needs, so a list of two thousand is a handful of queries. */
     public const RELATIONS = [
-        'assignedUser:id,name',
+        'assignedUser:id,name,avatar_path',
         'notionShoot:id,title,shoot_date',
         'editingTodos:id,content_item_id,user_id,status,posted_at',
-        'editingTodos.user:id,name',
+        'editingTodos.user:id,name,avatar_path',
         'lastChange.user:id,name',
         'scriptRecord:id,content_item_id,title,status,shot_at',
         'video:id,content_item_id,short_content_item_id,posted_as',
@@ -40,12 +40,14 @@ class PlannerItems
             'published_date' => $i->published_date?->toDateString(),
             'shoot_date' => $i->shoot_date?->toDateString(),
             'editor' => $i->editor,
-            'assigned_user' => $i->assignedUser ? ['id' => $i->assignedUser->id, 'name' => $i->assignedUser->name] : null,
+            'assigned_user' => \App\Support\PlannerVisuals::person($i->assignedUser),
+            'client_id' => \App\Support\PlannerVisuals::client($i->venture)['id'] ?? null,
+            'client_logo_url' => \App\Support\PlannerVisuals::client($i->venture)['logo_url'] ?? null,
             'tier' => $i->tier,
             'post_type' => $i->post_type,
             'shoot' => $i->notionShoot ? ['title' => $i->notionShoot->title, 'date' => $i->notionShoot->shoot_date?->toDateString()] : null,
             'editing' => $i->editingTodos->map(fn (Todo $t) => [
-                'user' => $t->user ? ['id' => $t->user->id, 'name' => $t->user->name] : null,
+                'user' => \App\Support\PlannerVisuals::person($t->user),
                 'status' => $t->posted_at ? 'posted' : $t->status,
             ])->values()->all(),
             // A script written in Notion, or one written in the portal and linked to this row.

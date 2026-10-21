@@ -34,9 +34,9 @@ class PlannerAppController extends Controller
             'colors' => PlannerSchema::COLORS,
             'clients' => (clone $visible)->whereNotNull('venture')
                 ->selectRaw('venture as name, count(*) as count')->groupBy('venture')->orderBy('venture')
-                ->get()->map(fn ($r) => ['name' => $r->name, 'count' => (int) $r->count])->values(),
-            'people' => User::query()->where('role', '!=', User::ROLE_CLIENT)->orderBy('name')->get(['id', 'name'])
-                ->map(fn (User $u) => ['id' => $u->id, 'name' => $u->name])->values(),
+                ->get()->map(fn ($r) => ['name' => $r->name, 'count' => (int) $r->count] + ['id' => \App\Support\PlannerVisuals::client($r->name)['id'] ?? null, 'logo_url' => \App\Support\PlannerVisuals::client($r->name)['logo_url'] ?? null])->values(),
+            'people' => User::query()->where('role', '!=', User::ROLE_CLIENT)->orderBy('name')->get(['id', 'name', 'avatar_path'])
+                ->map(fn (User $u) => \App\Support\PlannerVisuals::person($u))->values(),
             'notion' => [
                 'last_synced_at' => NotionSyncRunner::lastSyncedAt()?->toIso8601String(),
             ],

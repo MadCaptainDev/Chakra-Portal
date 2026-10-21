@@ -9,6 +9,7 @@ use App\Models\TodoUpdate;
 use App\Models\User;
 use App\Services\Notion\ContentSyncService;
 use App\Support\ClientGuess;
+use App\Support\PlannerVisuals;
 use App\Support\TimesheetVenture;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -59,10 +60,17 @@ class EditingController extends Controller
         $user = $request->user();
         abort_if($user->isClient(), 403);
 
+        // The planner videos this editor can add, as items the app can add by id.
+        $items = collect($this->planner($user))->take(60)->map(function (array $p) {
+            $client = PlannerVisuals::client($p['client']);
+
+            return ['content_item_id' => $p['id'], 'title' => $p['title'], 'client' => $p['client'], 'client_logo_url' => $client['logo_url'] ?? null];
+        })->values()->all();
+
         return response()->json([
             'cards' => $this->cards($user),
             'team_ready' => $this->teamReady($user),
-            'suggestions' => $this->hints($user),
+            'suggestions' => $this->hints($user) + ['items' => $items],
             'server_time' => now()->toIso8601String(),
         ]);
     }
@@ -323,7 +331,7 @@ class EditingController extends Controller
             ->where('status', '!=', Todo::STATUS_CANCELLED)
             ->where(fn ($q) => $q->open()->orWhereDate('closed_on', today())->orWhereDate('posted_at', today())
                 ->orWhere(fn ($q) => $q->where('status', Todo::STATUS_COMPLETED)->whereNull('posted_at')->whereDate('closed_on', '>=', today()->subDays(14))))
-            ->with('corrections', 'updates', 'contentItem')
+            ->with('corrections', 'updates', 'contentItem', 'user:id,name,avatar_path')
             ->orderBy('starts_on')->orderBy('id')
             ->get()
             ->map(fn (Todo $t) => $this->card($t))
@@ -341,8 +349,8 @@ class EditingController extends Controller
     {
         return Todo::query()->whereNull('parent_id')->where('status', Todo::STATUS_COMPLETED)
             ->whereNotNull('ready_at')->whereNull('posted_at')->where('user_id', '!=', $user->id)
-            ->with('user:id,name')->orderBy('publish_at')->get()
-            ->map(fn (Todo $t) => [
+            ->with(['user:id,name,avatar_path', 'contentItem:id,venture'])->orderBy('publish_at')->get()
+            ->map(fn (Todo $t) => self::visuals($t) + [
                 'id' => $t->id,
                 'title' => $t->title,
                 'client' => $t->venture,
@@ -380,6 +388,25 @@ class EditingController extends Controller
             'held' => $t->status === Todo::STATUS_BLOCKED ? (string) $t->updates->last(fn ($u) => $u->to_status === Todo::STATUS_BLOCKED)?->note : null,
             'next_on' => $this->nextOn($t),
             'corrections' => $t->corrections->map(fn (Todo $c) => ['id' => $c->id, 'title' => $c->title, 'status' => $c->status])->values()->all(),
+        ] + self::visuals($t);
+    }
+
+    /**
+     * For Chakra Planner's panel: the planner video and its portal script,
+     * the client and their logo, the editor and their photo. Additive.
+     *
+     * @return array<string, mixed>
+     */
+    private static function visuals(Todo $t): array
+    {
+        $client = PlannerVisuals::client($t->contentItem?->venture ?? $t->venture);
+
+        return [
+            'content_item_id' => $t->content_item_id,
+            'script_id' => $t->content_item_id ? \App\Models\Script::query()->where('content_item_id', $t->content_item_id)->latest('updated_at')->value('id') : null,
+            'client_id' => $client['id'] ?? null,
+            'client_logo_url' => $client['logo_url'] ?? null,
+            'user' => PlannerVisuals::person($t->relationLoaded('user') ? $t->user : $t->user()->first(['id', 'name', 'avatar_path'])),
         ];
     }
 

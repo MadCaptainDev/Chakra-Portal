@@ -565,4 +565,34 @@ class PlannerApiTest extends TestCase
         $widget = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'email' => 'widget@chakra.test', 'password' => 'secret-pass']);
         $this->api($this->token($widget))->getJson(route('api.planner.items.script', $reel->id))->assertForbidden()->assertJsonPath('code', 'no_access');
     }
+    public function test_items_meta_and_editing_carry_client_logos_photos_and_script_ids(): void
+    {
+        \Illuminate\Support\Facades\File::ensureDirectoryExists(public_path('uploads/test'));
+        file_put_contents(public_path('uploads/test/logo.png'), base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='));
+        $client = \App\Models\Client::create(['name' => 'SVA Silks and Readymades', 'notion_venture' => 'SVA Silks']);
+        $client->forceFill(['logo_path' => 'uploads/test/logo.png'])->save();
+        $this->editor->forceFill(['avatar_path' => 'uploads/test/logo.png'])->save();
+        $this->grant($this->editor, 'view');
+        $reel = $this->reel(['assigned_user_id' => $this->editor->id]);
+        $script = \App\Models\Script::create(['title' => 'Frock', 'status' => 'draft', 'priority' => \App\Models\Script::PRIORITY_NORMAL, 'content_item_id' => $reel->id]);
+        $token = $this->token($this->editor);
+
+        $item = $this->api($token)->getJson(route('api.planner.items.show', $reel->id))->assertOk()->json('item');
+        $this->assertSame($client->id, $item['client_id']);
+        $this->assertStringStartsWith('http', $item['client_logo_url']);
+        $this->assertNotNull($item['assigned_user']['avatar_url']);
+
+        $meta = $this->api($token)->getJson(route('api.planner.meta'))->assertOk();
+        $this->assertSame($client->id, $meta->json('clients.0.id'));
+        $this->assertNotNull(collect($meta->json('people'))->firstWhere('id', $this->editor->id)['avatar_url']);
+
+        $card = $this->api($token)->postJson(route('api.planner.editing.store'), ['content_item_id' => $reel->id])->assertOk()->json('card');
+        $this->assertSame($reel->id, $card['content_item_id']);
+        $this->assertSame($script->id, $card['script_id']);
+        $this->assertSame($client->id, $card['client_id']);
+        $this->assertSame($this->editor->id, $card['user']['id']);
+        $this->assertArrayHasKey('items', $this->api($token)->getJson(route('api.planner.editing.board'))->json('suggestions'));
+
+        \Illuminate\Support\Facades\File::deleteDirectory(public_path('uploads/test'));
+    }
 }

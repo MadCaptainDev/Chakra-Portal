@@ -161,6 +161,24 @@ next event).
 Errors: `404` = not your video for that action; `422` with `message` = not
 allowed in its current state (show the message as-is).
 
+## Faces and logos (added 2026-10-22, all optional)
+
+Image URLs are plain **public** `https://chakragroups.in/uploads/...` files (a
+256px `.webp` copy where the server could make one, else the original), so they
+load with no cookie. `null` when there is no logo / photo: fall back to initials.
+
+A Notion venture ("Surya's Restaurant") resolves to its client by the
+content-account connections, then the client's `notion_venture`, then its name.
+
+- `GET /editing`, each `cards[]` and `team_ready[]` entry: `content_item_id`
+  (int|null), `script_id` (int|null, the portal script for that item),
+  `client_id` (int|null), `client_logo_url` (string|null), `user`
+  (`{id, name, avatar_url}`). `suggestions.items[]`: `{content_item_id, title,
+  client, client_logo_url}` (up to 60, this editor's first); `clients`,
+  `titles`, `per_day` unchanged.
+- `GET /items` and `GET /items/{id}`: `client_id`, `client_logo_url`; every
+  person object (`assigned_user`, `editing[].user`) gains `avatar_url`.
+- `GET /meta`: `clients[]` gain `id`, `logo_url`; `people[]` gain `avatar_url`.
 ## Items
 
 A planner item is one row from one of the four Notion content planners:
