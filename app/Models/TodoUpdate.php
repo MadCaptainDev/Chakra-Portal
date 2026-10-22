@@ -104,6 +104,17 @@ class TodoUpdate extends Model
             $todo->updates->push($update);
         }
 
+        // Chakra Planner's Team view refetches on this (Ably "planner" channel;
+        // a no-op when live updates are off).
+        \Illuminate\Support\defer(function () use ($update, $todo) {
+            $move = rescue(fn () => app(\App\Support\EditorBoard::class)->move($update), null, false);
+            \App\Services\Planner\PlannerRealtime::publish('editing.updated', [
+                'user_id' => ($todo->parent ?? $todo)->user_id,
+                'card_id' => $todo->parent_id ?? $todo->id,
+                'type' => $move['type'] ?? 'other',
+            ]);
+        });
+
         return $update;
     }
 

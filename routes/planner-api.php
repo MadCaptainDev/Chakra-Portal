@@ -39,6 +39,9 @@ Route::prefix('api/planner')->name('api.planner.')->group(function () {
         Route::post('editing', [\App\Http\Controllers\My\EditingController::class, 'store'])->name('editing.store');
         Route::post('editing/{todo}/act', [\App\Http\Controllers\My\EditingController::class, 'act'])->middleware(\Illuminate\Routing\Middleware\SubstituteBindings::class)->whereNumber('todo')->name('editing.act');
 
+        // The editing floor for admins and managers (the controller checks; see PlannerEditorUpdatesController).
+        Route::get('editor-updates', [\App\Http\Controllers\Api\Planner\PlannerEditorUpdatesController::class, 'show'])->name('editor-updates');
+
         Route::get('items', [PlannerItemController::class, 'index'])->name('items.index');
         Route::get('items/{item}', [PlannerItemController::class, 'show'])->whereNumber('item')->name('items.show');
         Route::get('items/{item}/script', [\App\Http\Controllers\Api\Planner\PlannerScriptController::class, 'show'])->whereNumber('item')->name('items.script');

@@ -72,7 +72,7 @@ widget keeps working.
 {
   "token": "chakraplanner_…",
   "user": { "id": 7, "name": "Sanjai", "email": "sanjai@…", "role": "employee", "avatar_url": "https://chakragroups.in/uploads/variants/….webp" },
-  "abilities": { "view": true, "edit": true, "manage": false, "editing": true, "review": false },
+  "abilities": { "view": true, "edit": true, "manage": false, "editing": true, "review": false, "editor_updates": false },
   "session": { "id": 12, "device_name": "Sanjai's MacBook Air" },
   "realtime": {
     "enabled": true, "provider": "ably", "channel": "planner",
@@ -179,6 +179,40 @@ content-account connections, then the client's `notion_venture`, then its name.
 - `GET /items` and `GET /items/{id}`: `client_id`, `client_logo_url`; every
   person object (`assigned_user`, `editing[].user`) gains `avatar_url`.
 - `GET /meta`: `clients[]` gain `id`, `logo_url`; `people[]` gain `avatar_url`.
+## Editor Updates (admins and managers)
+
+### `GET /editor-updates`
+
+The editing floor right now: the portal's Editor Updates and the
+`editor_updates` MCP tool, with ids, photos and logos. Read-only.
+**Admins see every editor; a manager sees their reports and themselves**
+(`abilities.editor_updates` in the profile says whether the person may open
+it). Anyone else: `403 no_access`. It does not need Chakra Planner `view`.
+
+Top level: `as_of`, `server_time` (ISO 8601), `scope` (`"every editor"` |
+`"your team"`), `flow_today` {editing, added, done, out, fixes, review, ready},
+`needs_you[]`, `editors[]`, `waiting_for_review[]`, `ready_to_publish[]`,
+`latest_moves[]`.
+
+- `needs_you[]`: `kind` (late | review | hold | long | idle), `person`, `text`,
+  `detail`, `count`, `card_id`, `content_item_id` (null when not one card).
+- `editors[]`: `user` {id, name, avatar_url}, `name`, `state` (editing | on
+  hold | idle), `editing` (title|null), `editing_item` {card_id,
+  content_item_id, client, client_logo_url, working_since (ms)}|null,
+  `for_minutes`, `idle_minutes`, `on_hold[]` {title, for, note, card_id,
+  content_item_id}, `today` {done, out, fixes, added}, `up_next` (titles, as
+  before) and `up_next_items[]` {title, card_id, content_item_id,
+  client_logo_url}, `last_move` {label, title, time, at}|null.
+- `waiting_for_review[]`: title, editor, client, client_logo_url,
+  content_item_id, card_id, waiting_minutes. `ready_to_publish[]`: the same
+  plus publish_at, publish_label, late (waiting_minutes null).
+- `latest_moves[]`: newest first, up to 30: time, at, person, person_id, type
+  (added | started | fix | fixed | hold | moved | done | ready | posted | other),
+  label, detail, title, card_id, content_item_id.
+
+**Live:** every editing move publishes `editing.updated` on the `planner`
+Ably channel, data `{user_id, card_id, type}`: refetch on it (when live
+updates are on), otherwise poll every 15 s.
 ## Items
 
 A planner item is one row from one of the four Notion content planners:

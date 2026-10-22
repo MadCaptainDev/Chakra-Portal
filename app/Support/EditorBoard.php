@@ -247,6 +247,8 @@ class EditorBoard
             'detail' => $detail,
             'title' => $video->title,
             'client' => $video->venture,
+            'card_id' => $video->id,
+            'content_item_id' => $video->content_item_id,
         ];
     }
 }

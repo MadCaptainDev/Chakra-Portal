@@ -30,7 +30,7 @@ class AuthenticatePlannerToken
         }
         // Every teammate signs in for the editing widget (api/planner/editing,
         // me, logout); the planners themselves need Chakra Planner → View.
-        $widgetOnly = $request->routeIs('api.planner.editing.*', 'api.planner.me', 'api.planner.logout');
+        $widgetOnly = $request->routeIs('api.planner.editing.*', 'api.planner.me', 'api.planner.logout', 'api.planner.editor-updates');
         if (! $widgetOnly && ! $user->can('planner.view')) {
             return response()->json([
                 'message' => 'Your account can use the editing widget but not the planners. Ask an admin to tick Chakra Planner under Users → Permissions.',

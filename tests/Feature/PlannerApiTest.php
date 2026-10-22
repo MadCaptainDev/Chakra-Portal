@@ -596,4 +596,34 @@ class PlannerApiTest extends TestCase
 
         \Illuminate\Support\Facades\File::deleteDirectory(public_path('uploads/test'));
     }
+    // ——— Editor Updates for admins and managers ———
+
+    public function test_editor_updates_is_admin_everyone_manager_team_and_nobody_else(): void
+    {
+        $gokul = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'name' => 'Gokul', 'email' => 'gokul@chakra.test', 'password' => 'secret-pass']);
+        $outsider = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'name' => 'Outsider', 'email' => 'out@chakra.test', 'password' => 'secret-pass']);
+        $gokul->managers()->attach($this->editor->id); // Sanjai manages Gokul
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN, 'email' => 'boss@chakra.test', 'password' => 'secret-pass']);
+
+        $mine = $this->api($this->token($gokul))->postJson(route('api.planner.editing.store'), ['title' => 'Gokul - Team video'])->json('card.id');
+        $this->api($this->token($gokul))->postJson(route('api.planner.editing.act', $mine), ['action' => 'start'])->assertOk();
+        $theirs = $this->api($this->token($outsider))->postJson(route('api.planner.editing.store'), ['title' => 'Not yours'])->json('card.id');
+        $this->api($this->token($outsider))->postJson(route('api.planner.editing.act', $theirs), ['action' => 'start'])->assertOk();
+
+        $all = $this->api($this->token($admin))->getJson(route('api.planner.editor-updates'))->assertOk();
+        $this->assertSame('every editor', $all->json('scope'));
+        $this->assertContains('Outsider', collect($all->json('editors'))->pluck('name')->all());
+        $g = collect($all->json('editors'))->firstWhere('name', 'Gokul');
+        $this->assertSame('editing', $g['state']);
+        $this->assertSame($mine, $g['editing_item']['card_id']);
+        $this->assertSame($gokul->id, $g['user']['id']);
+        $this->assertContains($mine, collect($all->json('latest_moves'))->pluck('card_id')->all());
+
+        $team = $this->api($this->token($this->editor))->getJson(route('api.planner.editor-updates'))->assertOk();
+        $this->assertSame('your team', $team->json('scope'));
+        $this->assertNotContains('Outsider', collect($team->json('editors'))->pluck('name')->all());
+        $this->assertTrue($this->postJson(route('api.planner.login'), ['email' => 'sanjai@chakra.test', 'password' => 'secret-pass', 'device_name' => 'Mac'])->json('abilities.editor_updates'));
+
+        $this->api($this->token($outsider))->getJson(route('api.planner.editor-updates'))->assertForbidden()->assertJsonPath('code', 'no_access');
+    }
 }

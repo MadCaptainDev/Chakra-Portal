@@ -86,6 +86,8 @@ class PlannerAuthController extends Controller
                 // The top-bar editing widget (api/planner/editing): every teammate.
                 'editing' => true,
                 'review' => $user->isAdmin(),
+                // GET /editor-updates: admins (everyone) and managers (their team).
+                'editor_updates' => $user->isAdmin() || $user->managesAnyone(),
                 'edit' => $user->can('planner.edit'),
                 'manage' => $user->can('planner.manage'),
             ],
