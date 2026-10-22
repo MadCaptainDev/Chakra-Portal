@@ -71,7 +71,7 @@ widget keeps working.
 ```json
 {
   "token": "chakraplanner_…",
-  "user": { "id": 7, "name": "Sanjai", "email": "sanjai@…", "role": "employee" },
+  "user": { "id": 7, "name": "Sanjai", "email": "sanjai@…", "role": "employee", "avatar_url": "https://chakragroups.in/uploads/variants/….webp" },
   "abilities": { "view": true, "edit": true, "manage": false, "editing": true, "review": false },
   "session": { "id": 12, "device_name": "Sanjai's MacBook Air" },
   "realtime": {

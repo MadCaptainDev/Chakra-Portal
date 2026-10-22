@@ -80,7 +80,7 @@ class PlannerAuthController extends Controller
         $synced = NotionSyncRunner::lastSyncedAt();
 
         return [
-            'user' => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email, 'role' => $user->role],
+            'user' => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email, 'role' => $user->role, 'avatar_url' => \App\Support\PlannerVisuals::avatar($user)],
             'abilities' => [
                 'view' => $user->can('planner.view'),
                 // The top-bar editing widget (api/planner/editing): every teammate.

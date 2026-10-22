@@ -140,6 +140,7 @@ class PlannerApiTest extends TestCase
         $token = $login->json('token');
         $this->assertStringStartsWith('chakraplanner_', $token);
 
+        $this->assertArrayHasKey('avatar_url', $login->json('user'));
         $this->flushHeaders()->getJson(route('api.planner.me'))->assertUnauthorized();
         $this->api($token)->getJson(route('api.planner.me'))->assertOk()->assertJsonPath('session.device_name', 'Sanjai’s MacBook');
 
