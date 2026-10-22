@@ -82,7 +82,7 @@ function logKey(shootId, scriptId) {
     return `shoot-${shootId}-script-${scriptId}`;
 }
 
-export function shootScripts({ shootId, scripts, liveUrl = null, liveVersion = '', videoIds = [], me = null, oldName = '', oldScriptId = null, oldSectionLog = '' }) {
+export function shootScripts({ shootId, scripts, liveUrl = null, shareUrl = null, liveVersion = '', videoIds = [], me = null, oldName = '', oldScriptId = null, oldSectionLog = '' }) {
     return {
         shootId,
         scripts,
@@ -102,6 +102,7 @@ export function shootScripts({ shootId, scripts, liveUrl = null, liveVersion = '
         speed: stored(SPEED_KEY, 30), // pixels a second
         scrolling: false,
         showShot: false,
+        sharing: false,
         wake: null,
         frame: null,
 
@@ -166,6 +167,32 @@ export function shootScripts({ shootId, scripts, liveUrl = null, liveVersion = '
             this.ticker = setInterval(() => { this.tick = Date.now(); }, 500);
             this.$nextTick(() => { this.$refs.page.scrollTop = 0; });
             this.keepAwake();
+        },
+        // A no-login live link to the open script (set/{token}), for the
+        // talent or client on set: the phone's share sheet, or the clipboard.
+        async shareLive() {
+            if (!this.reading || !shareUrl || this.sharing === true) return;
+            this.sharing = true;
+            try {
+                const res = await fetch(shareUrl.replace(/0$/, this.reading.id), {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+                });
+                if (!res.ok) throw new Error('share');
+                const { url } = await res.json();
+                const title = `#${this.reading.id} ${this.reading.title}`;
+                if (navigator.share) {
+                    await navigator.share({ title, text: `${title} (live script, you can edit)`, url }).catch(() => {});
+                    this.sharing = false;
+                } else {
+                    await navigator.clipboard.writeText(url);
+                    this.sharing = 'done';
+                    setTimeout(() => { this.sharing = false; }, 2000);
+                }
+            } catch (e) {
+                this.sharing = false;
+                this.say('Could not make the live link. Check the connection and try again.');
+            }
         },
         close() {
             // A running section keeps running: closing to check something

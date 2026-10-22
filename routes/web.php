@@ -61,6 +61,7 @@ use App\Http\Controllers\My\CalendarController as MyCalendarController;
 use App\Http\Controllers\My\DashboardController as MyDashboardController;
 use App\Http\Controllers\My\SalaryController as MySalaryController;
 use App\Http\Controllers\My\ShootRunController;
+use App\Http\Controllers\LiveScriptController;
 use App\Http\Controllers\My\TeamController as MyTeamController;
 use App\Http\Controllers\My\TimesheetController as MyTimesheetController;
 use App\Http\Controllers\My\EditingController as MyEditingController;
@@ -221,6 +222,19 @@ Route::middleware('throttle:30,1')->group(function () {
         Route::post('review/{token}/{script}/approve', [PublicScriptApprovalController::class, 'approve'])->name('client.scripts.public.approve');
         Route::post('review/{token}/{script}/request-changes', [PublicScriptApprovalController::class, 'requestChanges'])->name('client.scripts.public.request-changes');
         Route::post('review/{token}/{script}/comment', [PublicScriptApprovalController::class, 'comment'])->name('client.scripts.public.comment');
+    });
+
+    /*
+     * One script on a no-login live link for the shoot: read and edit, every
+     * phone holding it kept in step by polling. Token-is-the-credential, as
+     * above; writes CSRF-exempt and throttled. "set/", not "scripts/", for the
+     * WAF reason on the writing/ group.
+     */
+    Route::get('set/{token}', [LiveScriptController::class, 'show'])->name('scripts.live');
+    Route::get('set/{token}/state', [LiveScriptController::class, 'poll'])->middleware('throttle:120,1')->name('scripts.live.state');
+    Route::withoutMiddleware(ValidateCsrfToken::class)->middleware('throttle:90,1')->group(function () {
+        Route::patch('set/{token}/sections/{section}', [LiveScriptController::class, 'update'])->whereNumber('section')->name('scripts.live.update');
+        Route::post('set/{token}/sections', [LiveScriptController::class, 'store'])->name('scripts.live.store');
     });
 });
 
@@ -401,6 +415,7 @@ Route::middleware('auth')->group(function () {
     Route::post('my/shoots/{shoot}/start', [ShootRunController::class, 'start'])->name('my.shoots.start');
     Route::post('my/shoots/{shoot}/videos', [ShootRunController::class, 'storeVideo'])->name('my.shoots.videos.store');
     Route::get('my/shoots/{shoot}/live', [ShootRunController::class, 'live'])->name('my.shoots.live');
+    Route::post('my/shoots/{shoot}/live-link/{script}', [ShootRunController::class, 'shareScript'])->name('my.shoots.script-link');
     Route::post('my/shoots/{shoot}/finish', [ShootRunController::class, 'finish'])->name('my.shoots.finish');
 });
 
@@ -490,6 +505,12 @@ Route::middleware(['auth', 'module:scripts,view'])->scopeBindings()->group(funct
     // Which Notion reel this script is (VideoLinker matches most; this settles the rest).
     Route::post('writing/{script}/notion-reel', [ScriptController::class, 'linkNotionReel'])
         ->middleware('module:scripts,edit')->name('scripts.notion-reel');
+
+    // The live link for the shoot (set/{token}): turn on / off.
+    Route::post('writing/{script}/live-link', [ScriptController::class, 'shareLive'])
+        ->middleware('module:scripts,edit')->name('scripts.live-link');
+    Route::delete('writing/{script}/live-link', [ScriptController::class, 'unshareLive'])
+        ->middleware('module:scripts,edit')->name('scripts.live-link.revoke');
 
     Route::get('writing/{script}/edit', [ScriptController::class, 'edit'])
         ->middleware('module:scripts,edit')->name('scripts.edit');

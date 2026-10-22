@@ -146,7 +146,7 @@
         {{-- ================= RUNNING ================= --}}
         @else
             <div class="mx-auto max-w-sm"
-                 x-data="shootScripts(@js(['shootId' => $shoot->id, 'liveUrl' => route('my.shoots.live', $shoot), 'liveVersion' => $liveVersion, 'videoIds' => $videos->pluck('id')->all(), 'me' => auth()->user()->name, 'oldSectionLog' => old('section_log', ''), 'scripts' => $scripts, 'oldName' => old('name', ''), 'oldScriptId' => old('script_id')]))">
+                 x-data="shootScripts(@js(['shootId' => $shoot->id, 'liveUrl' => route('my.shoots.live', $shoot), 'shareUrl' => route('my.shoots.script-link', [$shoot, 0]), 'liveVersion' => $liveVersion, 'videoIds' => $videos->pluck('id')->all(), 'me' => auth()->user()->name, 'oldSectionLog' => old('section_log', ''), 'scripts' => $scripts, 'oldName' => old('name', ''), 'oldScriptId' => old('script_id')]))">
                 {{-- Live: what changed on another phone or over MCP. --}}
                 <template x-teleport="body">
                     <div x-show="!!notice" x-cloak x-transition.opacity
@@ -249,6 +249,8 @@
                                         <span class="block h-5 w-5 text-center text-lg leading-5" aria-hidden="true">✕</span>
                                     </button>
                                     <p class="min-w-0 flex-1 truncate text-sm font-semibold"><span class="text-amber-300" x-text="'#' + reading?.id"></span> <span x-text="reading?.title"></span></p>
+                                    <button type="button" @click="shareLive()" class="h-10 shrink-0 rounded-lg bg-amber-400 px-3 text-sm font-bold text-black" aria-label="Share a live link to this script"
+                                            x-text="sharing === 'done' ? 'Copied' : (sharing ? '…' : 'Share')"></button>
                                     <button type="button" @click="smaller()" class="h-10 w-10 rounded-lg bg-white/10 text-sm font-bold" aria-label="Smaller text">A−</button>
                                     <button type="button" @click="bigger()" class="h-10 w-10 rounded-lg bg-white/10 text-lg font-bold" aria-label="Bigger text">A+</button>
                                 </div>

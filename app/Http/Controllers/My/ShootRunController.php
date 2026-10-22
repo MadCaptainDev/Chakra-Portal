@@ -355,6 +355,19 @@ class ShootRunController extends Controller
      * 404 rather than 403 for someone not on this shoot: which shoots exist
      * is not their business either.
      */
+    /**
+     * The live link for one of this shoot's scripts, so the crew can hand it
+     * to the talent or client on set. Crew only, and only a script of the
+     * shoot's own client.
+     */
+    public function shareScript(Shoot $shoot, Script $script): JsonResponse
+    {
+        $this->authoriseCrew($shoot);
+        abort_unless($shoot->client_id && $script->client_id === $shoot->client_id, 404);
+
+        return response()->json(['url' => $script->shareLink()]);
+    }
+
     private function authoriseCrew(Shoot $shoot): void
     {
         $user = request()->user();

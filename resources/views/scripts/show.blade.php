@@ -42,6 +42,45 @@
     <div class="max-w-3xl mx-auto space-y-5">
         @include('scripts._notion-reel')
 
+        {{-- The live link for the shoot: one script, read and edited on any
+             phone with no login (LiveScriptController). --}}
+        @can('scripts.edit')
+            <x-card class="p-4 print:hidden" x-data="{ copied: false }">
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-semibold text-white">Live link for the shoot</p>
+                        <p class="text-xs text-brand-100/50">
+                            @if ($script->share_token)
+                                Anyone with this link can read and edit this script, no login. Changes show on every phone within seconds.
+                            @else
+                                Share just this script with the talent, director or client on set. They can read and fix lines live.
+                            @endif
+                        </p>
+                    </div>
+                    @if ($script->share_token)
+                        @php($liveUrl = route('scripts.live', $script->share_token))
+                        <x-btn type="button" size="sm" icon="globe"
+                               @click="navigator.clipboard.writeText('{{ $liveUrl }}'); copied = true; setTimeout(() => copied = false, 2000)">
+                            <span x-text="copied ? 'Copied' : 'Copy link'"></span>
+                        </x-btn>
+                        <x-btn :href="$liveUrl" target="_blank" size="sm" variant="secondary">Open</x-btn>
+                        <form method="POST" action="{{ route('scripts.live-link.revoke', $script) }}" onsubmit="return confirm('Turn off the live link? Anyone holding it loses access.')">
+                            @csrf @method('DELETE')
+                            <button type="submit" class="text-xs text-red-300 hover:text-red-200">Turn off</button>
+                        </form>
+                    @else
+                        <form method="POST" action="{{ route('scripts.live-link', $script) }}">
+                            @csrf
+                            <x-btn type="submit" size="sm" icon="globe">Make live link</x-btn>
+                        </form>
+                    @endif
+                </div>
+                @if ($script->share_token)
+                    <p class="mt-2 truncate rounded-md bg-white/5 px-2.5 py-1.5 font-mono text-xs text-brand-100/70">{{ $liveUrl }}</p>
+                @endif
+            </x-card>
+        @endcan
+
 
         <div class="flex flex-wrap items-center gap-2 print:hidden">
             <x-badge :status="$script->status" />
@@ -105,8 +144,8 @@
         @endif
 
         <p class="text-xs text-brand-100/50 print:hidden">
-            @if ($script->lastEditedBy)
-                Last edited by {{ $script->lastEditedBy->name }} {{ $script->last_edited_at?->diffForHumans() }}.
+            @if ($script->lastEditorName())
+                Last edited by {{ $script->lastEditorName() }} {{ $script->last_edited_at?->diffForHumans() }}.
             @endif
             Created {{ $script->created_at->format('d M Y') }}@if ($script->createdBy) by {{ $script->createdBy->name }}@endif.
         </p>

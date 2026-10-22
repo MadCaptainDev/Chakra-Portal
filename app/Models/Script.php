@@ -91,6 +91,7 @@ class Script extends Model
         'last_edited_at' => 'datetime',
         'sent_to_client_at' => 'datetime',
         'shot_at' => 'datetime',
+        'share_issued_at' => 'datetime',
     ];
 
     public function client(): BelongsTo
@@ -240,7 +241,42 @@ class Script extends Model
         $this->forceFill([
             'last_edited_by_id' => $user->id,
             'last_edited_at' => now(),
+            'last_edited_by_guest' => null,
         ])->save();
+    }
+
+    /** An edit from the live link (set/{token}), by whatever name they typed. */
+    public function touchEditedByGuest(?string $name): void
+    {
+        $this->forceFill([
+            'last_edited_by_id' => null,
+            'last_edited_at' => now(),
+            'last_edited_by_guest' => filled($name) ? mb_substr(trim($name), 0, 80) : 'Someone on the live link',
+        ])->save();
+    }
+
+    public function lastEditorName(): ?string
+    {
+        return $this->lastEditedBy?->name ?? $this->last_edited_by_guest;
+    }
+
+    /**
+     * The live link for the shoot: anyone holding it reads and edits this
+     * one script, no login. An existing link is kept, so a URL already sent
+     * to the set keeps working; revokeShareLink() turns it off.
+     */
+    public function shareLink(): string
+    {
+        if (! $this->share_token) {
+            $this->forceFill(['share_token' => \Illuminate\Support\Str::random(48), 'share_issued_at' => now()])->save();
+        }
+
+        return route('scripts.live', $this->share_token);
+    }
+
+    public function revokeShareLink(): void
+    {
+        $this->forceFill(['share_token' => null, 'share_issued_at' => null])->save();
     }
 
     /**

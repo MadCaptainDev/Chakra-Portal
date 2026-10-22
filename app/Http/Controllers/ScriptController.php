@@ -155,6 +155,21 @@ class ScriptController extends Controller
         return view('scripts.show', ['script' => $script]);
     }
 
+    /** Turn on the script's live link for the shoot (an existing one is kept). */
+    public function shareLive(Script $script): RedirectResponse
+    {
+        $script->shareLink();
+
+        return back()->with('status', 'Live link is on. Anyone with it can read and edit this script.');
+    }
+
+    public function unshareLive(Script $script): RedirectResponse
+    {
+        $script->revokeShareLink();
+
+        return back()->with('status', 'Live link turned off. The old link no longer opens.');
+    }
+
     public function destroy(Script $script): RedirectResponse
     {
         $script->delete();
