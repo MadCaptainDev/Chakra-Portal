@@ -76,7 +76,24 @@ class PublicPortfolioController extends Controller
                 'stats' => array_filter(['views' => $i->views, 'reach' => $i->reach, 'shares' => $i->shares, 'saves' => $i->saves]),
             ]);
 
+        // Latest work, newest first: Instagram pieces from the last few weeks
+        // (each one a real post, checked against the planner when it was added).
+        $recent = $items->filter(fn (PortfolioItem $i) => $i->social_media_item_id && $i->published_on?->gte(now()->subDays(self::RECENT_DAYS)))
+            ->sortByDesc(fn (PortfolioItem $i) => [$i->published_on->toDateString(), $i->views ?? 0])
+            ->take(8)->values()
+            ->map(fn (PortfolioItem $i) => [
+                'title' => $i->title,
+                'client' => $i->clientLabel(),
+                'cover' => $cover($i, 360, 640),
+                'posted' => $i->published_on->format('j M'),
+                'views' => $i->views,
+                'href' => $i->hasCaseStudy() ? route('portfolio.detail', $i) : $i->video_url,
+                'external' => ! $i->hasCaseStudy(),
+            ])
+            ->filter(fn ($r) => $r['cover'] && $r['href'])->values();
+
         return view('portfolio-public', [
+            'recent' => $recent,
             'stars' => $stars,
             'wall' => $wall,
             'hits' => $hits,
@@ -98,6 +115,9 @@ class PublicPortfolioController extends Controller
 
     /** A reel at or above this many views gets the "top performer" pop-up. */
     public const STAR_VIEWS = 100_000;
+
+    /** How recent a piece must be for the Latest work row. */
+    public const RECENT_DAYS = 45;
 
     /**
      * The portfolio's numbers as they stand, for the page to poll: each

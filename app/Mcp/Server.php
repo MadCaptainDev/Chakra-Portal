@@ -124,6 +124,8 @@ class Server
             // The public website portfolio: list, add a client's top reels, write case studies.
             new \App\Tools\Portfolio\ListPortfolio,
             new \App\Tools\Portfolio\AddPortfolioTopReels,
+            new \App\Tools\Portfolio\AddPortfolioVideo,
+            new \App\Tools\Portfolio\AddRecentPortfolioReels,
             new \App\Tools\Portfolio\UpdatePortfolioItem,
             // Leads, the team, shoots to book and the WhatsApp inbox.
             new \App\Tools\Studio\ListEnquiries,

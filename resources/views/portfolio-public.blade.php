@@ -107,6 +107,36 @@
         </div>
     </section>
 
+    {{-- ═══════════════════════════════════════ Latest work ═══ --}}
+    @if ($recent->isNotEmpty())
+        <section class="py-10 sm:py-14" aria-label="Latest work">
+            <div class="mx-auto max-w-7xl px-5 sm:px-8">
+                <div class="flex items-baseline justify-between gap-4">
+                    <h2 class="text-xs font-semibold uppercase tracking-[0.25em] text-brand-300">Latest work</h2>
+                    <a href="#work" class="text-xs text-brand-100/50 hover:text-white">All the work ↓</a>
+                </div>
+                <div class="-mx-5 mt-4 flex snap-x gap-3 overflow-x-auto px-5 pb-2 sm:-mx-8 sm:px-8 [scrollbar-width:none]">
+                    @foreach ($recent as $r)
+                        <a href="{{ $r['href'] }}" @if ($r['external']) target="_blank" rel="noopener" @endif
+                           class="group w-[44vw] max-w-[200px] shrink-0 snap-start sm:w-[200px]">
+                            <div class="relative aspect-[9/16] overflow-hidden rounded-xl bg-brand-800 ring-1 ring-white/10">
+                                <img src="{{ $r['cover'] }}" alt="{{ $r['title'] }}" loading="lazy" class="h-full w-full object-cover transition duration-500 group-hover:scale-105">
+                                <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-2.5 pt-10">
+                                    @if ($r['views'])
+                                        <p class="text-sm font-bold tabular-nums">{{ HomePage::compact($r['views']) }} <span class="text-[11px] font-normal text-white/60">views</span></p>
+                                    @endif
+                                    <p class="text-[11px] text-white/60">{{ $r['posted'] }}</p>
+                                </div>
+                            </div>
+                            <p class="mt-2 truncate text-xs font-semibold text-white">{{ $r['client'] }}</p>
+                            <p class="truncate text-[11px] text-brand-100/50">{{ $r['title'] }}</p>
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+        </section>
+    @endif
+
     {{-- ═══════════════════════════════════════ The numbers ═══ --}}
     <section id="numbers" class="border-y border-white/10 bg-brand-800/40">
         <div class="mx-auto grid max-w-7xl grid-cols-2 gap-px bg-white/[0.06] lg:grid-cols-4">

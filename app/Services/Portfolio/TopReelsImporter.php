@@ -3,12 +3,16 @@
 namespace App\Services\Portfolio;
 
 use App\Models\Client;
+use App\Models\ContentItem;
 use App\Models\PortfolioItem;
 use App\Models\SocialAccount;
 use App\Models\SocialMediaItem;
 use App\Models\TaxonomyTerm;
 use App\Services\Instagram\InstagramGraph;
 use App\Support\PublicUpload;
+use App\Support\ContentDashboard;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 /**
@@ -38,6 +42,75 @@ class TopReelsImporter
             ->reject(fn (SocialMediaItem $m) => $taken->has($m->id));
 
         return $picks->map(fn (SocialMediaItem $media) => $this->addMedia($client, $media))->values()->all();
+    }
+
+    /**
+     * Recent reels that did well, for the top of the portfolio: posted in
+     * the last $days days, at least $minViews views, confirmed posted (see
+     * postedCheck()), at most $perClient per client so one busy account
+     * cannot fill the row. Best first. Nothing is added here.
+     *
+     * @return Collection<int, array{media: SocialMediaItem, client: Client, views: int}>
+     */
+    public function recentCandidates(int $days = 30, int $minViews = 20_000, int $perClient = 2): Collection
+    {
+        $taken = PortfolioItem::query()->whereNotNull('social_media_item_id')->pluck('social_media_item_id')->flip();
+
+        return SocialMediaItem::query()->with(['insights', 'socialAccount.client'])
+            ->where('posted_at', '>=', now()->subDays($days)->startOfDay())
+            ->get()
+            ->filter(fn (SocialMediaItem $m) => $m->isReel() && $m->socialAccount?->client && ! $taken->has($m->id))
+            ->map(fn (SocialMediaItem $m) => ['media' => $m, 'client' => $m->socialAccount->client, 'views' => (int) $m->metricValue('views')])
+            ->filter(fn ($c) => $c['views'] >= $minViews && self::postedCheck($c['media'])['ok'])
+            ->sortByDesc('views')
+            ->groupBy(fn ($c) => $c['client']->id)
+            ->flatMap(fn ($forClient) => $forClient->take(max(0, $perClient - $this->recentCount($forClient->first()['client'], $days))))
+            ->sortByDesc('views')
+            ->values();
+    }
+
+    /** @return list<PortfolioItem> */
+    public function addRecent(int $days = 30, int $minViews = 20_000, int $perClient = 2, int $limit = 10): array
+    {
+        return $this->recentCandidates($days, $minViews, $perClient)->take($limit)
+            ->map(fn ($c) => $this->addMedia($c['client'], $c['media']))->values()->all();
+    }
+
+    /**
+     * Whether a reel really went out as planned: Instagram has the post, and
+     * the Chakra Planner row it is linked to says Published with a publishing
+     * date within a day of when Instagram says it was posted.
+     *
+     * @return array{ok: bool, reason: string, planner_date: ?string, posted_on: ?string}
+     */
+    public static function postedCheck(SocialMediaItem $media): array
+    {
+        $posted = $media->posted_at?->copy()->timezone(config('app.timezone'));
+        $row = ContentItem::query()->where('social_media_item_id', $media->id)->first(['id', 'status', 'published_date']);
+        $plannerDate = $row?->published_date ? Carbon::parse($row->published_date)->toDateString() : null;
+        $out = fn (bool $ok, string $reason) => ['ok' => $ok, 'reason' => $reason, 'planner_date' => $plannerDate, 'posted_on' => $posted?->toDateString()];
+
+        if (! $posted) {
+            return $out(false, 'Instagram has no posting date for it.');
+        }
+        if (! $row) {
+            return $out(false, 'Not linked to a Chakra Planner row.');
+        }
+        if (! in_array($row->status, ContentDashboard::STATUS_GROUPS['published'], true)) {
+            return $out(false, "The planner says \"{$row->status}\", not Published.");
+        }
+        if (! $plannerDate || abs(Carbon::parse($plannerDate)->diffInDays($posted->copy()->startOfDay(), false)) > 1) {
+            return $out(false, 'The planner date ('.($plannerDate ?? 'none').') does not match the Instagram posting date ('.$posted->toDateString().').');
+        }
+
+        return $out(true, 'Posted '.$posted->format('j M Y').', as the planner says.');
+    }
+
+    /** How many of this client's pieces are already from the last $days days. */
+    private function recentCount(Client $client, int $days): int
+    {
+        return PortfolioItem::query()->where('client_id', $client->id)->whereNotNull('social_media_item_id')
+            ->whereDate('published_on', '>=', now()->subDays($days))->count();
     }
 
     /**
