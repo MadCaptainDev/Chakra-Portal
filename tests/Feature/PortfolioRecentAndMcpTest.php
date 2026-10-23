@@ -91,7 +91,7 @@ class PortfolioRecentAndMcpTest extends TestCase
 
         $this->assertSame([90_000, 60_000], array_column($result['added'], 'views'));
         $this->assertSame(2, PortfolioItem::count());
-        // Running it again adds nothing: the client already has its two.
+        // Running it again adds nothing: the client's top two are already in.
         $this->assertSame([], (new AddRecentPortfolioReels)->handle([], $this->admin())['added']);
     }
 

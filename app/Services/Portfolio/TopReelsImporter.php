@@ -47,8 +47,9 @@ class TopReelsImporter
     /**
      * Recent reels that did well, for the top of the portfolio: posted in
      * the last $days days, at least $minViews views, confirmed posted (see
-     * postedCheck()), at most $perClient per client so one busy account
-     * cannot fill the row. Best first. Nothing is added here.
+     * postedCheck()). Each client's top $perClient of those, whichever are
+     * not in yet -- so one busy account cannot fill the row, and running it
+     * again adds nothing new. Best first. Nothing is added here.
      *
      * @return Collection<int, array{media: SocialMediaItem, client: Client, views: int}>
      */
@@ -59,12 +60,13 @@ class TopReelsImporter
         return SocialMediaItem::query()->with(['insights', 'socialAccount.client'])
             ->where('posted_at', '>=', now()->subDays($days)->startOfDay())
             ->get()
-            ->filter(fn (SocialMediaItem $m) => $m->isReel() && $m->socialAccount?->client && ! $taken->has($m->id))
+            ->filter(fn (SocialMediaItem $m) => $m->isReel() && $m->socialAccount?->client)
             ->map(fn (SocialMediaItem $m) => ['media' => $m, 'client' => $m->socialAccount->client, 'views' => (int) $m->metricValue('views')])
             ->filter(fn ($c) => $c['views'] >= $minViews && self::postedCheck($c['media'])['ok'])
             ->sortByDesc('views')
             ->groupBy(fn ($c) => $c['client']->id)
-            ->flatMap(fn ($forClient) => $forClient->take(max(0, $perClient - $this->recentCount($forClient->first()['client'], $days))))
+            ->flatMap(fn ($forClient) => $forClient->take($perClient))
+            ->reject(fn ($c) => $taken->has($c['media']->id))
             ->sortByDesc('views')
             ->values();
     }
@@ -106,12 +108,6 @@ class TopReelsImporter
         return $out(true, 'Posted '.$posted->format('j M Y').', as the planner says.');
     }
 
-    /** How many of this client's pieces are already from the last $days days. */
-    private function recentCount(Client $client, int $days): int
-    {
-        return PortfolioItem::query()->where('client_id', $client->id)->whereNotNull('social_media_item_id')
-            ->whereDate('published_on', '>=', now()->subDays($days))->count();
-    }
 
     /**
      * One reel into the portfolio (or the piece already made from it): the
