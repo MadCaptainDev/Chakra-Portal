@@ -144,20 +144,26 @@ class VideoLinker
     private function linkScriptsByLikeness(Collection $ventureToClient): int
     {
         $scripts = Script::query()->whereNull('content_item_id')->whereNotNull('client_id')
-            ->where('status', '!=', Script::STATUS_ARCHIVED)->get(['id', 'title', 'client_id']);
+            ->where('status', '!=', Script::STATUS_ARCHIVED)->get(['id', 'title', 'client_id', 'created_at']);
         if ($scripts->isEmpty()) {
             return 0;
         }
 
         $claimed = Script::query()->whereNotNull('content_item_id')->pluck('content_item_id')->flip();
         $reels = ContentItem::query()->visible()->where('source', ContentItem::SOURCE_REEL)
-            ->where('created_at', '>=', now()->subMonths(6))->orderByDesc('id')->get(['id', 'title', 'venture'])
+            ->where('created_at', '>=', now()->subMonths(6))->orderByDesc('id')->get(['id', 'title', 'venture', 'status', 'shoot_date', 'published_date'])
             ->reject(fn (ContentItem $item) => $claimed->has($item->id))
             ->groupBy(fn (ContentItem $item) => $ventureToClient[$item->venture] ?? 0);
 
         $linked = 0;
         foreach ($scripts as $script) {
             $mine = ($reels->get($script->client_id) ?? collect())
+                // A reel already shot or posted before this script was written is
+                // an older video, not this one -- "Home Grooming Ad (Outside
+                // Towns)" is a new script, not the "Home Grooming Ad" posted
+                // last month. Scripts written after the fact (imports) are
+                // linked by hand on the script page.
+                ->reject(fn (ContentItem $item) => $this->doneBefore($item, $script))
                 ->map(fn (ContentItem $item) => ['item' => $item, 'score' => $this->likeness($this->core($item->title), $this->norm($script->title))])
                 ->sortByDesc('score')->values();
             $best = $mine->first();
@@ -174,6 +180,13 @@ class VideoLinker
         }
 
         return $linked;
+    }
+
+    private function doneBefore(ContentItem $item, Script $script): bool
+    {
+        $done = in_array($item->status, self::PAST_SHOOT, true) ? ($item->shoot_date ?? $item->published_date) : null;
+
+        return $done !== null && $script->created_at !== null && Carbon::parse($done)->toDateString() < $script->created_at->toDateString();
     }
 
     /**

@@ -200,9 +200,12 @@ class VideoSpineTest extends TestCase
         $reel('Janet - Kaal Sulukku');
         $other = $reel('Someone Else - Office-la Ukkaarnthu Back Pain', 'Someone Else');
 
+        // Written before the shoot.
+        $this->travelTo('2026-10-01 10:00');
         $s1 = Script::create(['client_id' => $this->client->id, 'title' => 'Fracture-ku Nattu Kattu Podalaamaa?', 'status' => 'draft']);
         $s2 = Script::create(['client_id' => $this->client->id, 'title' => 'Veetla Slipper – Aadambaram Illa, Avasiyam', 'status' => 'draft']);
         $s3 = Script::create(['client_id' => $this->client->id, 'title' => 'Office-la Ukkaarndhe Back Pain', 'status' => 'draft']);
+        $this->travelBack();
 
         (new VideoLinker)->run();
 
@@ -215,6 +218,22 @@ class VideoSpineTest extends TestCase
         $this->assertSame(Script::STATUS_COMPLETED, $s1->fresh()->status);
         $this->assertSame('2026-10-20', $s1->fresh()->shot_at->toDateString());
     }
+    public function test_a_new_script_is_not_matched_to_an_older_reel_already_posted(): void
+    {
+        ContentItem::factory()->create([
+            'source' => ContentItem::SOURCE_REEL, 'venture' => 'Janet', 'title' => 'Janet - Home Grooming Ad',
+            'status' => 'Published', 'published_date' => '2026-10-10',
+        ]);
+        $this->travelTo('2026-10-23 14:00');
+        $script = Script::create(['client_id' => $this->client->id, 'title' => 'Home Grooming Ad (Outside Towns)', 'status' => 'draft']);
+
+        (new VideoLinker)->run();
+
+        $this->assertNull($script->fresh()->content_item_id);
+        $this->assertNull($script->fresh()->shot_at);
+        $this->assertSame('draft', $script->fresh()->status);
+    }
+
     public function test_a_script_is_linked_by_hand_and_the_planner_shows_it(): void
     {
         $admin = \App\Models\User::factory()->create(['role' => \App\Models\User::ROLE_ADMIN]);
