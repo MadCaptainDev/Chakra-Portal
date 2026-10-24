@@ -228,6 +228,21 @@ class ShootRunController extends Controller
         return back()->with('status', 'saved');
     }
 
+    /**
+     * Fix a filed video's title -- a typo on set, or a better name once the
+     * take is known. Any of the shoot's crew, during or after the shoot.
+     */
+    public function renameVideo(Request $request, Shoot $shoot, ShootVideo $video): RedirectResponse
+    {
+        $this->authoriseCrew($shoot);
+        abort_unless($video->shoot_id === $shoot->id, 404);
+
+        $data = $request->validate(['name' => ['required', 'string', 'max:160']]);
+        $video->update(['name' => trim($data['name'])]);
+
+        return back()->with('status', 'Video renamed.');
+    }
+
     public function finish(Request $request, Shoot $shoot): RedirectResponse
     {
         $this->authoriseCrew($shoot);

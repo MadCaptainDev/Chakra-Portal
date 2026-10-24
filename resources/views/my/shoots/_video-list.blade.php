@@ -16,7 +16,21 @@
                         </div>
                     @endif
                     <div class="min-w-0 flex-1">
-                        <p class="truncate text-sm font-medium">{{ $video->name }}</p>
+                        <div x-data="{ editing: false }">
+                            <div x-show="!editing" class="flex items-center gap-2">
+                                <p class="min-w-0 flex-1 truncate text-sm font-medium">{{ $video->name }}</p>
+                                <button type="button" @click="editing = true; $nextTick(() => $refs.name.select())"
+                                        class="shrink-0 rounded-md px-2 py-1 text-xs text-white/50 hover:bg-white/10 hover:text-white" aria-label="Rename this video">Edit</button>
+                            </div>
+                            <form x-show="editing" x-cloak method="POST" action="{{ route('my.shoots.videos.rename', [$video->shoot_id, $video]) }}" class="flex items-center gap-2">
+                                @csrf @method('PATCH')
+                                <input type="text" name="name" x-ref="name" value="{{ $video->name }}" required maxlength="160"
+                                       @keydown.escape="editing = false"
+                                       class="min-w-0 flex-1 rounded-lg border-white/15 bg-white/10 px-2.5 py-1.5 text-sm text-white focus:border-amber-400 focus:ring-amber-400">
+                                <button type="submit" class="shrink-0 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black">Save</button>
+                                <button type="button" @click="editing = false" class="shrink-0 text-xs text-white/50">Cancel</button>
+                            </form>
+                        </div>
                         @if ($video->script)
                             <p class="mt-0.5 truncate text-xs text-amber-200/70">Script #{{ $video->script->id }}: {{ $video->script->title }}</p>
                         @endif

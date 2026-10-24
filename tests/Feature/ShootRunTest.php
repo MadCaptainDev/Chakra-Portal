@@ -662,4 +662,21 @@ class ShootRunTest extends TestCase
         $this->assertNotNull($draft->fresh()->shot_at);
         $this->assertSame(Script::STATUS_ARCHIVED, $archived->fresh()->status);
     }
+    public function test_the_crew_can_rename_a_filed_video_and_no_one_else_can(): void
+    {
+        $shoot = $this->shoot();
+        $other = $this->shoot(['title' => 'Other shoot']);
+        $crew = $this->crewMember($shoot);
+        $video = ShootVideo::create(['shoot_id' => $shoot->id, 'recorded_by_id' => $crew->id, 'name' => 'Prodcut shot', 'position' => 1]);
+
+        $this->actingAs($crew)->patch(route('my.shoots.videos.rename', [$shoot, $video]), ['name' => '  Product shot  '])->assertRedirect();
+        $this->assertSame('Product shot', $video->fresh()->name);
+
+        // Not on the shoot, or through another shoot's URL: refused.
+        $this->actingAs(User::factory()->create(['role' => User::ROLE_EMPLOYEE]))
+            ->patch(route('my.shoots.videos.rename', [$shoot, $video]), ['name' => 'Hijack'])->assertNotFound();
+        $this->crewMember($other, $crew);
+        $this->actingAs($crew)->patch(route('my.shoots.videos.rename', [$other, $video]), ['name' => 'Hijack'])->assertNotFound();
+        $this->assertSame('Product shot', $video->fresh()->name);
+    }
 }
