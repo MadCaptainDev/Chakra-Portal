@@ -42,6 +42,12 @@ class TodoUpdate extends Model
     /** Approved in review: ready, with the time it is to be published (note). */
     public const READY = 'ready';
 
+    /** Scheduled on Instagram/YouTube for its publishing time (note), or unscheduled. */
+    public const SCHEDULED = 'scheduled';
+
+    /** Handed to another editor (note: from and to). */
+    public const REASSIGNED = 'reassigned';
+
     /** @var array<string, string> */
     public const ACTIONS = [
         self::CREATED => 'Added',
@@ -53,6 +59,8 @@ class TodoUpdate extends Model
         self::UNPOSTED => 'Post undone',
         self::DELIVERED => 'Delivered',
         self::READY => 'Video ready',
+        self::SCHEDULED => 'Scheduled',
+        self::REASSIGNED => 'Reassigned',
     ];
 
     /**

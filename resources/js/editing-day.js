@@ -38,7 +38,7 @@ function laneOf(c) {
     return null;
 }
 
-export function editingDay({ cards, planner, hints, kinds, urls }) {
+export function editingDay({ cards, planner, hints, kinds, editors = [], me = null, urls }) {
     // Lower-cased text to search each planner item by, worked out once.
     planner.forEach((p) => { p.hay = `${p.title} ${p.client ?? ''} ${p.editor ?? ''}`.toLowerCase(); });
 
@@ -47,6 +47,10 @@ export function editingDay({ cards, planner, hints, kinds, urls }) {
         planner,
         hints,
         kinds,
+        editors,
+        me,
+        handing: null, // card id with the reassign box open
+        handTo: '',
         title: '',
         busy: {},
         error: '',
@@ -160,7 +164,7 @@ export function editingDay({ cards, planner, hints, kinds, urls }) {
 
         // ——— Video ready: its publishing time ———
         publishLate(card) {
-            return !!card.publish_ms && card.publish_ms < this.now;
+            return !card.scheduled && !!card.publish_ms && card.publish_ms < this.now;
         },
         publishIn(card) {
             if (!card.publish_ms) return '';
@@ -229,8 +233,21 @@ export function editingDay({ cards, planner, hints, kinds, urls }) {
             this.run(`${card.id}${action}`, async () => {
                 const { card: fresh } = await post(urls.act.replace('__ID__', card.id), { action, ...extra });
                 this.put(fresh);
-                const said = { done: 'Sent for review.', ready: 'Video ready ✓', post: 'Posted ✓', deliver: 'Delivered ✓' }[action];
+                const said = { done: 'Sent for review.', ready: 'Video ready ✓', schedule: 'Scheduled ✓', unschedule: 'Unscheduled.', post: 'Posted ✓', deliver: 'Delivered ✓' }[action];
                 if (said) this.say(said);
+            });
+        },
+        // Hand a video to someone else: it leaves this board unless handed to me.
+        reassign(card) {
+            const to = Number(this.handTo);
+            if (!to) return;
+            this.run(`${card.id}reassign`, async () => {
+                const res = await post(urls.act.replace('__ID__', card.id), { action: 'reassign', user_id: to });
+                if (res.card) this.put(res.card);
+                else this.cards = this.cards.filter((c) => c.id !== card.id);
+                this.handing = null;
+                this.handTo = '';
+                this.say(`Handed to ${res.to}.`);
             });
         },
         hold(card, note = this.holdText) {

@@ -218,6 +218,8 @@ class EditorBoard
             $u->action === TodoUpdate::POSTED => ['posted', 'Posted', $u->note],
             $u->action === TodoUpdate::DELIVERED => ['posted', 'Delivered', $u->note],
             $u->action === TodoUpdate::READY => ['ready', 'Video ready', $u->note],
+            $u->action === TodoUpdate::SCHEDULED => ['ready', 'Scheduled', $u->note],
+            $u->action === TodoUpdate::REASSIGNED => ['other', 'Reassigned', $u->note],
             $u->action === TodoUpdate::UNPOSTED => ['other', 'Post undone', null],
             $u->action === TodoUpdate::MOVED => ['moved', $u->to_on?->isSameDay($u->created_at) ? 'Back to today' : 'Moved to '.$u->to_on?->format('D j M'), null],
             $u->action === TodoUpdate::STATUS && $u->to_status === Todo::STATUS_BLOCKED => ['hold', 'On hold', $u->note],

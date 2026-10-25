@@ -121,6 +121,7 @@ class Todo extends Model
         'posted_at' => 'datetime',
         'ready_at' => 'datetime',
         'publish_at' => 'datetime',
+        'scheduled_at' => 'datetime',
         'publish_reminded_at' => 'datetime',
     ];
 
@@ -150,11 +151,12 @@ class Todo extends Model
 
     /**
      * Where a reviewed video went -- see the My Editing screen. Posted as one
-     * of the first three, or Delivered: handed to the client, not posted by us.
+     * as a Reel, Post, Story or YouTube video, or Delivered: handed to the
+     * client, not posted by us.
      */
-    public const KINDS = ['reel' => 'Reel', 'post' => 'Post', 'story' => 'Story', 'delivered' => 'Delivered'];
+    public const KINDS = ['reel' => 'Reel', 'post' => 'Post', 'story' => 'Story', 'youtube' => 'YouTube', 'delivered' => 'Delivered'];
 
-    public const POST_KINDS = ['reel', 'post', 'story'];
+    public const POST_KINDS = ['reel', 'post', 'story', 'youtube'];
 
     public const KIND_DELIVERED = 'delivered';
 
@@ -207,10 +209,21 @@ class Todo extends Model
         return $this->status === self::STATUS_COMPLETED && $this->ready_at !== null && $this->posted_at === null;
     }
 
-    /** Ready and past its publish time with nothing posted. */
+    /** Ready and past its publish time with nothing posted (a scheduled one goes out on its own). */
     public function isLateToPublish(?Carbon $now = null): bool
     {
-        return $this->isReady() && $this->publish_at !== null && $this->publish_at->lt($now ?? now());
+        return $this->isReady() && ! $this->isScheduled() && $this->publish_at !== null && $this->publish_at->lt($now ?? now());
+    }
+
+    public function scheduledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'scheduled_by_id');
+    }
+
+    /** Ready, and scheduled on Instagram or YouTube for its publishing time. */
+    public function isScheduled(): bool
+    {
+        return $this->isReady() && $this->scheduled_at !== null;
     }
 
     /** The four stages after Done, as the screens name them. */

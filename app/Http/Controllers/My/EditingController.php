@@ -42,6 +42,8 @@ class EditingController extends Controller
 
         return view('my.editing', [
             'teamReady' => $this->teamReady($user),
+            'teamReview' => $this->teamReview($user),
+            'editors' => $this->editors($user),
             'cards' => $this->cards($user),
             'planner' => $this->planner($user),
             'hints' => $this->hints($user),
@@ -70,6 +72,7 @@ class EditingController extends Controller
         return response()->json([
             'cards' => $this->cards($user),
             'team_ready' => $this->teamReady($user),
+            'team_review' => $this->teamReview($user),
             'suggestions' => $this->hints($user) + ['items' => $items],
             'server_time' => now()->toIso8601String(),
         ]);
@@ -120,7 +123,7 @@ class EditingController extends Controller
     }
 
     /**
-     * start | done | reopen | ready | post | deliver | unpost | kind | hold | next | today
+     * start | done | reopen | ready | schedule | unschedule | post | deliver | unpost | kind | hold | next | today | reassign
      *
      * Done sends a video to review (completed, not out yet). From review it
      * gets a correction (back to Working, see correct()), is delivered to the
@@ -133,16 +136,20 @@ class EditingController extends Controller
     {
         $user = $request->user();
         // Getting a ready video out is anyone's job; editing it is its editor's.
-        in_array($request->input('action'), self::ANYONE, true) && ! $user->isClient()
-            ? abort_unless($todo->parent_id === null && $todo->user_id !== null, 404)
-            : $this->authorise($todo, $user);
+        match (true) {
+            in_array($request->input('action'), self::ANYONE, true) && ! $user->isClient() => abort_unless($todo->parent_id === null && $todo->user_id !== null, 404),
+            // Handing a video on: its editor, whoever gave it, an admin, or the editor's manager.
+            $request->input('action') === 'reassign' && $todo->user && $user->manages($todo->user) => null,
+            default => $this->authorise($todo, $user),
+        };
         $data = $request->validate([
-            'action' => ['required', 'in:start,done,reopen,ready,post,deliver,unpost,kind,hold,next,today,remove'],
+            'action' => ['required', 'in:start,done,reopen,ready,schedule,unschedule,post,deliver,unpost,kind,hold,next,today,remove,reassign'],
+            'user_id' => ['required_if:action,reassign', 'nullable', 'integer'],
             'kind' => ['nullable', 'in:'.implode(',', array_keys(Todo::KINDS))],
             'post_url' => ['nullable', 'url', 'max:500'],
             'note' => ['nullable', 'string', 'max:255'],
-            'publish_at' => ['required_if:action,ready', 'nullable', 'date'],
-        ], ['publish_at.required_if' => 'Set when it is to be published.']);
+            'publish_at' => ['required_if:action,ready', 'required_if:action,schedule', 'nullable', 'date'],
+        ], ['publish_at.required_if' => 'Set when it is to be published.', 'user_id.required_if' => 'Pick who takes it over.']);
         if (in_array($data['action'], ['hold', 'next', 'today'], true) && ($todo->parent_id || ! $todo->isOpen())) {
             return response()->json(['message' => 'Only a video still on your board can be held or moved.'], 422);
         }
@@ -157,13 +164,34 @@ class EditingController extends Controller
             if ($todo->status !== Todo::STATUS_CANCELLED) {
                 $todo->moveTo(Todo::STATUS_CANCELLED, $user, $data['note'] ?? 'Removed from the board');
                 $todo->corrections()->open()->get()->each(fn (Todo $fix) => $fix->moveTo(Todo::STATUS_CANCELLED, $user, 'Video removed'));
-                $todo->forceFill(['ready_at' => null, 'publish_at' => null, 'publish_reminded_at' => null])->save();
+                $todo->forceFill(['ready_at' => null, 'publish_at' => null, 'publish_reminded_at' => null, 'scheduled_at' => null, 'scheduled_by_id' => null])->save();
             }
 
             return response()->json(['removed' => $todo->id]);
         }
 
+        if ($data['action'] === 'reassign') {
+            return $this->reassign($todo, $user, (int) $data['user_id']);
+        }
+
         switch ($data['action']) {
+            case 'schedule':
+                // Scheduled on Instagram/YouTube for its time: no reminder, and
+                // it counts as posted when the time comes (PublishReminders).
+                if (! $todo->isReady()) {
+                    return response()->json(['message' => 'Only a Video ready can be scheduled.'], 422);
+                }
+                $at = Carbon::parse($data['publish_at']);
+                $kind = in_array($data['kind'] ?? null, Todo::POST_KINDS, true) ? $data['kind'] : (in_array($todo->kind, Todo::POST_KINDS, true) ? $todo->kind : 'reel');
+                $todo->forceFill(['kind' => $kind, 'publish_at' => $at, 'scheduled_at' => now(), 'scheduled_by_id' => $user->id, 'publish_reminded_at' => null])->save();
+                TodoUpdate::record($todo, $user, TodoUpdate::SCHEDULED, ['note' => Todo::KINDS[$kind].' for '.$at->format('D j M, g:i A')]);
+                break;
+            case 'unschedule':
+                if ($todo->scheduled_at && ! $todo->posted_at) {
+                    $todo->forceFill(['scheduled_at' => null, 'scheduled_by_id' => null])->save();
+                    TodoUpdate::record($todo, $user, TodoUpdate::SCHEDULED, ['note' => 'Unscheduled']);
+                }
+                break;
             case 'start':
                 if ($todo->status !== Todo::STATUS_STARTED) {
                     $todo->moveTo(Todo::STATUS_STARTED, $user);
@@ -180,7 +208,7 @@ class EditingController extends Controller
                 break;
             case 'reopen':
                 $todo->moveTo(Todo::STATUS_STARTED, $user, 'Reopened');
-                $todo->forceFill(['posted_at' => null, 'post_url' => null, 'posted_by_id' => null, 'ready_at' => null, 'publish_at' => null, 'publish_reminded_at' => null])->save();
+                $todo->forceFill(['posted_at' => null, 'post_url' => null, 'posted_by_id' => null, 'ready_at' => null, 'publish_at' => null, 'publish_reminded_at' => null, 'scheduled_at' => null, 'scheduled_by_id' => null])->save();
                 break;
             case 'kind':
                 $todo->forceFill(['kind' => $data['kind'] ?? null])->save();
@@ -198,6 +226,9 @@ class EditingController extends Controller
                     'ready_at' => $todo->ready_at ?? now(),
                     'publish_at' => $at,
                     'publish_reminded_at' => null,
+                    // A new time means the post has to be scheduled again.
+                    'scheduled_at' => null,
+                    'scheduled_by_id' => null,
                 ])->save();
                 TodoUpdate::record($todo, $user, TodoUpdate::READY, ['note' => ($wasReady ? 'New time: ' : 'Publish ').$at->format('D j M, g:i A')]);
                 break;
@@ -238,7 +269,7 @@ class EditingController extends Controller
                 break;
             case 'unpost':
                 $wasDelivered = $todo->kind === Todo::KIND_DELIVERED;
-                $todo->forceFill(['posted_at' => null, 'post_url' => null, 'posted_by_id' => null, 'publish_reminded_at' => null] + ($wasDelivered ? ['kind' => null] : []))->save();
+                $todo->forceFill(['posted_at' => null, 'post_url' => null, 'posted_by_id' => null, 'publish_reminded_at' => null, 'scheduled_at' => null, 'scheduled_by_id' => null] + ($wasDelivered ? ['kind' => null] : []))->save();
                 TodoUpdate::record($todo, $user, TodoUpdate::UNPOSTED, ['note' => $wasDelivered ? 'Delivery undone' : null]);
                 break;
             case 'hold':
@@ -296,7 +327,7 @@ class EditingController extends Controller
 
         if ($todo->status === Todo::STATUS_COMPLETED) {
             $todo->moveTo(Todo::STATUS_STARTED, $user, 'Correction: '.$fix->title);
-            $todo->forceFill(['posted_at' => null, 'post_url' => null, 'posted_by_id' => null, 'ready_at' => null, 'publish_at' => null, 'publish_reminded_at' => null])->save();
+            $todo->forceFill(['posted_at' => null, 'post_url' => null, 'posted_by_id' => null, 'ready_at' => null, 'publish_at' => null, 'publish_reminded_at' => null, 'scheduled_at' => null, 'scheduled_by_id' => null])->save();
         }
 
         return response()->json(['card' => $this->card($todo->fresh()->load('corrections', 'updates', 'contentItem'))]);
@@ -312,10 +343,10 @@ class EditingController extends Controller
 
     /**
      * What anyone on the team may do to someone else's video: mark a ready
-     * video posted or delivered (or undo that), and say what kind of post it
-     * was. Starting, holding, finishing and removing stay the editor's.
+     * video posted, scheduled or delivered (or undo that), and say what kind
+     * of post it was. Starting, holding, finishing and removing stay the editor's.
      */
-    private const ANYONE = ['post', 'deliver', 'unpost', 'kind'];
+    private const ANYONE = ['post', 'deliver', 'unpost', 'kind', 'schedule', 'unschedule'];
 
     private function authorise(Todo $todo, User $user): void
     {
@@ -359,7 +390,84 @@ class EditingController extends Controller
                 'publish_label' => $t->publish_at ? ($t->publish_at->isToday() ? 'Today ' : ($t->publish_at->isTomorrow() ? 'Tomorrow ' : $t->publish_at->format('D j M '))).$t->publish_at->format('g:i A') : null,
                 'publish_ms' => $t->publish_at?->getTimestampMs(),
                 'late' => $t->isLateToPublish(),
+                'scheduled' => $t->scheduled_at !== null,
+                'publish_at' => $t->publish_at?->format('Y-m-d\TH:i'),
             ])->values()->all();
+    }
+
+    /**
+     * Everyone else's videos in review (done, not yet Video ready), oldest
+     * first, so the team sees what is waiting -- the same two weeks the
+     * board keeps them.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function teamReview(User $user): array
+    {
+        return Todo::query()->whereNull('parent_id')->where('status', Todo::STATUS_COMPLETED)
+            ->whereNull('ready_at')->whereNull('posted_at')->where('user_id', '!=', $user->id)
+            ->whereDate('closed_on', '>=', today()->subDays(14))
+            ->with(['user:id,name,avatar_path', 'contentItem:id,venture', 'updates', 'corrections'])->orderBy('closed_on')->orderBy('id')->get()
+            ->map(function (Todo $t) {
+                $doneAt = $t->updates->last(fn ($u) => $u->to_status === Todo::STATUS_COMPLETED)?->created_at ?? $t->updated_at;
+
+                return self::visuals($t) + [
+                    'id' => $t->id,
+                    'title' => $t->title,
+                    'client' => $t->venture,
+                    'editor' => $t->user?->name,
+                    'waiting' => $doneAt->diffForHumans(null, true),
+                    'sent_back' => $t->wasSentBack() ? $t->review_note : null,
+                ];
+            })->values()->all();
+    }
+
+    /**
+     * Who a video can be handed to: the people who have edited in the last
+     * two months (and the person looking), by name.
+     *
+     * @return list<array{id: int, name: string}>
+     */
+    private function editors(User $user): array
+    {
+        $ids = Todo::query()->whereNull('parent_id')->where(fn ($q) => $q->whereNotNull('content_item_id')->orWhereNotNull('kind'))
+            ->where('created_at', '>=', now()->subMonths(2))->distinct()->pluck('user_id')->push($user->id);
+
+        return User::query()->whereIn('id', $ids)->where('role', '!=', User::ROLE_CLIENT)->orderBy('name')->get(['id', 'name'])
+            ->map(fn (User $u) => ['id' => $u->id, 'name' => $u->name])->values()->all();
+    }
+
+    /**
+     * Hand a video to another editor, with its open corrections. A video
+     * being worked on is paused first, so the old editor's clock stops.
+     */
+    private function reassign(Todo $todo, User $by, int $toId): JsonResponse
+    {
+        $to = User::find($toId);
+        if (! $to || $to->isClient()) {
+            return response()->json(['message' => 'Pick someone on the team.'], 422);
+        }
+        if ($todo->parent_id || $todo->posted_at || $todo->status === Todo::STATUS_CANCELLED) {
+            return response()->json(['message' => 'Only a video still being made can be handed on.'], 422);
+        }
+        if ($todo->user_id === $to->id) {
+            return response()->json(['message' => 'It is already '.$to->name.'’s.'], 422);
+        }
+
+        $from = $todo->user;
+        if ($todo->status === Todo::STATUS_STARTED) {
+            $todo->moveTo(Todo::STATUS_WAITING, $by, 'Paused');
+        }
+        $todo->forceFill(['user_id' => $to->id])->save();
+        $todo->corrections()->open()->update(['user_id' => $to->id]);
+        TodoUpdate::record($todo, $by, TodoUpdate::REASSIGNED, ['note' => ($from?->name ?? 'No one').' → '.$to->name]);
+
+        return response()->json([
+            'reassigned' => $todo->id,
+            'to' => $to->name,
+            // Still on this board only if it was handed to the person looking.
+            'card' => $to->id === $by->id ? $this->card($todo->fresh()->load('corrections', 'updates', 'contentItem')) : null,
+        ]);
     }
 
     /** @return array<string, mixed> */
@@ -380,6 +488,7 @@ class EditingController extends Controller
             'publish_at' => $t->publish_at?->format('Y-m-d\TH:i'),
             'publish_label' => $t->publish_at ? ($t->publish_at->isToday() ? 'Today ' : ($t->publish_at->isTomorrow() ? 'Tomorrow ' : $t->publish_at->format('D j M '))).$t->publish_at->format('g:i A') : null,
             'publish_ms' => $t->publish_at?->getTimestampMs(),
+            'scheduled' => $t->scheduled_at !== null && $t->posted_at === null,
             'publish_default' => ($publish && $publish->gte(today()) ? $publish->copy()->setTime(18, 0) : now()->addHour()->startOfHour())->format('Y-m-d\TH:i'),
             'post_url' => $t->post_url,
             'working_minutes' => $t->workingMinutes(),
