@@ -186,12 +186,20 @@
                             <article class="rounded-xl bg-brand-900/80 p-3.5 ring-1 ring-white/10 sm:p-3">
                                 <div class="flex items-start justify-between gap-2">
                                     <p class="font-semibold leading-snug text-white" x-text="card.title"></p>
+                                    <span class="-mr-1 -mt-1 flex shrink-0">
+                                    {{-- Hand it to someone else. --}}
+                                    <button type="button" x-show="!card.posted_at && editors.length > 1" @click="handing = handing === card.id ? null : card.id; handTo = ''"
+                                            class="flex h-9 w-9 items-center justify-center rounded-lg text-brand-100/35 hover:bg-white/10 hover:text-white sm:h-7 sm:w-7"
+                                            :class="handing === card.id ? 'bg-white/10 text-white' : ''" title="Reassign to another editor" aria-label="Reassign to another editor">
+                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+                                    </button>
                                     {{-- Added by mistake, or not yours: take it off the board. --}}
                                     <button type="button" x-show="!card.posted_at" @click="remove(card)" :disabled="!!busy[card.id + 'remove']"
-                                            class="-mr-1 -mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-brand-100/35 hover:bg-red-500/15 hover:text-red-300 disabled:opacity-40 sm:h-7 sm:w-7"
+                                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-brand-100/35 hover:bg-red-500/15 hover:text-red-300 disabled:opacity-40 sm:h-7 sm:w-7"
                                             title="Remove from my board" aria-label="Remove from my board">
                                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                                     </button>
+                                    </span>
                                 </div>
                                 <p class="mt-0.5 text-xs text-brand-100/55">
                                     <span x-text="card.client"></span>
@@ -273,10 +281,6 @@
                                         <button type="button" @click="moveOn(card, 'next')" :disabled="!!busy[card.id + 'next']" title="Not today — move it to the next day"
                                                 class="min-h-[44px] rounded-lg bg-white/5 px-3 text-sm font-semibold text-sky-200 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-40 sm:min-h-[32px] sm:text-xs">Next day →</button>
                                     </template>
-                                    <template x-if="!card.posted_at && editors.length > 1">
-                                        <button type="button" @click="handing = handing === card.id ? null : card.id; handTo = ''"
-                                                class="min-h-[44px] rounded-lg bg-white/5 px-3 text-sm font-semibold text-brand-100/80 ring-1 ring-white/10 hover:bg-white/10 sm:min-h-[32px] sm:text-xs">⇄ Reassign</button>
-                                    </template>
                                     <template x-if="card.status !== 'completed' || !card.posted_at">
                                         <button type="button" @click="fixing = card.id; fixText = ''; holding = null"
                                                 class="min-h-[44px] rounded-lg bg-white/5 px-3 text-sm font-semibold text-amber-200 ring-1 ring-white/10 hover:bg-white/10 sm:min-h-[32px] sm:text-xs">+ Correction</button>
@@ -316,46 +320,91 @@
                                     </div>
                                 </template>
 
-                                {{-- Video ready: publish it at its time, then mark it posted. --}}
+                                {{-- Video ready: one of three ways out, as tabs -- posted now,
+                                     scheduled on Instagram/YouTube for the time the editor
+                                     picks (counts as posted then), or delivered to the client. --}}
                                 <template x-if="card.ready && !card.posted_at">
-                                    <div class="mt-2.5 space-y-2 rounded-lg p-2 ring-1"
-                                         :class="card.scheduled ? 'bg-emerald-400/[0.07] ring-emerald-400/25' : (publishLate(card) ? 'bg-red-500/10 ring-red-400/40' : 'bg-violet-400/[0.07] ring-violet-400/25')">
-                                        <template x-if="card.scheduled">
-                                            <div class="flex items-start justify-between gap-2">
-                                                <p class="text-xs font-semibold text-emerald-200">🗓 Scheduled · <span x-text="kinds[card.kind] ?? 'Reel'"></span> · <span x-text="card.publish_label"></span>
-                                                    <span class="block font-normal text-emerald-100/70">Counts as posted when the time comes.</span></p>
-                                                <button type="button" @click="act(card, 'unschedule')" class="shrink-0 text-[11px] text-brand-100/50 underline underline-offset-2 hover:text-white">Unschedule</button>
+                                    <div class="mt-2.5 overflow-hidden rounded-lg ring-1"
+                                         :class="card.scheduled ? 'ring-emerald-400/30' : (publishLate(card) ? 'ring-red-400/40' : 'ring-violet-400/25')">
+                                        {{-- Scheduled: that is all it needs to say. --}}
+                                        <template x-if="card.scheduled && outMode(card) !== 'schedule'">
+                                            <div class="flex items-center gap-2 bg-emerald-400/[0.08] px-3 py-2.5">
+                                                <span class="text-lg leading-none" aria-hidden="true">🗓</span>
+                                                <div class="min-w-0 flex-1">
+                                                    <p class="text-sm font-semibold text-emerald-200 sm:text-xs"><span x-text="kinds[card.kind] ?? 'Reel'"></span> scheduled</p>
+                                                    <p class="text-xs text-emerald-100/70 sm:text-[11px]" x-text="card.publish_label + ' · posts itself'"></p>
+                                                </div>
+                                                <button type="button" @click="setMode(card, 'schedule')" class="rounded-md px-2 py-1 text-xs text-brand-100/70 hover:bg-white/10 hover:text-white">Change</button>
+                                                <button type="button" @click="act(card, 'unschedule')" class="rounded-md px-2 py-1 text-xs text-brand-100/50 hover:bg-white/10 hover:text-white">Undo</button>
                                             </div>
                                         </template>
-                                        <p x-show="!card.scheduled" class="text-xs font-semibold" :class="publishLate(card) ? 'text-red-200' : 'text-violet-200'">
-                                            <span x-text="publishLate(card) ? '⚠ Was due ' : '🕒 Due '"></span><span x-text="card.publish_label"></span>
-                                            <span class="font-normal opacity-80" x-text="publishIn(card)"></span>
-                                        </p>
-                                        <div class="grid grid-cols-4 gap-1">
-                                            <template x-for="key in ['reel', 'youtube', 'post', 'story']" :key="key">
-                                                <button type="button" @click="act(card, 'kind', { kind: key })"
-                                                        :class="card.kind === key ? 'bg-brand-400 text-brand-900' : 'bg-white/5 text-brand-100/70 hover:bg-white/10'"
-                                                        class="min-h-[40px] rounded-md px-1 text-xs font-semibold sm:min-h-[30px] sm:text-[11px]" x-text="kinds[key]"></button>
-                                            </template>
-                                        </div>
-                                        <button type="button" x-show="!card.scheduled" @click="act(card, 'schedule', { kind: ['reel', 'youtube', 'post', 'story'].includes(card.kind) ? card.kind : 'reel', publish_at: card.publish_at })" :disabled="!!busy[card.id + 'schedule']"
-                                                class="min-h-[44px] w-full rounded-lg bg-white/10 px-3 text-sm font-bold text-white ring-1 ring-white/15 hover:bg-white/15 disabled:opacity-40 sm:min-h-[32px] sm:text-xs">🗓 Scheduled for <span x-text="card.publish_label"></span></button>
-                                        <form @submit.prevent="act(card, 'post', { kind: ['reel', 'youtube', 'post', 'story'].includes(card.kind) ? card.kind : 'reel', post_url: links[card.id] || null })" class="flex gap-1.5">
-                                            <input x-model="links[card.id]" type="url" inputmode="url" placeholder="Link (optional)"
-                                                   class="min-h-[44px] min-w-0 flex-1 rounded-lg border-0 bg-white/10 px-3 text-base text-white placeholder:text-brand-100/40 focus:ring-2 focus:ring-emerald-400 sm:min-h-[32px] sm:text-xs">
-                                            <button class="shrink-0 rounded-lg bg-emerald-500 px-3.5 text-sm font-bold text-white hover:bg-emerald-400 sm:text-xs">Mark posted</button>
-                                        </form>
-                                        <div class="flex items-center gap-2 text-[11px] text-brand-100/45"><span class="h-px flex-1 bg-white/10"></span>or, if it goes to the client<span class="h-px flex-1 bg-white/10"></span></div>
-                                        <button type="button" @click="act(card, 'deliver', { post_url: links[card.id] || null })" :disabled="!!busy[card.id + 'deliver']"
-                                                class="min-h-[44px] w-full rounded-lg bg-teal-500/90 px-3 text-sm font-bold text-white hover:bg-teal-400 disabled:opacity-40 sm:min-h-[32px] sm:text-xs">📦 Mark delivered</button>
-                                        <details class="text-xs text-brand-100/60">
-                                            <summary class="min-h-[32px] cursor-pointer py-1 hover:text-white">Change the time</summary>
-                                            <form @submit.prevent="act(card, 'ready', { publish_at: when[card.id] || card.publish_at })" class="mt-1 flex gap-1.5">
-                                                <input type="datetime-local" required :value="when[card.id] || card.publish_at" @input="when[card.id] = $event.target.value"
-                                                       class="min-h-[40px] min-w-0 flex-1 rounded-lg border-0 bg-white/10 px-3 text-sm text-white [color-scheme:dark] sm:min-h-[30px] sm:text-xs">
-                                                <button class="shrink-0 rounded-lg bg-white/10 px-3 text-xs font-semibold text-white hover:bg-white/15">Save time</button>
-                                            </form>
-                                        </details>
+
+                                        <template x-if="!card.scheduled || outMode(card) === 'schedule'">
+                                            <div>
+                                                <p class="flex items-center justify-between gap-2 px-3 pt-2.5 text-xs font-semibold"
+                                                   :class="publishLate(card) ? 'text-red-200' : 'text-violet-200'">
+                                                    <span><span x-text="publishLate(card) ? '⚠ Was due ' : 'Due '"></span><span x-text="card.publish_label"></span></span>
+                                                    <span class="font-normal opacity-70" x-text="publishIn(card).replace(/^· /, '')"></span>
+                                                </p>
+                                                {{-- How it goes out --}}
+                                                <div class="mx-3 mt-2 grid grid-cols-3 rounded-lg bg-white/5 p-0.5 text-xs font-semibold" role="tablist">
+                                                    <template x-for="m in [['post', 'Post now'], ['schedule', 'Schedule'], ['deliver', 'Deliver']]" :key="m[0]">
+                                                        <button type="button" role="tab" @click="setMode(card, m[0])" :aria-selected="outMode(card) === m[0]"
+                                                                class="min-h-[38px] rounded-md transition sm:min-h-[30px]"
+                                                                :class="outMode(card) === m[0] ? 'bg-white text-brand-900' : 'text-brand-100/60 hover:text-white'" x-text="m[1]"></button>
+                                                    </template>
+                                                </div>
+
+                                                <div class="space-y-2 p-3">
+                                                    {{-- Type: posting and scheduling both need it. --}}
+                                                    <div x-show="outMode(card) !== 'deliver'" class="flex flex-wrap gap-1">
+                                                        <template x-for="key in (outMode(card) === 'schedule' ? ['reel', 'youtube'] : ['reel', 'youtube', 'post', 'story'])" :key="key">
+                                                            <button type="button" @click="pick[card.id] = key"
+                                                                    :class="kindOf(card) === key ? 'bg-brand-400 text-brand-900' : 'bg-white/5 text-brand-100/70 hover:bg-white/10'"
+                                                                    class="min-h-[36px] rounded-full px-3 text-xs font-semibold sm:min-h-[28px] sm:text-[11px]" x-text="kinds[key]"></button>
+                                                        </template>
+                                                    </div>
+
+                                                    <template x-if="outMode(card) === 'post'">
+                                                        <form @submit.prevent="act(card, 'post', { kind: kindOf(card), post_url: links[card.id] || null })" class="flex gap-1.5">
+                                                            <input x-model="links[card.id]" type="url" inputmode="url" placeholder="Link (optional)"
+                                                                   class="min-h-[44px] min-w-0 flex-1 rounded-lg border-0 bg-white/10 px-3 text-base text-white placeholder:text-brand-100/40 focus:ring-2 focus:ring-emerald-400 sm:min-h-[32px] sm:text-xs">
+                                                            <button :disabled="!!busy[card.id + 'post']" class="shrink-0 rounded-lg bg-emerald-500 px-3.5 text-sm font-bold text-white hover:bg-emerald-400 disabled:opacity-40 sm:text-xs">Mark posted</button>
+                                                        </form>
+                                                    </template>
+
+                                                    <template x-if="outMode(card) === 'schedule'">
+                                                        <form @submit.prevent="schedule(card)" class="space-y-1.5">
+                                                            <label class="block text-[11px] text-brand-100/55">When it is scheduled to go live</label>
+                                                            <div class="flex gap-1.5">
+                                                                <input type="datetime-local" required :value="when['s' + card.id] || card.publish_at" @input="when['s' + card.id] = $event.target.value"
+                                                                       class="min-h-[44px] min-w-0 flex-1 rounded-lg border-0 bg-white/10 px-3 text-base text-white [color-scheme:dark] focus:ring-2 focus:ring-emerald-400 sm:min-h-[32px] sm:text-xs">
+                                                                <button :disabled="!!busy[card.id + 'schedule']" class="shrink-0 rounded-lg bg-emerald-500 px-3.5 text-sm font-bold text-white hover:bg-emerald-400 disabled:opacity-40 sm:text-xs"
+                                                                        x-text="card.scheduled ? 'Save' : 'Schedule'"></button>
+                                                            </div>
+                                                            <button type="button" x-show="card.scheduled" @click="setMode(card, 'post')" class="text-[11px] text-brand-100/50 underline underline-offset-2">Cancel</button>
+                                                        </form>
+                                                    </template>
+
+                                                    <template x-if="outMode(card) === 'deliver'">
+                                                        <form @submit.prevent="act(card, 'deliver', { post_url: links[card.id] || null })" class="flex gap-1.5">
+                                                            <input x-model="links[card.id]" type="url" inputmode="url" placeholder="Drive / file link (optional)"
+                                                                   class="min-h-[44px] min-w-0 flex-1 rounded-lg border-0 bg-white/10 px-3 text-base text-white placeholder:text-brand-100/40 focus:ring-2 focus:ring-teal-400 sm:min-h-[32px] sm:text-xs">
+                                                            <button :disabled="!!busy[card.id + 'deliver']" class="shrink-0 rounded-lg bg-teal-500 px-3.5 text-sm font-bold text-white hover:bg-teal-400 disabled:opacity-40 sm:text-xs">Delivered</button>
+                                                        </form>
+                                                    </template>
+
+                                                    <details x-show="outMode(card) === 'post'" class="text-[11px] text-brand-100/50">
+                                                        <summary class="cursor-pointer py-0.5 hover:text-white">Change the due time</summary>
+                                                        <form @submit.prevent="act(card, 'ready', { publish_at: when[card.id] || card.publish_at })" class="mt-1 flex gap-1.5">
+                                                            <input type="datetime-local" required :value="when[card.id] || card.publish_at" @input="when[card.id] = $event.target.value"
+                                                                   class="min-h-[40px] min-w-0 flex-1 rounded-lg border-0 bg-white/10 px-3 text-sm text-white [color-scheme:dark] sm:min-h-[30px] sm:text-xs">
+                                                            <button class="shrink-0 rounded-lg bg-white/10 px-3 text-xs font-semibold text-white hover:bg-white/15">Save</button>
+                                                        </form>
+                                                    </details>
+                                                </div>
+                                            </div>
+                                        </template>
                                     </div>
                                 </template>
 

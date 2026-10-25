@@ -50,8 +50,9 @@ class EditingScheduleReassignTest extends TestCase
         $this->postJson(route('my.editing.act', $id), ['action' => 'schedule', 'kind' => 'youtube', 'publish_at' => $at])->assertStatus(422);
         $this->postJson(route('my.editing.act', $id), ['action' => 'ready', 'publish_at' => $at])->assertOk();
 
-        // Anyone on the team can mark it scheduled.
-        $this->actingAs($this->other)->postJson(route('my.editing.act', $id), ['action' => 'schedule', 'kind' => 'youtube', 'publish_at' => $at])
+        // The editor schedules it, at the time they set it up for; no one else can.
+        $this->actingAs($this->other)->postJson(route('my.editing.act', $id), ['action' => 'schedule', 'kind' => 'youtube', 'publish_at' => $at])->assertNotFound();
+        $this->actingAs($this->editor)->postJson(route('my.editing.act', $id), ['action' => 'schedule', 'kind' => 'youtube', 'publish_at' => $at])
             ->assertOk()->assertJsonPath('card.scheduled', true)->assertJsonPath('card.kind', 'youtube');
 
         // Past its time it is not late and no one is nagged; it is posted, by whoever scheduled it.
@@ -62,7 +63,7 @@ class EditingScheduleReassignTest extends TestCase
 
         $todo = Todo::find($id);
         $this->assertSame('18:00', $todo->posted_at->format('H:i'));
-        $this->assertSame($this->other->id, $todo->posted_by_id);
+        $this->assertSame($this->editor->id, $todo->posted_by_id);
         $this->assertSame('posted', $todo->stage());
     }
 

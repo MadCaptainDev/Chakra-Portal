@@ -343,10 +343,10 @@ class EditingController extends Controller
 
     /**
      * What anyone on the team may do to someone else's video: mark a ready
-     * video posted, scheduled or delivered (or undo that), and say what kind
-     * of post it was. Starting, holding, finishing and removing stay the editor's.
+     * video posted or delivered (or undo that), and say what kind of post it
+     * was. Scheduling is the editor's: they set it up and say when it goes live. Starting, holding, finishing and removing stay the editor's.
      */
-    private const ANYONE = ['post', 'deliver', 'unpost', 'kind', 'schedule', 'unschedule'];
+    private const ANYONE = ['post', 'deliver', 'unpost', 'kind'];
 
     private function authorise(Todo $todo, User $user): void
     {

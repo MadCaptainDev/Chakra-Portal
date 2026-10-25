@@ -10,12 +10,12 @@
                      const r = await fetch(@js(route('my.editing.act', ['todo' => '__ID__'])).replace('__ID__', id), { method: 'POST', credentials: 'same-origin',
                          headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }, body: JSON.stringify(body) });
                      const d = await r.json().catch(() => ({}));
-                     if (r.ok) { body.action === 'schedule' ? window.location.reload() : document.getElementById('team-ready-' + id)?.remove(); } else { this.error = d.message || 'That did not work.'; }
+                     if (r.ok) { document.getElementById('team-ready-' + id)?.remove(); } else { this.error = d.message || 'That did not work.'; }
                      this.busy = null;
                  } }">
         <div class="flex flex-wrap items-baseline justify-between gap-2">
             <h2 class="font-semibold text-white">Ready to post · team <span class="ml-1 rounded-full bg-violet-400/20 px-2 text-xs text-violet-200">{{ count($teamReady) }}</span></h2>
-            <p class="text-xs text-brand-100/55">Anyone can post these — mark it once it is out, or scheduled once it is set up on Instagram/YouTube.</p>
+            <p class="text-xs text-brand-100/55">Anyone can post these — mark it once it is out. Scheduled ones post themselves.</p>
         </div>
         <p x-show="error" x-cloak x-text="error" class="mt-2 rounded-lg bg-red-500/15 px-3 py-2 text-sm text-red-200"></p>
         @foreach ($teamReady as $t)
@@ -29,10 +29,6 @@
                         <option value="{{ $k }}">{{ \App\Models\Todo::KINDS[$k] }}</option>
                     @endforeach
                 </select>
-                @unless ($t['scheduled'])
-                    <button type="button" :disabled="busy === {{ $t['id'] }}" @click="go({{ $t['id'] }}, { action: 'schedule', kind: kind[{{ $t['id'] }}], publish_at: @js($t['publish_at']) })"
-                            class="h-10 rounded-lg bg-white/10 px-3.5 text-[13px] font-bold text-white ring-1 ring-white/15 hover:bg-white/15 disabled:opacity-40">Scheduled</button>
-                @endunless
                 <button type="button" :disabled="busy === {{ $t['id'] }}" @click="go({{ $t['id'] }}, { action: 'post', kind: kind[{{ $t['id'] }}] })"
                         class="h-10 rounded-lg bg-emerald-500 px-3.5 text-[13px] font-bold text-white hover:bg-emerald-400 disabled:opacity-40">Posted</button>
                 <button type="button" :disabled="busy === {{ $t['id'] }}" @click="go({{ $t['id'] }}, { action: 'deliver' })"

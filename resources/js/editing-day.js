@@ -50,6 +50,8 @@ export function editingDay({ cards, planner, hints, kinds, editors = [], me = nu
         editors,
         me,
         handing: null, // card id with the reassign box open
+        modes: {}, // a ready card's open tab: post | schedule | deliver
+        pick: {}, // the post type picked on a ready card
         handTo: '',
         title: '',
         busy: {},
@@ -171,6 +173,28 @@ export function editingDay({ cards, planner, hints, kinds, editors = [], me = nu
             const mins = Math.round((card.publish_ms - this.now) / 60000);
             const span = (m) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`);
             return mins >= 0 ? `· in ${span(mins)}` : `· ${span(-mins)} late — post it now`;
+        },
+
+        // ——— Video ready: post now, schedule, or deliver ———
+        outMode(card) {
+            return this.modes[card.id] || 'post';
+        },
+        setMode(card, mode) {
+            this.modes[card.id] = mode;
+        },
+        kindOf(card) {
+            const allowed = this.outMode(card) === 'schedule' ? ['reel', 'youtube'] : ['reel', 'youtube', 'post', 'story'];
+            const k = this.pick[card.id] || card.kind;
+            return allowed.includes(k) ? k : 'reel';
+        },
+        schedule(card) {
+            const at = this.when[`s${card.id}`] || card.publish_at;
+            this.run(`${card.id}schedule`, async () => {
+                const { card: fresh } = await post(urls.act.replace('__ID__', card.id), { action: 'schedule', kind: this.kindOf(card), publish_at: at });
+                this.put(fresh);
+                delete this.modes[card.id];
+                this.say(`Scheduled for ${fresh.publish_label}.`);
+            });
         },
 
         openFixes(card) {
