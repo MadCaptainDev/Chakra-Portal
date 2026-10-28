@@ -29,7 +29,12 @@ final class ShootReachedAlert
             ->whereKeyNot($reachedBy->id)
             ->whereNotNull('phone')
             ->where('phone', '!=', '')
-            ->get();
+            ->get()
+            // The tapper already knows, on whichever account shares their phone too.
+            ->reject(fn (User $user) => filled($reachedBy->phone)
+                && WhatsappSender::normalise((string) $user->phone) === WhatsappSender::normalise((string) $reachedBy->phone));
+
+        $recipients = WhatsappSender::onePerPhone($recipients);
 
         $where = $shoot->location ?: ($shoot->client?->name ?? 'no location set');
         $sent = 0;

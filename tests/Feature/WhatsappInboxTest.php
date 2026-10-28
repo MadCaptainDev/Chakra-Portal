@@ -401,7 +401,9 @@ class WhatsappInboxTest extends TestCase
                 'button_param' => 'abc123',
             ])
             ->assertOk()
-            ->assertJsonPath('message.kind', 'template');
+            ->assertJsonPath('message.kind', 'template')
+            // The words they read, not the template's name.
+            ->assertJsonPath('message.summary', 'Hi Ravi, your invoice INV-12 is ready.');
 
         Http::assertSent(fn (HttpRequest $request) => $request->data()['template']['name'] === 'invoice_ready_v2'
             && $request->data()['template']['components'][0]['parameters'][1]['text'] === 'INV-12'

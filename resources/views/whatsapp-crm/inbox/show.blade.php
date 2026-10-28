@@ -99,11 +99,6 @@
                                          'bg-red-500/15 text-white ring-1 ring-red-400/40 rounded-br-md': message.status === 'failed',
                                          'bg-white/10 text-white rounded-bl-md': message.type !== 'outgoing',
                                      }">
-                                    <template x-if="message.kind === 'template'">
-                                        <span class="mb-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-brand-200/80">
-                                            <x-icon name="template" class="w-3 h-3" /> Template
-                                        </span>
-                                    </template>
                                     <template x-if="message.media">
                                         <div class="-mx-1 -mt-0.5 mb-1">
                                             <template x-if="message.media.expired">

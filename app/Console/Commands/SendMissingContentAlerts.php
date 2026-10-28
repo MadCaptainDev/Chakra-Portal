@@ -87,7 +87,7 @@ class SendMissingContentAlerts extends Command
      */
     private function sendWhatsapp(Shoot $shoot, Collection $recipients): void
     {
-        foreach ($recipients as $recipient) {
+        foreach (WhatsappSender::onePerPhone($recipients) as $recipient) {
             if (blank($recipient->phone)) {
                 continue;
             }

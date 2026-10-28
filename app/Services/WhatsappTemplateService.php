@@ -45,6 +45,12 @@ class WhatsappTemplateService
             fn () => $this->fetch()
         );
 
+        // A copy that never expires, for render(): the words of a template
+        // already sent do not stop being true when the 5-minute cache does.
+        if ($templates !== []) {
+            Cache::forever(self::CACHE_KEY.'.last', $templates);
+        }
+
         if (! $approvedOnly) {
             return $templates;
         }
@@ -53,6 +59,31 @@ class WhatsappTemplateService
             $templates,
             fn (array $template) => ($template['status'] ?? null) === 'APPROVED'
         ));
+    }
+
+    /**
+     * The words a template actually sent: its BODY with {{1}}, {{2}} ...
+     * filled in. Read from the cached list only -- this runs while drawing
+     * a thread or filing a send, and must never make a Graph call of its
+     * own. Null when the template is not in the cache; the caller keeps
+     * its "[template: ...]" fallback then.
+     *
+     * @param  array<int, string>  $parameters
+     */
+    public static function render(string $name, array $parameters = []): ?string
+    {
+        $template = collect(Cache::get(self::CACHE_KEY) ?: Cache::get(self::CACHE_KEY.'.last', []))->firstWhere('name', $name);
+        $body = collect($template['components'] ?? [])->firstWhere('type', 'BODY')['text'] ?? null;
+
+        if (! is_string($body) || $body === '') {
+            return null;
+        }
+
+        return preg_replace_callback(
+            '/\{\{\s*(\d+)\s*\}\}/',
+            fn (array $m) => (string) ($parameters[(int) $m[1] - 1] ?? $m[0]),
+            $body
+        );
     }
 
     /**

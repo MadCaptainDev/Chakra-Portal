@@ -53,7 +53,7 @@ class SendMorningBrief extends Command
         $sent = 0;
         $skipped = 0;
 
-        foreach ($admins as $admin) {
+        foreach (WhatsappSender::onePerPhone($admins) as $admin) {
             if (! WhatsappServiceWindow::isOpen((string) $admin->phone)) {
                 // Not a failure worth an error: they simply have not written
                 // in a day, and Meta would refuse this before it left.

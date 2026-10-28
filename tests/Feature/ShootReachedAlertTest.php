@@ -52,6 +52,17 @@ class ShootReachedAlertTest extends TestCase
             && $r->data()['template']['components'][0]['parameters'][2]['text'] === 'Anna Nagar');
     }
 
+    public function test_two_accounts_sharing_a_phone_get_one_message(): void
+    {
+        // An owner with an admin login and a personal one, same number.
+        User::factory()->create(['role' => User::ROLE_ADMIN, 'phone' => '9876543210']);
+        User::factory()->create(['role' => User::ROLE_ADMIN, 'phone' => '+91 98765 43210']);
+
+        $this->actingAs($this->crew)->post(route('my.shoots.reached', $this->shoot))->assertRedirect();
+
+        $this->assertCount(1, Http::recorded()->filter(fn ($pair) => ($pair[0]->data()['to'] ?? null) === '919876543210'));
+    }
+
     public function test_a_second_tap_sends_nothing_more(): void
     {
         User::factory()->create(['role' => User::ROLE_ADMIN, 'phone' => '9876543210']);

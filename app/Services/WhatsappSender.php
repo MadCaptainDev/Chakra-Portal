@@ -82,7 +82,12 @@ class WhatsappSender
             $payload['template']['components'] = $components;
         }
 
-        return $this->send($payload, summary: sprintf('[template: %s]', self::humanizeTemplateName($template)));
+        // What the recipient actually read, so the inbox shows the message
+        // rather than the template's name.
+        $summary = WhatsappTemplateService::render($template, $bodyParameters)
+            ?? sprintf('[template: %s]', self::humanizeTemplateName($template));
+
+        return $this->send($payload, summary: $summary);
     }
 
     /**
@@ -316,6 +321,24 @@ class WhatsappSender
             // successful send into an exception the caller sees as a failure.
             Log::error('WhatsApp message sent but not recorded.', ['error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * One person per phone. Two portal accounts can share a number (an owner
+     * with an admin login and a personal one), and every staff alert that
+     * loops over accounts would otherwise reach that phone twice. Accounts
+     * with no phone are dropped -- there is nothing to send them.
+     *
+     * @template T of \App\Models\User
+     * @param  \Illuminate\Support\Collection<int, T>  $users
+     * @return \Illuminate\Support\Collection<int, T>
+     */
+    public static function onePerPhone(\Illuminate\Support\Collection $users): \Illuminate\Support\Collection
+    {
+        return $users
+            ->filter(fn ($user) => filled($user->phone))
+            ->unique(fn ($user) => self::normalise((string) $user->phone))
+            ->values();
     }
 
     /**

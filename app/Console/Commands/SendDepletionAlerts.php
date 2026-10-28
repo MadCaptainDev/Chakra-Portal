@@ -102,7 +102,7 @@ class SendDepletionAlerts extends Command
             ? 'out of content already'
             : "running out around {$depletion->format('j M')} ({$remaining} left)";
 
-        foreach ($recipients as $recipient) {
+        foreach (WhatsappSender::onePerPhone($recipients) as $recipient) {
             if (blank($recipient->phone)) {
                 continue;
             }

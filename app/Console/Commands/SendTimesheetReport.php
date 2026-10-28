@@ -49,7 +49,7 @@ class SendTimesheetReport extends Command
         $sent = 0;
         $failed = 0;
 
-        foreach ($admins as $admin) {
+        foreach (WhatsappSender::onePerPhone($admins) as $admin) {
             $phone = WhatsappSender::normalise((string) $admin->phone);
 
             try {

@@ -115,13 +115,15 @@ class WhatsappInboxController extends Controller
         }
 
         $closesAt = $conversation->windowClosesAt();
+        // First: it warms the template cache present() renders old sends from.
+        $templates = $this->templates($conversation);
 
         return view('whatsapp-crm.inbox.show', $this->listData($request, $conversation) + [
             'conversation' => $conversation,
             'messages' => $this->present($messages, $conversation),
             'windowClosesAt' => $closesAt,
             'windowOpen' => $closesAt !== null && $closesAt->isFuture(),
-            'templates' => $this->templates($conversation),
+            'templates' => $templates,
             'quickReplies' => WhatsappQuickReply::orderBy('title')->get(['id', 'title', 'content']),
             // Only people who can actually see this module -- assigning a
             // thread to someone with no way to open it would just be a name
@@ -301,6 +303,18 @@ class WhatsappInboxController extends Controller
 
             $media = null;
             $summary = $event->summary;
+
+            // Sends filed before templates were rendered say only
+            // "[template: Invoice Ready]" -- rebuild the words from the send
+            // itself where the template is still known.
+            if ($event->message_type === 'template' && str_starts_with((string) $summary, '[template:')) {
+                $parameters = collect(collect(data_get($event->payload, 'template.components', []))
+                    ->firstWhere('type', 'body')['parameters'] ?? [])
+                    ->map(fn ($parameter) => (string) ($parameter['text'] ?? ''))
+                    ->all();
+
+                $summary = WhatsappTemplateService::render((string) data_get($event->payload, 'template.name'), $parameters) ?? $summary;
+            }
 
             if (WhatsappMedia::has($event)) {
                 $file = data_get($event->payload, $event->message_type, []);
