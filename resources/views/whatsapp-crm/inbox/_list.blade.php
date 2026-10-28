@@ -32,6 +32,16 @@
                     default => $at->format('d M'),
                 };
                 $isActive = $active && $active->id === $row->id;
+                $preview = match ($row->last_message_summary) {
+                    null => 'No messages yet',
+                    '[unsupported]' => 'A message WhatsApp didn\'t pass on',
+                    '[image]' => 'Photo',
+                    '[video]' => 'Video',
+                    '[audio]' => 'Voice message',
+                    '[sticker]' => 'Sticker',
+                    '[document]' => 'Document',
+                    default => $row->last_message_summary,
+                };
                 $unread = $isActive ? 0 : $row->unread_count;
             @endphp
             <li>
@@ -49,7 +59,7 @@
                             <span @class(['shrink-0 text-[11px]', 'text-brand-300 font-semibold' => $unread > 0, 'text-brand-100/50' => $unread === 0])>{{ $when }}</span>
                         </div>
                         <div class="mt-0.5 flex items-center justify-between gap-2">
-                            <p @class(['truncate text-sm', 'text-brand-100' => $unread > 0, 'text-brand-100/55' => $unread === 0])>{{ $row->last_message_summary ?? 'No messages yet' }}</p>
+                            <p @class(['truncate text-sm', 'text-brand-100' => $unread > 0, 'text-brand-100/55' => $unread === 0])>{{ $preview }}</p>
                             @if ($unread > 0)
                                 <span class="shrink-0 min-w-[1.25rem] h-5 px-1.5 rounded-full bg-brand-400 text-brand-900 text-[11px] font-bold leading-5 text-center"
                                       aria-label="{{ $unread }} unread">{{ $unread > 99 ? '99+' : $unread }}</span>

@@ -176,6 +176,14 @@ export function whatsappInboxThread(config) {
             }
         },
 
+        askResend() {
+            this.body = "Sorry, your last message didn't come through on our side. Could you send it again as a normal photo or message (not view-once)?";
+            this.$nextTick(() => {
+                this.grow();
+                this.$refs.body?.focus();
+            });
+        },
+
         useQuick(reply) {
             this.body = this.body ? `${this.body}\n${reply.content}` : reply.content;
             this.showQuick = false;

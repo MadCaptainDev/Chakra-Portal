@@ -6,6 +6,7 @@ use App\Models\WhatsappContact;
 use App\Models\WhatsappConversation;
 use App\Models\WhatsappWebhookEvent;
 use App\Services\WhatsappFlow\FlowEngine;
+use App\Services\WhatsappMedia;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -47,6 +48,20 @@ class WhatsappWebhookEventObserver
         // for our own outgoing sends.
         if ($event->type === WhatsappWebhookEvent::TYPE_MESSAGE) {
             $conversation->increment('unread_count');
+
+            // Save a photo/video/voice note/file now, while Meta's link is
+            // still fresh -- see WhatsappMedia. After the response, so the
+            // webhook's 200 never waits on a download; a failure is logged,
+            // and the inbox will try Meta once more when someone opens it.
+            if (WhatsappMedia::has($event)) {
+                dispatch(function () use ($event): void {
+                    try {
+                        WhatsappMedia::fetchAndStore($event);
+                    } catch (Throwable $e) {
+                        Log::warning('WhatsApp media could not be saved.', ['event' => $event->id, 'error' => $e->getMessage()]);
+                    }
+                })->afterResponse();
+            }
 
             // FlowEngine::handleInbound() already catches everything a node
             // handler can throw and fails the session cleanly rather than

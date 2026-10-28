@@ -12,6 +12,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -446,6 +447,118 @@ class WhatsappInboxTest extends TestCase
 
         $this->actingAs($user)->get(route('whatsapp-crm.inbox.index', ['partial' => 1]))
             ->assertOk()->assertSee('Unread one')->assertDontSee('Search name, number or message');
+    }
+
+    // -- media and unsupported messages ---------------------------------------
+
+    /** @param array<string, mixed> $message  merged over a bare inbound message */
+    private function inboundPayload(array $message): array
+    {
+        $payload = $this->messagePayload();
+        $base = ['from' => '919812345678', 'id' => 'wamid.M'.uniqid(), 'timestamp' => (string) now()->timestamp];
+        $payload['entry'][0]['changes'][0]['value']['messages'] = [$base + $message];
+
+        return $payload;
+    }
+
+    public function test_a_document_someone_sent_is_saved_on_arrival_and_can_be_opened(): void
+    {
+        Storage::fake('local');
+        $this->configuredWebhook();
+        $this->configuredSender();
+        // The webhook's own link only lives a few minutes -- that is the one
+        // fetched, straight after the webhook answers.
+        Http::fake([
+            'lookaside.fbsbx.com/*' => Http::response('%PDF-1.4 fake', 200, ['Content-Type' => 'application/pdf']),
+        ]);
+
+        $this->postWebhook($this->inboundPayload([
+            'type' => 'document',
+            'document' => ['id' => 'MEDIA1', 'filename' => 'resume.pdf', 'mime_type' => 'application/pdf', 'url' => 'https://lookaside.fbsbx.com/file/1'],
+        ]))->assertOk();
+        $conversation = WhatsappConversation::sole();
+        $event = WhatsappWebhookEvent::sole();
+        $this->assertSame('%PDF-1.4 fake', Storage::disk('local')->get('whatsapp-media/'.$event->id));
+
+        $user = $this->employee();
+        $thread = $this->actingAs($user)->getJson(route('whatsapp-crm.inbox.messages', $conversation))->assertOk();
+        $this->assertSame('document', $thread->json('messages.0.media.kind'));
+        $this->assertSame('resume.pdf', $thread->json('messages.0.media.filename'));
+        $this->assertFalse($thread->json('messages.0.media.expired'));
+
+        // Opening it comes off our own disk, not Meta.
+        Http::fake();
+        $this->actingAs($user)->get(route('whatsapp-crm.inbox.media', [$conversation, $event]))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf');
+        Http::assertNothingSent();
+    }
+
+    public function test_an_unsaved_file_is_fetched_by_media_id_when_opened(): void
+    {
+        Storage::fake('local');
+        $this->configuredWebhook();
+        $this->configuredSender();
+        Http::fake([
+            'graph.facebook.com/*/MEDIA9*' => Http::response(['url' => 'https://lookaside.fbsbx.com/file/9', 'mime_type' => 'image/jpeg']),
+            'lookaside.fbsbx.com/*' => Http::response('jpegbytes'),
+        ]);
+        $this->postWebhook($this->inboundPayload(['type' => 'image', 'image' => ['id' => 'MEDIA9', 'mime_type' => 'image/jpeg']]))->assertOk();
+        $event = WhatsappWebhookEvent::sole();
+        Storage::disk('local')->delete(['whatsapp-media/'.$event->id, 'whatsapp-media/'.$event->id.'.mime']);
+
+        $this->actingAs($this->employee())
+            ->get(route('whatsapp-crm.inbox.media', [WhatsappConversation::sole(), $event]))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/jpeg');
+    }
+
+    public function test_an_svg_someone_sent_is_downloaded_never_shown_inline(): void
+    {
+        Storage::fake('local');
+        $this->configuredWebhook();
+        $this->configuredSender();
+        Http::fake([
+            'graph.facebook.com/*/MEDIA2*' => Http::response(['url' => 'https://lookaside.fbsbx.com/file/2', 'mime_type' => 'image/svg+xml']),
+            'lookaside.fbsbx.com/*' => Http::response('<svg onload="alert(1)"/>'),
+        ]);
+        $this->postWebhook($this->inboundPayload([
+            'type' => 'document',
+            'document' => ['id' => 'MEDIA2', 'filename' => 'x.svg', 'mime_type' => 'image/svg+xml'],
+        ]))->assertOk();
+
+        $response = $this->actingAs($this->employee())
+            ->get(route('whatsapp-crm.inbox.media', [WhatsappConversation::sole(), WhatsappWebhookEvent::sole()]))
+            ->assertOk();
+        $this->assertStringStartsWith('attachment', $response->headers->get('Content-Disposition'));
+    }
+
+    public function test_media_from_another_conversation_is_refused(): void
+    {
+        Storage::fake('local');
+        Http::fake();
+        $this->configuredWebhook();
+        $this->postWebhook($this->inboundPayload(['type' => 'image', 'image' => ['id' => 'MEDIA3', 'mime_type' => 'image/jpeg']]))->assertOk();
+        $event = WhatsappWebhookEvent::sole();
+        $this->postWebhook($this->messagePayload('wamid.OTHER', 'Hi', '919800000000'))->assertOk();
+        $other = WhatsappConversation::where('wa_id', '919800000000')->sole();
+
+        $this->actingAs($this->employee())->get(route('whatsapp-crm.inbox.media', [$other, $event]))->assertNotFound();
+    }
+
+    public function test_a_message_meta_withheld_is_flagged_as_unsupported(): void
+    {
+        $this->configuredWebhook();
+        $this->postWebhook($this->inboundPayload([
+            'type' => 'unsupported',
+            'errors' => [['code' => 131051, 'title' => 'Message type unknown']],
+            'unsupported' => ['type' => 'unknown'],
+        ]))->assertOk();
+
+        $this->actingAs($this->employee())
+            ->getJson(route('whatsapp-crm.inbox.messages', WhatsappConversation::sole()))
+            ->assertOk()
+            ->assertJsonPath('messages.0.unsupported', true);
     }
 
     // -- markRead -----------------------------------------------------------

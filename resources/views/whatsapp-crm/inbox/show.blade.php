@@ -104,7 +104,62 @@
                                             <x-icon name="template" class="w-3 h-3" /> Template
                                         </span>
                                     </template>
-                                    <p class="whitespace-pre-line break-words" x-text="message.summary"></p>
+                                    <template x-if="message.media">
+                                        <div class="-mx-1 -mt-0.5 mb-1">
+                                            <template x-if="message.media.expired">
+                                                <div class="flex items-center gap-3 rounded-xl bg-black/20 px-3 py-2.5">
+                                                    <x-icon name="document" class="w-7 h-7 shrink-0 text-brand-100/40" />
+                                                    <span class="min-w-0">
+                                                        <span class="block truncate text-sm font-medium" x-text="message.media.filename || ({ image: 'Photo', video: 'Video', audio: 'Voice message', sticker: 'Sticker' }[message.media.kind] ?? 'File')"></span>
+                                                        <span class="block text-[11px] text-brand-100/60">No longer available &mdash; WhatsApp deleted it before the portal saved files</span>
+                                                    </span>
+                                                </div>
+                                            </template>
+                                            <template x-if="!message.media.expired">
+                                            <div>
+                                            <template x-if="message.media.kind === 'image' || message.media.kind === 'sticker'">
+                                                <a :href="message.media.url" target="_blank" rel="noopener" class="block">
+                                                    <img :src="message.media.url" alt="Photo" loading="lazy"
+                                                         class="rounded-xl max-h-80 w-auto bg-white/5"
+                                                         :class="message.media.kind === 'sticker' && 'max-h-32 bg-transparent'"
+                                                         x-on:error="message.media.missing = true; $el.remove()" />
+                                                </a>
+                                            </template>
+                                            <template x-if="message.media.kind === 'video'">
+                                                <video :src="message.media.url" controls preload="metadata" class="rounded-xl max-h-80 w-full bg-black/40"></video>
+                                            </template>
+                                            <template x-if="message.media.kind === 'audio'">
+                                                <audio :src="message.media.url" controls preload="none" class="w-64 max-w-full"></audio>
+                                            </template>
+                                            <template x-if="message.media.kind === 'document'">
+                                                <a :href="message.media.url" target="_blank" rel="noopener"
+                                                   class="flex items-center gap-3 rounded-xl bg-black/20 px-3 py-2.5 hover:bg-black/30">
+                                                    <x-icon name="document" class="w-7 h-7 shrink-0 text-brand-200" />
+                                                    <span class="min-w-0">
+                                                        <span class="block truncate text-sm font-medium" x-text="message.media.filename || 'Document'"></span>
+                                                        <span class="block text-[11px] text-brand-100/60">Tap to open</span>
+                                                    </span>
+                                                </a>
+                                            </template>
+                                            <p x-show="message.media.missing" class="text-xs text-brand-100/60">WhatsApp no longer has this file.</p>
+                                            <a :href="message.media.url + '?download=1'" class="mt-1 inline-block text-[11px] font-semibold text-brand-300 hover:text-white">Download</a>
+                                            </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template x-if="message.unsupported">
+                                        <div class="flex items-start gap-2">
+                                            <x-icon name="alert" class="w-4 h-4 shrink-0 mt-0.5 text-amber-300" />
+                                            <div>
+                                                <p class="font-medium">WhatsApp didn't pass this message on</p>
+                                                <p class="mt-0.5 text-xs text-brand-100/60">Meta withholds some message types from business accounts &mdash; view-once photos, polls, events, edited or forwarded-channel messages. The content never reached the portal, so ask them to send it again.</p>
+                                                <template x-if="canReply && windowOpen">
+                                                    <button type="button" @click="askResend()" class="mt-1 text-xs font-semibold text-brand-300 hover:text-white">Ask them to resend &rarr;</button>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <p x-show="message.summary && !message.unsupported" class="whitespace-pre-line break-words" x-text="message.summary"></p>
                                     <p class="mt-1 flex items-center justify-end gap-1 text-[10px] text-brand-100/50">
                                         <span x-text="message.time"></span>
                                         <template x-if="message.type === 'outgoing'">

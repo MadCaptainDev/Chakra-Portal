@@ -81,6 +81,37 @@ class WhatsappGraph
     }
 
     /**
+     * A photo, video, voice note or file someone sent (or one we sent),
+     * fetched by its media id. Two calls, as Meta designs it: the id gives
+     * a short-lived URL, and that URL only answers with the same token.
+     * Meta deletes media after a short while -- after that this throws.
+     *
+     * @return array{body: string, mime: string}
+     */
+    public function downloadMedia(string $mediaId): array
+    {
+        $meta = $this->get($mediaId);
+        $url = $meta['url'] ?? null;
+
+        if (! is_string($url) || $url === '') {
+            throw new RuntimeException('WhatsApp no longer has this file.');
+        }
+
+        $response = Http::withToken($this->settings->access_token)
+            ->timeout(60)
+            ->get($url);
+
+        if ($response->failed()) {
+            throw new RuntimeException('WhatsApp no longer has this file.');
+        }
+
+        return [
+            'body' => $response->body(),
+            'mime' => $meta['mime_type'] ?? $response->header('Content-Type') ?: 'application/octet-stream',
+        ];
+    }
+
+    /**
      * Uploads a file ahead of sending it as a WhatsApp document/image/etc --
      * returns the media id a `document`/`image` message then references.
      *

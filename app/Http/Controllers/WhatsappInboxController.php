@@ -11,12 +11,15 @@ use App\Models\WhatsappSendLog;
 use App\Models\WhatsappSetting;
 use App\Models\WhatsappWebhookEvent;
 use App\Services\WhatsappFlow\FlowEngine;
+use App\Services\WhatsappMedia;
 use App\Services\WhatsappSender;
 use App\Services\WhatsappTemplateService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use RuntimeException;
@@ -33,6 +36,7 @@ use RuntimeException;
  */
 class WhatsappInboxController extends Controller
 {
+
     public function index(Request $request): View
     {
         if ($request->boolean('partial')) {
@@ -114,7 +118,7 @@ class WhatsappInboxController extends Controller
 
         return view('whatsapp-crm.inbox.show', $this->listData($request, $conversation) + [
             'conversation' => $conversation,
-            'messages' => $this->present($messages),
+            'messages' => $this->present($messages, $conversation),
             'windowClosesAt' => $closesAt,
             'windowOpen' => $closesAt !== null && $closesAt->isFuture(),
             'templates' => $this->templates($conversation),
@@ -139,7 +143,7 @@ class WhatsappInboxController extends Controller
     {
         $after = $request->integer('after');
 
-        $all = $this->present($conversation->messages());
+        $all = $this->present($conversation->messages(), $conversation);
         $closesAt = $conversation->windowClosesAt();
 
         return response()->json([
@@ -245,7 +249,7 @@ class WhatsappInboxController extends Controller
 
             return response()->json([
                 'status' => $status,
-                'message' => $latest ? $this->present(collect([$latest]))->first() : null,
+                'message' => $latest ? $this->present(collect([$latest]), $conversation)->first() : null,
             ]);
         }
 
@@ -263,7 +267,7 @@ class WhatsappInboxController extends Controller
      * @param  Collection<int, WhatsappWebhookEvent>  $messages
      * @return Collection<int, array<string, mixed>>
      */
-    private function present(Collection $messages): Collection
+    private function present(Collection $messages, WhatsappConversation $conversation): Collection
     {
         $wamids = $messages->where('type', WhatsappWebhookEvent::TYPE_OUTGOING)->pluck('external_id')->filter()->values();
 
@@ -275,7 +279,7 @@ class WhatsappInboxController extends Controller
 
         $progress = ['sent' => 1, 'delivered' => 2, 'read' => 3];
 
-        return $messages->map(function (WhatsappWebhookEvent $event) use ($statuses, $progress) {
+        return $messages->map(function (WhatsappWebhookEvent $event) use ($statuses, $progress, $conversation) {
             $status = null;
             $error = null;
 
@@ -295,11 +299,39 @@ class WhatsappInboxController extends Controller
                 }
             }
 
+            $media = null;
+            $summary = $event->summary;
+
+            if (WhatsappMedia::has($event)) {
+                $file = data_get($event->payload, $event->message_type, []);
+                $media = [
+                    'url' => route('whatsapp-crm.inbox.media', [$conversation, $event]),
+                    'kind' => $event->message_type === 'document' && str_starts_with((string) ($file['mime_type'] ?? ''), 'video/')
+                        ? 'video'
+                        : $event->message_type,
+                    'filename' => $file['filename'] ?? null,
+                    // Not saved, and old enough that Meta will have deleted
+                    // it (its link lasts minutes, the media id a few days):
+                    // say so rather than offer a link that can only fail.
+                    'expired' => ! WhatsappMedia::stored($event) && $event->occurred_at?->lt(now()->subDays(2)),
+                ];
+
+                // Only a real caption stays as text under the file; the
+                // "[image]" placeholder or the filename again is noise.
+                $caption = $file['caption'] ?? null;
+                $summary = filled($caption) ? $caption : null;
+            }
+
             return [
                 'id' => $event->id,
                 'type' => $event->type,
                 'kind' => $event->message_type,
-                'summary' => $event->summary,
+                'summary' => $summary,
+                'media' => $media,
+                // Meta withheld the content itself (131051): a view-once
+                // photo, a poll, an event, a message edited after sending...
+                // There is nothing to fetch, so the thread says so plainly.
+                'unsupported' => $event->message_type === 'unsupported',
                 'time' => $event->occurred_at?->format('h:i A'),
                 'day' => $event->occurred_at?->format('Y-m-d'),
                 'day_label' => $event->occurred_at ? self::dayLabel($event->occurred_at) : null,
@@ -365,6 +397,47 @@ class WhatsappInboxController extends Controller
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * A photo, video, voice note or file in this thread, off our own disk
+     * (WhatsappMedia saves it as it arrives), or from Meta if it predates
+     * that and Meta still has it.
+     */
+    public function media(Request $request, WhatsappConversation $conversation, WhatsappWebhookEvent $event): Response
+    {
+        abort_unless(
+            $event->wa_id === $conversation->wa_id
+                && in_array($event->type, [WhatsappWebhookEvent::TYPE_MESSAGE, WhatsappWebhookEvent::TYPE_OUTGOING], true)
+                && in_array($event->message_type, WhatsappMedia::KINDS, true),
+            404
+        );
+
+        abort_unless(WhatsappMedia::has($event), 404);
+
+        try {
+            WhatsappMedia::fetchAndStore($event);
+        } catch (RuntimeException $e) {
+            abort(410, 'WhatsApp no longer has this file. Meta deletes media after a short time, and this one arrived before the portal started saving files as they come in.');
+        }
+
+        $file = data_get($event->payload, $event->message_type, []);
+        $mime = WhatsappMedia::mime($event);
+        $disk = Storage::disk('local');
+        $path = WhatsappMedia::path($event);
+        $extension = explode('/', explode(';', $mime)[0])[1] ?? 'bin';
+        $filename = $file['filename'] ?? "{$event->message_type}-{$event->id}.{$extension}";
+        // Inline only for types a browser shows without running anything --
+        // an SVG or HTML file someone sent must never execute on this origin.
+        $safeInline = preg_match('#^(image/(jpeg|png|webp|gif)|video/|audio/|application/pdf)#', $mime) === 1;
+        $disposition = $safeInline && ! $request->boolean('download') ? 'inline' : 'attachment';
+
+        return response($disk->get($path), 200, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => $disposition.'; filename="'.addcslashes($filename, '"\\').'"',
+            'Cache-Control' => 'private, max-age=86400',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public function markRead(WhatsappConversation $conversation): JsonResponse

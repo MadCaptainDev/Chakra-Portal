@@ -281,13 +281,14 @@ class WhatsappWebhookEvent extends Model
             'button' => Arr::get($message, 'button.text'),
             'interactive' => Arr::get($message, 'interactive.button_reply.title')
                 ?? Arr::get($message, 'interactive.list_reply.title'),
-            'reaction' => Arr::get($message, 'reaction.emoji'),
+            'reaction' => ($emoji = Arr::get($message, 'reaction.emoji')) ? 'Reacted '.$emoji : 'Removed a reaction',
             'location' => trim(sprintf(
                 '%s %s',
                 Arr::get($message, 'location.name', ''),
                 Arr::get($message, 'location.address', '')
             )) ?: '[location]',
             'image', 'video', 'audio', 'document', 'sticker' => Arr::get($message, $type.'.caption')
+                ?? Arr::get($message, $type.'.filename')
                 ?? '['.$type.']',
             default => '['.$type.']',
         };

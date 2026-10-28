@@ -1424,6 +1424,7 @@ Route::middleware(['auth', 'module:whatsapp-crm,view'])->prefix('whatsapp-crm')-
     Route::get('inbox', [WhatsappInboxController::class, 'index'])->name('inbox.index');
     Route::get('inbox/{conversation}', [WhatsappInboxController::class, 'show'])->name('inbox.show');
     Route::get('inbox/{conversation}/messages', [WhatsappInboxController::class, 'messages'])->name('inbox.messages');
+    Route::get('inbox/{conversation}/media/{event}', [WhatsappInboxController::class, 'media'])->name('inbox.media');
     Route::post('inbox/{conversation}/reply', [WhatsappInboxController::class, 'reply'])
         ->middleware('module:whatsapp-crm,edit')->name('inbox.reply');
     Route::post('inbox/{conversation}/template', [WhatsappInboxController::class, 'sendTemplate'])
