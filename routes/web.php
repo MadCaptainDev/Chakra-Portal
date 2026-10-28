@@ -1426,6 +1426,8 @@ Route::middleware(['auth', 'module:whatsapp-crm,view'])->prefix('whatsapp-crm')-
     Route::get('inbox/{conversation}/messages', [WhatsappInboxController::class, 'messages'])->name('inbox.messages');
     Route::post('inbox/{conversation}/reply', [WhatsappInboxController::class, 'reply'])
         ->middleware('module:whatsapp-crm,edit')->name('inbox.reply');
+    Route::post('inbox/{conversation}/template', [WhatsappInboxController::class, 'sendTemplate'])
+        ->middleware(['module:whatsapp-crm,edit', 'throttle:20,1'])->name('inbox.template');
     Route::post('inbox/{conversation}/read', [WhatsappInboxController::class, 'markRead'])->name('inbox.read');
     Route::post('inbox/{conversation}/assign', [WhatsappInboxController::class, 'assign'])
         ->middleware('module:whatsapp-crm,edit')->name('inbox.assign');

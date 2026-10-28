@@ -6,12 +6,17 @@ use App\Models\User;
 use App\Models\WhatsappContact;
 use App\Models\WhatsappConversation;
 use App\Models\WhatsappLabel;
+use App\Models\WhatsappQuickReply;
+use App\Models\WhatsappSendLog;
+use App\Models\WhatsappSetting;
 use App\Models\WhatsappWebhookEvent;
 use App\Services\WhatsappFlow\FlowEngine;
 use App\Services\WhatsappSender;
+use App\Services\WhatsappTemplateService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use RuntimeException;
@@ -30,8 +35,29 @@ class WhatsappInboxController extends Controller
 {
     public function index(Request $request): View
     {
+        if ($request->boolean('partial')) {
+            // The refresh from an open thread says which row to keep lit.
+            $active = WhatsappConversation::find($request->integer('active'));
+
+            return view('whatsapp-crm.inbox._list', $this->listData($request, $active));
+        }
+
+        return view('whatsapp-crm.inbox.index', $this->listData($request));
+    }
+
+    /**
+     * The conversation list both screens draw -- index on its own, show()
+     * beside the open thread, the way a chat app keeps the list in view.
+     * ?partial=1 on index returns just the list, for the 15-second refresh
+     * in whatsapp-inbox.js.
+     *
+     * @return array<string, mixed>
+     */
+    private function listData(Request $request, ?WhatsappConversation $active = null): array
+    {
         $search = trim((string) $request->string('q'));
         $labelId = $request->integer('label') ?: null;
+        $filter = in_array($request->query('filter'), ['unread', 'mine'], true) ? $request->query('filter') : 'all';
 
         $conversations = WhatsappConversation::query()
             ->with(['contact', 'labels', 'assignedTo'])
@@ -43,17 +69,23 @@ class WhatsappInboxController extends Controller
                 });
             })
             ->when($labelId, fn ($query) => $query->whereHas('labels', fn ($l) => $l->whereKey($labelId)))
+            ->when($filter === 'unread', fn ($query) => $query->where('unread_count', '>', 0))
+            ->when($filter === 'mine', fn ($query) => $query->where('assigned_to_id', $request->user()->id))
             ->orderByDesc('last_message_at')
             ->orderByDesc('id')
-            ->paginate(20)
-            ->withQueryString();
+            ->paginate(30)
+            ->withQueryString()
+            ->appends(['partial' => null, 'active' => null]);
 
-        return view('whatsapp-crm.inbox.index', [
+        return [
             'conversations' => $conversations,
             'labels' => WhatsappLabel::orderBy('name')->get(),
             'search' => $search,
             'selectedLabelId' => $labelId,
-        ]);
+            'filter' => $filter,
+            'active' => $active,
+            'unreadTotal' => WhatsappConversation::where('unread_count', '>', 0)->count(),
+        ];
     }
 
     /**
@@ -78,10 +110,15 @@ class WhatsappInboxController extends Controller
             $conversation->update(['unread_count' => 0]);
         }
 
-        return view('whatsapp-crm.inbox.show', [
+        $closesAt = $conversation->windowClosesAt();
+
+        return view('whatsapp-crm.inbox.show', $this->listData($request, $conversation) + [
             'conversation' => $conversation,
-            'messages' => $messages,
-            'labels' => WhatsappLabel::orderBy('name')->get(),
+            'messages' => $this->present($messages),
+            'windowClosesAt' => $closesAt,
+            'windowOpen' => $closesAt !== null && $closesAt->isFuture(),
+            'templates' => $this->templates($conversation),
+            'quickReplies' => WhatsappQuickReply::orderBy('title')->get(['id', 'title', 'content']),
             // Only people who can actually see this module -- assigning a
             // thread to someone with no way to open it would just be a name
             // on a label nobody can act on.
@@ -102,37 +139,42 @@ class WhatsappInboxController extends Controller
     {
         $after = $request->integer('after');
 
-        $messages = $conversation->messages()
-            ->filter(fn (WhatsappWebhookEvent $event) => $event->id > $after)
-            ->values()
-            ->map(fn (WhatsappWebhookEvent $event) => [
-                'id' => $event->id,
-                'type' => $event->type,
-                'summary' => $event->summary,
-                'time' => $event->occurred_at?->format('h:i A'),
-            ]);
+        $all = $this->present($conversation->messages());
+        $closesAt = $conversation->windowClosesAt();
 
-        return response()->json(['messages' => $messages]);
+        return response()->json([
+            'messages' => $all->filter(fn (array $message) => $message['id'] > $after)->values(),
+            // Delivered/read/failed land on messages already on screen, so
+            // every poll carries the latest status of each one we sent.
+            'statuses' => $all->where('type', WhatsappWebhookEvent::TYPE_OUTGOING)
+                ->mapWithKeys(fn (array $message) => [$message['id'] => ['status' => $message['status'], 'error' => $message['error']]]),
+            'window_open' => $closesAt !== null && $closesAt->isFuture(),
+            'window_closes_at' => $closesAt?->toIso8601String(),
+        ]);
     }
 
     /**
-     * Free text, which Meta only accepts inside the 24-hour customer-service
-     * window. WhatsappSender::sendText() is the one place that window is
-     * enforced (Meta itself rejects the call and WhatsappGraph turns that
-     * into a RuntimeException carrying Meta's own reason) -- this deliberately
-     * does not re-check the window itself, so there is only one place that
-     * rule can drift from what Meta actually does.
+     * Free text, which Meta only delivers inside the 24-hour customer-service
+     * window. Meta does not refuse it up front: outside the window it accepts
+     * the call and fails the message a few seconds later (131047), long after
+     * the person who pressed Send was told "sent". So the window is checked
+     * here first, off the last message this number sent us, and a closed one
+     * is answered straight away with the one thing that works -- a template.
      *
-     * Any failure -- outside the window or otherwise -- surfaces as a
-     * validation error on the reply form suggesting a template, since a
-     * template is the only free-form-adjacent option that works regardless
-     * of why sendText refused.
+     * Any refusal Meta does give up front still surfaces the same way, as a
+     * validation error on the reply box.
      */
-    public function reply(Request $request, WhatsappConversation $conversation): RedirectResponse
+    public function reply(Request $request, WhatsappConversation $conversation): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'body' => ['required', 'string', 'max:4096'],
         ]);
+
+        if (! $conversation->windowOpen()) {
+            throw ValidationException::withMessages([
+                'body' => 'More than 24 hours have passed since this number last messaged the studio, so WhatsApp will only deliver an approved template. Send a template instead.',
+            ]);
+        }
 
         try {
             WhatsappSender::make()->sendText($conversation->wa_id, $data['body']);
@@ -142,8 +184,187 @@ class WhatsappInboxController extends Controller
             ]);
         }
 
+        return $this->sent($request, $conversation, 'Message sent.');
+    }
+
+    /**
+     * An approved template, the one thing WhatsApp delivers whether or not
+     * the 24-hour window is open. Only a template Meta currently lists as
+     * approved can be picked -- anything else Meta would refuse anyway.
+     */
+    public function sendTemplate(Request $request, WhatsappConversation $conversation): RedirectResponse|JsonResponse
+    {
+        $data = $request->validate([
+            'template' => ['required', 'string', 'max:512'],
+            'params' => ['array'],
+            'params.*' => ['required', 'string', 'max:1024'],
+            'button_param' => ['nullable', 'string', 'max:2000'],
+        ], [
+            'params.*.required' => 'Fill in every blank in the template.',
+        ]);
+
+        $template = collect($this->templates($conversation))->firstWhere('name', $data['template']);
+
+        if (! $template) {
+            throw ValidationException::withMessages(['template' => 'That template is not approved in Meta. Refresh the template list and pick another.']);
+        }
+
+        $params = array_values(array_map('strval', $data['params'] ?? []));
+
+        if (count($params) !== $template['placeholder_count']) {
+            throw ValidationException::withMessages(['params' => 'Fill in every blank in the template.']);
+        }
+
+        if ($template['has_url_button'] && blank($data['button_param'] ?? null)) {
+            throw ValidationException::withMessages(['button_param' => 'This template has a link button -- fill in the end of its link.']);
+        }
+
+        try {
+            WhatsappSender::make()->sendTemplate(
+                $conversation->wa_id,
+                $template['name'],
+                $template['language'],
+                $params,
+                $template['has_url_button'] ? $data['button_param'] : null,
+            );
+        } catch (RuntimeException $e) {
+            throw ValidationException::withMessages(['template' => $e->getMessage()]);
+        }
+
+        return $this->sent($request, $conversation, 'Template sent.');
+    }
+
+    /** What the composer gets back: JSON for its own fetch, a redirect for a plain form post. */
+    private function sent(Request $request, WhatsappConversation $conversation, string $status): RedirectResponse|JsonResponse
+    {
+        if ($request->expectsJson()) {
+            $latest = WhatsappWebhookEvent::where('wa_id', $conversation->wa_id)
+                ->where('type', WhatsappWebhookEvent::TYPE_OUTGOING)
+                ->latest('id')
+                ->first();
+
+            return response()->json([
+                'status' => $status,
+                'message' => $latest ? $this->present(collect([$latest]))->first() : null,
+            ]);
+        }
+
         return redirect()->route('whatsapp-crm.inbox.show', $conversation)
-            ->with('status', 'Message sent.');
+            ->with('status', $status);
+    }
+
+    /**
+     * Messages as the thread draws them, each one we sent carrying how far
+     * it got: sent (Meta accepted it), delivered, read, or failed with
+     * Meta's reason in plain words. Statuses can arrive out of order, so
+     * they only ever move forward -- except failed, which always wins,
+     * the same rule WhatsappSendLog::applyStatus() keeps.
+     *
+     * @param  Collection<int, WhatsappWebhookEvent>  $messages
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function present(Collection $messages): Collection
+    {
+        $wamids = $messages->where('type', WhatsappWebhookEvent::TYPE_OUTGOING)->pluck('external_id')->filter()->values();
+
+        $statuses = $wamids->isEmpty() ? collect() : WhatsappWebhookEvent::where('type', WhatsappWebhookEvent::TYPE_STATUS)
+            ->whereIn('external_id', $wamids)
+            ->orderBy('id')
+            ->get(['external_id', 'status', 'payload'])
+            ->groupBy('external_id');
+
+        $progress = ['sent' => 1, 'delivered' => 2, 'read' => 3];
+
+        return $messages->map(function (WhatsappWebhookEvent $event) use ($statuses, $progress) {
+            $status = null;
+            $error = null;
+
+            if ($event->type === WhatsappWebhookEvent::TYPE_OUTGOING) {
+                $status = 'sent';
+
+                foreach ($statuses->get($event->external_id, []) as $update) {
+                    if ($update->status === 'failed') {
+                        $status = 'failed';
+                        $error = WhatsappSendLog::explain(data_get($update->payload, 'errors', [])) ?? 'Not delivered.';
+                        break;
+                    }
+
+                    if (($progress[$update->status] ?? 0) > ($progress[$status] ?? 0)) {
+                        $status = $update->status;
+                    }
+                }
+            }
+
+            return [
+                'id' => $event->id,
+                'type' => $event->type,
+                'kind' => $event->message_type,
+                'summary' => $event->summary,
+                'time' => $event->occurred_at?->format('h:i A'),
+                'day' => $event->occurred_at?->format('Y-m-d'),
+                'day_label' => $event->occurred_at ? self::dayLabel($event->occurred_at) : null,
+                'status' => $status,
+                'error' => $error,
+            ];
+        })->values();
+    }
+
+    private static function dayLabel(\Carbon\CarbonInterface $at): string
+    {
+        return match (true) {
+            $at->isToday() => 'Today',
+            $at->isYesterday() => 'Yesterday',
+            $at->isCurrentYear() => $at->format('D, d M'),
+            default => $at->format('d M Y'),
+        };
+    }
+
+    /**
+     * Approved templates, shaped for the composer's picker: the body text
+     * to preview, how many blanks it has, whether its first button is a
+     * link with a blank of its own. "Hi {{1}}" templates get the contact's
+     * first name filled in already.
+     *
+     * Never throws: no token or Meta unreachable is an empty picker, not a
+     * broken thread (WhatsappTemplateService::list() already swallows both).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function templates(WhatsappConversation $conversation): array
+    {
+        if (! WhatsappSetting::current()->canSend()) {
+            return [];
+        }
+
+        $firstName = str($conversation->contact?->name ?? '')->trim()->explode(' ')->first() ?: '';
+
+        return collect(WhatsappTemplateService::make()->list())
+            ->map(function (array $template) use ($firstName) {
+                $components = collect($template['components'] ?? []);
+                $body = (string) ($components->firstWhere('type', 'BODY')['text'] ?? '');
+                preg_match_all('/\{\{\s*(\d+)\s*\}\}/', $body, $matches);
+                $count = $matches[1] === [] ? 0 : (int) max($matches[1]);
+                $button = $components->firstWhere('type', 'BUTTONS')['buttons'][0] ?? null;
+
+                $prefill = array_fill(0, $count, '');
+                if ($count > 0 && $firstName !== '' && preg_match('/^\s*(hi|hello|dear)\s*\{\{\s*1\s*\}\}/i', $body)) {
+                    $prefill[0] = $firstName;
+                }
+
+                return [
+                    'name' => $template['name'],
+                    'label' => str(preg_replace('/_v\d+$/i', '', $template['name']))->replace('_', ' ')->ucfirst()->toString(),
+                    'language' => $template['language'] ?? 'en_US',
+                    'category' => $template['category'] ?? null,
+                    'body' => $body,
+                    'placeholder_count' => $count,
+                    'prefill' => $prefill,
+                    'has_url_button' => ($button['type'] ?? null) === 'URL' && str_contains((string) ($button['url'] ?? ''), '{{'),
+                    'button_url' => $button['url'] ?? null,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     public function markRead(WhatsappConversation $conversation): JsonResponse

@@ -10,6 +10,7 @@ use App\Models\WhatsappSetting;
 use App\Models\WhatsappWebhookEvent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request as HttpRequest;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -61,8 +62,12 @@ class WhatsappInboxTest extends TestCase
     }
 
     /** @return array<string, mixed> */
-    private function messagePayload(string $wamid = 'wamid.HELLO', string $body = 'Can we move the shoot to Friday?', string $waId = '919812345678'): array
+    private function messagePayload(string $wamid = 'wamid.HELLO', string $body = 'Can we move the shoot to Friday?', string $waId = '919812345678', ?int $timestamp = null): array
     {
+        // An hour ago by default: inside the 24-hour window, so a free-text
+        // reply is allowed. Pass an older timestamp to close it.
+        $timestamp ??= now()->subHour()->timestamp;
+
         return [
             'object' => 'whatsapp_business_account',
             'entry' => [[
@@ -76,7 +81,7 @@ class WhatsappInboxTest extends TestCase
                         'messages' => [[
                             'from' => $waId,
                             'id' => $wamid,
-                            'timestamp' => '1755259200',
+                            'timestamp' => (string) $timestamp,
                             'type' => 'text',
                             'text' => ['body' => $body],
                         ]],
@@ -265,6 +270,182 @@ class WhatsappInboxTest extends TestCase
             0,
             WhatsappWebhookEvent::where('type', WhatsappWebhookEvent::TYPE_OUTGOING)->count()
         );
+    }
+
+    // -- 24-hour window -------------------------------------------------------
+
+    public function test_a_reply_outside_the_24_hour_window_is_refused_before_meta_is_called(): void
+    {
+        $this->configuredWebhook();
+        $this->postWebhook($this->messagePayload(timestamp: now()->subDays(2)->timestamp))->assertOk();
+        $conversation = WhatsappConversation::sole();
+        $this->configuredSender();
+        Http::fake();
+
+        $this->actingAs($this->employee(['view', 'edit']))
+            ->postJson(route('whatsapp-crm.inbox.reply', $conversation), ['body' => 'Still there?'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('body');
+
+        // Meta would have accepted the call and failed the message later
+        // (131047) -- the whole point is that it is never made.
+        Http::assertNothingSent();
+    }
+
+    public function test_show_offers_a_template_once_the_window_has_closed(): void
+    {
+        $this->configuredWebhook();
+        $this->postWebhook($this->messagePayload(timestamp: now()->subDays(2)->timestamp))->assertOk();
+
+        $this->actingAs($this->employee(['view', 'edit']))
+            ->get(route('whatsapp-crm.inbox.show', WhatsappConversation::sole()))
+            ->assertOk()
+            ->assertSee('Only a template can be sent now');
+    }
+
+    public function test_a_json_reply_returns_the_new_message_for_the_thread(): void
+    {
+        $conversation = $this->conversationWithOneMessage();
+        $this->configuredSender();
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.OUT1']]], 200)]);
+
+        $this->actingAs($this->employee(['view', 'edit']))
+            ->postJson(route('whatsapp-crm.inbox.reply', $conversation), ['body' => 'On our way.'])
+            ->assertOk()
+            ->assertJsonPath('message.summary', 'On our way.')
+            ->assertJsonPath('message.status', 'sent');
+    }
+
+    // -- delivery status ------------------------------------------------------
+
+    /** @return array<string, mixed> */
+    private function statusPayload(string $wamid, string $status, array $errors = []): array
+    {
+        return [
+            'object' => 'whatsapp_business_account',
+            'entry' => [[
+                'id' => '102290129340398',
+                'changes' => [[
+                    'field' => 'messages',
+                    'value' => [
+                        'messaging_product' => 'whatsapp',
+                        'statuses' => [array_filter([
+                            'id' => $wamid,
+                            'status' => $status,
+                            'timestamp' => (string) now()->timestamp,
+                            'recipient_id' => '919812345678',
+                            'errors' => $errors ?: null,
+                        ])],
+                    ],
+                ]],
+            ]],
+        ];
+    }
+
+    public function test_polling_reports_read_and_failed_statuses_of_sent_messages(): void
+    {
+        $conversation = $this->conversationWithOneMessage();
+        $this->configuredSender();
+        Http::fakeSequence('graph.facebook.com/*')
+            ->push(['messages' => [['id' => 'wamid.OUT1']]], 200)
+            ->push(['messages' => [['id' => 'wamid.OUT2']]], 200);
+
+        $user = $this->employee(['view', 'edit']);
+        $this->actingAs($user)->post(route('whatsapp-crm.inbox.reply', $conversation), ['body' => 'One']);
+        $this->actingAs($user)->post(route('whatsapp-crm.inbox.reply', $conversation), ['body' => 'Two']);
+
+        $this->postWebhook($this->statusPayload('wamid.OUT1', 'delivered'))->assertOk();
+        $this->postWebhook($this->statusPayload('wamid.OUT1', 'read'))->assertOk();
+        $this->postWebhook($this->statusPayload('wamid.OUT2', 'failed', [['code' => 131047, 'title' => 'Re-engagement message']]))->assertOk();
+
+        $response = $this->actingAs($user)->getJson(route('whatsapp-crm.inbox.messages', $conversation))->assertOk();
+
+        $byBody = collect($response->json('messages'))->keyBy('summary');
+        $this->assertSame('read', $byBody['One']['status']);
+        $this->assertSame('failed', $byBody['Two']['status']);
+        $this->assertStringContainsString('24 hours', $byBody['Two']['error']);
+        $this->assertSame('failed', $response->json('statuses.'.$byBody['Two']['id'].'.status'));
+        $this->assertTrue($response->json('window_open'));
+    }
+
+    // -- templates ------------------------------------------------------------
+
+    private function fakeTemplates(): void
+    {
+        Cache::put('whatsapp.templates', [[
+            'name' => 'invoice_ready_v2',
+            'status' => 'APPROVED',
+            'language' => 'en_US',
+            'category' => 'UTILITY',
+            'components' => [
+                ['type' => 'BODY', 'text' => 'Hi {{1}}, your invoice {{2}} is ready.'],
+                ['type' => 'BUTTONS', 'buttons' => [['type' => 'URL', 'text' => 'View', 'url' => 'https://example.test/i/{{1}}']]],
+            ],
+        ]], now()->addHour());
+    }
+
+    public function test_an_approved_template_can_be_sent_from_the_thread(): void
+    {
+        $this->configuredWebhook();
+        $this->postWebhook($this->messagePayload(timestamp: now()->subDays(3)->timestamp))->assertOk();
+        $conversation = WhatsappConversation::sole();
+        $this->configuredSender();
+        $this->fakeTemplates();
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.TPL']]], 200)]);
+
+        $this->actingAs($this->employee(['view', 'edit']))
+            ->postJson(route('whatsapp-crm.inbox.template', $conversation), [
+                'template' => 'invoice_ready_v2',
+                'params' => ['Ravi', 'INV-12'],
+                'button_param' => 'abc123',
+            ])
+            ->assertOk()
+            ->assertJsonPath('message.kind', 'template');
+
+        Http::assertSent(fn (HttpRequest $request) => $request->data()['template']['name'] === 'invoice_ready_v2'
+            && $request->data()['template']['components'][0]['parameters'][1]['text'] === 'INV-12'
+            && $request->data()['template']['components'][1]['parameters'][0]['text'] === 'abc123');
+    }
+
+    public function test_a_template_with_a_missing_blank_or_unknown_name_is_refused(): void
+    {
+        $conversation = $this->conversationWithOneMessage();
+        $this->configuredSender();
+        $this->fakeTemplates();
+        Http::fake();
+        $user = $this->employee(['view', 'edit']);
+
+        $this->actingAs($user)
+            ->postJson(route('whatsapp-crm.inbox.template', $conversation), ['template' => 'invoice_ready_v2', 'params' => ['Ravi'], 'button_param' => 'x'])
+            ->assertStatus(422);
+
+        $this->actingAs($user)
+            ->postJson(route('whatsapp-crm.inbox.template', $conversation), ['template' => 'not_a_template', 'params' => []])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('template');
+
+        $this->actingAs($this->employee(['view']))
+            ->postJson(route('whatsapp-crm.inbox.template', $conversation), ['template' => 'invoice_ready_v2'])
+            ->assertForbidden();
+
+        Http::assertNothingSent();
+    }
+
+    // -- list filters ---------------------------------------------------------
+
+    public function test_the_unread_filter_and_the_partial_list(): void
+    {
+        $this->configuredWebhook();
+        $this->postWebhook($this->messagePayload('wamid.A', 'Unread one', '919811111111'))->assertOk();
+        $this->postWebhook($this->messagePayload('wamid.B', 'Read one', '919822222222'))->assertOk();
+        WhatsappConversation::where('wa_id', '919822222222')->update(['unread_count' => 0]);
+        $user = $this->employee();
+
+        $this->actingAs($user)->get(route('whatsapp-crm.inbox.index', ['filter' => 'unread']))
+            ->assertOk()->assertSee('Unread one')->assertDontSee('Read one');
+
+        $this->actingAs($user)->get(route('whatsapp-crm.inbox.index', ['partial' => 1]))
+            ->assertOk()->assertSee('Unread one')->assertDontSee('Search name, number or message');
     }
 
     // -- markRead -----------------------------------------------------------

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -76,6 +77,25 @@ class WhatsappConversation extends Model
             ->whereIn('type', [WhatsappWebhookEvent::TYPE_MESSAGE, WhatsappWebhookEvent::TYPE_OUTGOING])
             ->orderBy('occurred_at')
             ->get();
+    }
+
+    /**
+     * When WhatsApp stops delivering free text to this number: 24 hours
+     * after the last message they sent us. Null when they never have --
+     * then only a template has ever been deliverable.
+     */
+    public function windowClosesAt(): ?Carbon
+    {
+        $last = WhatsappWebhookEvent::where('wa_id', $this->wa_id)
+            ->where('type', WhatsappWebhookEvent::TYPE_MESSAGE)
+            ->max('occurred_at');
+
+        return $last ? Carbon::parse($last)->addHours(24) : null;
+    }
+
+    public function windowOpen(): bool
+    {
+        return (bool) $this->windowClosesAt()?->isFuture();
     }
 
     /**
