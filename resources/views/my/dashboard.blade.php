@@ -40,6 +40,8 @@
             </a>
         </div>
 
+        @include('my._instagram-reconnect')
+
         {{-- ——— Headline numbers ——— --}}
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
             <div class="rounded-xl bg-white/5 ring-1 ring-white/10 p-5 sm:p-6">

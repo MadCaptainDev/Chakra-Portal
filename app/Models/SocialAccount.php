@@ -153,6 +153,26 @@ class SocialAccount extends Model
         return $this->token_expires_at !== null && $this->token_expires_at->isPast();
     }
 
+    /** The connection is gone (expired or revoked): only the client logging in again brings it back. */
+    public function needsReconnect(): bool
+    {
+        return $this->access_token === null || $this->status === self::STATUS_REVOKED || $this->isExpired();
+    }
+
+    /**
+     * Instagram accounts that need the client to connect again, by client
+     * name -- for the dashboards of whoever can reconnect them.
+     *
+     * @return \Illuminate\Support\Collection<int, self>
+     */
+    public static function needingReconnect(): \Illuminate\Support\Collection
+    {
+        return self::query()->forPlatform(self::PLATFORM_INSTAGRAM)->whereNotNull('client_id')
+            ->with('client:id,name')->get()
+            ->filter(fn (self $a) => $a->client && $a->needsReconnect())
+            ->sortBy(fn (self $a) => $a->client->name)->values();
+    }
+
     public function needsRefreshSoon(): bool
     {
         return $this->token_expires_at !== null

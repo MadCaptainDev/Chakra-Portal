@@ -41,7 +41,9 @@
             </p>
         </div>
 
-        @if ($instagram?->isConnected())
+        @if ($instagram?->isConnected() && $instagram->isExpired())
+            <x-badge color="bg-amber-400/15 text-amber-200">Expired — reconnect</x-badge>
+        @elseif ($instagram?->isConnected())
             <x-badge color="bg-green-400/15 text-green-200">Connected</x-badge>
         @elseif ($instagram)
             <x-badge color="bg-white/10 text-brand-100/70">Disconnected</x-badge>
