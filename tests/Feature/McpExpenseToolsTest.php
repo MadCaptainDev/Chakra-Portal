@@ -95,7 +95,8 @@ class McpExpenseToolsTest extends TestCase
             'tenure_months' => 12, 'start_month' => '2026-11', 'notes' => 'Loan a/c 1234',
         ]);
 
-        $this->assertSame('HDFC', $data['bank_account']);
+        $this->assertSame('HDFC Bank', $data['bank']);
+        $this->assertSame('HDFC Bank', $data['deposit_into']);
         $this->assertSame('2027-10', $data['last_month']);
         $this->assertEquals(50400, $data['total_payable']);
 
@@ -140,6 +141,24 @@ class McpExpenseToolsTest extends TestCase
                 'params' => ['name' => 'create_emi', 'arguments' => ['name' => 'X', 'bank_account' => 'Axis', 'amount' => 1, 'tenure_months' => 1]]])
             ->assertJsonPath('result', null);
         $this->assertSame(1, Expense::where('type', Expense::TYPE_EMI)->count());
+    }
+
+    public function test_create_emi_reuses_the_holders_account_and_asks_when_a_bank_has_two(): void
+    {
+        $annamalai = \App\Models\BankAccount::create(['bank' => 'federal', 'holder_name' => 'Annamalai']);
+
+        $data = $this->data($this->admin(), 'create_emi', [
+            'name' => 'Mac Mini', 'bank_account' => 'FEDERAL - annamalai', 'amount' => 5000, 'tenure_months' => 24,
+        ]);
+        $this->assertFalse($data['new_account']);
+        $this->assertSame('Annamalai · Federal Bank', $data['deposit_into']);
+        $this->assertSame($annamalai->id, Expense::findOrFail($data['expense_id'])->bank_account_id);
+        $this->assertSame('Federal Bank - Annamalai', Expense::findOrFail($data['expense_id'])->payee);
+
+        \App\Models\BankAccount::create(['bank' => 'federal', 'holder_name' => 'Keerthi']);
+        $this->assertStringContainsString('more than one Federal Bank account', $this->error($this->admin(), 'create_emi', [
+            'name' => 'Lens', 'bank_account' => 'Federal', 'amount' => 1000, 'tenure_months' => 3,
+        ]));
     }
 
     // ——— log_expense ———

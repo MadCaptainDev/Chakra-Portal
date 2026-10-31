@@ -47,6 +47,7 @@ class Expense extends Model
         'name',
         'type',
         'payee',
+        'bank_account_id',
         'role',
         'joined_on',
         'spent_on',
@@ -67,6 +68,12 @@ class Expense extends Model
         'installments' => 'integer',
         'is_active' => 'boolean',
     ];
+
+    /** For an EMI: the account it is paid through and deposited into. */
+    public function bankAccount(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class);
+    }
 
     public function payments(): HasMany
     {

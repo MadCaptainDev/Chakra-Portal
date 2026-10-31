@@ -2,9 +2,11 @@
 
 namespace App\Tools\Expenses;
 
+use App\Models\BankAccount;
 use App\Models\Expense;
 use App\Models\User;
 use App\Services\ExpenseLedger;
+use App\Support\Banks;
 use App\Tools\Tool;
 use App\Tools\ToolException;
 use Illuminate\Support\Carbon;
@@ -58,7 +60,8 @@ class CreateEmi extends Tool
     {
         return $this->object([
             'name' => ['type' => 'string', 'description' => 'What the EMI is for, e.g. "Sony 70-200 lens".'],
-            'bank_account' => ['type' => 'string', 'description' => 'The bank, card or lender it is paid through, as the EMI list writes it, e.g. "Axis", "BOI", "CANA", "FI", "FEDERAL - Annamalai".'],
+            'bank_account' => ['type' => 'string', 'description' => 'The bank it is paid through: '.implode(', ', Banks::options()).' -- short forms like BOI, CANA, FI work. For money paid straight to a person (no bank), their name.'],
+            'account_holder' => ['type' => 'string', 'description' => 'Whose account the monthly money is deposited into, e.g. "Annamalai". Optional; a bank account the studio already has for this bank is reused.'],
             'amount' => ['type' => 'number', 'description' => 'Rupees per month, e.g. 4200.'],
             'tenure_months' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 600, 'description' => 'Total number of monthly installments.'],
             'start_month' => ['type' => 'string', 'description' => 'Month of the first installment, YYYY-MM. Defaults to this month.'],
@@ -109,18 +112,17 @@ class CreateEmi extends Tool
             throw new ToolException("There is already a running EMI called \"{$clash->name}\" (id {$clash->id}). Use a different name if this is a separate loan.");
         }
 
-        // One spelling per bank: reuse what the list already says.
-        $known = Expense::query()->whereIn('type', [Expense::TYPE_EMI, Expense::TYPE_BILL])
-            ->whereNotNull('payee')->pluck('payee')->unique();
-        $bank = $known->first(fn ($p) => mb_strtolower(trim($p)) === mb_strtolower($bank)) ?? $bank;
+        $account = $this->account($bank, $arguments['account_holder'] ?? null);
 
         $notes = filled($arguments['notes'] ?? null) ? mb_substr(trim($arguments['notes']), 0, 255) : null;
 
-        $emi = DB::transaction(function () use ($name, $bank, $amount, $tenure, $start, $paid, $notes) {
+        $emi = DB::transaction(function () use ($name, $account, $amount, $tenure, $start, $paid, $notes) {
+            $account->save();
             $emi = Expense::create([
                 'name' => $name,
                 'type' => Expense::TYPE_EMI,
-                'payee' => $bank,
+                'payee' => $account->payeeText(),
+                'bank_account_id' => $account->id,
                 'amount' => round((float) $amount, 2),
                 'start_month' => $start->toDateString(),
                 'installments' => $tenure,
@@ -143,7 +145,10 @@ class CreateEmi extends Tool
             'created' => true,
             'expense_id' => $emi->id,
             'name' => $emi->name,
-            'bank_account' => $emi->payee,
+            'deposit_into' => $account->label(),
+            'bank' => $account->bankName(),
+            'account_holder' => $account->holder_name,
+            'new_account' => $account->wasRecentlyCreated,
             'monthly_amount' => (float) $emi->amount,
             'tenure_months' => $tenure,
             'first_month' => $start->format('Y-m'),
@@ -153,5 +158,28 @@ class CreateEmi extends Tool
             'installments_left' => $tenure - $paid,
             'notes' => $emi->notes,
         ];
+    }
+
+    /**
+     * The account this EMI is paid through: "Federal" + "Annamalai" is the
+     * Federal Bank account of Annamalai, reused when it already exists.
+     * Unsaved when new -- created inside the EMI's transaction.
+     */
+    private function account(string $bankText, mixed $holder): BankAccount
+    {
+        [$bank, $parsedHolder] = Banks::parse($bankText);
+        $holder = filled($holder) ? trim((string) $holder) : $parsedHolder;
+
+        $existing = BankAccount::query()->where('bank', $bank)->get();
+        $match = $holder === null
+            ? ($existing->count() === 1 ? $existing->first() : $existing->firstWhere('holder_name', null))
+            : $existing->first(fn ($a) => mb_strtolower((string) $a->holder_name) === mb_strtolower($holder));
+
+        if (! $match && $holder === null && $existing->count() > 1) {
+            throw new ToolException('The studio has more than one '.Banks::name($bank).' account: '
+                .$existing->map(fn ($a) => $a->label())->implode(', ').'. Say whose account (account_holder).');
+        }
+
+        return $match ?? new BankAccount(['bank' => $bank, 'holder_name' => $holder]);
     }
 }

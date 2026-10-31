@@ -8,7 +8,7 @@
 {{-- x-data sits on the form itself: it is a plain element, whereas an @if
      inside <x-card> breaks Blade component compilation. --}}
 <form method="POST" action="{{ $emi ? route('emi.update', $emi) : route('emi.store') }}"
-      @if ($emi) x-data="{ unlocking: {{ old('unlock_amount') ? 'true' : 'false' }} }" @endif>
+      x-data="{ unlocking: {{ old('unlock_amount') ? 'true' : 'false' }}, account: @js((string) old('bank_account_id', $emi?->bank_account_id ?? '')) }">
     @csrf
     @if ($emi)
         @method('PUT')
@@ -23,12 +23,37 @@
         </div>
 
         <div>
-            <x-input-label :for="'emi_payee_'.$uid" value="Bank" />
-            <x-text-input :id="'emi_payee_'.$uid" name="payee" type="text" class="mt-1 block w-full"
-                          value="{{ old('payee', $emi->payee ?? '') }}" placeholder="e.g. Axis" />
-            <x-input-error :messages="$errors->get('payee')" class="mt-2" />
+            <x-input-label :for="'emi_account_'.$uid" value="Paid into (account)" />
+            <select id="emi_account_{{ $uid }}" name="bank_account_id" x-model="account"
+                    class="mt-1 block w-full rounded-md border-white/20 bg-white/10 text-white focus:border-brand-400 focus:ring-brand-400">
+                <option value="" class="text-brand-900">— No account —</option>
+                @foreach ($accounts as $a)
+                    <option value="{{ $a->id }}" class="text-brand-900">{{ $a->label() }}</option>
+                @endforeach
+                @unless ($emi)
+                    <option value="new" class="text-brand-900">+ New account…</option>
+                @endunless
+            </select>
+            <x-input-error :messages="$errors->get('bank_account_id')" class="mt-2" />
         </div>
     </div>
+
+    {{-- The picked account, logo and all, so it is obvious where the money goes. --}}
+    @foreach ($accounts as $a)
+        <div x-show="account === '{{ $a->id }}'" x-cloak class="-mt-2 mb-4 flex items-center gap-3 rounded-lg bg-white/5 px-3 py-2">
+            <x-bank-logo :account="$a" size="sm" />
+            <p class="text-xs text-brand-100/70">Deposit each month into <span class="font-semibold text-white">{{ $a->label() }}</span></p>
+        </div>
+    @endforeach
+
+    {{-- New accounts are made from the Add form only: an edit form per EMI each
+         carrying the 23-logo picker made the page heavy. Edit picks existing. --}}
+    @unless ($emi)
+    <div x-show="account === 'new'" x-cloak class="mb-4 rounded-xl bg-white/5 p-4">
+        <p class="mb-3 text-sm font-semibold text-white">New account</p>
+        @include('emi._account-fields', ['prefix' => 'new_', 'account' => null, 'uid' => 'new-'.$uid])
+    </div>
+    @endunless
 
     <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div>

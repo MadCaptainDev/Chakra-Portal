@@ -1264,6 +1264,7 @@ Route::middleware(['auth', 'module:expenses,view'])->group(function () {
         Route::post('expenses/{expense}/pay', [ExpenseController::class, 'pay'])->name('expenses.pay');
         Route::post('emi/{emi}/pay', [EmiController::class, 'pay'])->name('emi.pay');
         Route::put('emi/{emi}', [EmiController::class, 'update'])->name('emi.update');
+        Route::put('emi/accounts/{account}', [EmiController::class, 'updateAccount'])->name('emi.accounts.update');
         Route::post('bills/{bill}/pay', [BillController::class, 'pay'])->name('bills.pay');
         Route::put('bills/{bill}', [BillController::class, 'update'])->name('bills.update');
         Route::put('other/{other}', [OtherExpenseController::class, 'update'])->name('other.update');
@@ -1271,12 +1272,14 @@ Route::middleware(['auth', 'module:expenses,view'])->group(function () {
 
     Route::middleware('module:expenses,create')->group(function () {
         Route::post('emi', [EmiController::class, 'store'])->name('emi.store');
+        Route::post('emi/accounts', [EmiController::class, 'storeAccount'])->name('emi.accounts.store');
         Route::post('bills', [BillController::class, 'store'])->name('bills.store');
         Route::post('other', [OtherExpenseController::class, 'store'])->name('other.store');
     });
 
     Route::middleware('module:expenses,delete')->group(function () {
         Route::delete('emi/{emi}', [EmiController::class, 'destroy'])->name('emi.destroy');
+        Route::delete('emi/accounts/{account}', [EmiController::class, 'destroyAccount'])->name('emi.accounts.destroy');
         Route::delete('bills/{bill}', [BillController::class, 'destroy'])->name('bills.destroy');
         Route::delete('other/{other}', [OtherExpenseController::class, 'destroy'])->name('other.destroy');
     });

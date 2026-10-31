@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BankAccount;
 use App\Models\Expense;
 use App\Services\ExpenseLedger;
+use App\Support\Banks;
 use App\Support\LocksExpenseAmount;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class EmiController extends Controller
@@ -22,7 +26,7 @@ class EmiController extends Controller
         $asOf = $this->ledger->resolveMonth($request->query('month'));
 
         $emis = Expense::where('type', Expense::TYPE_EMI)
-            ->with('payments')
+            ->with('payments', 'bankAccount')
             ->orderBy('name')
             ->get();
 
@@ -42,13 +46,16 @@ class EmiController extends Controller
             'monthlyLoad' => $dueThisMonth->sum(fn (Expense $e) => (float) $e->amount),
             'monthlyPaid' => $payRows->sum('paid'),
             'byBank' => $this->byBank($running, $asOf),
+            'deposits' => $this->deposits($running, $payRows, $asOf),
+            'accounts' => BankAccount::forPicker(),
+            'banks' => Banks::options(),
             'timeline' => $this->timeline($emis, $asOf),
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        Expense::create($this->validated($request));
+        DB::transaction(fn () => Expense::create($this->withAccount($request, $this->validated($request))));
 
         return redirect()->route('emi.index')->with('status', 'EMI added.');
     }
@@ -60,7 +67,7 @@ class EmiController extends Controller
         abort_unless($emi->isEmi(), 404);
 
         $unlocked = $request->boolean('unlock_amount');
-        $emi->update($this->validated($request, isUpdate: true));
+        DB::transaction(fn () => $emi->update($this->withAccount($request, $this->validated($request, isUpdate: true))));
 
         $message = $unlocked
             ? 'EMI updated. Monthly amount changed.'
@@ -102,6 +109,106 @@ class EmiController extends Controller
             ->with('status', (float) $validated['amount_paid'] > 0
                 ? "Recorded {$emi->name} for {$month->format('F Y')}."
                 : "Cleared {$emi->name} for {$month->format('F Y')}.");
+    }
+
+    // ——— Accounts ———
+
+    public function storeAccount(Request $request): RedirectResponse
+    {
+        $account = BankAccount::create($this->accountData($request));
+
+        return redirect()->route('emi.index')->with('status', 'Added '.$account->label().'.');
+    }
+
+    public function updateAccount(Request $request, BankAccount $account): RedirectResponse
+    {
+        $account->update($this->accountData($request));
+        // Keep the old free-text column in step for the screens that read it.
+        Expense::where('bank_account_id', $account->id)->update(['payee' => $account->payeeText()]);
+
+        return redirect()->route('emi.index')->with('status', 'Saved '.$account->label().'.');
+    }
+
+    public function destroyAccount(BankAccount $account): RedirectResponse
+    {
+        if ($account->emis()->exists()) {
+            return redirect()->route('emi.index')->with('error', 'Move its EMIs to another account first.');
+        }
+
+        $account->delete();
+
+        return redirect()->route('emi.index')->with('status', 'Account removed.');
+    }
+
+    /** @return array<string, mixed> */
+    private function accountData(Request $request, string $prefix = ''): array
+    {
+        $data = $request->validate([
+            $prefix.'bank' => ['nullable', Rule::in(array_keys(Banks::ALL))],
+            $prefix.'holder_name' => ['nullable', 'string', 'max:255', 'required_without:'.$prefix.'bank'],
+            $prefix.'last4' => ['nullable', 'digits:4'],
+            $prefix.'nickname' => ['nullable', 'string', 'max:255'],
+            $prefix.'account_notes' => ['nullable', 'string', 'max:255'],
+        ], [
+            $prefix.'holder_name.required_without' => 'Pick a bank, or say who is paid directly.',
+        ]);
+
+        return [
+            'bank' => $data[$prefix.'bank'] ?? null,
+            'holder_name' => filled($data[$prefix.'holder_name'] ?? null) ? trim($data[$prefix.'holder_name']) : null,
+            'last4' => $data[$prefix.'last4'] ?? null,
+            'nickname' => filled($data[$prefix.'nickname'] ?? null) ? trim($data[$prefix.'nickname']) : null,
+            'notes' => $data[$prefix.'account_notes'] ?? null,
+        ];
+    }
+
+    /**
+     * The account an EMI form picked -- an existing one, or "new" with its
+     * own fields -- set on the EMI, with payee kept as its readable text.
+     */
+    private function withAccount(Request $request, array $data): array
+    {
+        $choice = $request->input('bank_account_id');
+
+        if ($choice === 'new') {
+            $account = BankAccount::create($this->accountData($request, 'new_'));
+        } elseif (filled($choice)) {
+            $account = BankAccount::find($request->validate(['bank_account_id' => ['integer', Rule::exists('bank_accounts', 'id')]])['bank_account_id']);
+        } else {
+            return $data + ['bank_account_id' => null];
+        }
+
+        return array_merge($data, ['bank_account_id' => $account->id, 'payee' => $account->payeeText()]);
+    }
+
+    /**
+     * This month's deposit plan: for each account, how much has to be put
+     * into it for the EMIs due this month, and how much of that is paid.
+     *
+     * @param  \Illuminate\Support\Collection<int, Expense>  $running
+     * @return list<array<string, mixed>>
+     */
+    private function deposits($running, $payRows, Carbon $asOf): array
+    {
+        return $running->groupBy(fn (Expense $e) => $e->bank_account_id ?? 0)
+            ->map(function ($group, $accountId) use ($payRows, $asOf) {
+                $due = $group->filter(fn (Expense $e) => $e->isDueIn($asOf));
+                $dueTotal = $due->sum(fn (Expense $e) => (float) ($payRows->get($e->id)['due'] ?? $e->amount));
+                $paid = $due->sum(fn (Expense $e) => min((float) ($payRows->get($e->id)['paid'] ?? 0), (float) ($payRows->get($e->id)['due'] ?? $e->amount)));
+
+                return [
+                    'account' => $group->first()->bankAccount,
+                    'emis' => $group->values(),
+                    'due' => $dueTotal,
+                    'paid' => $paid,
+                    'left' => max($dueTotal - $paid, 0),
+                    'outstanding' => $group->sum(fn (Expense $e) => $e->outstandingAmount($asOf)),
+                ];
+            })
+            // What still has to be deposited first; settled and idle accounts last.
+            ->sortBy([[fn ($d) => $d['left'] > 0.001 ? 0 : 1, 'asc'], ['left', 'desc'], ['outstanding', 'desc']])
+            ->values()
+            ->all();
     }
 
     /**
