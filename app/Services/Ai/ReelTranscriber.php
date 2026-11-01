@@ -40,7 +40,12 @@ class ReelTranscriber
 
     private const GEMINI = 'https://generativelanguage.googleapis.com';
 
-    public const GEMINI_MODEL = 'gemini-2.5-flash';
+    /**
+     * Tried in order: Google retires models for new keys without notice
+     * (2.5 Flash went that way), and the -latest alias always points at a
+     * current Flash.
+     */
+    public const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-flash-latest'];
 
     /** Above this the video is uploaded to Gemini's file store instead of sent inline (inline requests cap at 20 MB, base64 included). */
     private const GEMINI_INLINE_BYTES = 14 * 1024 * 1024;
@@ -155,12 +160,19 @@ class ReelTranscriber
             : ['file_data' => ['mime_type' => $mime, 'file_uri' => $this->geminiUpload($path, $mime, $apiKey)]];
         $text = 'Return JSON only.'.($media?->caption ? "\n\nThe post's caption, for context only (do not copy it into the transcript):\n".$media->caption : '');
 
-        $reply = $this->json(Http::withHeaders(['x-goog-api-key' => $apiKey])->timeout(180)
-            ->post(self::GEMINI.'/v1beta/models/'.self::GEMINI_MODEL.':generateContent', [
-                'system_instruction' => ['parts' => [['text' => self::GEMINI_PROMPT]]],
-                'contents' => [['parts' => [$video, ['text' => $text]]]],
-                'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0.1],
-            ]), 'Gemini');
+        foreach (self::GEMINI_MODELS as $i => $model) {
+            $response = Http::withHeaders(['x-goog-api-key' => $apiKey])->timeout(180)
+                ->post(self::GEMINI.'/v1beta/models/'.$model.':generateContent', [
+                    'system_instruction' => ['parts' => [['text' => self::GEMINI_PROMPT]]],
+                    'contents' => [['parts' => [$video, ['text' => $text]]]],
+                    'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0.1],
+                ]);
+            $retired = in_array($response->status(), [400, 404], true) && preg_match('/no longer available|not found|is not supported/i', (string) $response->json('error.message'));
+            if (! $retired || $i === count(self::GEMINI_MODELS) - 1) {
+                break;
+            }
+        }
+        $reply = $this->json($response, 'Gemini');
 
         $out = json_decode((string) data_get($reply, 'candidates.0.content.parts.0.text', ''), true);
         if (! is_array($out) || blank($out['tanglish'] ?? null) && blank($out['tamil'] ?? null)) {

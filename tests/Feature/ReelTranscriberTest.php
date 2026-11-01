@@ -105,7 +105,7 @@ class ReelTranscriberTest extends TestCase
         $this->assertSame('Step cut ungalukku set aagaadhu.', $out['tanglish']);
         $this->assertSame('Step cut will not suit you.', $out['english']);
         $this->assertSame(37, $out['seconds']);
-        Http::assertSent(fn ($r) => str_contains($r->url(), 'gemini-2.5-flash:generateContent') && $r->hasHeader('x-goog-api-key', 'AIza_test')
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'gemini-3.8-flash:generateContent') && $r->hasHeader('x-goog-api-key', 'AIza_test')
             && data_get($r->data(), 'contents.0.parts.0.inline_data.mime_type') === 'video/mp4');
         Http::assertNotSent(fn ($r) => str_contains($r->url(), 'api.groq.com'));
     }
