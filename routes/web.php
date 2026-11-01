@@ -1536,6 +1536,7 @@ Route::middleware(['auth', 'admin', 'recurring.catchup', 'instagram.catchup', 'r
     Route::put('assistant', [AiSettingController::class, 'update'])->name('ai.update');
     Route::delete('assistant/key', [AiSettingController::class, 'forget'])->name('ai.forget');
     Route::put('assistant/gemini', [AiSettingController::class, 'gemini'])->name('ai.gemini');
+    Route::put('assistant/public-reels', [AiSettingController::class, 'metaDiscovery'])->name('ai.meta-discovery');
     /*
      * The Firebase push connection. Admin-only, same reasoning again: the
      * service account here can send a push as the studio to every device.

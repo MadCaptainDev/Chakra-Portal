@@ -21,14 +21,16 @@
                 <input id="reel-url" type="url" name="url" value="{{ old('url') }}" placeholder="https://www.instagram.com/reel/…" :disabled="!!file"
                        class="w-full min-h-[44px] rounded-lg border-white/15 bg-white/5 text-sm text-white placeholder:text-brand-100/40 focus:border-brand-400 focus:ring-brand-400 disabled:opacity-40">
                 <x-input-error :messages="$errors->get('url')" />
+                <input type="text" name="username" value="{{ old('username') }}" placeholder="Posted by (optional, e.g. @riyamakeover_artistry) — only if it asks" :disabled="!!file"
+                       class="w-full min-h-[40px] rounded-lg border-white/15 bg-white/5 text-sm text-white placeholder:text-brand-100/40 focus:border-brand-400 focus:ring-brand-400 disabled:opacity-40">
 
                 <div class="flex items-center gap-3 text-xs text-brand-100/50"><span class="h-px flex-1 bg-white/10"></span>or upload the video<span class="h-px flex-1 bg-white/10"></span></div>
                 <input type="file" name="video" accept="video/*,audio/*" @change="file = $event.target.files[0]?.name || ''"
                        class="block w-full text-sm text-brand-100/70 file:mr-3 file:rounded-md file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-white/15">
                 <x-input-error :messages="$errors->get('video')" />
                 <p class="text-xs text-brand-100/50">
-                    Links work for our clients' own reels (not ones with licensed music — Instagram keeps those) and direct video links.
-                    For anyone else's reel, download it and upload it here. Up to {{ $maxMb }} MB.
+                    Links work for our clients' reels, public reels of business and creator accounts{{ app(\App\Services\Instagram\PublicReelFinder::class)->ready() ? '' : ' (once Chakra\'s Instagram is connected in Settings → Assistant)' }}, and direct video links.
+                    Personal accounts and reels with licensed music: save the reel on your phone and upload it here. Up to {{ $maxMb }} MB.
                 </p>
 
                 <button type="submit" :disabled="busy"

@@ -30,8 +30,10 @@ class TranscribeReel extends Tool
         return 'What a reel says: give its link and get the transcript in its own language (usually Tamil), an English '
             .'translation, a clean Tanglish version one line per sentence, and a one-line summary -- plus its caption and '
             .'views when it is one of our clients\' reels. Works for reels of the clients\' connected Instagram accounts '
-            .'(not ones with licensed music, which Instagram will not hand over) and for any direct video link; someone '
-            .'else\'s reel has to be uploaded on the portal\'s Reel Transcriber page. Results are kept, so asking again is '
+            .'(not ones with licensed music, which Instagram will not hand over), for public reels of business and creator '
+            .'accounts (through Instagram\'s business discovery, once Chakra\'s account is connected for it -- pass the '
+            .'poster\'s username if asked), and for any direct video link. A personal account\'s reel has to be uploaded '
+            .'on the portal\'s Reel Transcriber page. Results are kept, so asking again is '
             .'instant. USE WHEN asked "what does this reel say", to study a reel before writing a script, or to turn a '
             .'reel into a script.';
     }
@@ -55,6 +57,7 @@ class TranscribeReel extends Tool
     {
         return $this->object([
             'url' => ['type' => 'string', 'description' => 'The Instagram reel link, or a direct video link.'],
+            'username' => ['type' => 'string', 'description' => 'Who posted it (e.g. @riyamakeover_artistry), for someone else\'s reel when Instagram does not say.'],
             'refresh' => ['type' => 'boolean', 'description' => 'Transcribe again even if it was done before.'],
         ], ['url']);
     }
@@ -62,7 +65,7 @@ class TranscribeReel extends Tool
     public function handle(array $arguments, User $user): array
     {
         try {
-            $t = app(ReelTranscriber::class)->fromUrl((string) $arguments['url'], $user, (bool) ($arguments['refresh'] ?? false));
+            $t = app(ReelTranscriber::class)->fromUrl((string) $arguments['url'], $user, (bool) ($arguments['refresh'] ?? false), $arguments['username'] ?? null);
         } catch (RuntimeException $e) {
             throw new ToolException($e->getMessage());
         }

@@ -71,7 +71,7 @@ class ReelTranscriberTest extends TestCase
     public function test_someone_elses_reel_says_to_upload_it(): void
     {
         $this->expectException(ToolException::class);
-        $this->expectExceptionMessage('upload');
+        $this->expectExceptionMessage('upload the video');
         (new TranscribeReel)->handle(['url' => 'https://www.instagram.com/reel/NOTOURS/'], $this->writer);
     }
 
@@ -108,5 +108,33 @@ class ReelTranscriberTest extends TestCase
         Http::assertSent(fn ($r) => str_contains($r->url(), 'gemini-3.8-flash:generateContent') && $r->hasHeader('x-goog-api-key', 'AIza_test')
             && data_get($r->data(), 'contents.0.parts.0.inline_data.mime_type') === 'video/mp4');
         Http::assertNotSent(fn ($r) => str_contains($r->url(), 'api.groq.com'));
+    }
+    public function test_a_public_reel_is_found_through_business_discovery_and_its_poster_from_oembed(): void
+    {
+        AiSetting::current()->forceFill(['gemini_api_key' => 'AIza_test', 'meta_discovery_token' => 'EAA_test', 'meta_discovery_ig_id' => '999', 'meta_discovery_username' => 'chakra'])->save();
+        Http::fake([
+            'graph.facebook.com/v23.0/instagram_oembed*' => Http::response(['author_name' => 'competitor_salon']),
+            'graph.facebook.com/v23.0/999*' => Http::response(['business_discovery' => ['media' => ['data' => [
+                ['permalink' => 'https://www.instagram.com/reel/OTHER1/', 'media_url' => 'https://cdn.example/other.mp4'],
+                ['permalink' => 'https://www.instagram.com/reel/PUB777/', 'media_url' => 'https://cdn.example/pub.mp4', 'caption' => 'Bridal look'],
+            ]]]]),
+            'cdn.example/*' => Http::response(str_repeat('v', 1024)),
+            'generativelanguage.googleapis.com/*' => Http::response(['candidates' => [['content' => ['parts' => [['text' => json_encode([
+                'language' => 'Tamil', 'tamil' => 'x', 'tanglish' => 'Bridal look ready.', 'english' => 'Bridal look ready.', 'summary' => 'A bridal look.', 'seconds' => 20,
+            ])]]]]]]),
+        ]);
+
+        $out = (new TranscribeReel)->handle(['url' => 'https://www.instagram.com/reel/PUB777/?igsh=abc'], $this->writer);
+
+        $this->assertSame('Bridal look ready.', $out['tanglish']);
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'business_discovery.username') && str_contains(urldecode($r->url()), 'username(competitor_salon)'));
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'cdn.example/pub.mp4'));
+    }
+
+    public function test_without_the_connection_a_public_reel_says_how_to_get_it(): void
+    {
+        $this->expectException(ToolException::class);
+        $this->expectExceptionMessage('upload the video');
+        (new TranscribeReel)->handle(['url' => 'https://www.instagram.com/reel/PUB777/'], $this->writer);
     }
 }

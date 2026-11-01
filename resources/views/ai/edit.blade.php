@@ -139,6 +139,33 @@
             </form>
         </x-card>
 
+        {{-- Public reels for the Reel Transcriber (App\Services\Instagram\PublicReelFinder). --}}
+        <x-card padding="md">
+            <form method="POST" action="{{ route('ai.meta-discovery') }}" class="space-y-3">
+                @csrf @method('PUT')
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <p class="text-sm font-semibold text-white">Reel Transcriber — public reels (Instagram business discovery)</p>
+                    @if ($settings->meta_discovery_ig_id)
+                        <x-badge status="active">Connected via {{ '@'.$settings->meta_discovery_username }}</x-badge>
+                    @else
+                        <x-badge status="overdue">Not connected — public reels must be uploaded</x-badge>
+                    @endif
+                </div>
+                <p class="text-xs text-brand-100/60">
+                    Lets the transcriber open any business or creator account's public reel by link, through Instagram's official API.
+                    Paste a long-lived Facebook token for Chakra's own account: Meta Graph API Explorer → your app → permissions
+                    <code>instagram_basic</code>, <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>business_management</code> →
+                    Generate token → extend it in the Access Token Debugger. Chakra's Instagram must be linked to its Facebook Page.
+                    Leave blank and save to disconnect.
+                </p>
+                <div class="flex flex-wrap gap-2">
+                    <input type="password" name="meta_discovery_token" autocomplete="off" placeholder="{{ $settings->meta_discovery_ig_id ? '•••••••• (saved — paste a new one to replace)' : 'EAA…' }}"
+                           class="min-w-0 flex-1 rounded-md border-white/15 bg-white/5 text-sm text-white placeholder:text-brand-100/40">
+                    <x-primary-button>Save</x-primary-button>
+                </div>
+            </form>
+        </x-card>
+
         {{-- The Reel Transcriber's ear for Tamil (App\Services\Ai\ReelTranscriber). --}}
         <x-card padding="md">
             <form method="POST" action="{{ route('ai.gemini') }}" class="space-y-3">

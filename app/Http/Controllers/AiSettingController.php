@@ -75,6 +75,30 @@ class AiSettingController extends Controller
         return redirect()->route('ai.edit')->with('status', 'Assistant settings saved.');
     }
 
+    /**
+     * Public reels for the Reel Transcriber: a Facebook-login token for
+     * Chakra's own Instagram business account (blank removes it). Checked on
+     * save, and the account behind it is kept.
+     */
+    public function metaDiscovery(Request $request, \App\Services\Instagram\PublicReelFinder $finder): RedirectResponse
+    {
+        $token = trim((string) ($request->validate(['meta_discovery_token' => ['nullable', 'string', 'max:1000']])['meta_discovery_token'] ?? ''));
+        $settings = AiSetting::current();
+        if ($token === '') {
+            $settings->forceFill(['meta_discovery_token' => null, 'meta_discovery_ig_id' => null, 'meta_discovery_username' => null])->save();
+
+            return redirect()->route('ai.edit')->with('status', 'Public reels disconnected.');
+        }
+        try {
+            $ig = $finder->connect($token);
+        } catch (\RuntimeException $e) {
+            return redirect()->route('ai.edit')->with('error', $e->getMessage());
+        }
+        $settings->forceFill(['meta_discovery_token' => $token, 'meta_discovery_ig_id' => $ig['id'], 'meta_discovery_username' => $ig['username'], 'updated_by_id' => $request->user()->id])->save();
+
+        return redirect()->route('ai.edit')->with('status', 'Public reels connected through @'.$ig['username'].'.');
+    }
+
     /** The Reel Transcriber's Gemini key: set it, or (blank) remove it. */
     public function gemini(Request $request): RedirectResponse
     {

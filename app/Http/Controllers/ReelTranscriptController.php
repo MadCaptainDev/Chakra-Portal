@@ -27,13 +27,14 @@ class ReelTranscriptController extends Controller
     {
         $data = $request->validate([
             'url' => ['nullable', 'required_without:video', 'url', 'max:500'],
+            'username' => ['nullable', 'string', 'max:80'],
             'video' => ['nullable', 'required_without:url', 'file', 'max:'.ReelTranscriber::MAX_UPLOAD_KB, 'mimetypes:video/mp4,video/quicktime,video/webm,audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/ogg,audio/webm'],
         ], ['url.required_without' => 'Paste a reel link or choose a video file.']);
 
         try {
             $transcript = $request->hasFile('video')
                 ? $transcriber->fromFile($request->file('video'), $request->user())
-                : $transcriber->fromUrl($data['url'], $request->user());
+                : $transcriber->fromUrl($data['url'], $request->user(), username: $data['username'] ?? null);
         } catch (RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }

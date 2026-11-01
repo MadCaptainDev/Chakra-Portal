@@ -72,10 +72,10 @@ class ReelTranscriber
         .'was not said. If the reel is not in Tamil, write it in its own language in English letters. '
         .'Then a line with only ---, then a one-line English summary of the reel.';
 
-    public function __construct(private InstagramGraph $graph) {}
+    public function __construct(private InstagramGraph $graph, private \App\Services\Instagram\PublicReelFinder $public) {}
 
     /** A reel link (Instagram, or a direct video link). */
-    public function fromUrl(string $url, ?User $by = null, bool $refresh = false): ReelTranscript
+    public function fromUrl(string $url, ?User $by = null, bool $refresh = false, ?string $username = null): ReelTranscript
     {
         $url = trim($url);
         if (! preg_match('#^https?://#i', $url)) {
@@ -88,10 +88,15 @@ class ReelTranscriber
             if (! $refresh && ($done = ReelTranscript::firstWhere('source_key', $key))) {
                 return $done;
             }
-            $media = SocialMediaItem::query()->with('socialAccount')->where('permalink', 'like', '%/'.$m[1].'/%')->first()
-                ?? throw new RuntimeException('That reel is not from a connected client account, so Instagram will not hand over its video. '
-                    .'Download it and upload the file on the Reel Transcriber page, or give a direct video link.');
-            $video = $this->videoOf($media);
+            $media = SocialMediaItem::query()->with('socialAccount')->where('permalink', 'like', '%/'.$m[1].'/%')->first();
+            if ($media) {
+                $video = $this->videoOf($media);
+            } else {
+                // Somebody else's reel: Instagram's business discovery, if Chakra's account is connected for it.
+                $found = $this->public->find($m[1], $username);
+                $video = $found['video'];
+                $caption = $found['caption'];
+            }
         } else {
             $key = 'url:'.sha1($url);
             if (! $refresh && ($done = ReelTranscript::firstWhere('source_key', $key))) {
@@ -103,7 +108,7 @@ class ReelTranscriber
         if ($this->geminiKey()) {
             $path = $this->download($video);
             try {
-                return $this->saveGemini($key, $url, $media, $by, $path, 'video/mp4');
+                return $this->saveGemini($key, $url, $media, $by, $path, 'video/mp4', $caption ?? null);
             } finally {
                 @unlink($path);
             }
@@ -153,13 +158,14 @@ class ReelTranscriber
     }
 
     /** One call to Gemini with the video: all four versions back as JSON. */
-    private function saveGemini(string $key, ?string $url, ?SocialMediaItem $media, ?User $by, string $path, string $mime): ReelTranscript
+    private function saveGemini(string $key, ?string $url, ?SocialMediaItem $media, ?User $by, string $path, string $mime, ?string $caption = null): ReelTranscript
     {
         $apiKey = $this->geminiKey();
         $video = filesize($path) <= self::GEMINI_INLINE_BYTES
             ? ['inline_data' => ['mime_type' => $mime, 'data' => base64_encode((string) file_get_contents($path))]]
             : ['file_data' => ['mime_type' => $mime, 'file_uri' => $this->geminiUpload($path, $mime, $apiKey)]];
-        $text = 'Return JSON only.'.($media?->caption ? "\n\nThe post's caption, for context only (do not copy it into the transcript):\n".$media->caption : '');
+        $caption ??= $media?->caption;
+        $text = 'Return JSON only.'.($caption ? "\n\nThe post's caption, for context only (do not copy it into the transcript):\n".$caption : '');
 
         foreach (self::GEMINI_MODELS as $i => $model) {
             $response = Http::withHeaders(['x-goog-api-key' => $apiKey])->timeout(180)
