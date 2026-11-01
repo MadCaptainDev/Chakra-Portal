@@ -31,7 +31,9 @@ class AdminNav
             ],
             'Content' => [
                 self::module($user, 'planner', ['content-dashboard.*']),
-                self::module($user, 'scripts'),
+                self::module($user, 'scripts', ['scripts.*', 'reel-transcripts.*'], null, [
+                    self::link('reel-transcriber', 'Reel Transcriber', 'sparkles', 'reel-transcripts.index', ['reel-transcripts.*']),
+                ]),
                 self::module($user, 'shoots', ['shoots.*', 'equipment.*', 'my.shoots*'], 'shoots.calendar', [
                     self::gated($user, 'equipment.view', self::link('equipment', 'Equipment', 'briefcase', 'equipment.index', ['equipment.*'])),
                     self::link('my-shoots', 'Shoot updater', 'camera', 'my.shoots', ['my.shoots*']),

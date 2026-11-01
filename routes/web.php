@@ -487,6 +487,11 @@ Route::middleware('auth')->group(function () {
 Route::middleware(['auth', 'module:scripts,view'])->scopeBindings()->group(function () {
     Route::get('writing', [ScriptController::class, 'index'])->name('scripts.index');
 
+    // Reel Transcriber: a reel's words (also the transcribe_reel MCP tool). Before {script}.
+    Route::get('writing/transcribe', [\App\Http\Controllers\ReelTranscriptController::class, 'index'])->name('reel-transcripts.index');
+    Route::post('writing/transcribe', [\App\Http\Controllers\ReelTranscriptController::class, 'store'])->middleware('throttle:10,1')->name('reel-transcripts.store');
+    Route::get('writing/transcribe/{reelTranscript}', [\App\Http\Controllers\ReelTranscriptController::class, 'show'])->name('reel-transcripts.show');
+
     // Before the {script} route, or "create"/"import-keep" bind as a script id.
     Route::get('writing/create', [ScriptController::class, 'create'])
         ->middleware('module:scripts,create')->name('scripts.create');

@@ -114,6 +114,7 @@ class Server
             new CreateScript,
             new GetScript,
             new UpdateScript,
+            new \App\Tools\Content\TranscribeReel,
             new ReelPlannerToday,
             // Editing and the day's work, by role: an editor's own board and
             // timesheet hints, the crew's shoots, the admin's/manager's floor.

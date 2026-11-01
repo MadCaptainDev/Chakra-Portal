@@ -8,6 +8,7 @@
         <x-page-header title="Scripts" eyebrow="Production"
                        subtitle="Everything being written, and who is writing it.">
             <x-slot name="actions">
+                <x-btn :href="route('reel-transcripts.index')" variant="secondary" icon="sparkles">Reel Transcriber</x-btn>
                 @can('scripts.create')
                     <x-btn :href="route('scripts.import-keep.create')" variant="secondary" icon="document">Import from Google Keep</x-btn>
                     <x-btn :href="route('scripts.create')" icon="plus">New script</x-btn>
