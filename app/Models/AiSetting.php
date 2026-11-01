@@ -49,6 +49,7 @@ class AiSetting extends Model
         // Encrypted, not hashed: every call presents it, so it has to read
         // back. Same trade as NotionSetting::$api_key.
         'api_key' => 'encrypted',
+        'gemini_api_key' => 'encrypted',
         'is_active' => 'boolean',
         'last_answered_at' => 'datetime',
     ];
@@ -65,6 +66,12 @@ class AiSetting extends Model
         } catch (QueryException $e) {
             return static::query()->whereKey(1)->first() ?? throw $e;
         }
+    }
+
+    /** Google Gemini's key: the Reel Transcriber's ear for Tamil. Set on its own form, never mass-assigned. */
+    public function hasGeminiKey(): bool
+    {
+        return filled($this->gemini_api_key);
     }
 
     public function hasKey(): bool

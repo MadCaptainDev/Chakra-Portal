@@ -75,6 +75,15 @@ class AiSettingController extends Controller
         return redirect()->route('ai.edit')->with('status', 'Assistant settings saved.');
     }
 
+    /** The Reel Transcriber's Gemini key: set it, or (blank) remove it. */
+    public function gemini(Request $request): RedirectResponse
+    {
+        $key = trim((string) $request->validate(['gemini_api_key' => ['nullable', 'string', 'max:255']])['gemini_api_key'] ?? '');
+        AiSetting::current()->forceFill(['gemini_api_key' => $key !== '' ? $key : null, 'updated_by_id' => $request->user()->id])->save();
+
+        return redirect()->route('ai.edit')->with('status', $key !== '' ? 'Gemini key saved: the Reel Transcriber now uses it.' : 'Gemini key removed: the Reel Transcriber is back on Whisper.');
+    }
+
     /**
      * Forget the key and switch the assistant off in one action.
      *

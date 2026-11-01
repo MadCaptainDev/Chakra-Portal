@@ -87,4 +87,26 @@ class ReelTranscriberTest extends TestCase
         // Without scripts access, no page.
         $this->actingAs(User::factory()->create(['role' => User::ROLE_EMPLOYEE]))->get(route('reel-transcripts.index'))->assertForbidden();
     }
+    public function test_with_a_gemini_key_the_video_goes_to_gemini_and_comes_back_in_all_four_versions(): void
+    {
+        $this->clientReel();
+        AiSetting::current()->forceFill(['gemini_api_key' => 'AIza_test'])->save();
+        Http::fake([
+            'graph.instagram.com/*' => Http::response(['media_url' => 'https://cdn.example/reel.mp4']),
+            'cdn.example/*' => Http::response(str_repeat('v', 2048)),
+            'generativelanguage.googleapis.com/*' => Http::response(['candidates' => [['content' => ['parts' => [['text' => json_encode([
+                'language' => 'Tamil', 'tamil' => 'ஸ்டெப் கட் உங்களுக்கு செட் ஆகாது', 'tanglish' => ['Step cut ungalukku set aagaadhu.'],
+                'english' => 'Step cut will not suit you.', 'summary' => 'Which haircuts suit which face shape.', 'seconds' => 37,
+            ])]]]]]]),
+        ]);
+
+        $out = (new TranscribeReel)->handle(['url' => 'https://www.instagram.com/reel/ABC123/', 'refresh' => true], $this->writer);
+
+        $this->assertSame('Step cut ungalukku set aagaadhu.', $out['tanglish']);
+        $this->assertSame('Step cut will not suit you.', $out['english']);
+        $this->assertSame(37, $out['seconds']);
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'gemini-2.5-flash:generateContent') && $r->hasHeader('x-goog-api-key', 'AIza_test')
+            && data_get($r->data(), 'contents.0.parts.0.inline_data.mime_type') === 'video/mp4');
+        Http::assertNotSent(fn ($r) => str_contains($r->url(), 'api.groq.com'));
+    }
 }

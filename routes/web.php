@@ -491,6 +491,7 @@ Route::middleware(['auth', 'module:scripts,view'])->scopeBindings()->group(funct
     Route::get('writing/transcribe', [\App\Http\Controllers\ReelTranscriptController::class, 'index'])->name('reel-transcripts.index');
     Route::post('writing/transcribe', [\App\Http\Controllers\ReelTranscriptController::class, 'store'])->middleware('throttle:10,1')->name('reel-transcripts.store');
     Route::get('writing/transcribe/{reelTranscript}', [\App\Http\Controllers\ReelTranscriptController::class, 'show'])->name('reel-transcripts.show');
+    Route::post('writing/transcribe/{reelTranscript}/again', [\App\Http\Controllers\ReelTranscriptController::class, 'again'])->middleware('throttle:10,1')->name('reel-transcripts.again');
 
     // Before the {script} route, or "create"/"import-keep" bind as a script id.
     Route::get('writing/create', [ScriptController::class, 'create'])
@@ -1534,6 +1535,7 @@ Route::middleware(['auth', 'admin', 'recurring.catchup', 'instagram.catchup', 'r
     Route::get('assistant', [AiSettingController::class, 'edit'])->name('ai.edit');
     Route::put('assistant', [AiSettingController::class, 'update'])->name('ai.update');
     Route::delete('assistant/key', [AiSettingController::class, 'forget'])->name('ai.forget');
+    Route::put('assistant/gemini', [AiSettingController::class, 'gemini'])->name('ai.gemini');
     /*
      * The Firebase push connection. Admin-only, same reasoning again: the
      * service account here can send a push as the studio to every device.

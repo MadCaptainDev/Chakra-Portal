@@ -139,6 +139,30 @@
             </form>
         </x-card>
 
+        {{-- The Reel Transcriber's ear for Tamil (App\Services\Ai\ReelTranscriber). --}}
+        <x-card padding="md">
+            <form method="POST" action="{{ route('ai.gemini') }}" class="space-y-3">
+                @csrf @method('PUT')
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <p class="text-sm font-semibold text-white">Reel Transcriber — Google Gemini key</p>
+                    @if ($settings->hasGeminiKey())
+                        <x-badge status="active">Set</x-badge>
+                    @else
+                        <x-badge status="overdue">Not set — using Whisper</x-badge>
+                    @endif
+                </div>
+                <p class="text-xs text-brand-100/60">
+                    Gemini hears Tamil and Tanglish far better than Whisper. Free key from aistudio.google.com → Get API key.
+                    Leave blank and save to remove it.
+                </p>
+                <div class="flex flex-wrap gap-2">
+                    <input type="password" name="gemini_api_key" autocomplete="off" placeholder="{{ $settings->hasGeminiKey() ? '•••••••• (saved — paste a new one to replace)' : 'AIza…' }}"
+                           class="min-w-0 flex-1 rounded-md border-white/15 bg-white/5 text-sm text-white placeholder:text-brand-100/40">
+                    <x-primary-button>Save</x-primary-button>
+                </div>
+            </form>
+        </x-card>
+
         @if ($keyed)
             <x-card padding="md">
                 <x-section-heading

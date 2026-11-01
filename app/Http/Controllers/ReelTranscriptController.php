@@ -41,6 +41,19 @@ class ReelTranscriptController extends Controller
         return redirect()->route('reel-transcripts.show', $transcript);
     }
 
+    /** Transcribe a link again (after the Gemini key is set, say). An uploaded file has to be uploaded again. */
+    public function again(Request $request, ReelTranscript $reelTranscript, ReelTranscriber $transcriber): RedirectResponse
+    {
+        abort_unless($reelTranscript->source_url, 404);
+        try {
+            $fresh = $transcriber->fromUrl($reelTranscript->source_url, $request->user(), refresh: true);
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('reel-transcripts.show', $fresh)->with('status', 'Transcribed again.');
+    }
+
     public function show(ReelTranscript $reelTranscript): View
     {
         return view('reel-transcripts.show', ['t' => $reelTranscript->load('socialMediaItem.socialAccount.client:id,name', 'socialMediaItem.insights', 'createdBy:id,name')]);

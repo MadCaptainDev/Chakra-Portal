@@ -14,12 +14,21 @@
                 @if ($t->source_url)
                     <x-btn :href="$t->source_url" target="_blank" variant="secondary">Open reel</x-btn>
                 @endif
+                @if ($t->source_url)
+                    <form method="POST" action="{{ route('reel-transcripts.again', $t) }}" x-data="{ busy: false }" @submit="busy = true">
+                        @csrf
+                        <x-btn type="submit" variant="secondary" icon="refresh" x-bind:disabled="busy"><span x-text="busy ? 'Listening…' : 'Transcribe again'">Transcribe again</span></x-btn>
+                    </form>
+                @endif
                 <x-btn :href="route('reel-transcripts.index')" icon="plus">Another reel</x-btn>
             </x-slot>
         </x-page-header>
     </x-slot>
 
     <div class="mx-auto max-w-3xl space-y-4">
+        @if (session('error'))
+            <p class="rounded-lg bg-red-500/15 px-4 py-3 text-sm text-red-200">{{ session('error') }}</p>
+        @endif
         @if ($t->summary)
             <p class="rounded-xl bg-brand-400/10 px-4 py-3 text-sm text-brand-100 ring-1 ring-brand-400/20">{{ $t->summary }}</p>
         @endif
