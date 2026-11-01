@@ -41,11 +41,12 @@ class ReelTranscriber
     private const GEMINI = 'https://generativelanguage.googleapis.com';
 
     /**
-     * Tried in order: Google retires models for new keys without notice
-     * (2.5 Flash went that way), and the -latest alias always points at a
-     * current Flash.
+     * Tried in order, moving on when one is retired for new keys (2.5 Flash
+     * went that way without notice) or busy ("high demand" 503s are common
+     * on the newest model). The -latest alias always points at a current
+     * Flash.
      */
-    public const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-flash-latest'];
+    public const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.5-flash'];
 
     /** Above this the video is uploaded to Gemini's file store instead of sent inline (inline requests cap at 20 MB, base64 included). */
     private const GEMINI_INLINE_BYTES = 14 * 1024 * 1024;
@@ -168,7 +169,8 @@ class ReelTranscriber
                     'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0.1],
                 ]);
             $retired = in_array($response->status(), [400, 404], true) && preg_match('/no longer available|not found|is not supported/i', (string) $response->json('error.message'));
-            if (! $retired || $i === count(self::GEMINI_MODELS) - 1) {
+            $busy = in_array($response->status(), [429, 500, 503], true);
+            if (! ($retired || $busy) || $i === count(self::GEMINI_MODELS) - 1) {
                 break;
             }
         }
