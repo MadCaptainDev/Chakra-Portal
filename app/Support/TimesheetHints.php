@@ -40,7 +40,15 @@ class TimesheetHints
         return $hints;
     }
 
-    /** Working time on each video, from Start / Resume to Done / Hold / Next day, corrections counted on their video. */
+    /**
+     * Working time on each video, from Start / Resume to Done / Hold / Next
+     * day, corrections counted on their video.
+     *
+     * One row per working stretch, not one per video: the timesheet takes
+     * its minutes from start–end, so a single 10:00–15:00 row for a video
+     * held 11:20–14:05 would log the hold as work. Stretches closer than a
+     * couple of minutes (a Hold tapped and undone) are joined.
+     */
     private static function editing(User $user, Carbon $from, Carbon $to): array
     {
         $todos = Todo::query()->where('user_id', $user->id)
@@ -73,25 +81,58 @@ class TimesheetHints
                 if ($b->lte($a)) {
                     continue;
                 }
-                $v = &$videos[$video->id];
-                $v ??= ['title' => $video->title, 'client' => $video->venture, 'start' => $a, 'end' => $b, 'minutes' => 0, 'fix' => false];
-                $v['start'] = $v['start']->min($a);
-                $v['end'] = $v['end']->max($b);
-                $v['minutes'] += (int) $a->diffInMinutes($b);
-                $v['fix'] = $v['fix'] || $t->parent_id !== null;
-                unset($v);
+                $videos[$video->id] ??= ['title' => $video->title, 'client' => $video->venture, 'spans' => [], 'fix' => false];
+                $videos[$video->id]['spans'][] = [$a, $b];
+                $videos[$video->id]['fix'] = $videos[$video->id]['fix'] || $t->parent_id !== null;
             }
         }
 
-        return array_values(array_map(fn ($v) => [
-            'task' => 'Edit — '.$v['title'].($v['fix'] ? ' (with corrections)' : ''),
-            'type' => TimesheetEntry::TASK_EDITING,
-            'client' => $v['client'],
-            'start' => $v['start']->format('H:i'),
-            'end' => $v['end']->format('H:i'),
-            'minutes' => max(1, $v['minutes']),
-            'why' => 'From My Editing: worked on it '.self::span($v['minutes']).' between '.$v['start']->format('g:i A').' and '.$v['end']->format('g:i A').'.',
-        ], array_filter($videos, fn ($v) => $v['minutes'] >= 5)));
+        $hints = [];
+        foreach ($videos as $v) {
+            $parts = self::joined($v['spans']);
+            $total = array_sum(array_map(fn ($p) => (int) $p[0]->diffInMinutes($p[1]), $parts));
+            if ($total < 5) {
+                continue;
+            }
+            $count = count($parts);
+            foreach ($parts as $i => [$a, $b]) {
+                $minutes = max(1, (int) $a->diffInMinutes($b));
+                $hints[] = [
+                    'task' => 'Edit — '.$v['title'].($v['fix'] ? ' (with corrections)' : ''),
+                    'type' => TimesheetEntry::TASK_EDITING,
+                    'client' => $v['client'],
+                    'start' => $a->format('H:i'),
+                    'end' => $b->format('H:i'),
+                    'minutes' => $minutes,
+                    'why' => 'From My Editing: worked on it '.self::span($minutes).', '.$a->format('g:i A').'–'.$b->format('g:i A')
+                        .($count > 1 ? ' (part '.($i + 1).' of '.$count.'; time on hold is left out).' : '.'),
+                ];
+            }
+        }
+
+        return $hints;
+    }
+
+    /**
+     * Spans sorted and overlapping or near-touching ones joined.
+     *
+     * @param  list<array{0: Carbon, 1: Carbon}>  $spans
+     * @return list<array{0: Carbon, 1: Carbon}>
+     */
+    private static function joined(array $spans): array
+    {
+        usort($spans, fn ($x, $y) => $x[0] <=> $y[0]);
+        $out = [];
+        foreach ($spans as [$a, $b]) {
+            $last = array_key_last($out);
+            if ($last !== null && $a->lte($out[$last][1]->copy()->addMinutes(2))) {
+                $out[$last][1] = $out[$last][1]->max($b);
+            } else {
+                $out[] = [$a, $b];
+            }
+        }
+
+        return $out;
     }
 
     /** Shoots they were on that rolled that day, from Start to Wrap. */
@@ -136,18 +177,24 @@ class TimesheetHints
             ])->values()->all();
     }
 
-    /** Already on the timesheet: the same video named in the task, or the same kind of work over the same time. */
+    /**
+     * Already on the timesheet: the same video named in the task, or the same
+     * kind of work over the same time. When both sides have times, a title
+     * match must also overlap -- a video edited in two stretches around a
+     * hold is two rows, and logging the morning one must not hide the
+     * afternoon one.
+     */
     private static function sameWork(TimesheetEntry $e, array $h): bool
     {
+        $timed = $e->started_at && $e->ended_at && $h['start'] && $h['end'];
+        $overlaps = $timed && substr($e->started_at, 0, 5) < $h['end'] && substr($e->ended_at, 0, 5) > $h['start'];
+
         $title = trim(preg_replace('/^(Edit|Shoot|Post|Deliver) — /u', '', preg_replace('/ \(with corrections\)$/u', '', $h['task'])));
         if ($title !== '' && str_contains(mb_strtolower((string) $e->task), mb_strtolower($title))) {
-            return true;
-        }
-        if ($e->task_type !== $h['type'] || ! $e->started_at || ! $e->ended_at || ! $h['start'] || ! $h['end']) {
-            return false;
+            return ! $timed || $overlaps;
         }
 
-        return substr($e->started_at, 0, 5) < $h['end'] && substr($e->ended_at, 0, 5) > $h['start'];
+        return $e->task_type === $h['type'] && $overlaps;
     }
 
     private static function span(int $m): string
