@@ -272,7 +272,7 @@ HTML;
     table.items tbody td.figures-wrap {
         padding: 0;
         vertical-align: middle;
-        width: 48mm;
+        width: 72mm;
         border-bottom: 1px solid #eee;
     }
     table.item-figures {
@@ -300,6 +300,12 @@ HTML;
         text-align: right;
         padding-right: 1mm;
         padding-left: 2mm;
+    }
+    table.item-figures th.rate,
+    table.item-figures td.rate {
+        text-align: right;
+        padding-right: 1mm;
+        padding-left: 1mm;
     }
     table.item-figures th.amount,
     table.item-figures td.amount {
@@ -390,6 +396,7 @@ CSS;
                 'items_label' => 'Items',
                 'qty_label' => 'Qty',
                 'rate_label' => 'Rate',
+                'amount_label' => 'Amount',
             ], $invoice, $settings),
         ];
 

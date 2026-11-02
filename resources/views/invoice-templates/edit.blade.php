@@ -160,7 +160,7 @@
                                                             </div>
                                                         </template>
                                                         <template x-if="block.type === 'items'">
-                                                            <div class="grid grid-cols-3 gap-2">
+                                                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                                                 <div>
                                                                     <label class="text-xs text-brand-100/60">Items column</label>
                                                                     <input type="text" class="mt-0.5 block w-full rounded-md border-white/15 text-sm focus:border-brand-400 focus:ring-brand-400" x-model="block.settings.items_label" @input="queuePreview()">
@@ -172,6 +172,10 @@
                                                                 <div>
                                                                     <label class="text-xs text-brand-100/60">Rate column</label>
                                                                     <input type="text" class="mt-0.5 block w-full rounded-md border-white/15 text-sm focus:border-brand-400 focus:ring-brand-400" x-model="block.settings.rate_label" @input="queuePreview()">
+                                                                </div>
+                                                                <div>
+                                                                    <label class="text-xs text-brand-100/60">Amount column</label>
+                                                                    <input type="text" class="mt-0.5 block w-full rounded-md border-white/15 text-sm focus:border-brand-400 focus:ring-brand-400" x-model="block.settings.amount_label" @input="queuePreview()" placeholder="Amount">
                                                                 </div>
                                                             </div>
                                                         </template>
@@ -392,7 +396,7 @@
                         header: { title: 'INVOICE' },
                         client: { label: 'Quotation to :' },
                         intro: { heading: 'Dear Client' },
-                        items: { items_label: 'Items', qty_label: 'Qty', rate_label: 'Rate' },
+                        items: { items_label: 'Items', qty_label: 'Qty', rate_label: 'Rate', amount_label: 'Amount' },
                         total: { label: 'TOTAL :' },
                         text: { content: '' },
                         spacer: { height_mm: 6 },

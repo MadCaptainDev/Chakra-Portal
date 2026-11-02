@@ -91,6 +91,7 @@ class InvoiceTemplate extends Model
                     'items_label' => 'Items',
                     'qty_label' => 'Qty',
                     'rate_label' => 'Rate',
+                    'amount_label' => 'Amount',
                 ],
             ],
             [
