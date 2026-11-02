@@ -7,10 +7,9 @@ use App\Models\Client;
 use App\Models\Invoice;
 use App\Models\RecurringInvoice;
 use App\Models\RecurringInvoiceItem;
-use App\Support\InvoiceQuantityVariable;
+use App\Services\Invoices\InvoiceWriter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 
 class RecurringInvoiceController extends Controller
@@ -46,7 +45,7 @@ class RecurringInvoiceController extends Controller
             'created_by' => $request->user()->id,
         ]);
 
-        $this->syncItems($schedule, $request->validated('items'));
+        app(InvoiceWriter::class)->replaceScheduleItems($schedule, $request->validated('items'));
 
         return redirect()->route('recurring.index')->with('status', 'Recurring invoice schedule created.');
     }
@@ -63,8 +62,7 @@ class RecurringInvoiceController extends Controller
     {
         $recurring->update($request->safe()->except('items'));
 
-        $recurring->items()->delete();
-        $this->syncItems($recurring, $request->validated('items'));
+        app(InvoiceWriter::class)->replaceScheduleItems($recurring, $request->validated('items'));
 
         return redirect()->route('recurring.index')->with('status', 'Recurring invoice schedule updated.');
     }
@@ -106,7 +104,7 @@ class RecurringInvoiceController extends Controller
             'due_days' => $invoice->due_date
                 ? (int) $invoice->invoice_date->diffInDays($invoice->due_date)
                 : null,
-            'next_run_on' => $this->firstOccurrenceOn($anchorDay),
+            'next_run_on' => InvoiceWriter::firstOccurrenceOn($anchorDay),
         ]);
 
         // setRelation, not a DB write: the form reads $schedule->items, and an
@@ -119,43 +117,5 @@ class RecurringInvoiceController extends Controller
         ])));
 
         return $schedule;
-    }
-
-    /**
-     * The next time the given day-of-month comes around, clamped to short
-     * months. Stays in the current month if that day hasn't passed yet.
-     */
-    private function firstOccurrenceOn(int $day): Carbon
-    {
-        $today = today();
-        $candidate = $today->copy()->day(min($day, $today->daysInMonth));
-
-        if ($candidate->lt($today)) {
-            $nextMonth = $today->copy()->addMonthNoOverflow();
-            $candidate = $nextMonth->copy()->day(min($day, $nextMonth->daysInMonth));
-        }
-
-        return $candidate;
-    }
-
-    /**
-     * @param  array<int, array{description: string, quantity: mixed, unit_price: float}>  $items
-     */
-    private function syncItems(RecurringInvoice $schedule, array $items): void
-    {
-        foreach ($items as $index => $item) {
-            $quantity = $item['quantity'];
-
-            if (InvoiceQuantityVariable::isVariable($quantity)) {
-                $quantity = InvoiceQuantityVariable::normalizeToken((string) $quantity);
-            }
-
-            $schedule->items()->create([
-                'description' => $item['description'],
-                'quantity' => (string) $quantity,
-                'unit_price' => $item['unit_price'],
-                'sort_order' => $index,
-            ]);
-        }
     }
 }

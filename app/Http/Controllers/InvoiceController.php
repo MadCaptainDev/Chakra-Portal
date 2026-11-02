@@ -9,6 +9,7 @@ use App\Models\Invoice;
 use App\Models\SaasProduct;
 use App\Services\InvoiceDocumentRenderer;
 use App\Services\InvoiceWhatsappSender;
+use App\Services\Invoices\InvoiceWriter;
 use App\Support\InvoiceFilters;
 use App\Support\InvoiceQuantityVariable;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -17,7 +18,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -92,40 +92,12 @@ class InvoiceController extends Controller
         return view('invoices.create', compact('clients', 'saasProducts'));
     }
 
-    public function store(InvoiceRequest $request): RedirectResponse
+    public function store(InvoiceRequest $request, InvoiceWriter $writer): RedirectResponse
     {
-        $invoice = DB::transaction(function () use ($request) {
-            $settings = CompanySetting::current();
-
-            $invoice = Invoice::create([
-                'invoice_number' => Invoice::nextInvoiceNumber($settings->invoice_prefix),
-                'client_id' => $request->validated('client_id'),
-                'saas_product_id' => $request->validated('saas_product_id'),
-                'saas_invoice_type' => $request->validated('saas_product_id') ? $request->validated('saas_invoice_type') : null,
-                'invoice_date' => $request->validated('invoice_date'),
-                'due_date' => $request->validated('due_date'),
-                'intro_text' => $request->validated('intro_text'),
-                'discount_label' => $request->validated('discount_label'),
-                'discount_amount' => $request->validated('discount_amount'),
-                'status' => Invoice::STATUS_UNPAID,
-                'created_by' => $request->user()->id,
-            ]);
-
-            $client = Client::findOrFail($request->validated('client_id'));
-            $month = Carbon::parse($request->validated('invoice_date'))->startOfMonth();
-
-            $this->syncItems($invoice, $request->validated('items'), $client, $month);
-
-            $invoice->load('items');
-            $invoice->recalculateTotals();
-            $invoice->save();
-
-            return $invoice;
-        });
+        $invoice = $writer->create($request->validated(), $request->user()->id);
 
         return redirect()->route('invoices.show', $invoice)->with('status', 'Invoice created.');
     }
-
     public function show(Invoice $invoice): View
     {
         $invoice->load('client', 'items', 'payments.recordedBy', 'whatsappLogs.sentBy');
@@ -143,34 +115,12 @@ class InvoiceController extends Controller
         return view('invoices.edit', compact('invoice', 'clients', 'saasProducts'));
     }
 
-    public function update(InvoiceRequest $request, Invoice $invoice): RedirectResponse
+    public function update(InvoiceRequest $request, Invoice $invoice, InvoiceWriter $writer): RedirectResponse
     {
-        DB::transaction(function () use ($request, $invoice) {
-            $invoice->update([
-                'client_id' => $request->validated('client_id'),
-                'saas_product_id' => $request->validated('saas_product_id'),
-                'saas_invoice_type' => $request->validated('saas_product_id') ? $request->validated('saas_invoice_type') : null,
-                'invoice_date' => $request->validated('invoice_date'),
-                'due_date' => $request->validated('due_date'),
-                'intro_text' => $request->validated('intro_text'),
-                'discount_label' => $request->validated('discount_label'),
-                'discount_amount' => $request->validated('discount_amount'),
-            ]);
-
-            $client = Client::findOrFail($request->validated('client_id'));
-            $month = Carbon::parse($request->validated('invoice_date'))->startOfMonth();
-
-            $invoice->items()->delete();
-            $this->syncItems($invoice, $request->validated('items'), $client, $month);
-
-            $invoice->load('items');
-            $invoice->recalculateTotals();
-            $invoice->save();
-        });
+        $writer->update($invoice, $request->validated());
 
         return redirect()->route('invoices.show', $invoice)->with('status', 'Invoice updated.');
     }
-
     public function destroy(Invoice $invoice): RedirectResponse
     {
         // payments.invoice_id is cascadeOnDelete, so deleting an invoice takes
@@ -248,47 +198,12 @@ class InvoiceController extends Controller
         return redirect()->route('invoices.index', ['status' => 'pending_approval'])->with('status', 'Invoice discarded.');
     }
 
-    public function duplicate(Request $request, Invoice $invoice): RedirectResponse
+    public function duplicate(Request $request, Invoice $invoice, InvoiceWriter $writer): RedirectResponse
     {
-        $invoice->load('items');
-
-        $copy = DB::transaction(function () use ($request, $invoice) {
-            $settings = CompanySetting::current();
-
-            $copy = Invoice::create([
-                'invoice_number' => Invoice::nextInvoiceNumber($settings->invoice_prefix),
-                'client_id' => $invoice->client_id,
-                'saas_product_id' => $invoice->saas_product_id,
-                'saas_invoice_type' => $invoice->saas_invoice_type,
-                'invoice_date' => now()->format('Y-m-d'),
-                'due_date' => null,
-                'intro_text' => $invoice->intro_text,
-                'discount_label' => $invoice->discount_label,
-                'discount_amount' => $invoice->discount_amount,
-                'status' => Invoice::STATUS_UNPAID,
-                'created_by' => $request->user()->id,
-            ]);
-
-            foreach ($invoice->items as $item) {
-                $copy->items()->create([
-                    'description' => $item->description,
-                    'quantity' => $item->quantity,
-                    'unit_price' => $item->unit_price,
-                    'line_total' => $item->line_total,
-                    'sort_order' => $item->sort_order,
-                ]);
-            }
-
-            $copy->load('items');
-            $copy->recalculateTotals();
-            $copy->save();
-
-            return $copy;
-        });
+        $copy = $writer->duplicate($invoice, $request->user()->id);
 
         return redirect()->route('invoices.edit', $copy)->with('status', "Duplicated as {$copy->invoice_number}. Adjust and save.");
     }
-
     public function pdf(Invoice $invoice, InvoiceDocumentRenderer $renderer): Response
     {
         $invoice->load('client', 'items');
@@ -379,23 +294,5 @@ class InvoiceController extends Controller
         $month = Carbon::parse($validated['month'])->startOfMonth();
 
         return response()->json(InvoiceQuantityVariable::countsFor($client, $month));
-    }
-
-    /**
-     * @param  array<int, array{description: string, quantity: mixed, unit_price: float}>  $items
-     */
-    private function syncItems(Invoice $invoice, array $items, Client $client, Carbon $month): void
-    {
-        foreach ($items as $index => $item) {
-            $quantity = InvoiceQuantityVariable::resolve($item['quantity'], $client, $month);
-
-            $invoice->items()->create([
-                'description' => $item['description'],
-                'quantity' => $quantity,
-                'unit_price' => $item['unit_price'],
-                'line_total' => $quantity * (float) $item['unit_price'],
-                'sort_order' => $index,
-            ]);
-        }
     }
 }

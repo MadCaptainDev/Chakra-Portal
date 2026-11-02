@@ -17,6 +17,7 @@ use App\Tools\Expenses;
 use App\Tools\Finance;
 use App\Tools\FindClient;
 use App\Tools\Insights;
+use App\Tools\Invoices;
 use App\Tools\InvoiceLookup;
 use App\Tools\ListScripts;
 use App\Tools\ListShoots;
@@ -82,8 +83,11 @@ class Server
         .'7) Proposals: read proposal_guide before writing one. '
         .'8) The studio\'s own spending: log_expense for a one-time spend, record_expense_payment to '
         .'mark an EMI, salary or bill paid (find its id with expenses_due). '
-        .'9) There are no tools to record a payment FROM a client, approve invoices, read client '
-        .'passwords or delete clients -- send the person to the portal for those.';
+        .'9) Invoices: get_invoice before update_invoice (items replace every line); duplicate_invoice to bill '
+        .'"same as last month"; rates only from the person or a past invoice. Recurring schedules: '
+        .'list_recurring_invoices before changing one. None of these send anything to the client. '
+        .'10) There are no tools to record a payment FROM a client, approve or delete invoices, read '
+        .'client passwords or delete clients -- send the person to the portal for those.';
 
     /**
      * Every tool, in the order a model meets them.
@@ -156,6 +160,14 @@ class Server
             new Quotations\ListQuotations,
             new Quotations\CreateQuotation,
             new Quotations\SendQuotationWhatsapp,
+            // Invoices: read, create, edit, duplicate; recurring schedules.
+            new Invoices\GetInvoice,
+            new Invoices\CreateInvoice,
+            new Invoices\UpdateInvoice,
+            new Invoices\DuplicateInvoice,
+            new Invoices\ListRecurringInvoices,
+            new Invoices\CreateRecurringInvoice,
+            new Invoices\UpdateRecurringInvoice,
             // Clients: what they told us, and how their Instagram is doing.
             new Clients\GetClientBrief,
             new Clients\SendBriefReminder,
