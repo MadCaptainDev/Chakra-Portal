@@ -246,6 +246,49 @@ class Server
     }
 
     /**
+     * One tool, run for the mobile app (POST /api/mobile/actions/{tool}).
+     *
+     * A person tapping a button, not a model: so toolsFor() -- role and
+     * permission, exactly what the portal screens allow -- and not the
+     * Developer page's MCP limits, which are about what an AI may do. The
+     * result is the tool's own array, not MCP's text wrapping. Logged to
+     * mcp_call_logs like every other call.
+     *
+     * @param  array<string, mixed>  $arguments
+     * @return array{status: int, ok: bool, result?: mixed, error?: string}
+     */
+    public function runForApp(string $name, array $arguments, User $user): array
+    {
+        $tool = collect($this->toolsFor($user))->first(fn (Tool $t) => $t->name() === $name);
+
+        if (! $tool) {
+            return ['status' => 404, 'ok' => false, 'error' => 'No such action, or your account cannot use it: '.$name];
+        }
+
+        $started = hrtime(true);
+        $log = fn (bool $ok, ?string $error) => McpCallLog::record(
+            $user, null, $tool->name(), $arguments, $ok, $error,
+            (int) ((hrtime(true) - $started) / 1_000_000),
+        );
+
+        try {
+            $result = $tool->handle($arguments, $user);
+            $log(true, null);
+
+            return ['status' => 200, 'ok' => true, 'result' => $result];
+        } catch (ToolException $e) {
+            $log(false, $e->getMessage());
+
+            return ['status' => 422, 'ok' => false, 'error' => $e->getMessage()];
+        } catch (Throwable $e) {
+            $log(false, 'Server error -- details in laravel.log.');
+            Log::error('Mobile app action failed', ['tool' => $tool->name(), 'user_id' => $user->id, 'exception' => $e]);
+
+            return ['status' => 500, 'ok' => false, 'error' => 'That did not work at the studio\'s end. It has been logged.'];
+        }
+    }
+
+    /**
      * Handle one message. Returns null for a notification, which gets no reply.
      *
      * @param  array<string, mixed>  $message

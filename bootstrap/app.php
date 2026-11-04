@@ -59,6 +59,12 @@ return Application::configure(basePath: dirname(__DIR__))
                 'throttle:planner-api',
                 \App\Http\Middleware\PlannerJson::class,
             ])->group(base_path('routes/planner-api.php'));
+
+            // The Chakra mobile app (Flutter). Same shape as the planner's.
+            Route::middleware([
+                'throttle:mobile-api',
+                \App\Http\Middleware\PlannerJson::class,
+            ])->group(base_path('routes/mobile-api.php'));
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {

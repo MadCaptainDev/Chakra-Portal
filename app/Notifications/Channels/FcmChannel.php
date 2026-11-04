@@ -2,6 +2,8 @@
 
 namespace App\Notifications\Channels;
 
+use App\Models\AppNotification;
+use App\Models\User;
 use App\Services\Push\PushMessage;
 use App\Services\Push\PushSender;
 use Illuminate\Notifications\Notification;
@@ -34,6 +36,28 @@ class FcmChannel
             return;
         }
 
+        /** @var PushMessage|null $message */
+        $message = null;
+
+        /*
+         * The inbox first, for every teammate, whether or not push is set up
+         * or they have a device: the mobile app's bell reads this list, and
+         * on an iPhone built without a paid Apple account it is the only way
+         * a notification reaches them at all.
+         */
+        try {
+            if ($notifiable instanceof User && ! $notifiable->isClient()) {
+                $message = $notification->toFcm($notifiable);
+                AppNotification::record($notifiable, $notification::class, $message);
+            }
+        } catch (Throwable $e) {
+            Log::error('Notification inbox write failed.', [
+                'notification' => $notification::class,
+                'notifiable_id' => $notifiable->id ?? null,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         $tokens = method_exists($notifiable, 'routeNotificationForFcm')
             ? $notifiable->routeNotificationForFcm()
             : collect();
@@ -49,8 +73,7 @@ class FcmChannel
                 return;
             }
 
-            /** @var PushMessage $message */
-            $message = $notification->toFcm($notifiable);
+            $message ??= $notification->toFcm($notifiable);
 
             $sender->send($tokens, $message);
         } catch (Throwable $e) {

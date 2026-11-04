@@ -76,7 +76,7 @@ class PushSender
             fn (PushToken $token) => $pool->as((string) $token->id)
                 ->withToken($accessToken)
                 ->timeout($timeout)->connectTimeout($connectTimeout)->asJson()
-                ->post($endpoint, $this->transport->buildMessage($token->token, $message))
+                ->post($endpoint, $this->transport->buildMessage($token->token, $message, $token->isNativeApp()))
         )->all());
 
         $sent = 0;

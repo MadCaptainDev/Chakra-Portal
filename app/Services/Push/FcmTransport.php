@@ -102,8 +102,32 @@ class FcmTransport
      *
      * @return array<string, mixed>
      */
-    public function buildMessage(string $token, PushMessage $message): array
+    public function buildMessage(string $token, PushMessage $message, bool $native = false): array
     {
+        if ($native) {
+            /*
+             * The mobile app (Flutter, iOS/Android). Unlike a browser, the
+             * operating system draws the banner itself, so this one DOES carry
+             * a notification block -- a data-only message to an iPhone app is
+             * silent. data still rides along for the app to route the tap.
+             */
+            return [
+                'message' => [
+                    'token' => $token,
+                    'notification' => ['title' => $message->title, 'body' => $message->body],
+                    'data' => $message->toData(),
+                    'apns' => [
+                        'headers' => ['apns-priority' => '10'],
+                        'payload' => ['aps' => array_filter([
+                            'sound' => 'default',
+                            'thread-id' => $message->tag,
+                        ])],
+                    ],
+                    'android' => ['priority' => 'HIGH', 'ttl' => '86400s'],
+                ],
+            ];
+        }
+
         return [
             'message' => [
                 'token' => $token,

@@ -134,6 +134,8 @@ class WidgetController extends Controller
         return [
             'count' => $shoots->count(),
             'items' => $shoots->map(fn (Shoot $shoot) => [
+                'id' => $shoot->id,
+                'starts_at' => $shoot->starts_at?->toIso8601String(),
                 'title' => $shoot->title ?: ($shoot->client?->name ?? 'Shoot'),
                 'client' => $shoot->client?->name,
                 // Shoots imported from Notion carry a date and no time, which
@@ -163,6 +165,15 @@ class WidgetController extends Controller
             'count' => $count,
             'overdue' => (clone $open)->whereNotNull('due_on')->where('due_on', '<', $today->toDateString())->count(),
             'items' => (clone $open)->limit(3)->pluck('title')->all(),
+            // The same three with ids, for the mobile app's tick-off buttons
+            // (items stays plain titles: the Scriptable widget reads it).
+            'open' => (clone $open)->limit(3)->get(['id', 'title', 'due_on', 'status'])->map(fn (Todo $todo) => [
+                'id' => $todo->id,
+                'title' => $todo->title,
+                'status' => $todo->status,
+                'due_on' => $todo->due_on?->toDateString(),
+                'overdue' => $todo->due_on !== null && $todo->due_on->lt($today),
+            ])->all(),
             'url' => $user->logsWork() ? route('my.todos') : null,
         ];
     }

@@ -129,5 +129,7 @@ class AppServiceProvider extends ServiceProvider
          */
         RateLimiter::for('planner-api', fn (Request $request) => Limit::perMinute(300)
             ->by($request->bearerToken() ?: $request->ip()));
+        RateLimiter::for('mobile-api', fn (Request $request) => Limit::perMinute(240)
+            ->by($request->bearerToken() ?: $request->ip()));
     }
 }

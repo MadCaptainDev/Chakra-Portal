@@ -79,6 +79,37 @@ class PushToken extends Model
         return $pushToken;
     }
 
+    /** device_kind values the mobile app registers with (PushToken::registerNative). */
+    public const NATIVE_KINDS = ['ios_app', 'android_app'];
+
+    public function isNativeApp(): bool
+    {
+        return in_array($this->device_kind, self::NATIVE_KINDS, true);
+    }
+
+    /**
+     * The mobile app's FCM token. Same one-token-one-owner rule as
+     * register(): a phone handed to a colleague moves to them.
+     */
+    public static function registerNative(User $user, string $token, string $platform, ?string $label): self
+    {
+        $pushToken = self::updateOrCreate(
+            ['token_hash' => hash('sha256', $token)],
+            [
+                'user_id' => $user->id,
+                'token' => $token,
+                'device_label' => \Illuminate\Support\Str::limit($label ?: ($platform === 'ios' ? 'iPhone app' : 'Android app'), 64, ''),
+                'device_kind' => $platform === 'ios' ? 'ios_app' : 'android_app',
+            ],
+        );
+
+        if ($pushToken->failure_reason !== null || $pushToken->last_failed_at !== null) {
+            $pushToken->forceFill(['last_failed_at' => null, 'failure_reason' => null])->save();
+        }
+
+        return $pushToken;
+    }
+
     public function markUsed(): void
     {
         $this->forceFill(['last_used_at' => now()])->save();
