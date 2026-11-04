@@ -239,6 +239,9 @@ class ShootRun
             'status' => Shoot::STATUS_COMPLETED,
         ])->save();
 
+        // End the shoot's Live Activities on everyone's iPhone.
+        defer(fn () => rescue(fn () => \App\Services\LiveActivities\CrewTrip::ended($shoot), null, false));
+
         NotionShootStatus::push($shoot, NotionShootStatus::AFTER_WRAP);
     }
 

@@ -137,6 +137,9 @@ class UpdateShoot extends Tool
         }
 
         $shoot->update($changes);
+        if (in_array($changes['status'] ?? null, [Shoot::STATUS_COMPLETED, Shoot::STATUS_CANCELLED], true)) {
+            rescue(fn () => \App\Services\LiveActivities\CrewTrip::ended($shoot), null, false);
+        }
         $shoot->refresh()->load(['client:id,name', 'crew.user:id,name']);
 
         return [
@@ -171,6 +174,9 @@ class UpdateShoot extends Tool
                 'name' => $c->user?->name,
                 'role' => $c->role,
                 'call_time' => $c->call_time ? substr((string) $c->call_time, 0, 5) : null,
+                'crew_status' => $c->trip_status,
+                'eta_at' => $c->trip_eta_at?->timestamp,
+                'status_updated_at' => $c->trip_updated_at?->timestamp,
             ])->values()->all(),
             'open_in_portal' => route('shoots.show', $shoot),
         ];

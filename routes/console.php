@@ -127,3 +127,6 @@ Schedule::command('whatsapp:morning-brief')->dailyAt('07:30')->timezone(config('
  * 24-hour window is closed -- see SendTimesheetReport.
  */
 Schedule::command('whatsapp:timesheet-report')->dailyAt('21:00')->timezone(config('app.timezone'));
+
+// The iPhone app's EditingBoard Live Activity closes for the night.
+Schedule::command('live-activities:end-day')->dailyAt('23:00')->timezone(config('app.timezone'));

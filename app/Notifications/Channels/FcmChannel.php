@@ -66,6 +66,20 @@ class FcmChannel
             return;
         }
 
+        // iPhone app tokens registered as kind "apns" go straight to Apple.
+        [$apnsTokens, $tokens] = $tokens->partition(fn ($token) => $token->device_kind === \App\Models\PushToken::KIND_APNS);
+        if ($apnsTokens->isNotEmpty()) {
+            try {
+                \App\Services\Push\ApnsAlerts::send($apnsTokens->values(), $message ?? $notification->toFcm($notifiable));
+            } catch (Throwable $e) {
+                Log::error('APNs notification failed.', ['notification' => $notification::class, 'error' => $e->getMessage()]);
+            }
+        }
+        if ($tokens->isEmpty()) {
+            return;
+        }
+        $tokens = $tokens->values();
+
         try {
             $sender = PushSender::make();
 

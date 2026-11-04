@@ -26,6 +26,7 @@ class PushToken extends Model
         'token_hash',
         'device_label',
         'device_kind',
+        'environment',
     ];
 
     protected $casts = [
@@ -81,6 +82,14 @@ class PushToken extends Model
 
     /** device_kind values the mobile app registers with (PushToken::registerNative). */
     public const NATIVE_KINDS = ['ios_app', 'android_app'];
+
+    /** An iPhone app token sent straight to Apple (APNs), not through Firebase. */
+    public const KIND_APNS = 'ios_apns';
+
+    public function isApns(): bool
+    {
+        return $this->device_kind === self::KIND_APNS;
+    }
 
     public function isNativeApp(): bool
     {

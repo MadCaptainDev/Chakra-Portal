@@ -1544,6 +1544,8 @@ Route::middleware(['auth', 'admin', 'recurring.catchup', 'instagram.catchup', 'r
     Route::get('push', [PushSettingController::class, 'edit'])->name('push.edit');
     Route::put('push', [PushSettingController::class, 'update'])->name('push.update');
     Route::post('push/test', [PushSettingController::class, 'test'])->name('push.test');
+    Route::put('push/apns', [PushSettingController::class, 'updateApns'])->name('push.apns');
+    Route::post('push/apns/test', [PushSettingController::class, 'testApns'])->name('push.apns.test');
 
     /*
      * The competitor-analysis pipeline's three paid API keys (Apify, Gemini,

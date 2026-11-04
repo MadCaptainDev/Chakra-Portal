@@ -286,6 +286,133 @@ after a tap call `GET /notifications?after=…` to sync.
 
 ---
 
+## iPhone push straight to Apple (APNs), added 2026-11-04
+
+iPhones don't need Firebase. The portal signs with the studio's **.p8 key** (Settings → Push
+Notifications → *iPhone app · Apple push*: key file, Key ID, Team ID `P7LS2WCL9A`, bundle
+`in.chakragroups.chakra`). There's a "Send test push to my iPhone" button under it.
+
+**Environment:** builds run from Xcode use Apple's **sandbox**. TestFlight and App Store builds use
+**production**. Send `environment` with every token. If Apple answers `BadDeviceToken`, the portal
+also tries the other environment once and remembers whichever works.
+
+### Regular notifications
+
+`POST /push-token` `{ "token": "<APNs device token, hex>", "platform": "ios", "kind": "apns", "environment": "sandbox", "device_name": "…" }`
+→ `201 { id, push_configured }`. `kind` defaults to `fcm`. iOS uses `apns`: the hex token from
+`didRegisterForRemoteNotificationsWithDeviceToken`. `DELETE /push-token {token}` on logout.
+
+What arrives (`apns-push-type: alert`, topic = bundle id):
+
+```json
+{ "aps": { "alert": { "title": "Squad Architects", "body": "Sanjai is on the way · ETA 11:20 AM" },
+           "sound": "default", "thread-id": "crew-trip-41" },
+  "title": "…", "body": "…", "url": "https://chakragroups.in/shoots/41/call-sheet", "tag": "crew-trip-41" }
+```
+
+On tap, route by the path of `url`. Every push is also in `GET /notifications`. Tokens Apple
+reports as gone (410, `Unregistered`, `BadDeviceToken` in both environments) are deleted.
+
+---
+
+## Live Activities, added 2026-11-04
+
+Every Live Activity push uses these headers: `apns-push-type: liveactivity`,
+`apns-topic: in.chakragroups.chakra.push-type.liveactivity`, `apns-priority: 10` for starts,
+ends and updates that carry an alert, otherwise `5`.
+
+**Dates in `content-state` are unix epoch seconds**. Set your decoder to `.secondsSince1970`.
+`attributes-type` is `<Activity>Attributes`: `CrewTripAttributes`, `EditingBoardAttributes`,
+`ShootAttributes`. Your Swift struct names must match.
+
+### Tokens
+
+`POST /live-activity-tokens`
+
+```json
+{ "type": "push_to_start" | "update",
+  "activity": "CrewTrip" | "EditingBoard" | "Shoot",
+  "token": "<hex>",
+  "activity_id": "<Activity.id>",        // required for update
+  "ref": { "shoot_id": 41 },             // CrewTrip / Shoot update tokens
+  "environment": "sandbox" | "production" }
+```
+
+→ `201 { id, apns_configured }`.
+
+- **push_to_start:** register one per activity type from `Activity<…>.pushToStartTokenUpdates`
+  (iOS 17.2+). Re-post it whenever it changes.
+- **update:** register one per running activity from `activity.pushTokenUpdates`, including the
+  ones the portal started. Re-posting with the same `activity_id` replaces the old token.
+- `DELETE /live-activity-tokens` `{ "token": "…" }` or `{ "activity_id": "…" }` when an activity
+  ends on the phone.
+
+If an update token exists, the portal sends **update**. If none exists, it sends **start** to the
+push-to-start token, then waits for the new activity's update token: no second start for the
+same shoot for 6 h, or for the EditingBoard until midnight.
+
+### CrewTrip (admins' phones)
+
+Triggered by `crew_status` (below).
+
+```json
+"attributes":    { "shootId": 41, "title": "Office reel", "client": "Squad Architects", "location": "Anna Nagar" },
+"content-state": { "crew": [ { "name": "Sanjai Kumar", "status": "on_the_way", "etaAt": 1762239600 } ],
+                   "updatedAt": 1762238100, "message": "Sanjai Kumar is on the way to Squad Architects · ETA 11:20 AM" }
+```
+
+- `crew` lists only members who are `on_the_way` or `arrived`.
+- Start and every update carry `alert {title: client, body: message}`.
+- **End:** when the shoot wraps (`crew_status` wrapped, `run_shoot` wrap, the portal's Wrap
+  button, or `update_shoot` to completed/cancelled), with `dismissal-date` = now + 15 min.
+
+### EditingBoard (admins' phones)
+
+Pushed on **every** editing-card change: the app's `/editing/{id}/act`, the portal's My Editing
+board, reviews, posting. Each of these writes a TodoUpdate, which is where the hook sits.
+
+```json
+"attributes":    { "title": "Editing board" },
+"content-state": { "inProgress": 3, "underReview": 2, "readyToPost": 4, "todo": 6,
+                   "latest": "Priya · Done → review: Diwali offer", "latestAt": 1762238100 }
+```
+
+- **Start:** the first change each day (with `alert`) when the admin has no update token
+  registered today.
+- **Updates:** silent (priority 5).
+- **End:** every night at **23:00 IST** (`live-activities:end-day`), with `dismissal-date` = now.
+
+### Shoot (shoot timer, started on the phone)
+
+Register its update token with `activity: "Shoot"` and `ref.shoot_id`. The portal only **ends**
+it, when the shoot wraps:
+
+```json
+"content-state": { "status": "wrapping", "startedAt": 1762230000 }, "dismissal-date": now + 900
+```
+
+---
+
+## Crew trip: `crew_status` action
+
+`POST /actions/crew_status` `{ "shoot_id": 41, "status": "on_the_way" | "arrived" | "wrapped", "eta_minutes": 25, "lat": 13.08, "lng": 80.21 }`
+
+- **Who:** the caller must be on the shoot's crew. Admins and shoot editors may add `"person": "Sanjai"` to report for someone else.
+- **`on_the_way` / `arrived`:** also mark the shoot departed / reached the first time. The same staff WhatsApp "reached" alert as the portal goes out.
+- **`wrapped`:** wraps a live shoot, or just ends its activities.
+- **Notifies:** admins and the rest of the crew, through the inbox and push (`type: crew_trip_updated`).
+- **Live Activity:** starts or updates CrewTrip on every admin's iPhone.
+- **Result:** `{ message, shoot: <get_shoot> }`.
+
+Crew status now appears in:
+
+- `/today` → `shoots.items[].crew[]`: `{ user_id, name, role, crew_status, eta_at, is_you }`
+- `get_shoot` / `update_shoot` / `run_shoot` → `shoot.crew[]`: `{ user_id, name, role, call_time, crew_status, eta_at, status_updated_at }`
+
+`crew_status` is `null` | `on_the_way` | `arrived` | `wrapped`. `eta_at` is unix seconds.
+
+---
+
 ## My Editing (video editing board)
 
 Exactly the endpoints and shapes in [`../chakra-planner/API.md` → Editing widget](../chakra-planner/API.md#editing-widget),
@@ -376,6 +503,7 @@ These were added for the app's admin area (2026-11-04):
 | `get_shoot` | shoots.view or on the crew | `shoot_id*` | Full detail incl. crew, roles, call times, run times |
 | `assign_shoot_crew` | shoots.edit | `shoot_id*`, `person*`, `role`, `call_time` | Adds or updates; pushes the person |
 | `list_team` | any staff | — | For crew / assignee pickers |
+| `crew_status` | crew on the shoot (admins/shoot editors with `person`) | `shoot_id*`, `status*` (`on_the_way`·`arrived`·`wrapped`), `eta_minutes`, `lat`, `lng`, `person` | Notifies admins + crew; drives the CrewTrip Live Activity |
 | `list_clients` | clients.view | `search`, `include_inactive` | For client pickers |
 
 ### The everyday ones

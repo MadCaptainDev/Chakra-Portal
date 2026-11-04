@@ -21,6 +21,10 @@ class PushSetting extends Model
         'web_config',
         'vapid_public_key',
         'updated_by_id',
+        'apns_key_p8',
+        'apns_key_id',
+        'apns_team_id',
+        'apns_bundle_id',
     ];
 
     protected $casts = [
@@ -28,7 +32,15 @@ class PushSetting extends Model
         // so it has to be readable back. Same trade as
         // WhatsappSetting::$access_token.
         'service_account_json' => 'encrypted',
+        // The APNs signing key: a secret like the service account.
+        'apns_key_p8' => 'encrypted',
     ];
+
+    /** Direct Apple push for the iPhone app: key, key id, team and bundle all saved. */
+    public function apnsConfigured(): bool
+    {
+        return filled($this->apns_key_p8) && filled($this->apns_key_id) && filled($this->apns_team_id) && filled($this->apns_bundle_id);
+    }
 
     /**
      * The one row, created empty on first use.

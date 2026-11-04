@@ -116,6 +116,10 @@ class TodoUpdate extends Model
         // a no-op when live updates are off).
         \Illuminate\Support\defer(function () use ($update, $todo) {
             $move = rescue(fn () => app(\App\Support\EditorBoard::class)->move($update), null, false);
+            // The admins' EditingBoard Live Activity on their iPhones.
+            if ($move) {
+                rescue(fn () => \App\Services\LiveActivities\EditingBoardActivity::changed($move), null, false);
+            }
             \App\Services\Planner\PlannerRealtime::publish('editing.updated', [
                 'user_id' => ($todo->parent ?? $todo)->user_id,
                 'card_id' => $todo->parent_id ?? $todo->id,

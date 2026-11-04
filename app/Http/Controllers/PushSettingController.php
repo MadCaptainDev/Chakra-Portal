@@ -108,6 +108,61 @@ class PushSettingController extends Controller
      * Meta's. Two friendly checks come first because the two likeliest
      * failures here are not Google's fault at all.
      */
+    /** The iPhone app's Apple push key (.p8), sent straight to APNs -- no Firebase needed for iOS. */
+    public function updateApns(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'apns_key_p8' => ['nullable', 'string', 'max:4000'],
+            'apns_key_file' => ['nullable', 'file', 'max:8'],
+            'apns_key_id' => ['required', 'string', 'regex:/^[A-Z0-9]{10}$/'],
+            'apns_team_id' => ['required', 'string', 'regex:/^[A-Z0-9]{10}$/'],
+            'apns_bundle_id' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9.\-]+$/'],
+        ], [
+            'apns_key_id.regex' => 'The Key ID is 10 letters/digits, shown next to the key in Apple Developer → Keys.',
+            'apns_team_id.regex' => 'The Team ID is 10 letters/digits (Apple Developer → Membership).',
+        ]);
+
+        $settings = PushSetting::current();
+        $pem = $request->hasFile('apns_key_file') ? (string) file_get_contents($request->file('apns_key_file')->getRealPath()) : (string) ($data['apns_key_p8'] ?? '');
+        $pem = trim($pem);
+
+        if ($pem !== '') {
+            if (openssl_pkey_get_private($pem) === false) {
+                return back()->withInput()->withErrors(['apns_key_p8' => 'That is not a valid .p8 key. Paste the whole file, including the BEGIN/END PRIVATE KEY lines.']);
+            }
+            $settings->apns_key_p8 = $pem;
+        } elseif (blank($settings->apns_key_p8)) {
+            return back()->withInput()->withErrors(['apns_key_p8' => 'Upload or paste the .p8 key.']);
+        }
+
+        $settings->fill([
+            'apns_key_id' => $data['apns_key_id'],
+            'apns_team_id' => $data['apns_team_id'],
+            'apns_bundle_id' => $data['apns_bundle_id'],
+            'updated_by_id' => $request->user()->id,
+        ])->save();
+        \Illuminate\Support\Facades\Cache::forget('apns-jwt:'.$settings->apns_key_id.':'.$settings->apns_team_id);
+
+        return redirect()->route('push.edit')->with('status', 'Apple push key saved.');
+    }
+
+    /** Test to this person's iPhone app (APNs tokens). */
+    public function testApns(Request $request): RedirectResponse
+    {
+        $tokens = $request->user()->pushTokens()->where('device_kind', PushToken::KIND_APNS)->get();
+        if ($tokens->isEmpty()) {
+            return back()->with('status', 'Your iPhone app has not registered for notifications yet. Open the app and allow notifications first.');
+        }
+        try {
+            \App\Services\Push\ApnsAlerts::send($tokens, new PushMessage('Test notification', 'Apple push is working.', route('push.edit')));
+        } catch (Throwable $e) {
+            return back()->with('status', 'Could not send: '.$e->getMessage());
+        }
+        $failed = $request->user()->pushTokens()->where('device_kind', PushToken::KIND_APNS)->whereNotNull('failure_reason')->pluck('failure_reason')->unique()->implode(', ');
+
+        return back()->with('status', $failed !== '' ? "Apple refused: {$failed}" : 'Sent to '.$tokens->count().' iPhone(s).');
+    }
+
     public function test(Request $request): RedirectResponse
     {
         $tokens = $request->user()->routeNotificationForFcm();

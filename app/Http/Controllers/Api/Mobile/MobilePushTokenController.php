@@ -23,13 +23,20 @@ class MobilePushTokenController extends Controller
             'token' => ['required', 'string', 'min:20', 'max:4096'],
             'platform' => ['required', 'string', 'in:ios,android'],
             'device_name' => ['nullable', 'string', 'max:120'],
+            // fcm = a Firebase token; apns = the raw APNs device token (hex), sent straight to Apple.
+            'kind' => ['nullable', 'in:fcm,apns'],
+            'environment' => ['nullable', 'in:sandbox,production'],
         ]);
 
         $token = PushToken::registerNative($request->user(), $data['token'], $data['platform'], $data['device_name'] ?? null);
+        $apns = ($data['kind'] ?? 'fcm') === 'apns';
+        if ($apns) {
+            $token->forceFill(['device_kind' => PushToken::KIND_APNS, 'environment' => $data['environment'] ?? 'production'])->save();
+        }
 
         return response()->json([
             'id' => $token->id,
-            'push_configured' => PushSender::make()->canSend(),
+            'push_configured' => $apns ? \App\Services\Push\ApnsClient::make()->isConfigured() : PushSender::make()->canSend(),
         ], 201);
     }
 

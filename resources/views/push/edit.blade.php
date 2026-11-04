@@ -67,6 +67,61 @@
         </x-card>
 
         <x-card padding="md">
+            <x-section-heading
+                title="iPhone app · Apple push (APNs)"
+                subtitle="For the Chakra iPhone app: notifications and Live Activities go straight to Apple with this key. No Firebase needed for iPhones." />
+
+            <div class="mb-4">
+                @if ($settings->apnsConfigured())
+                    <x-badge status="active">Set</x-badge>
+                    <span class="ml-2 text-xs text-brand-100/60 font-mono">Key {{ $settings->apns_key_id }} · Team {{ $settings->apns_team_id }} · {{ $settings->apns_bundle_id }}</span>
+                @else
+                    <x-badge status="overdue">Not set</x-badge>
+                @endif
+            </div>
+
+            <form method="POST" action="{{ route('push.apns') }}" enctype="multipart/form-data">
+                @csrf
+                @method('PUT')
+                <p class="text-xs text-brand-100/60 mb-4">
+                    Apple Developer → Certificates, IDs &amp; Profiles → Keys → + → tick <strong>Apple Push Notifications service (APNs)</strong> → download the .p8 (Apple lets you download it once).
+                </p>
+                <div class="mb-4">
+                    <x-input-label for="apns_key_file" value=".p8 key file" />
+                    <input id="apns_key_file" name="apns_key_file" type="file" accept=".p8" class="mt-1 block w-full text-xs text-brand-100/60" />
+                    <textarea id="apns_key_p8" name="apns_key_p8" rows="3" autocomplete="off" spellcheck="false"
+                              class="mt-2 w-full rounded-md border-white/15 font-mono text-xs"
+                              placeholder="{{ $settings->apnsConfigured() ? 'Saved — leave blank to keep it' : '…or paste it: -----BEGIN PRIVATE KEY----- …' }}"></textarea>
+                    <x-input-error :messages="$errors->get('apns_key_p8')" class="mt-2" />
+                    <p class="text-xs text-brand-100/60 mt-1">Stored encrypted and never shown again.</p>
+                </div>
+                <div class="mb-4">
+                    <x-input-label for="apns_key_id" value="Key ID" />
+                    <x-text-input id="apns_key_id" name="apns_key_id" type="text" class="mt-1 w-full font-mono text-xs" value="{{ old('apns_key_id', $settings->apns_key_id) }}" />
+                    <x-input-error :messages="$errors->get('apns_key_id')" class="mt-2" />
+                </div>
+                <div class="mb-4">
+                    <x-input-label for="apns_team_id" value="Team ID" />
+                    <x-text-input id="apns_team_id" name="apns_team_id" type="text" class="mt-1 w-full font-mono text-xs" value="{{ old('apns_team_id', $settings->apns_team_id ?? 'P7LS2WCL9A') }}" />
+                    <x-input-error :messages="$errors->get('apns_team_id')" class="mt-2" />
+                </div>
+                <div class="mb-6">
+                    <x-input-label for="apns_bundle_id" value="App bundle ID" />
+                    <x-text-input id="apns_bundle_id" name="apns_bundle_id" type="text" class="mt-1 w-full font-mono text-xs" value="{{ old('apns_bundle_id', $settings->apns_bundle_id ?? 'in.chakragroups.chakra') }}" />
+                    <x-input-error :messages="$errors->get('apns_bundle_id')" class="mt-2" />
+                </div>
+                <x-primary-button>Save Apple key</x-primary-button>
+            </form>
+
+            @if ($settings->apnsConfigured())
+                <form method="POST" action="{{ route('push.apns.test') }}" class="mt-4 pt-4 border-t border-white/10">
+                    @csrf
+                    <x-secondary-button type="submit">Send test push to my iPhone</x-secondary-button>
+                </form>
+            @endif
+        </x-card>
+
+        <x-card padding="md">
             <form method="POST" action="{{ route('push.update') }}">
                 @csrf
                 @method('PUT')

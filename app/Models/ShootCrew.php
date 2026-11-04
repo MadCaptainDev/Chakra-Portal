@@ -28,6 +28,8 @@ class ShootCrew extends Model
      */
     protected $casts = [
         'confirmed_at' => 'datetime',
+        'trip_eta_at' => 'datetime',
+        'trip_updated_at' => 'datetime',
     ];
 
     public function isConfirmed(): bool

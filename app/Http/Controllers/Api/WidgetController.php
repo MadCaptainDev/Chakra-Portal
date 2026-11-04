@@ -117,7 +117,7 @@ class WidgetController extends Controller
     private function shoots(User $user, $today): array
     {
         $query = Shoot::query()
-            ->with('client:id,name')
+            ->with(['client:id,name', 'crew.user:id,name'])
             ->where('status', '!=', Shoot::STATUS_CANCELLED)
             ->where('starts_at', '>=', $today)
             ->where('starts_at', '<', $today->copy()->addDay())
@@ -145,6 +145,14 @@ class WidgetController extends Controller
                     : null,
                 'location' => $shoot->location,
                 'status' => $shoot->isInProgress() ? 'live' : $shoot->status,
+                'crew' => $shoot->crew->map(fn ($c) => [
+                    'user_id' => $c->user_id,
+                    'name' => $c->user?->name,
+                    'role' => $c->role,
+                    'crew_status' => $c->trip_status,
+                    'eta_at' => $c->trip_eta_at?->timestamp,
+                    'is_you' => $c->user_id === $user->id,
+                ])->values()->all(),
             ])->values()->all(),
             'url' => $seesAll ? route('shoots.index') : route('my.dashboard'),
         ];

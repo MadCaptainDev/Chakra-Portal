@@ -117,6 +117,7 @@ class Server
             new Shoots\UpdateShoot,
             new Shoots\RunShoot,
             new Shoots\GetShoot,
+            new Shoots\CrewStatus,
             new ListScripts,
             new CreateScript,
             new GetScript,

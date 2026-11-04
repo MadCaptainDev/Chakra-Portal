@@ -35,6 +35,10 @@ Route::prefix('api/mobile')->name('api.mobile.')->group(function () {
         Route::post('push-token', [MobilePushTokenController::class, 'store'])->name('push-token.store');
         Route::delete('push-token', [MobilePushTokenController::class, 'destroy'])->name('push-token.destroy');
 
+        // Live Activities (CrewTrip, EditingBoard, Shoot): push-to-start and update tokens.
+        Route::post('live-activity-tokens', [\App\Http\Controllers\Api\Mobile\MobileLiveActivityController::class, 'store'])->name('live-activity-tokens.store');
+        Route::delete('live-activity-tokens', [\App\Http\Controllers\Api\Mobile\MobileLiveActivityController::class, 'destroy'])->name('live-activity-tokens.destroy');
+
         // My Editing, as in the portal and the desktop planner's widget.
         Route::get('editing', [EditingController::class, 'board'])->name('editing.board');
         Route::post('editing', [EditingController::class, 'store'])->name('editing.store');
