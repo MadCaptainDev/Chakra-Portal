@@ -191,6 +191,102 @@ class MobileApiTest extends TestCase
             ->assertNotFound()->assertJsonPath('ok', false);
     }
 
+    private function adminToken(): array
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN, 'name' => 'Vasan Admin', 'password' => bcrypt('secret-pass')]);
+
+        return [$admin, $this->token($admin)];
+    }
+
+    private function act(string $token, string $name, array $args = [], int $status = 200): array
+    {
+        return $this->withToken($token)->postJson(route('api.mobile.actions.run', $name), $args)->assertStatus($status)->json();
+    }
+
+    public function test_me_carries_permissions_and_admin_flags(): void
+    {
+        [, $token] = $this->adminToken();
+        $me = $this->withToken($token)->getJson(route('api.mobile.me'))->assertOk();
+        $me->assertJsonPath('features.admin_area', true);
+        $this->assertContains('edit', $me->json('permissions.shoots'));
+        $this->assertContains('approve', $me->json('permissions.invoices'));
+        foreach (['update_shoot', 'run_shoot', 'record_invoice_payment', 'approve_invoice', 'send_invoice_whatsapp', 'list_team'] as $action) {
+            $this->assertContains($action, $me->json('actions'));
+        }
+
+        $staff = $this->withToken($this->token($this->staff))->getJson(route('api.mobile.me'))->assertOk();
+        $staff->assertJsonPath('features.admin_area', false);
+        $this->assertNotContains('update_shoot', $staff->json('actions'));
+        $this->assertContains('run_shoot', $staff->json('actions'));
+        $this->assertContains('list_team', $staff->json('actions'));
+    }
+
+    public function test_an_admin_edits_runs_and_wraps_a_shoot(): void
+    {
+        [, $token] = $this->adminToken();
+        $client = \App\Models\Client::create(['name' => 'Squad Architects']);
+        $made = $this->act($token, 'create_shoot', ['title' => 'Office reel', 'starts_at' => now()->addDay()->format('Y-m-d').' 10:00'])['result'];
+        $this->act($token, 'assign_shoot_crew', ['shoot_id' => $made['shoot_id'], 'person' => 'Sanjai Kumar']);
+
+        $updated = $this->act($token, 'update_shoot', [
+            'shoot_id' => $made['shoot_id'], 'status' => 'confirmed', 'location' => 'Anna Nagar',
+            'client' => (string) $client->id, 'starts_at' => now()->addDay()->format('Y-m-d').' 11:30', 'notes' => 'Bring the gimbal',
+        ])['result'];
+        $this->assertSame('confirmed', $updated['shoot']['status']);
+        $this->assertSame('Squad Architects', $updated['shoot']['client']);
+        $this->assertStringEndsWith('11:30', $updated['shoot']['starts_at']);
+        $this->assertSame('Sanjai Kumar', $updated['shoot']['crew'][0]['name']);
+
+        $this->assertSame('Sanjai Kumar', $this->act($token, 'update_shoot', ['shoot_id' => $made['shoot_id'], 'remove_crew' => 'Sanjai'])['result']['removed_from_crew']);
+        $this->act($token, 'update_shoot', ['shoot_id' => $made['shoot_id'], 'status' => 'live'], 422);
+        $this->act($token, 'update_shoot', ['shoot_id' => $made['shoot_id']], 422);
+
+        $this->assertTrue($this->act($token, 'run_shoot', ['shoot_id' => $made['shoot_id'], 'action' => 'start'])['result']['shoot']['live']);
+        $wrapped = $this->act($token, 'run_shoot', ['shoot_id' => $made['shoot_id'], 'action' => 'wrap'])['result']['shoot'];
+        $this->assertFalse($wrapped['live']);
+        $this->assertSame('completed', $wrapped['status']);
+
+        // Crew who are not on it cannot run it; staff cannot edit shoots at all.
+        $staffToken = $this->token($this->staff);
+        $this->act($staffToken, 'run_shoot', ['shoot_id' => $made['shoot_id'], 'action' => 'start'], 422);
+        $this->act($staffToken, 'update_shoot', ['shoot_id' => $made['shoot_id'], 'status' => 'planned'], 404);
+    }
+
+    public function test_an_admin_records_a_payment_until_the_invoice_is_paid(): void
+    {
+        [, $token] = $this->adminToken();
+        $client = \App\Models\Client::create(['name' => 'Riya Makeover']);
+        $made = $this->act($token, 'create_invoice', [
+            'client' => (string) $client->id, 'invoice_date' => now()->toDateString(),
+            'items' => [['description' => 'Reels', 'quantity' => 2, 'unit_price' => 5000]],
+        ])['result'];
+        $id = (string) ($made['invoice']['invoice_id'] ?? $made['invoice_id']);
+        if (($made['invoice']['status'] ?? $made['status'] ?? null) === \App\Models\Invoice::STATUS_PENDING_APPROVAL) {
+            $this->act($token, 'approve_invoice', ['invoice' => $id]);
+        }
+
+        $this->act($token, 'record_invoice_payment', ['invoice' => $id, 'amount' => 20000], 422);
+        $part = $this->act($token, 'record_invoice_payment', ['invoice' => $id, 'amount' => 4000, 'method' => 'UPI'])['result'];
+        $this->assertEquals(6000, $part['invoice']['balance_due']);
+        $full = $this->act($token, 'record_invoice_payment', ['invoice' => $id])['result'];
+        $this->assertEquals(6000, $full['recorded']);
+        $this->assertSame(\App\Models\Invoice::STATUS_PAID, $full['invoice']['status']);
+        $this->act($token, 'record_invoice_payment', ['invoice' => $id], 422);
+    }
+
+    public function test_the_team_list_and_client_messaging_flags(): void
+    {
+        [, $token] = $this->adminToken();
+        \App\Models\User::factory()->create(['role' => User::ROLE_CLIENT, 'name' => 'A Client']);
+        $team = collect($this->act($token, 'list_team')['result']['team'])->pluck('name');
+        $this->assertContains('Sanjai Kumar', $team);
+        $this->assertNotContains('A Client', $team);
+
+        $actions = collect($this->withToken($token)->getJson(route('api.mobile.actions.index'))->json('data'))->keyBy('name');
+        $this->assertTrue($actions['send_invoice_whatsapp']['messages_client']);
+        $this->assertFalse($actions['record_invoice_payment']['messages_client']);
+    }
+
     private function pem(): string
     {
         $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);

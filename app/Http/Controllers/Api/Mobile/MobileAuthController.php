@@ -85,6 +85,21 @@ class MobileAuthController extends Controller
         return response()->noContent();
     }
 
+    /** @return array<string, list<string>> */
+    public static function permissions(User $user): array
+    {
+        $gate = \Illuminate\Support\Facades\Gate::forUser($user);
+        $granted = [];
+        foreach (\App\Support\Permission::modules() as $module => $config) {
+            $abilities = array_values(array_filter($config['abilities'], fn (string $a) => $gate->allows($module.'.'.$a)));
+            if ($abilities !== []) {
+                $granted[$module] = $abilities;
+            }
+        }
+
+        return $granted;
+    }
+
     /** @return array<string, mixed> */
     public static function profile(User $user, ?PlannerSession $session): array
     {
@@ -112,8 +127,14 @@ class MobileAuthController extends Controller
                 'review' => $planner['abilities']['review'],
                 'team_hours' => $user->isAdmin(),
                 'shoots_all' => $user->can('shoots.view'),
+                // The app's Admin area: admins, and anyone managing invoices or shoots.
+                'admin_area' => $user->isAdmin() || $user->can('invoices.view') || $user->can('shoots.edit'),
+                'manages_team' => $user->managesAnyone(),
             ],
             'actions' => $actions,
+            // module => abilities this person has, exactly as the portal's
+            // gates answer (admins: everything). For showing admin screens.
+            'permissions' => self::permissions($user),
             'unread_notifications' => AppNotification::query()->where('user_id', $user->id)->whereNull('read_at')->count(),
             'session' => $planner['session'],
             'realtime' => $planner['realtime'],

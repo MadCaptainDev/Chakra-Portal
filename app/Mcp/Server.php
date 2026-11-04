@@ -114,6 +114,8 @@ class Server
             new Shoots\ShootsRollingNow,
             new Shoots\CreateShoot,
             new Shoots\AssignShootCrew,
+            new Shoots\UpdateShoot,
+            new Shoots\RunShoot,
             new ListScripts,
             new CreateScript,
             new GetScript,
@@ -137,6 +139,7 @@ class Server
             new \App\Tools\Studio\PostAnnouncement,
             new \App\Tools\Studio\BookShoots,
             new \App\Tools\Studio\WhatsappInbox,
+            new \App\Tools\Studio\ListTeam,
             /*
              * Proposals, end to end: writing the document, working through
              * the client's comments, sharing and sending it. MCP only (see
@@ -168,6 +171,9 @@ class Server
             new Invoices\ListRecurringInvoices,
             new Invoices\CreateRecurringInvoice,
             new Invoices\UpdateRecurringInvoice,
+            new Invoices\RecordInvoicePayment,
+            new Invoices\ApproveInvoice,
+            new Invoices\SendInvoiceWhatsapp,
             // Clients: what they told us, and how their Instagram is doing.
             new Clients\GetClientBrief,
             new Clients\SendBriefReminder,
