@@ -287,6 +287,40 @@ class MobileApiTest extends TestCase
         $this->assertFalse($actions['record_invoice_payment']['messages_client']);
     }
 
+    public function test_invoice_and_client_lists_and_one_shoot(): void
+    {
+        [, $token] = $this->adminToken();
+        $client = \App\Models\Client::create(['name' => 'Riya Makeover', 'phone' => '9876543210']);
+        $made = $this->act($token, 'create_invoice', [
+            'client' => (string) $client->id, 'invoice_date' => now()->toDateString(),
+            'items' => [['description' => 'Reels', 'quantity' => 1, 'unit_price' => 8000]],
+        ])['result'];
+        $id = (string) ($made['invoice']['invoice_id'] ?? $made['invoice_id']);
+        if (\App\Models\Invoice::find($id)->isPendingApproval()) {
+            $this->act($token, 'approve_invoice', ['invoice' => $id]);
+        }
+        $this->act($token, 'record_invoice_payment', ['invoice' => $id, 'amount' => 3000]);
+
+        $open = $this->act($token, 'list_invoices')['result'];
+        $this->assertSame(1, $open['count']);
+        $this->assertSame('partial', $open['invoices'][0]['status']);
+        $this->assertEquals(5000, $open['balance_due_shown']);
+        $this->assertSame(0, $this->act($token, 'list_invoices', ['status' => 'paid'])['result']['count']);
+
+        $clients = $this->act($token, 'list_clients', ['search' => 'riya'])['result']['clients'];
+        $this->assertSame($client->id, $clients[0]['id']);
+
+        $shoot = $this->act($token, 'create_shoot', ['title' => 'Salon reel', 'starts_at' => now()->addDay()->format('Y-m-d').' 09:00', 'client' => (string) $client->id])['result'];
+        $got = $this->act($token, 'get_shoot', ['shoot_id' => $shoot['shoot_id']])['result'];
+        $this->assertSame('Riya Makeover', $got['client']);
+        $this->assertFalse($got['live']);
+
+        // Staff not on the crew cannot read it, nor the invoices.
+        $staffToken = $this->token($this->staff);
+        $this->act($staffToken, 'get_shoot', ['shoot_id' => $shoot['shoot_id']], 422);
+        $this->act($staffToken, 'list_invoices', [], 404);
+    }
+
     private function pem(): string
     {
         $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);

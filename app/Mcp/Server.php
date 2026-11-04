@@ -116,6 +116,7 @@ class Server
             new Shoots\AssignShootCrew,
             new Shoots\UpdateShoot,
             new Shoots\RunShoot,
+            new Shoots\GetShoot,
             new ListScripts,
             new CreateScript,
             new GetScript,
@@ -174,8 +175,10 @@ class Server
             new Invoices\RecordInvoicePayment,
             new Invoices\ApproveInvoice,
             new Invoices\SendInvoiceWhatsapp,
+            new Invoices\ListInvoices,
             // Clients: what they told us, and how their Instagram is doing.
             new Clients\GetClientBrief,
+            new Clients\ListClients,
             new Clients\SendBriefReminder,
             new Clients\InstagramPerformance,
             // Money owed to the studio, each behind its own module.
