@@ -72,9 +72,11 @@ list (use `device_info_plus` → `name`, or `"iPhone"`).
     "today": true, "notifications": true,
     "planner": false, "planner_edit": false,
     "editing": true, "editor_updates": false, "review": false,
-    "team_hours": false, "shoots_all": false
+    "team_hours": false, "shoots_all": false,
+    "admin_area": false, "manages_team": false
   },
   "actions": ["create_todo", "list_todos", "log_timesheet_entry", "my_shoots", "…"],
+  "permissions": { "dashboard": ["view"], "shoots": ["view"] },
   "unread_notifications": 3,
   "session": { "id": 12, "device_name": "Sanjai's iPhone" },
   "realtime": { "enabled": false, "provider": "ably", "channel": "planner", "client_id": "user-4", "token_url": "…" },
@@ -91,6 +93,13 @@ or when the account becomes a client.
 - `features.*` decides which tabs and buttons to show. Don't show what is `false`.
 - `actions` lists the action names this person may run (see [Actions](#actions)).
   Hide any button whose action isn't in the list.
+- `permissions` is module → abilities, exactly as the portal's gates answer (an admin gets
+  every module and ability). Abilities: `view`, `create`, `edit`, `delete`, plus
+  module-specific ones such as `approve` (invoices), `comment` (proposals) and `manage`.
+- **Admin area:** show it when `features.admin_area` is true (admins, or anyone who can
+  see invoices or edit shoots). `user.is_admin` is the full-admin flag. Gate each
+  admin screen on its own action being in `actions`, not on `is_admin`.
+- `features.manages_team` is true for managers who have people reporting to them.
 
 Errors: `422 invalid_credentials`, `403 no_access` (client account), `429 throttled`.
 
@@ -351,6 +360,24 @@ POST /api/mobile/actions/set_todo_status
 
 Every call is logged on the portal (Developer → Activity).
 
+### Admin actions
+
+The full list with arguments and result shapes is in **[ADMIN-ACTIONS.md](ADMIN-ACTIONS.md)**.
+These were added for the app's admin area (2026-11-04):
+
+| Action | Permission | Arguments | Notes |
+|---|---|---|---|
+| `list_invoices` | invoices.view | `status` (`open`·`overdue`·`partial`·`unpaid`·`pending_approval`·`paid`·`all`), `client`, `from`, `to`, `search`, `limit` | Rows with total/paid/balance, newest first. Default `open` |
+| `record_invoice_payment` | invoices.edit | `invoice*`, `amount` (default = full balance), `paid_on`, `method`, `note` | "Mark paid" = just `invoice`. Refuses overpaying. Doesn't message anyone |
+| `approve_invoice` | invoices.approve | `invoice*` (id) | Pending draft → numbered, unpaid |
+| `send_invoice_whatsapp` ✉️ | invoices.approve | `invoice*`, `phone` | Template + PDF link to the client |
+| `update_shoot` | shoots.edit | `shoot_id*`, `title`, `starts_at`, `ends_at`, `client`, `location`, `status` (`planned`·`confirmed`·`completed`·`cancelled`), `notes`, `remove_crew` | Only given fields change; `""` clears optional fields |
+| `run_shoot` | crew on the shoot, or admin | `shoot_id*`, `action*` (`on_the_way`·`reached`·`start`·`wrap`) | `start` makes it live; `wrap` completes it. **"live" is not a status.** |
+| `get_shoot` | shoots.view or on the crew | `shoot_id*` | Full detail incl. crew, roles, call times, run times |
+| `assign_shoot_crew` | shoots.edit | `shoot_id*`, `person*`, `role`, `call_time` | Adds or updates; pushes the person |
+| `list_team` | any staff | — | For crew / assignee pickers |
+| `list_clients` | clients.view | `search`, `include_inactive` | For client pickers |
+
 ### The everyday ones
 
 | Screen | Action | Arguments |
@@ -368,6 +395,9 @@ Every call is logged on the portal (Developer → Activity).
 | Money due (admin) | `money_due` | none |
 | Needs attention (admin) | `needs_attention` | none |
 | Who am I | `whoami` | none |
+| Team picker | `list_team` | none |
+| Shoot detail | `get_shoot` | `shoot_id` |
+| Shoot day buttons | `run_shoot` | `shoot_id`, `action` (`on_the_way`/`reached`/`start`/`wrap`) |
 
 Read exact argument names and descriptions from `GET /actions`. That list is
 always current; this table is a guide.

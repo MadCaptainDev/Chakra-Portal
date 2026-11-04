@@ -8,6 +8,7 @@ live shoot timer on the lock screen.
 |---|---|
 | **README.md** (this) | Setup, architecture, notifications, widgets, Live Activities, signing |
 | [API.md](API.md) | Every endpoint, request and response |
+| [ADMIN-ACTIONS.md](ADMIN-ACTIONS.md) | All 86 actions: arguments, permission, result shape, client-messaging flags |
 | [DESIGN.md](DESIGN.md) | Colours, type, spacing, components, every screen, widget layouts |
 | [assets/](assets/) | App icons (iOS, Android, dark, tinted), logos, glyphs |
 
