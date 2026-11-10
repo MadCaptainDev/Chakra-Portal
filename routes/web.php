@@ -281,6 +281,8 @@ Route::middleware('auth')->group(function () {
     // this needs no migration.
     Route::get('/notification-center/feed', [NotificationCenterController::class, 'feed'])
         ->name('notification-center.feed');
+    Route::post('/notification-center/read', [NotificationCenterController::class, 'markRead'])
+        ->name('notification-center.read');
 
     /*
      * Arranging your own dashboard cards. Sits in the plain `auth` group
@@ -1503,6 +1505,14 @@ Route::middleware(['auth', 'module:whatsapp-crm,view'])->prefix('whatsapp-crm')-
  */
 Route::middleware(['auth', 'admin', 'recurring.catchup', 'instagram.catchup', 'recognitions.catchup', 'scheduled-flows.catchup'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // "My ventures" on the dashboard -- see VentureBoardController.
+    Route::get('dashboard/ventures', [\App\Http\Controllers\VentureBoardController::class, 'data'])->name('ventures.data');
+    Route::get('dashboard/ventures/all', [\App\Http\Controllers\VentureBoardController::class, 'ventures'])->name('ventures.all');
+    Route::put('dashboard/ventures', [\App\Http\Controllers\VentureBoardController::class, 'choose'])->name('ventures.choose');
+    Route::put('dashboard/ventures/settings', [\App\Http\Controllers\VentureBoardController::class, 'settings'])->name('ventures.settings');
+    Route::post('dashboard/ventures/refresh', [\App\Http\Controllers\VentureBoardController::class, 'refresh'])->name('ventures.refresh');
+    Route::post('dashboard/ventures/test', [\App\Http\Controllers\VentureBoardController::class, 'test'])->name('ventures.test');
 
     // JSON endpoints behind the invoice form's client modal. Both POST: a
     // JSON body carries no _method field for Laravel to spoof PUT from.

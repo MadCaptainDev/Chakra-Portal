@@ -43,23 +43,37 @@
         </div>
     </div>
 
-    {{-- Needs you --}}
-    <section aria-labelledby="needs-you">
-        <h2 id="needs-you" class="mb-3 text-[17px] font-semibold text-white">{{ $needs->count() ? 'Needs you' : 'All clear' }}</h2>
-        <div class="space-y-2.5">
-            @forelse ($needs as $n)
-                <a href="{{ $n['href'] }}" class="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-2xl border px-5 py-4 transition hover:brightness-110 {{ $tone($n['tone'] ?? 'brand') }}">
+    {{-- Needs you: the first four, the rest one tap away. --}}
+    <section aria-labelledby="needs-you" x-data="{ all: false }">
+        <div class="mb-3 flex items-baseline gap-3">
+            <h2 id="needs-you" class="text-[17px] font-semibold text-white">{{ $needs->count() ? 'Needs you' : 'All clear' }}</h2>
+            @if ($needs->count())
+                <span class="rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-brand-100/80">{{ $needs->count() }}</span>
+            @endif
+        </div>
+        <div class="grid gap-2.5 lg:grid-cols-2">
+            @forelse ($needs as $i => $n)
+                <a href="{{ $n['href'] }}" @if ($i >= 4) x-show="all" x-cloak x-transition.opacity @endif
+                   class="flex items-center gap-4 rounded-2xl border px-4 py-3.5 transition hover:brightness-110 {{ $tone($n['tone'] ?? 'brand') }}">
                     <div class="min-w-0 flex-1">
-                        <p class="text-[15px] font-semibold text-white">{{ $n['title'] }}</p>
-                        @if (! empty($n['detail']))<p class="mt-0.5 text-[13px] text-brand-100/70">{{ $n['detail'] }}</p>@endif
+                        @if (! empty($n['domain']))<p class="text-[10px] font-bold uppercase tracking-[0.14em] text-brand-100/45">{{ $n['domain'] }}</p>@endif
+                        <p class="text-[14.5px] font-semibold leading-snug text-white">{{ $n['title'] }}</p>
+                        @if (! empty($n['detail']))<p class="mt-0.5 line-clamp-2 text-[12.5px] text-brand-100/65">{{ $n['detail'] }}</p>@endif
                     </div>
-                    <span class="inline-flex min-h-[40px] shrink-0 items-center rounded-xl px-4 text-[13px] font-bold {{ $cta($n['tone'] ?? 'brand') }}">{{ $n['cta'] ?? 'Open' }}</span>
+                    <span class="inline-flex min-h-[36px] shrink-0 items-center rounded-xl px-3.5 text-[12.5px] font-bold {{ $cta($n['tone'] ?? 'brand') }}">{{ $n['cta'] ?? 'Open' }}</span>
                 </a>
             @empty
-                <p class="rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.06] px-5 py-5 text-sm text-emerald-100/85">No reviews waiting, nothing overdue, nobody stuck.</p>
+                <p class="rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.06] px-5 py-5 text-sm text-emerald-100/85 lg:col-span-2">No reviews waiting, nothing overdue, nobody stuck.</p>
             @endforelse
         </div>
+        @if ($needs->count() > 4)
+            <button type="button" @click="all = !all" class="mt-2.5 text-[13px] font-semibold text-brand-300 hover:text-white"
+                    x-text="all ? 'Show fewer' : 'Show {{ $needs->count() - 4 }} more'"></button>
+        @endif
     </section>
+
+    {{-- My ventures: how many videos each one has, at every stage. --}}
+    @include('dashboard._ventures')
 
     {{-- The day, in four panels --}}
     <div class="grid gap-5 lg:grid-cols-2">

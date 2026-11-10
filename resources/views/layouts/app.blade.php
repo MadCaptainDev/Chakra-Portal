@@ -174,5 +174,17 @@
         @include('layouts._command-palette')
 
         @stack('scripts')
-    </body>
+            {{-- New notifications while the page is open (see _notification-bell). --}}
+        <div x-data="{ toasts: [], add(t) { t.id = Date.now() + Math.random(); this.toasts.push(t); setTimeout(() => this.toasts = this.toasts.filter((x) => x.id !== t.id), 9000); } }"
+             @portal-toast.window="add($event.detail)"
+             class="pointer-events-none fixed bottom-4 right-4 z-[90] flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2">
+            <template x-for="t in toasts" :key="t.id">
+                <a :href="t.url || '#'" x-transition.opacity.duration.200ms
+                   class="pointer-events-auto block rounded-xl bg-white px-4 py-3 text-brand-900 shadow-2xl ring-1 ring-black/5 hover:bg-brand-50">
+                    <p class="text-sm font-bold" x-text="t.title"></p>
+                    <p class="mt-0.5 line-clamp-3 whitespace-pre-line text-xs text-brand-900/70" x-text="t.body"></p>
+                </a>
+            </template>
+        </div>
+</body>
 </html>

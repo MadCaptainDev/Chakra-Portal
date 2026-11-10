@@ -36,7 +36,7 @@ export function plannerWeb(urls, canEdit) {
         since: null, // server time of the last read, for the next delta
 
         sources: saved.sources ?? [], // planners shown; empty = all
-        client: saved.client ?? '',
+        client: (() => { try { return new URLSearchParams(location.search).get('client') ?? saved.client ?? ''; } catch { return saved.client ?? ''; } })(),
         q: '',
         view: (() => { try { return new URLSearchParams(location.search).get('view') || saved.view || localStorage.getItem('planner-view') || 'calendar'; } catch { return 'calendar'; } })(),
         group: saved.group ?? 'status',

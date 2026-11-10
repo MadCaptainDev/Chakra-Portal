@@ -140,6 +140,12 @@ class NotionSyncRunner
         return $values === [] ? null : Carbon::parse(max($values));
     }
 
+    /** A sync is running right now (someone pressed Refresh, or a page view started one). */
+    public static function isRunning(): bool
+    {
+        return Cache::has(self::LOCK_KEY);
+    }
+
     public static function isStale(): bool
     {
         $syncedAt = self::lastSyncedAt();

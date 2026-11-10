@@ -89,12 +89,39 @@ class NotificationCenterController extends Controller
                 });
         }
 
+        // Everything sent to this person as a push (venture news, late shoots,
+        // editing...) -- the same inbox the mobile app's bell reads.
+        \App\Models\AppNotification::query()
+            ->where('user_id', $user->id)
+            ->where('created_at', '>=', now()->subDays(14))
+            ->latest()
+            ->limit(15)
+            ->get()
+            ->each(function (\App\Models\AppNotification $n) use ($items) {
+                $items->push([
+                    'type' => 'inbox',
+                    'title' => $n->title,
+                    'subtitle' => Str::limit((string) $n->body, 160),
+                    'url' => $n->url ? url($n->url) : null,
+                    'at' => $n->created_at?->toIso8601String(),
+                    'unread' => $n->read_at === null,
+                ]);
+            });
+
         $sorted = $items
             ->filter(fn (array $item) => $item['at'] !== null)
             ->sortByDesc('at')
             ->values()
-            ->take(10);
+            ->take(20);
 
         return response()->json(['items' => $sorted]);
+    }
+
+    /** Opening the bell reads the person's inbox, here as in the app. */
+    public function markRead(): JsonResponse
+    {
+        \App\Models\AppNotification::query()->where('user_id', auth()->id())->whereNull('read_at')->update(['read_at' => now()]);
+
+        return response()->json(['ok' => true]);
     }
 }

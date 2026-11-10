@@ -12,6 +12,7 @@ import { loginMascot } from './login-mascot.js';
 import { editingDay } from './editing-day.js';
 import { editorTimeline } from './editor-timeline.js';
 import { plannerWeb } from './planner-web.js';
+import { ventureBoard } from './venture-board.js';
 import { shootScripts, shootLive } from './shoot-scripts.js';
 
 window.Alpine = Alpine;
@@ -31,6 +32,8 @@ Alpine.data('editingDay', editingDay);
 // The live timeline on Editor Updates -- see resources/js/editor-timeline.js.
 Alpine.data('editorTimeline', editorTimeline);
 Alpine.data('plannerWeb', plannerWeb);
+// The admin dashboard's "My ventures" -- see resources/js/venture-board.js.
+Alpine.data('ventureBoard', ventureBoard);
 Alpine.data('shootScripts', shootScripts);
 Alpine.data('shootLive', shootLive);
 

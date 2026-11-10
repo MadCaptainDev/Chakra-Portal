@@ -93,6 +93,10 @@ Schedule::command('shoots:send-reminders')->dailyAt('18:00')->timezone(config('a
 // kit still outstanding -- see ShootLateAlerts. Each kind is told once.
 Schedule::command('shoots:late-alerts')->everyFiveMinutes()->withoutOverlapping();
 
+// Admins' watched ventures: videos ready or out, stock running low, and each
+// person's morning summary at their own time. See VentureAlerts.
+Schedule::command('ventures:alerts')->everyFiveMinutes()->withoutOverlapping();
+
 // One push to admins each morning -- see SendDailyDigest's own doc block.
 Schedule::command('digest:send-daily')->dailyAt('08:30')->timezone(config('app.timezone'));
 

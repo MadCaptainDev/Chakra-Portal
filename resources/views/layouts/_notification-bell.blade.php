@@ -13,6 +13,7 @@
         loaded: false,
         items: [],
         unread: 0,
+        known: new Set(),
         storageKey: 'notif-last-seen-{{ auth()->id() }}',
         toggle() {
             this.open = !this.open;
@@ -20,14 +21,29 @@
             if (this.open) {
                 localStorage.setItem(this.storageKey, new Date().toISOString());
                 this.unread = 0;
+                // Opening the bell reads the inbox, as the app does.
+                if (this.items.some((i) => i.unread)) {
+                    fetch('{{ route('notification-center.read') }}', { method: 'POST', headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content } });
+                    this.items.forEach((i) => { i.unread = false; });
+                }
             }
         },
-        load() {
-            this.loading = true;
+        load(quiet = false) {
+            if (!quiet) this.loading = true;
             fetch('{{ route('notification-center.feed') }}', { headers: { 'Accept': 'application/json' } })
                 .then((r) => r.json())
                 .then((data) => {
-                    this.items = data.items || [];
+                    const items = data.items || [];
+                    // Something new while the page is open: say so on screen, and as a
+                    // desktop notification if the browser was allowed to show them.
+                    if (this.loaded) {
+                        items.filter((i) => i.type === 'inbox' && i.unread && !this.known.has(i.title + i.at)).forEach((i) => {
+                            window.dispatchEvent(new CustomEvent('portal-toast', { detail: { title: i.title, body: i.subtitle, url: i.url } }));
+                            try { if ('Notification' in window && Notification.permission === 'granted') { const n = new Notification(i.title, { body: i.subtitle, icon: '/favicon.ico' }); n.onclick = () => { window.focus(); if (i.url) location.href = i.url; }; } } catch (e) {}
+                        });
+                    }
+                    items.forEach((i) => this.known.add(i.title + i.at));
+                    this.items = items;
                     this.loaded = true;
                     this.countUnread();
                 })
@@ -36,10 +52,10 @@
         countUnread() {
             const seen = localStorage.getItem(this.storageKey);
             if (!seen) { this.unread = this.items.length ? Math.min(this.items.length, 9) : 0; return; }
-            this.unread = this.items.filter((i) => i.at > seen).length;
+            this.unread = this.items.filter((i) => i.unread || i.at > seen).length;
         },
      }"
-     x-init="load()"
+     x-init="load(); setInterval(() => { if (!document.hidden) load(true); }, 60000)"
      @keydown.escape.window="open = false"
      @click.outside="open = false"
      class="relative shrink-0">
@@ -59,12 +75,12 @@
         <div class="px-4 py-3 border-b border-white/10">
             <p class="text-xs font-bold uppercase tracking-widest text-brand-100/60">Notifications</p>
         </div>
-        <ul class="max-h-80 overflow-y-auto divide-y divide-white/5">
+        <ul class="max-h-[28rem] overflow-y-auto divide-y divide-white/5">
             <template x-for="item in items" :key="item.title + item.at">
                 <li>
-                    <a :href="item.url || '#'" class="block px-4 py-3 hover:bg-white/5 transition">
-                        <p class="text-sm font-medium text-white truncate" x-text="item.title"></p>
-                        <p class="text-xs text-brand-100/50 mt-0.5" x-text="item.subtitle"></p>
+                    <a :href="item.url || '#'" class="block px-4 py-3 hover:bg-white/5 transition" :class="item.unread ? 'bg-brand-400/[0.07]' : ''">
+                        <p class="flex items-center gap-1.5 text-sm font-medium text-white"><span x-show="item.unread" class="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-300"></span><span class="truncate" x-text="item.title"></span></p>
+                        <p class="text-xs text-brand-100/50 mt-0.5 whitespace-pre-line line-clamp-3" x-text="item.subtitle"></p>
                     </a>
                 </li>
             </template>
