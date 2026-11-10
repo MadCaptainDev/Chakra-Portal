@@ -97,6 +97,10 @@ export function editorTimeline(initial, url, editorUrl = '') {
         icon(m) {
             return m.label === 'Delivered' ? '📦' : (ICONS[m.type] ?? '•');
         },
+        // A move's video: its whole story from shoot to post.
+        videoUrl(m) {
+            return m.card_id ? `/videos/card/${m.card_id}` : '#';
+        },
         tip(m) {
             return `${m.time} · ${m.label}${m.detail ? ` (${m.detail})` : ''} — ${m.title}${m.by ? ` · by ${m.by}` : ''}`;
         },

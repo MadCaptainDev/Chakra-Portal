@@ -116,6 +116,11 @@ class SyncInstagramInsights extends Command
         try {
             app(\App\Services\Instagram\InstagramContentMatcher::class)->matchAll();
             app(\App\Services\Videos\VideoLinker::class)->run();
+            // Published videos now matched to their post get a small local picture.
+            $thumbs = \App\Services\Videos\VideoThumbnail::backfill();
+            if ($thumbs > 0) {
+                $this->line("Saved {$thumbs} video thumbnail(s).");
+            }
         } catch (Throwable $e) {
             report($e);
         }

@@ -542,6 +542,34 @@ class ShootRun
         }
     }
 
+    /**
+     * Say which planner reel a filed clip is -- or, with null, that it is
+     * none of them. One clip per reel: matching a second clip to the same
+     * reel moves the link.
+     *
+     * @throws RuntimeException when the reel is not one of this shoot's
+     */
+    public static function matchClip(Shoot $shoot, ShootVideo $clip, ?int $contentItemId): void
+    {
+        if ($clip->shoot_id !== $shoot->id) {
+            throw new RuntimeException('That video is not from this shoot.');
+        }
+
+        \App\Models\Video::query()->where('shoot_video_id', $clip->id)->update(['shoot_video_id' => null]);
+
+        if ($contentItemId === null) {
+            return;
+        }
+
+        $reel = $shoot->notionShoot?->contentItems()->whereKey($contentItemId)->first()
+            ?? throw new RuntimeException('That reel is not planned for this shoot.');
+
+        \App\Models\Video::query()->updateOrCreate(
+            ['content_item_id' => $reel->id],
+            ['shoot_video_id' => $clip->id, 'shoot_id' => $shoot->id],
+        );
+    }
+
     private static function crewRow(Shoot $shoot, User $crewMember): ?ShootCrew
     {
         return $shoot->crew()->where('user_id', $crewMember->id)->first();

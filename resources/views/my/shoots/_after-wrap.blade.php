@@ -116,6 +116,38 @@
         @endif
     </section>
 
+    {{-- 2b. Which planner reel each clip is, so every video is followed through editing. --}}
+    @if (($reels ?? collect())->isNotEmpty() && $videos->isNotEmpty())
+        @php $unmatched = $videos->reject(fn ($v) => isset($clipReel[$v->id]))->count(); @endphp
+        <section class="rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/10">
+            <div class="flex items-center gap-2.5">
+                <span class="{{ $tick }} {{ $unmatched === 0 ? 'bg-emerald-400 text-brand-900' : 'ring-2 ring-white/25' }}">
+                    @if ($unmatched === 0) <x-icon name="check" class="h-3.5 w-3.5" /> @endif
+                </span>
+                <h3 class="text-sm font-semibold">Videos in the planner</h3>
+                <span class="ml-auto text-xs text-white/45">{{ $videos->count() - $unmatched }} of {{ $videos->count() }}</span>
+            </div>
+            <p class="mt-1.5 text-xs text-white/45">Pick the planner video each one is, so its editing can be followed.</p>
+            <ul class="mt-3 space-y-1.5">
+                @foreach ($videos as $video)
+                    <li>
+                        <form method="POST" action="{{ route('my.shoots.videos.match', [$shoot, $video]) }}" class="flex items-center gap-2 rounded-lg bg-white/5 px-3 py-2">
+                            @csrf
+                            <span class="min-w-0 flex-1 truncate text-sm">{{ $video->position }}. {{ $video->name }}</span>
+                            <select name="content_item_id" onchange="this.form.submit()"
+                                    class="w-40 shrink-0 rounded-lg border-0 bg-white/10 py-1.5 pl-2.5 pr-7 text-xs text-white focus:ring-2 focus:ring-white/40">
+                                <option value="" class="text-black">Not in planner</option>
+                                @foreach ($reels as $reel)
+                                    <option value="{{ $reel->id }}" class="text-black" @selected(($clipReel[$video->id] ?? null) === $reel->id)>{{ Str::limit($reel->title, 40) }}</option>
+                                @endforeach
+                            </select>
+                        </form>
+                    </li>
+                @endforeach
+            </ul>
+        </section>
+    @endif
+
     @endunless
 
     {{-- 3. Kit back --}}

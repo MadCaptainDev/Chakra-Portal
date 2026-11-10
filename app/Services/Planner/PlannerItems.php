@@ -92,6 +92,10 @@ class PlannerItems
                 ? $i->scriptRecord->sections->reject->isEmpty()->map(fn ($sec) => ['heading' => $sec->heading, 'text' => trim(html_entity_decode(strip_tags(str_replace(['</p>', '<br>', '<br/>', '<br />'], "\n", (string) $sec->body))))])->values()->all()
                 : null,
             'history' => $i->changes->map(fn (ContentItemChange $c) => self::change($c))->values()->all(),
+            // The video's whole story (shoot, editing, post) -- see VideoTimeline.
+            'timeline' => \App\Services\Videos\VideoTimeline::forPlanner($i),
+            'timeline_url' => route('videos.item', $i->id),
+            'thumbnail_url' => $i->video?->thumbnail_path ? asset($i->video->thumbnail_path) : null,
         ];
     }
 

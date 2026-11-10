@@ -100,6 +100,11 @@ class ShootRunController extends Controller
             'myCrew' => $shoot->crew->firstWhere('user_id', $user->id),
             'nextShoot' => $shoot->hasWrapped() ? ShootRun::nextFor($shoot, $user) : null,
             'drives' => (array) config('shoots.drives'),
+            // The reels Notion plans for this shoot, to match each filed clip to.
+            'reels' => $shoot->hasWrapped() ? ($shoot->notionShoot?->contentItems()->orderBy('title')->get(['id', 'title', 'status']) ?? collect()) : collect(),
+            'clipReel' => $shoot->hasWrapped()
+                ? \App\Models\Video::query()->whereIn('shoot_video_id', $shoot->videos->pluck('id'))->pluck('content_item_id', 'shoot_video_id')
+                : collect(),
             'scripts' => $this->scripts($shoot),
             'liveVersion' => $this->liveVersion($shoot),
             // Named so the screen can say which shoot is in the way, rather
@@ -421,6 +426,22 @@ class ShootRunController extends Controller
             );
         } catch (RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        return back();
+    }
+
+    /** After the wrap: which planner reel each filed clip is. */
+    public function matchVideo(Request $request, Shoot $shoot, ShootVideo $video): RedirectResponse
+    {
+        $this->authoriseCrew($shoot);
+
+        $data = $request->validate(['content_item_id' => ['nullable', 'integer']]);
+
+        try {
+            ShootRun::matchClip($shoot, $video, isset($data['content_item_id']) ? (int) $data['content_item_id'] : null);
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
         }
 
         return back();

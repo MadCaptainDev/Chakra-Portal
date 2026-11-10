@@ -61,12 +61,12 @@
     {{-- The newest moves, as they arrive --}}
     <div class="flex min-h-[36px] flex-wrap items-center gap-2 border-b border-white/5 px-4 py-1.5 sm:px-5" x-show="ticker.length > 0" x-cloak>
         <template x-for="t in ticker" :key="t.key">
-            <span class="et-tick-in inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-xs ring-1 ring-white/10">
+            <a :href="videoUrl(t)" class="et-tick-in inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-xs ring-1 ring-white/10 hover:bg-white/10">
                 <span class="flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-brand-900" :style="`background:hsl(${t.hue} 70% 58%)`" x-text="t.who.slice(0, 1)"></span>
                 <span class="font-semibold text-white" x-text="t.who"></span>
                 <span x-text="icon(t) + ' ' + t.label"></span>
                 <span class="truncate text-brand-100/60" x-text="'— ' + t.title"></span>
-            </span>
+            </a>
         </template>
     </div>
 
@@ -123,9 +123,10 @@
 
                         {{-- Every move --}}
                         <template x-for="m in lane.marks" :key="m.id">
-                            <span class="absolute top-[22%] flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-brand-900 text-[10px] ring-1 ring-white/25"
-                                  :class="fresh[m.id] ? 'et-pop ring-2 ring-emerald-300' : ''"
-                                  :style="`left:${x(m.at)}%`" :title="tip(m)" x-text="icon(m)"></span>
+                            {{-- Click a move to open that video's whole timeline. --}}
+                            <a :href="videoUrl(m)" class="absolute top-[22%] flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-brand-900 text-[10px] ring-1 ring-white/25 hover:z-20 hover:scale-125 hover:ring-white transition"
+                               :class="fresh[m.id] ? 'et-pop ring-2 ring-emerald-300' : ''"
+                               :style="`left:${x(m.at)}%`" :title="tip(m) + ' · click for the full timeline'" x-text="icon(m)"></a>
                         </template>
 
                         {{-- Where they are now --}}

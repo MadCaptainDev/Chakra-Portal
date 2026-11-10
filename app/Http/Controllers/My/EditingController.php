@@ -247,6 +247,16 @@ class EditingController extends Controller
                     'posted_by_id' => $user->id,
                 ])->save();
                 TodoUpdate::record($todo, $user, TodoUpdate::POSTED, ['note' => trim((Todo::KINDS[$todo->kind] ?? 'Posted').' '.($todo->post_url ?? ''))]);
+                // If the post is already synced from Instagram, keep its picture now;
+                // otherwise the nightly sync picks it up (VideoThumbnail::backfill).
+                \Illuminate\Support\defer(fn () => rescue(function () use ($todo) {
+                    $video = \App\Models\Video::query()->where('todo_id', $todo->id)
+                        ->orWhere(fn ($q) => $q->whereNotNull('content_item_id')->where('content_item_id', $todo->content_item_id))->first();
+                    if ($video) {
+                        $video->todo_id ??= $todo->id;
+                        \App\Services\Videos\VideoThumbnail::store($video->setRelation('todo', $todo));
+                    }
+                }, null, false));
                 break;
             case 'deliver':
                 if ($todo->corrections()->open()->exists()) {

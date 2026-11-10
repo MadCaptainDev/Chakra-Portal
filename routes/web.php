@@ -427,6 +427,7 @@ Route::middleware('auth')->group(function () {
     Route::post('my/shoots/{shoot}/office', [ShootRunController::class, 'office'])->name('my.shoots.office');
     Route::post('my/shoots/{shoot}/footage', [ShootRunController::class, 'footage'])->name('my.shoots.footage');
     Route::post('my/shoots/{shoot}/cancel', [ShootRunController::class, 'cancel'])->name('my.shoots.cancel');
+    Route::post('my/shoots/{shoot}/videos/{video}/match', [ShootRunController::class, 'matchVideo'])->name('my.shoots.videos.match');
 });
 
 /*
@@ -439,6 +440,9 @@ Route::middleware('auth')->group(function () {
     Route::get('editor-updates', [EditorUpdatesController::class, 'index'])->name('editor-updates');
     Route::get('editor-updates/live', [EditorUpdatesController::class, 'live'])->name('editor-updates.live');
     Route::get('editor-updates/editor/{user}', [EditorUpdatesController::class, 'editor'])->name('editor-updates.editor');
+    // One video's whole story: by its editing card, or by its planner row.
+    Route::get('videos/card/{todo}', [\App\Http\Controllers\VideoTimelineController::class, 'card'])->name('videos.card');
+    Route::get('videos/item/{item}', [\App\Http\Controllers\VideoTimelineController::class, 'item'])->name('videos.item');
 });
 
 Route::middleware('auth')->group(function () {

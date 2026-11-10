@@ -66,7 +66,8 @@ class VideoLinker
                     'client_id' => $ventureToClient[$item->venture] ?? $script?->client_id,
                     'script_id' => $script?->id,
                     'shoot_id' => $item->notion_shoot_id ? ($shoots[$item->notion_shoot_id] ?? null) : null,
-                    'shoot_video_id' => $script ? $footage->get($script->id)?->id : null,
+                    // A clip the crew matched by hand after the wrap stays as they set it.
+                    'shoot_video_id' => $video->shoot_video_id ?? ($script ? $footage->get($script->id)?->id : null),
                     'todo_id' => $todo?->id,
                     'social_media_item_id' => $item->social_media_item_id,
                     'posted_as' => $this->postedAs($todo, $mediaItem),
