@@ -39,12 +39,12 @@ class CrewTrip
 
         switch ($status) {
             case self::ON_THE_WAY:
-                rescue(fn () => ShootRun::depart($shoot, $member), null, false);
+                self::move(fn () => ShootRun::depart($shoot, $member));
                 $eta = $etaMinutes !== null ? now()->addMinutes(max(0, min(600, $etaMinutes))) : null;
                 $message = "{$member->name} is on the way to {$place}".($eta ? ' · ETA '.$eta->format('g:i A') : '');
                 break;
             case self::ARRIVED:
-                rescue(fn () => ShootRun::reached($shoot, $member), null, false);
+                self::move(fn () => ShootRun::reached($shoot, $member));
                 $eta = null;
                 $message = "{$member->name} reached {$place}";
                 break;
@@ -86,6 +86,21 @@ class CrewTrip
         }
 
         return $message;
+    }
+
+    /**
+     * Run a ShootRun step. "Already wrapped" and the like are not news to a
+     * trip report and are let go; kit not picked up is the one refusal the
+     * person has to act on, so it reaches them.
+     */
+    private static function move(callable $step): void
+    {
+        try {
+            $step();
+        } catch (\App\Services\KitNotReady $e) {
+            throw $e;
+        } catch (Throwable) {
+        }
     }
 
     /** @return array<string, mixed> */

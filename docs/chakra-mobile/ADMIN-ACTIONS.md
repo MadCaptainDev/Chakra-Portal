@@ -217,12 +217,18 @@ read · permission: `any staff`
 
 **Result:** `{"shoots":[],"how":"string"}`
 
-### `run_shoot`: Shoot day: on the way, reached, start, wrap
+### `run_shoot`: Shoot day: kit, on the way, reached, start, wrap, and after
 write · permission: `any staff`
 
-**Args:** `shoot_id*`: integer<br>`action*`: on_the_way|reached|start|wrap
+**Args:** `shoot_id*`: integer<br>`action*`: pick_up_kit|on_the_way|reached|start|wrap|next_shoot|return_to_office|back_at_office|file_footage|return_kit|cancel<br>`reason`: string (required for `cancel`)<br>`drive`: Annamalai SSD|Keerthi SSD|ARON's Drive|Gokul Drive|Local|My Book (required for `file_footage`)<br>`url`: string (optional folder link for `file_footage`)
 
-**Result:** `{"done":"on_the_way|reached|start|wrap","shoot":"<get_shoot shape>"}`
+**Result:** `{"done":"<action>","shoot":"<get_shoot shape>"}`. After `next_shoot`, `shoot` is the **next** shoot.
+
+**Kit comes first.** `on_the_way`, `reached` and `start` fail with a message ("3 kit items are not picked up yet…" / "This shoot has no kit listed…") until every line of the shoot's kit list is picked up, unless an admin waived the check in the portal. `shoot.kit_ready` says whether it may leave; `shoot.kit[]` is `{ name, quantity, picked_up, returned, condition }`. `pick_up_kit` ticks every line; adding lines is done in the portal (My Shoots → the shoot).
+
+**After `wrap`:** either `next_shoot` (this person's next unfinished shoot today; kit still out moves onto it) or `return_to_office` then `back_at_office` (times kept per crew member: `crew[].after_wrap`, `returning_at`, `back_at_office_at`). `file_footage` records the drive and confirms every video is copied (`footage_drive`, `footage_url`, `footage_filed_at`). `return_kit` marks everything back in good order; damage or a missing item is reported in the portal.
+
+**`cancel`** works before the start or mid-shoot (not after a wrap) and sets `status: cancelled`, `cancelled_at`, `cancel_reason`. A cancelled shoot is no longer `live`.
 
 ### `shoots_rolling_now`: Shoots happening right now
 read · permission: `shoots.view`

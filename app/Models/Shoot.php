@@ -69,7 +69,40 @@ class Shoot extends Model
         'finished_at' => 'datetime',
         'reminder_sent_at' => 'datetime',
         'content_missing_alert_sent_at' => 'datetime',
+        'cancelled_at' => 'datetime',
+        'kit_waived_at' => 'datetime',
+        'footage_filed_at' => 'datetime',
+        'late_start_alert_at' => 'datetime',
+        'overrun_alert_at' => 'datetime',
+        'footage_alert_at' => 'datetime',
+        'kit_alert_at' => 'datetime',
     ];
+
+    /**
+     * A shoot set to cancelled from anywhere -- the producer's form, an MCP
+     * tool, the Notion import -- gets its cancelled_at and its line on the
+     * timeline. ShootRun::cancel() stamps its own, so this leaves it alone.
+     */
+    protected static function booted(): void
+    {
+        static::updating(function (Shoot $shoot) {
+            if ($shoot->isDirty('status') && $shoot->status === self::STATUS_CANCELLED && $shoot->cancelled_at === null) {
+                $shoot->cancelled_at = now();
+                $shoot->cancelled_by_id = auth()->id();
+                $shoot->noteCancelled = true;
+            }
+        });
+
+        static::updated(function (Shoot $shoot) {
+            if ($shoot->noteCancelled) {
+                $shoot->noteCancelled = false;
+                ShootEvent::record($shoot, auth()->user(), ShootEvent::CANCELLED);
+            }
+        });
+    }
+
+    /** Set between updating and updated; never a column. */
+    public bool $noteCancelled = false;
 
     public function client(): BelongsTo
     {
@@ -144,6 +177,22 @@ class Shoot extends Model
         return $this->hasMany(ShootVideo::class)->orderBy('position');
     }
 
+    /** The day as it happened, oldest first -- see ShootEvent. */
+    public function events(): HasMany
+    {
+        return $this->hasMany(ShootEvent::class)->orderBy('created_at')->orderBy('id');
+    }
+
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by_id');
+    }
+
+    public function footageFiledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'footage_filed_by_id');
+    }
+
     public function startedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'started_by_id');
@@ -179,7 +228,10 @@ class Shoot extends Model
      */
     public function isInProgress(): bool
     {
-        return $this->started_at !== null && $this->finished_at === null;
+        // A shoot called off mid-run is over, whatever its clock says: left
+        // "running" it would hold its crew off every other shoot for good.
+        return $this->started_at !== null && $this->finished_at === null
+            && $this->status !== self::STATUS_CANCELLED;
     }
 
     /** Started and wrapped. A shoot never booked at all is neither. */
@@ -190,7 +242,40 @@ class Shoot extends Model
 
     public function scopeInProgress(Builder $query): void
     {
-        $query->whereNotNull('started_at')->whereNull('finished_at');
+        $query->whereNotNull('started_at')->whereNull('finished_at')
+            ->where('status', '!=', self::STATUS_CANCELLED);
+    }
+
+    /** The booked end, or a working guess when the booking has none. */
+    public function expectedEnd(): ?\Illuminate\Support\Carbon
+    {
+        return $this->ends_at
+            ?? $this->starts_at?->copy()->addHours((int) config('shoots.late.default_hours', 4));
+    }
+
+    /** A date-only booking (midnight) has no start time to be late for. */
+    public function hasStartTime(): bool
+    {
+        return $this->starts_at !== null
+            && ! ($this->starts_at->hour === 0 && $this->starts_at->minute === 0);
+    }
+
+    /** The footage has been confirmed onto a drive. */
+    public function hasFootageFiled(): bool
+    {
+        return $this->footage_filed_at !== null;
+    }
+
+    /** An admin let this shoot leave without its kit ticked. */
+    public function hasKitWaived(): bool
+    {
+        return $this->kit_waived_at !== null;
+    }
+
+    /** Something went out and has not come back. */
+    public function hasKitOut(): bool
+    {
+        return $this->kits->contains(fn (ShootKit $row) => $row->isCheckedOut());
     }
 
     /**

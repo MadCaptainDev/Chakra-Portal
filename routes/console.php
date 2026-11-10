@@ -89,6 +89,10 @@ Schedule::command('reports:notify-ready')->monthlyOn(2, '09:00')->timezone(confi
 // own doc block for why crew only, not the client.
 Schedule::command('shoots:send-reminders')->dailyAt('18:00')->timezone(config('app.timezone'));
 
+// "It is getting late": a shoot not started, overrunning, or with footage or
+// kit still outstanding -- see ShootLateAlerts. Each kind is told once.
+Schedule::command('shoots:late-alerts')->everyFiveMinutes()->withoutOverlapping();
+
 // One push to admins each morning -- see SendDailyDigest's own doc block.
 Schedule::command('digest:send-daily')->dailyAt('08:30')->timezone(config('app.timezone'));
 

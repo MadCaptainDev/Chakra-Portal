@@ -499,7 +499,7 @@ These were added for the app's admin area (2026-11-04):
 | `approve_invoice` | invoices.approve | `invoice*` (id) | Pending draft → numbered, unpaid |
 | `send_invoice_whatsapp` ✉️ | invoices.approve | `invoice*`, `phone` | Template + PDF link to the client |
 | `update_shoot` | shoots.edit | `shoot_id*`, `title`, `starts_at`, `ends_at`, `client`, `location`, `status` (`planned`·`confirmed`·`completed`·`cancelled`), `notes`, `remove_crew` | Only given fields change; `""` clears optional fields |
-| `run_shoot` | crew on the shoot, or admin | `shoot_id*`, `action*` (`on_the_way`·`reached`·`start`·`wrap`) | `start` makes it live; `wrap` completes it. **"live" is not a status.** |
+| `run_shoot` | crew on the shoot, or admin | `shoot_id*`, `action*` (`pick_up_kit`·`on_the_way`·`reached`·`start`·`wrap`·`next_shoot`·`return_to_office`·`back_at_office`·`file_footage`·`return_kit`·`cancel`), `reason`, `drive`, `url` | Kit must be picked up before `on_the_way`/`reached`/`start` (see `shoot.kit_ready`). `start` makes it live; `wrap` completes it. **"live" is not a status.** Full notes in ADMIN-ACTIONS.md. |
 | `get_shoot` | shoots.view or on the crew | `shoot_id*` | Full detail incl. crew, roles, call times, run times |
 | `assign_shoot_crew` | shoots.edit | `shoot_id*`, `person*`, `role`, `call_time` | Adds or updates; pushes the person |
 | `list_team` | any staff | — | For crew / assignee pickers |
@@ -525,7 +525,7 @@ These were added for the app's admin area (2026-11-04):
 | Who am I | `whoami` | none |
 | Team picker | `list_team` | none |
 | Shoot detail | `get_shoot` | `shoot_id` |
-| Shoot day buttons | `run_shoot` | `shoot_id`, `action` (`on_the_way`/`reached`/`start`/`wrap`) |
+| Shoot day buttons | `run_shoot` | `shoot_id`, `action` (`pick_up_kit`/`on_the_way`/`reached`/`start`/`wrap`, then `next_shoot` or `return_to_office`/`back_at_office`, `file_footage`, `return_kit`; `cancel`) |
 
 Read exact argument names and descriptions from `GET /actions`. That list is
 always current; this table is a guide.

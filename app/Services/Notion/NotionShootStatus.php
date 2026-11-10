@@ -53,6 +53,9 @@ class NotionShootStatus
      */
     public const AFTER_WRAP = 'Editing';
 
+    /** Set when the shoot is called off. Spelled as the Notion option is. */
+    public const CANCELLED = 'Cancelled';
+
     /**
      * Move the shoot's Notion card, if it has one.
      *

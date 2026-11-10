@@ -46,6 +46,13 @@ abstract class TestCase extends BaseTestCase
          * select it -- a failure that passes in isolation and only appears in
          * a full run, which is the worst kind to chase.
          */
+        /*
+         * The kit-before-leaving rule (config/shoots.php) is off by default in
+         * the suite: the many tests that walk a shoot through its day predate
+         * it and are about other things. ShootDayFlowTest turns it on.
+         */
+        config(['shoots.require_kit' => false]);
+
         \App\Models\TimesheetEntry::flushTaskTypes();
         \App\Support\BrandBrief::flush();
     }

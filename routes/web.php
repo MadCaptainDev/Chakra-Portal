@@ -418,6 +418,15 @@ Route::middleware('auth')->group(function () {
     Route::get('my/shoots/{shoot}/live', [ShootRunController::class, 'live'])->name('my.shoots.live');
     Route::post('my/shoots/{shoot}/live-link/{script}', [ShootRunController::class, 'shareScript'])->name('my.shoots.script-link');
     Route::post('my/shoots/{shoot}/finish', [ShootRunController::class, 'finish'])->name('my.shoots.finish');
+    // Kit from the runner, and the day after the wrap.
+    Route::post('my/shoots/{shoot}/kit', [ShootRunController::class, 'addKit'])->name('my.shoots.kit.add');
+    Route::delete('my/shoots/{shoot}/kit/{kit}', [ShootRunController::class, 'removeKit'])->name('my.shoots.kit.remove');
+    Route::post('my/shoots/{shoot}/kit/pick-up', [ShootRunController::class, 'pickKit'])->name('my.shoots.kit.pick');
+    Route::post('my/shoots/{shoot}/kit/return', [ShootRunController::class, 'returnKit'])->name('my.shoots.kit.return');
+    Route::post('my/shoots/{shoot}/next', [ShootRunController::class, 'next'])->name('my.shoots.next');
+    Route::post('my/shoots/{shoot}/office', [ShootRunController::class, 'office'])->name('my.shoots.office');
+    Route::post('my/shoots/{shoot}/footage', [ShootRunController::class, 'footage'])->name('my.shoots.footage');
+    Route::post('my/shoots/{shoot}/cancel', [ShootRunController::class, 'cancel'])->name('my.shoots.cancel');
 });
 
 /*
@@ -697,6 +706,8 @@ Route::middleware(['auth', 'module:shoots,view'])->scopeBindings()->group(functi
         Route::post('shoots/{shoot}/kit', [ShootKitController::class, 'store'])->name('shoots.kit.store');
         Route::post('shoots/{shoot}/kit/bulk-add', [ShootKitController::class, 'storeMany'])->name('shoots.kit.store-many');
         Route::delete('shoots/{shoot}/kit/{kit}', [ShootKitController::class, 'destroy'])->name('shoots.kit.destroy');
+        Route::post('shoots/{shoot}/cancel', [ShootController::class, 'cancel'])->name('shoots.cancel');
+        Route::post('shoots/{shoot}/kit-waive', [ShootController::class, 'waiveKit'])->name('shoots.kit.waive');
     });
 
     /*

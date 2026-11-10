@@ -4,8 +4,11 @@ namespace App\Http\Controllers\My;
 
 use App\Http\Controllers\Controller;
 use App\Models\Script;
+use App\Models\EquipmentItem;
 use App\Models\Shoot;
+use App\Models\ShootKit;
 use App\Models\ShootVideo;
+use App\Services\KitCustody;
 use App\Services\ShootRun;
 use App\Support\CrewShootRecord;
 use Illuminate\Http\JsonResponse;
@@ -81,10 +84,19 @@ class ShootRunController extends Controller
     {
         $this->authoriseCrew($shoot);
 
-        $shoot->load(['client', 'videos.recordedBy', 'videos.script', 'crew.user', 'notionShoot', 'reachedBy', 'departedBy']);
+        $shoot->load(['client', 'videos.recordedBy', 'videos.script', 'crew.user', 'notionShoot', 'reachedBy', 'departedBy', 'cancelledBy', 'kits.item', 'kits.checkedOutBy', 'crew.nextShoot']);
+
+        $user = request()->user();
 
         return view('my.shoots.run', [
             'shoot' => $shoot,
+            'kit' => $shoot->kits->sortBy(fn (ShootKit $l) => $l->item?->name)->values(),
+            // What can still be added to the list, for the crew's own picker.
+            'equipment' => $shoot->hasWrapped() || $shoot->isCancelled() ? collect() : EquipmentItem::query()->active()->ordered()
+                ->whereNotIn('id', $shoot->kits->pluck('equipment_item_id'))->get(['id', 'name', 'quantity', 'status']),
+            'myCrew' => $shoot->crew->firstWhere('user_id', $user->id),
+            'nextShoot' => $shoot->hasWrapped() ? ShootRun::nextFor($shoot, $user) : null,
+            'drives' => (array) config('shoots.drives'),
             'scripts' => $this->scripts($shoot),
             'liveVersion' => $this->liveVersion($shoot),
             // Named so the screen can say which shoot is in the way, rather
@@ -249,6 +261,168 @@ class ShootRunController extends Controller
 
         try {
             ShootRun::finish($shoot, $request->user());
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('my.shoots.run', $shoot);
+    }
+
+    /** Add to the kit list from the runner: the crew know what they are taking. */
+    public function addKit(Request $request, Shoot $shoot): RedirectResponse
+    {
+        $this->authoriseCrew($shoot);
+        abort_if($shoot->hasWrapped() || $shoot->isCancelled(), 422, 'This shoot is over.');
+
+        $data = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*' => ['integer', Rule::exists('equipment_items', 'id')->where('is_active', true)],
+        ]);
+
+        foreach (array_unique($data['items']) as $itemId) {
+            $shoot->kits()->firstOrCreate(['equipment_item_id' => $itemId], ['quantity' => 1]);
+        }
+
+        return back();
+    }
+
+    /** Take a line off the list -- only while it has not gone out. */
+    public function removeKit(Shoot $shoot, ShootKit $kit): RedirectResponse
+    {
+        $this->authoriseCrew($shoot);
+        abort_unless($kit->shoot_id === $shoot->id, 404);
+
+        if ($kit->checked_out_at !== null) {
+            return back()->with('error', 'That is already picked up. Untick it before removing it.');
+        }
+
+        $kit->delete();
+
+        return back();
+    }
+
+    /** Tick or untick one item, or everything at once. */
+    public function pickKit(Request $request, Shoot $shoot): RedirectResponse
+    {
+        $this->authoriseCrew($shoot);
+
+        $data = $request->validate([
+            'kit_id' => ['nullable', 'integer'],
+            'undo' => ['nullable', 'boolean'],
+        ]);
+
+        if (empty($data['kit_id'])) {
+            KitCustody::pickUpAll($shoot, $request->user());
+
+            return back();
+        }
+
+        $line = $shoot->kits()->findOrFail($data['kit_id']);
+
+        if (! empty($data['undo'])) {
+            // Once the crew have left, what went has gone.
+            if ($shoot->hasDeparted() || $shoot->hasReached()) {
+                return back()->with('error', 'The crew have already left with it.');
+            }
+            KitCustody::putBack($line);
+        } else {
+            KitCustody::pickUp($line, $request->user());
+        }
+
+        return back();
+    }
+
+    /** Bring the kit back: everything in good order, or one line with a problem. */
+    public function returnKit(Request $request, Shoot $shoot): RedirectResponse
+    {
+        $this->authoriseCrew($shoot);
+
+        $data = $request->validate([
+            'kit_id' => ['nullable', 'integer'],
+            'condition' => ['nullable', Rule::in(array_keys(ShootKit::CONDITIONS))],
+            'condition_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        if (empty($data['kit_id'])) {
+            KitCustody::giveBackAll($shoot, $request->user());
+
+            return back();
+        }
+
+        $line = $shoot->kits()->findOrFail($data['kit_id']);
+        KitCustody::giveBack(
+            $line, $request->user(),
+            ($data['condition'] ?? null) === ShootKit::CONDITION_MISSING ? 0 : null,
+            $data['condition'] ?? null,
+            $data['condition_note'] ?? null,
+        );
+
+        return back();
+    }
+
+    /** After the wrap: straight on to the next shoot. Lands on its runner. */
+    public function next(Request $request, Shoot $shoot): RedirectResponse
+    {
+        $this->authoriseCrew($shoot);
+
+        try {
+            $next = ShootRun::headToNext($shoot, $request->user());
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('my.shoots.run', $next);
+    }
+
+    /** After the wrap: heading back, and then there. */
+    public function office(Request $request, Shoot $shoot): RedirectResponse
+    {
+        $this->authoriseCrew($shoot);
+
+        try {
+            $request->boolean('arrived')
+                ? ShootRun::backAtOffice($shoot, $request->user())
+                : ShootRun::returnToOffice($shoot, $request->user());
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back();
+    }
+
+    /** The footage is on a drive. */
+    public function footage(Request $request, Shoot $shoot): RedirectResponse
+    {
+        $this->authoriseCrew($shoot);
+
+        $data = $request->validate([
+            'drive' => ['required', 'string', Rule::in((array) config('shoots.drives'))],
+            'url' => ['nullable', 'url', 'max:1000'],
+            'videos' => ['nullable', 'array'],
+            'videos.*' => ['integer'],
+        ]);
+
+        try {
+            ShootRun::fileFootage(
+                $shoot, $request->user(), $data['drive'], $data['url'] ?? null,
+                array_map('intval', $data['videos'] ?? []),
+            );
+        } catch (RuntimeException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        return back();
+    }
+
+    /** Call the shoot off, with the reason. */
+    public function cancel(Request $request, Shoot $shoot): RedirectResponse
+    {
+        $this->authoriseCrew($shoot);
+
+        $data = $request->validate(['reason' => ['required', 'string', 'max:500']]);
+
+        try {
+            ShootRun::cancel($shoot, $request->user(), $data['reason']);
         } catch (RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }

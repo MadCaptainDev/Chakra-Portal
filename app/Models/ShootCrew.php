@@ -30,7 +30,19 @@ class ShootCrew extends Model
         'confirmed_at' => 'datetime',
         'trip_eta_at' => 'datetime',
         'trip_updated_at' => 'datetime',
+        'returning_at' => 'datetime',
+        'back_at_office_at' => 'datetime',
     ];
+
+    /** After the wrap: straight to another shoot, or back to the office. */
+    public const AFTER_NEXT_SHOOT = 'next_shoot';
+
+    public const AFTER_OFFICE = 'office';
+
+    public function nextShoot(): BelongsTo
+    {
+        return $this->belongsTo(Shoot::class, 'next_shoot_id');
+    }
 
     public function isConfirmed(): bool
     {

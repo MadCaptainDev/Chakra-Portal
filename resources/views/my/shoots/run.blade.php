@@ -5,6 +5,9 @@
     // Shown after a save so the crew member gets an explicit fork rather than
     // an empty form that looks the same as the one they just submitted.
     $justSaved = session('status') === 'saved';
+    $cancelled = $shoot->isCancelled();
+    // The shoot may leave: the rule is off, an admin waived it, or it is all ticked.
+    $kitReady = ! config('shoots.require_kit', true) || $shoot->hasKitWaived() || $shoot->isPacked();
 @endphp
 
 <x-editor-layout :title="$shoot->title">
@@ -21,7 +24,9 @@
                 @if ($shoot->location) · {{ $shoot->location }} @endif
             </p>
         </div>
-        @if ($running)
+        @if ($cancelled)
+            <span class="rounded-full bg-red-500/15 px-2.5 py-1 text-xs font-medium text-red-300">Cancelled</span>
+        @elseif ($running)
             <span class="flex items-center gap-1.5 rounded-full bg-red-500/15 px-2.5 py-1 text-xs font-medium text-red-300">
                 <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400"></span>
                 Rolling
@@ -42,9 +47,31 @@
     @endif
 
     <div class="flex-1 overflow-y-auto px-4 py-4">
+        {{-- ================= CANCELLED ================= --}}
+        @if ($cancelled)
+            <div class="mx-auto max-w-sm text-center">
+                <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-500/15">
+                    <x-icon name="alert" class="h-7 w-7 text-red-300" />
+                </div>
+                <h2 class="mt-4 text-lg font-semibold">Shoot cancelled</h2>
+                <p class="mt-1 text-sm text-white/50">
+                    {{ $shoot->cancelled_at?->format('j M · g:i A') }}@if ($shoot->cancelledBy) · {{ $shoot->cancelledBy->name }}@endif
+                </p>
+                @if ($shoot->cancel_reason)
+                    <p class="mt-3 rounded-xl bg-white/5 px-4 py-3 text-sm text-white/70">{{ $shoot->cancel_reason }}</p>
+                @endif
+
+                @include('my.shoots._video-list', ['videos' => $videos])
+
+                {{-- Kit that already went out still has to come home. --}}
+                @if ($kit->contains(fn ($l) => $l->isCheckedOut()))
+                    @include('my.shoots._after-wrap', ['kitOnly' => true])
+                @endif
+            </div>
+
         {{-- ================= NOT STARTED ================= --}}
-        @if (! $running && ! $wrapped)
-            <div class="mx-auto flex h-full max-w-sm flex-col items-center justify-center text-center"
+        @elseif (! $running && ! $wrapped)
+            <div class="mx-auto flex min-h-full max-w-sm flex-col items-center justify-center py-2 text-center"
                  x-data="shootLive(@js(['liveUrl' => route('my.shoots.live', $shoot), 'version' => $liveVersion]))">
                 <p class="text-sm text-white/60">
                     {{ $shoot->starts_at?->format('l j F') }}
@@ -59,6 +86,10 @@
                     </p>
                 @endif
 
+                <div class="mt-6 w-full">
+                    @include('my.shoots._kit-pickup')
+                </div>
+
                 @if ($blockedBy)
                     {{-- The rule the user asked for: one live shoot per person. --}}
                     <div class="mt-8 w-full rounded-xl bg-amber-500/10 p-4 text-left">
@@ -71,6 +102,10 @@
                             Go to it
                         </a>
                     </div>
+                @elseif (! $kitReady && ! $shoot->hasReached() && ! $shoot->hasDeparted())
+                    <p class="mt-6 w-full rounded-xl bg-white/5 px-4 py-3 text-sm text-white/50">
+                        Pick up the kit above, then you can leave for the shoot.
+                    </p>
                 @elseif (! $shoot->hasReached() && ! $shoot->hasDeparted())
                     {{-- Step 1: setting off. The Studio Map shows the crew on the road from now. --}}
                     <form method="POST" action="{{ route('my.shoots.depart', $shoot) }}" class="mt-10 w-full">
@@ -126,6 +161,8 @@
                         This marks the shoot live @if ($shoot->isFromNotion()) and moves its Notion card to Shooting @endif.
                     </p>
                 @endif
+
+                @include('my.shoots._cancel')
             </div>
 
         {{-- ================= WRAPPED ================= --}}
@@ -139,6 +176,8 @@
                     {{ $videos->count() }} {{ Str::plural('video', $videos->count()) }} ·
                     {{ $shoot->started_at?->diffForHumans($shoot->finished_at, true) }} on location
                 </p>
+
+                @include('my.shoots._after-wrap')
 
                 @include('my.shoots._video-list', ['videos' => $videos])
             </div>
@@ -374,6 +413,10 @@
                     @endif
                 @endif
             </div>
+
+            @unless ($justSaved)
+                @include('my.shoots._cancel')
+            @endunless
         @endif
     </div>
 </x-editor-layout>

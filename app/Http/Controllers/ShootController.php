@@ -114,6 +114,7 @@ class ShootController extends Controller
     public function show(Shoot $shoot): View
     {
         $shoot->load([
+            'events.user', 'crew.nextShoot',
             'client', 'crew.user', 'kits.item.category', 'kits.checkedOutBy', 'scripts', 'createdBy',
             // Notion's own Shoot<->Reel relation, resolved -- see
             // ContentSyncService::resolveShootLinks(). Ordered so the
@@ -204,5 +205,33 @@ class ShootController extends Controller
             'clients' => Client::orderBy('name')->get(['id', 'name']),
             'statuses' => Shoot::STATUSES,
         ];
+    }
+
+    /** Call the shoot off, with the reason on its timeline. */
+    public function cancel(Request $request, Shoot $shoot): RedirectResponse
+    {
+        $data = $request->validate(['reason' => ['required', 'string', 'max:500']]);
+
+        try {
+            \App\Services\ShootRun::cancel($shoot, $request->user(), $data['reason']);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('status', 'Shoot cancelled.');
+    }
+
+    /** Admin only: this shoot may leave without its kit ticked. */
+    public function waiveKit(Request $request, Shoot $shoot): RedirectResponse
+    {
+        $data = $request->validate(['reason' => ['required', 'string', 'max:500']]);
+
+        try {
+            \App\Services\ShootRun::waiveKit($shoot, $request->user(), $data['reason']);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('status', 'This shoot can leave without the kit check.');
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\EquipmentItem;
 use App\Models\Shoot;
 use App\Models\ShootKit;
+use App\Services\KitCustody;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -82,16 +83,7 @@ class ShootKitController extends Controller
     /** Tick it: this is going in the van. */
     public function checkOut(Request $request, Shoot $shoot, ShootKit $kit): JsonResponse
     {
-        if ($kit->checked_out_at === null) {
-            $kit->forceFill([
-                'checked_out_at' => now(),
-                'checked_out_by_id' => $request->user()->id,
-                // Taking it out again after a return re-opens the line.
-                'returned_at' => null,
-                'returned_by_id' => null,
-                'returned_quantity' => null,
-            ])->save();
-        }
+        KitCustody::pickUp($kit, $request->user());
 
         return response()->json($this->payload($kit->fresh(['item', 'checkedOutBy'])));
     }
@@ -99,10 +91,7 @@ class ShootKitController extends Controller
     /** Untick: it never actually went. */
     public function undoCheckOut(Shoot $shoot, ShootKit $kit): JsonResponse
     {
-        $kit->forceFill([
-            'checked_out_at' => null,
-            'checked_out_by_id' => null,
-        ])->save();
+        KitCustody::putBack($kit);
 
         return response()->json($this->payload($kit->fresh(['item', 'checkedOutBy'])));
     }
@@ -122,17 +111,12 @@ class ShootKitController extends Controller
             'condition_note' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $returned = $validated['returned_quantity'] ?? $kit->quantity;
-
-        $kit->forceFill([
-            'returned_at' => now(),
-            'returned_by_id' => $request->user()->id,
-            'returned_quantity' => $returned,
-            // A partial return is a missing item whether or not anyone says so.
-            'condition' => $validated['condition']
-                ?? ($returned < $kit->quantity ? ShootKit::CONDITION_MISSING : null),
-            'condition_note' => $validated['condition_note'] ?? $kit->condition_note,
-        ])->save();
+        KitCustody::giveBack(
+            $kit, $request->user(),
+            $validated['returned_quantity'] ?? null,
+            $validated['condition'] ?? null,
+            $validated['condition_note'] ?? null,
+        );
 
         return response()->json($this->payload($kit->fresh(['item', 'checkedOutBy'])));
     }
@@ -151,20 +135,9 @@ class ShootKitController extends Controller
 
         $user = $request->user();
 
-        if ($validated['action'] === 'check-out') {
-            $shoot->kits()->whereNull('checked_out_at')->get()
-                ->each(fn (ShootKit $line) => $line->forceFill([
-                    'checked_out_at' => now(),
-                    'checked_out_by_id' => $user->id,
-                ])->save());
-        } else {
-            $shoot->kits()->whereNotNull('checked_out_at')->whereNull('returned_at')->get()
-                ->each(fn (ShootKit $line) => $line->forceFill([
-                    'returned_at' => now(),
-                    'returned_by_id' => $user->id,
-                    'returned_quantity' => $line->quantity,
-                ])->save());
-        }
+        $validated['action'] === 'check-out'
+            ? KitCustody::pickUpAll($shoot, $user)
+            : KitCustody::giveBackAll($shoot, $user);
 
         return response()->json([
             'kit' => $shoot->kits()->with(['item', 'checkedOutBy'])->get()
