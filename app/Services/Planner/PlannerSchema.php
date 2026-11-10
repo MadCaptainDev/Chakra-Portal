@@ -20,16 +20,54 @@ use Throwable;
  */
 class PlannerSchema
 {
-    private const CACHE_KEY = 'planner.schema.statuses';
+    private const CACHE_KEY = 'planner.schema.v2';
 
     /** Notion's option colours, which the app maps to its own palette. */
     public const COLORS = ['default', 'gray', 'brown', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'red'];
 
-    /** @var array<string, list<array{name: string, color: string}>>|null */
+    /** @var array{statuses: array<string, mixed>, fields: array<string, mixed>}|null */
     private static ?array $memo = null;
+
+    /**
+     * What the planner can edit, as planner field => the Notion property key
+     * in config('notion.properties'). "title" is Notion's title property.
+     */
+    public const FIELDS = [
+        'title' => 'title',
+        'status' => 'status',
+        'published_date' => 'published_date',
+        'client' => 'venture',
+        'editor' => 'editor',
+        'tier' => 'tier',
+        'ssd' => 'ssd',
+        'post_type' => 'post_type',
+        'effort_hours' => 'effort_hours',
+        'script' => 'script',
+        'show_notes' => 'show_notes',
+    ];
+
+    /** Notion property types the planner knows how to write. */
+    public const WRITABLE = ['title', 'rich_text', 'select', 'status', 'multi_select', 'date', 'number', 'url'];
 
     /** @return array<string, list<array{name: string, color: string}>> source => options in Notion's order */
     public static function statuses(): array
+    {
+        return self::schema()['statuses'];
+    }
+
+    /**
+     * Each planner's editable fields: the Notion type and, for selects, the
+     * options with their colours. A field a planner does not have is absent.
+     *
+     * @return array<string, array<string, array{type: string, options: list<array{name: string, color: string}>}>>
+     */
+    public static function fields(): array
+    {
+        return self::schema()['fields'];
+    }
+
+    /** @return array{statuses: array<string, mixed>, fields: array<string, mixed>} */
+    private static function schema(): array
     {
         return self::$memo ??= Cache::remember(self::CACHE_KEY, now()->addHours(6), fn () => self::read());
     }
@@ -54,16 +92,27 @@ class PlannerSchema
         Cache::forget(self::CACHE_KEY);
     }
 
-    /** @return array<string, list<array{name: string, color: string}>> */
+    /**
+     * Read it from Notion now and keep it, so no page load has to. Called at
+     * the end of every sync.
+     */
+    public static function warm(): void
+    {
+        self::forget();
+        rescue(fn () => self::schema(), null, false);
+    }
+
+    /** @return array{statuses: array<string, mixed>, fields: array<string, mixed>} */
     private static function read(): array
     {
         $fallback = collect(config('notion.boards.reel', []))
             ->map(fn (array $o) => ['name' => $o['status'], 'color' => $o['color']])->values()->all();
         $key = NotionSetting::query()->whereKey(1)->first()?->api_key;
-        $out = [];
+        $sync = app(\App\Services\Notion\ContentSyncService::class);
+        $statuses = $fields = [];
 
         foreach (self::sources() as $source) {
-            $options = [];
+            $fields[$source] = [];
             foreach ($key ? config("notion.databases.{$source}.ids", []) : [] as $databaseId) {
                 try {
                     $properties = Http::withToken($key)
@@ -75,18 +124,27 @@ class PlannerSchema
                 } catch (Throwable) {
                     continue;
                 }
-                $status = collect($properties)->first(fn ($p, $name) => in_array(trim((string) $name), ['Status', 'Stage', ''], true)
-                    && in_array($p['type'] ?? null, ['status', 'select'], true));
-                $type = $status['type'] ?? null;
-                foreach ($type ? ($status[$type]['options'] ?? []) : [] as $option) {
-                    // Two Post databases: the first one's colour wins a shared name.
-                    $options[$option['name']] ??= ['name' => $option['name'], 'color' => $option['color'] ?? 'default'];
+
+                foreach (self::FIELDS as $field => $propertyKey) {
+                    $found = $sync->namedProperty($properties, $propertyKey);
+                    $type = $found['property']['type'] ?? null;
+                    if ($found === null || ! in_array($type, self::WRITABLE, true)) {
+                        continue;
+                    }
+                    // Two Post databases: the first one's type and colours win.
+                    $fields[$source][$field] ??= ['type' => $type, 'options' => []];
+                    $known = array_column($fields[$source][$field]['options'], 'name');
+                    foreach ($found['property'][$type]['options'] ?? [] as $option) {
+                        if (! in_array($option['name'], $known, true)) {
+                            $fields[$source][$field]['options'][] = ['name' => $option['name'], 'color' => $option['color'] ?? 'default'];
+                        }
+                    }
                 }
             }
-            $out[$source] = $options !== [] ? array_values($options) : $fallback;
+            $statuses[$source] = ($fields[$source]['status']['options'] ?? []) ?: $fallback;
         }
 
-        return $out;
+        return ['statuses' => $statuses, 'fields' => $fields];
     }
 
     /** @return list<string> */

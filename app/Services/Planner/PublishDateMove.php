@@ -52,7 +52,7 @@ class PublishDateMove
         try {
             $page = $this->notion->fetchPage($item->notion_page_id);
         } catch (Throwable $e) {
-            throw new NotionWriteFailed($this->reason($e));
+            throw new NotionWriteFailed(self::reason($e));
         }
 
         $property = $this->notion->publishedDateProperty($page);
@@ -74,10 +74,10 @@ class PublishDateMove
 
         try {
             $page = $this->notion->updatePage($item->notion_page_id, [
-                $property['name'] => ['date' => $to === null ? null : $this->dateValue($property['date'], $to)],
+                $property['name'] => ['date' => $to === null ? null : self::dateValue($property['date'], $to)],
             ]);
         } catch (Throwable $e) {
-            throw new NotionWriteFailed($this->reason($e));
+            throw new NotionWriteFailed(self::reason($e));
         }
 
         $fresh = $this->notion->applyPage($page) ?? $item;
@@ -94,7 +94,7 @@ class PublishDateMove
      * @param  array<string, mixed>|null  $current
      * @return array<string, mixed>
      */
-    private function dateValue(?array $current, string $to): array
+    public static function dateValue(?array $current, string $to): array
     {
         $start = $current['start'] ?? null;
         $value = ['start' => $start && strlen($start) > 10 ? $to.substr($start, 10) : $to];
@@ -111,7 +111,7 @@ class PublishDateMove
         return $value;
     }
 
-    private function reason(Throwable $e): string
+    public static function reason(Throwable $e): string
     {
         if ($e instanceof RequestException) {
             $status = $e->response->status();

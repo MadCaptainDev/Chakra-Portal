@@ -30,6 +30,9 @@ class PlannerAppController extends Controller
                 'count' => (int) ($counts[$s] ?? 0),
             ])->values(),
             'statuses' => PlannerSchema::statuses(),
+            // Per planner: which fields can be edited, their Notion type and select options.
+            'fields' => PlannerSchema::fields(),
+            'can_edit' => (bool) request()->user()?->can('planner.edit'),
             'status_groups' => ContentDashboard::STATUS_GROUPS,
             'colors' => PlannerSchema::COLORS,
             'clients' => (clone $visible)->whereNotNull('venture')
@@ -48,8 +51,21 @@ class PlannerAppController extends Controller
      * skips if a sync finished in the last minute, so a team pressing
      * Refresh together runs it once. Takes 10-20 seconds when it runs.
      */
-    public function refresh(): JsonResponse
+    public function refresh(Request $request): JsonResponse
     {
+        // background=1: answer at once and sync after the response, so the
+        // person is not left watching a button for twenty seconds. The page
+        // picks the changes up on its next poll.
+        if ($request->boolean('background')) {
+            \Illuminate\Support\defer(fn () => rescue(fn () => NotionSyncRunner::syncIfOlderThan(60), null, true));
+
+            return response()->json([
+                'refreshed' => null,
+                'last_synced_at' => NotionSyncRunner::lastSyncedAt()?->toIso8601String(),
+                'message' => 'Refreshing from Notion…',
+            ], 202);
+        }
+
         $ran = NotionSyncRunner::syncIfOlderThan(60);
 
         return response()->json([

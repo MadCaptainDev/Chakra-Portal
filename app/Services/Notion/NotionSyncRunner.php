@@ -79,7 +79,7 @@ class NotionSyncRunner
         }
 
         // Chakra Planner: new colours/options, and one "re-fetch" event for every open app.
-        PlannerSchema::forget();
+        PlannerSchema::warm();
         PlannerRealtime::refreshed($status);
 
         return $status;

@@ -744,6 +744,7 @@ Route::middleware(['auth', 'module:planner,view'])->prefix('planner')->name('pla
     Route::get('data/items', [\App\Http\Controllers\Api\Planner\PlannerItemController::class, 'index'])->name('data.items');
     Route::get('data/items/{item}', [\App\Http\Controllers\Api\Planner\PlannerItemController::class, 'show'])->whereNumber('item')->name('data.item');
     Route::patch('data/items/{item}', [\App\Http\Controllers\Api\Planner\PlannerItemController::class, 'update'])->whereNumber('item')->name('data.move');
+    Route::post('data/items', [\App\Http\Controllers\Api\Planner\PlannerItemController::class, 'store'])->name('data.store');
     Route::get('setup', [\App\Http\Controllers\PlannerPageController::class, 'index'])->name('setup');
     Route::delete('sessions/{session}', [\App\Http\Controllers\PlannerPageController::class, 'revokeSession'])->whereNumber('session')->name('sessions.destroy');
     Route::middleware('module:planner,manage')->group(function () {

@@ -355,6 +355,51 @@ then reconcile with the response. Turn the optimistic change back on 409 or 502.
 
 ---
 
+### `PATCH /items/{id}`: edit any property (needs `edit`, added 2026-11-10)
+
+The same endpoint. Sending only `published_date` (+ `from`) behaves exactly as above. Sending any
+other field switches to the general writer, which also writes Notion first.
+
+| Field | Value | Notes |
+|---|---|---|
+| `title` | string | cannot be empty |
+| `status` | string | one of `meta.statuses[source]` |
+| `published_date` | `Y-m-d` or `null` | `from` still gives its conflict check |
+| `client` | string or `null` | the Venture option name |
+| `editor` | list of names, or one string | a list where `meta.fields[source].editor.type` is `multi_select` (Reel); one name where it is `select` |
+| `tier`, `ssd`, `post_type` | string or `null` | select options from `meta.fields` |
+| `effort_hours`, `script`, `show_notes` | string or `null` | free text; a long script is fine |
+| `expected` | `{ field: value }` | optional: what the app was showing; a mismatch with Notion is a `409` carrying the item |
+
+Several fields can go in one request; they are written to Notion in one call. A field the item's
+planner does not have (see `meta.fields[source]`) answers `502 notion_failed` with a sentence to show.
+Setting a value it already has writes nothing. Every change is recorded in `history`.
+
+```json
+{ "status": "Edit in Progress", "editor": ["Sanjai", "Gokul"], "expected": { "status": "To Be Edited" } }
+```
+
+### `POST /items`: create an item (needs `edit`, added 2026-11-10)
+
+`source*` (`reel`·`post`·`story`·`youtube`), `title*`, and any of the fields above. Created in Notion
+first; answers `201` with `{ "item": <detail> }`, or `502 notion_failed`.
+
+### Added to the detail shape (2026-11-10)
+
+`timeline` (the video's whole story, oldest first: `{ at, stage, label, note, by, url }` with `stage`
+one of `plan`·`script`·`shoot`·`edit`·`post`), `timeline_url` (the portal page for it) and
+`thumbnail_url` (a small local picture once it is published on Instagram, else `null`).
+
+### Added to `GET /meta` (2026-11-10)
+
+`fields`: per source, each editable field with its Notion `type` and select `options` (`name`, `color`).
+`can_edit`: whether this person may change the planner.
+
+### `POST /refresh` with `background: true` (2026-11-10)
+
+Answers `202` at once and syncs after the response; pick the changes up with `?updated_since=`.
+Without it the call behaves as before.
+
 ## Vocabulary
 
 ### `GET /meta`

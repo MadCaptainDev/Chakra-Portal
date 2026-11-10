@@ -7,6 +7,7 @@ use App\Models\ContentItem;
 use App\Services\Planner\NotionWriteFailed;
 use App\Services\Planner\PlannerConflict;
 use App\Services\Planner\PlannerItems;
+use App\Services\Planner\PlannerPropertyWrite;
 use App\Services\Planner\PlannerSchema;
 use App\Services\Planner\PublishDateMove;
 use Illuminate\Database\Eloquent\Builder;
@@ -18,9 +19,9 @@ use Illuminate\Support\Carbon;
  * The planner items: the four Notion content planners (Reel, Post, Story,
  * YouTube) as the portal holds them.
  *
- * Reading is everyone with Chakra Planner access. Changing is `planner.edit`
- * and, for now, only the publish date -- written to Notion first, see
- * PublishDateMove.
+ * Reading is everyone with Chakra Planner access. Changing and creating is
+ * `planner.edit`, written to Notion first -- see PublishDateMove and
+ * PlannerPropertyWrite.
  */
 class PlannerItemController extends Controller
 {
@@ -81,20 +82,40 @@ class PlannerItemController extends Controller
         return response()->json(['item' => PlannerItems::detail($found)]);
     }
 
-    public function update(Request $request, int $item, PublishDateMove $move): JsonResponse
+    /**
+     * Change an item. Only a publish date: the original move, unchanged
+     * (PublishDateMove). Anything else -- title, status, client, editor,
+     * tier, drive, script... alone or together -- goes through
+     * PlannerPropertyWrite. Both write Notion first.
+     */
+    public function update(Request $request, int $item, PublishDateMove $move, PlannerPropertyWrite $write): JsonResponse
     {
         if (! $request->user()->can('planner.edit')) {
             return response()->json(['message' => 'You can view the planner but not change it. Ask an admin for Chakra Planner → Edit.', 'code' => 'no_edit'], 403);
         }
 
         $found = $this->items()->findOrFail($item);
+        $others = array_diff(array_keys(PlannerSchema::FIELDS), ['published_date']);
+        $dateOnly = ! $request->hasAny($others);
+
         $data = $request->validate([
-            'published_date' => ['present', 'nullable', 'date_format:Y-m-d'],
+            'published_date' => [$dateOnly ? 'present' : 'sometimes', 'nullable', 'date_format:Y-m-d'],
             'from' => ['nullable', 'date_format:Y-m-d'],
+        ] + $this->fieldRules() + [
+            // What the app was showing for the fields it is changing; a mismatch is a conflict.
+            'expected' => ['sometimes', 'array'],
         ]);
 
         try {
-            $fresh = $move->move($found, $data['published_date'], $data['from'] ?? null, $request->exists('from'), $request->user());
+            if ($dateOnly) {
+                $fresh = $move->move($found, $data['published_date'], $data['from'] ?? null, $request->exists('from'), $request->user());
+            } else {
+                $expected = array_intersect_key((array) ($data['expected'] ?? []), PlannerSchema::FIELDS);
+                if ($request->exists('from')) {
+                    $expected['published_date'] = $data['from'] ?? null;
+                }
+                $fresh = $write->update($found, array_intersect_key($data, PlannerSchema::FIELDS), $expected, $request->user());
+            }
         } catch (PlannerConflict $e) {
             return response()->json([
                 'message' => $e->getMessage(),
@@ -106,6 +127,47 @@ class PlannerItemController extends Controller
         }
 
         return response()->json(['item' => PlannerItems::detail($fresh->fresh()->load(PlannerItems::RELATIONS))]);
+    }
+
+    /** A new item in one of the planners, created in Notion first. */
+    public function store(Request $request, PlannerPropertyWrite $write): JsonResponse
+    {
+        if (! $request->user()->can('planner.edit')) {
+            return response()->json(['message' => 'You can view the planner but not change it. Ask an admin for Chakra Planner → Edit.', 'code' => 'no_edit'], 403);
+        }
+
+        $data = $request->validate([
+            'source' => ['required', 'string', \Illuminate\Validation\Rule::in(PlannerSchema::sources())],
+            'title' => ['required', 'string', 'max:300'],
+            'published_date' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+        ] + $this->fieldRules());
+
+        try {
+            $created = $write->create($data['source'], array_intersect_key($data, PlannerSchema::FIELDS), $request->user());
+        } catch (NotionWriteFailed $e) {
+            return response()->json(['message' => $e->getMessage(), 'code' => 'notion_failed'], 502);
+        }
+
+        return response()->json(['item' => PlannerItems::detail($created->fresh()->load(PlannerItems::RELATIONS))], 201);
+    }
+
+    /** @return array<string, list<string>> */
+    private function fieldRules(): array
+    {
+        return [
+            'title' => ['sometimes', 'string', 'min:1', 'max:300'],
+            'status' => ['sometimes', 'string', 'min:1', 'max:100'],
+            'client' => ['sometimes', 'nullable', 'string', 'max:255'],
+            // A list of names, or one comma-separated string.
+            'editor' => ['sometimes', 'nullable'],
+            'editor.*' => ['string', 'max:100'],
+            'tier' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'ssd' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'post_type' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'effort_hours' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'script' => ['sometimes', 'nullable', 'string', 'max:50000'],
+            'show_notes' => ['sometimes', 'nullable', 'string', 'max:20000'],
+        ];
     }
 
     private function items(): Builder

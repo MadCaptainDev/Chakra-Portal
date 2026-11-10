@@ -293,6 +293,68 @@ class ContentSyncService
     }
 
     /**
+     * One planner field on a page (or in a database's schema): the property's
+     * exact name there, needed to write it back, and the property itself.
+     * "title" is whichever property has Notion's title type; every other
+     * field goes by the names in config('notion.properties').
+     *
+     * @param  array<string, mixed>  $properties
+     * @return array{name: string, property: array<string, mixed>}|null
+     */
+    public function namedProperty(array $properties, string $field): ?array
+    {
+        if ($field === 'title') {
+            foreach ($properties as $name => $property) {
+                if (($property['type'] ?? null) === 'title') {
+                    return ['name' => (string) $name, 'property' => $property];
+                }
+            }
+
+            return null;
+        }
+
+        $candidates = config('notion.properties.'.$field, []);
+        $name = collect($candidates)->first(fn ($c) => array_key_exists($c, $properties))
+            ?? collect(array_keys($properties))->first(fn ($k) => in_array(Str::lower(trim((string) $k)), array_map(fn ($c) => Str::lower(trim($c)), $candidates), true));
+
+        return $name === null ? null : ['name' => (string) $name, 'property' => $properties[$name]];
+    }
+
+    /** A property's value as the plain string the portal stores. */
+    public function plain(array $property): ?string
+    {
+        return $this->value(['p' => $property], ['p']);
+    }
+
+    /**
+     * A database's property definitions (name => type and options).
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function databaseProperties(string $databaseId): array
+    {
+        return $this->client()->get(self::API_BASE.'/databases/'.$databaseId)->throw()->json('properties', []);
+    }
+
+    /**
+     * Create a page in a database; returns the page. Not retried, for the
+     * same reason as updatePage(): a create that timed out may have landed.
+     *
+     * @param  array<string, mixed>  $properties
+     * @return array<string, mixed>
+     */
+    public function createPage(string $databaseId, array $properties): array
+    {
+        return Http::withToken($this->apiKey())
+            ->withHeaders(['Notion-Version' => self::API_VERSION])
+            ->acceptJson()
+            ->timeout(20)
+            ->post(self::API_BASE.'/pages', ['parent' => ['database_id' => $databaseId], 'properties' => $properties])
+            ->throw()
+            ->json();
+    }
+
+    /**
      * The page's publish-date property: its exact name in that database
      * (needed to write it back) and its raw date value.
      *
