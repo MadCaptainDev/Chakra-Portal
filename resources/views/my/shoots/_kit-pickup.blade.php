@@ -65,6 +65,25 @@
         @endif
     @endif
 
+    @if (($usualKit ?? collect())->isNotEmpty())
+        {{-- What this client's last shoots actually took. --}}
+        <form method="POST" action="{{ route('my.shoots.kit.add', $shoot) }}" class="mt-3 rounded-xl bg-violet-500/10 p-3 ring-1 ring-violet-400/20">
+            @csrf <input type="hidden" name="usual" value="1">
+            <p class="text-xs font-semibold text-violet-200">Usual kit for {{ $shoot->clientLabel() ?? 'this client' }}</p>
+            <div class="mt-2 flex gap-1.5 overflow-x-auto pb-1">
+                @foreach ($usualKit->take(10) as $row)
+                    <span class="flex shrink-0 items-center gap-1.5 rounded-lg bg-white/5 py-1 pl-1 pr-2 text-xs text-white/80">
+                        @include('my.shoots._kit-thumb', ['item' => $row['item'], 'small' => true])
+                        {{ $row['item']->name }}
+                    </span>
+                @endforeach
+            </div>
+            <button type="submit" class="mt-2 w-full rounded-lg bg-violet-400 px-4 py-2.5 text-sm font-semibold text-brand-900 active:scale-[0.98] transition">
+                Add all {{ $usualKit->count() }}
+            </button>
+        </form>
+    @endif
+
     @if ($equipment->isNotEmpty())
         <details class="mt-3" x-data="{ q: '' }" @if ($kit->isEmpty()) open @endif>
             <summary class="cursor-pointer list-none rounded-xl bg-white/5 px-3 py-2.5 text-sm font-medium text-white/80 ring-1 ring-white/10">
@@ -80,7 +99,12 @@
                             <label class="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-white/5">
                                 <input type="checkbox" name="items[]" value="{{ $item->id }}" class="h-5 w-5 rounded border-white/30 bg-transparent text-emerald-400 focus:ring-emerald-400">
                                 @include('my.shoots._kit-thumb', ['item' => $item, 'small' => true])
-                                <span class="min-w-0 flex-1 truncate text-sm">{{ $item->name }}</span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate text-sm">{{ $item->name }}</span>
+                                    @if ($item->bundle->isNotEmpty())
+                                        <span class="block truncate text-[11px] text-violet-200/70">+ {{ $item->bundle->pluck('name')->implode(', ') }}</span>
+                                    @endif
+                                </span>
                                 @if (! $item->isAvailable())
                                     <span class="shrink-0 text-xs text-amber-300">{{ $item->statusLabel() }}</span>
                                 @endif

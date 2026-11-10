@@ -705,6 +705,7 @@ Route::middleware(['auth', 'module:shoots,view'])->scopeBindings()->group(functi
             ->withoutScopedBindings()->name('shoots.crew.destroy');
         Route::post('shoots/{shoot}/kit', [ShootKitController::class, 'store'])->name('shoots.kit.store');
         Route::post('shoots/{shoot}/kit/bulk-add', [ShootKitController::class, 'storeMany'])->name('shoots.kit.store-many');
+        Route::post('shoots/{shoot}/kit/usual', [ShootKitController::class, 'storeUsual'])->name('shoots.kit.usual');
         Route::delete('shoots/{shoot}/kit/{kit}', [ShootKitController::class, 'destroy'])->name('shoots.kit.destroy');
         Route::post('shoots/{shoot}/cancel', [ShootController::class, 'cancel'])->name('shoots.cancel');
         Route::post('shoots/{shoot}/kit-waive', [ShootController::class, 'waiveKit'])->name('shoots.kit.waive');

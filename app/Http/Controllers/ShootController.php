@@ -138,7 +138,8 @@ class ShootController extends Controller
             'shoot' => $shoot,
             'committed' => $committed,
             'shortfalls' => $shortfalls,
-            'available' => EquipmentItem::active()->with('category')->ordered()->get(),
+            'available' => EquipmentItem::active()->with(['category', 'bundle:id', 'bundledWith:id,name'])->ordered()->get(),
+            'usualKit' => \App\Support\KitSuggestion::forShoot($shoot),
             'staff' => User::staff()->orderBy('name')->get(['id', 'name']),
             'scripts' => Script::orderBy('title')->get(['id', 'title']),
         ]);

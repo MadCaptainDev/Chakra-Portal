@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\EquipmentItem;
 use App\Models\TaxonomyTerm;
 use App\Support\KitAvailability;
+use App\Support\PublicUpload;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -22,7 +23,7 @@ class EquipmentController extends Controller
         $status = $request->string('status')->toString();
 
         $items = EquipmentItem::query()
-            ->with(['category', 'pairedWith'])
+            ->with(['category', 'bundle', 'bundledWith'])
             ->when(! $showRetired, fn ($query) => $query->active())
             ->when($status !== '' && array_key_exists($status, EquipmentItem::STATUSES), fn ($query) => $query->where('status', $status))
             ->when($search !== '', fn ($query) => $query->where(
@@ -59,6 +60,7 @@ class EquipmentController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $item = EquipmentItem::create($this->validated($request));
+        $this->saveExtras($request, $item);
 
         return redirect()
             ->route('equipment.index')
@@ -68,6 +70,7 @@ class EquipmentController extends Controller
     public function update(Request $request, EquipmentItem $equipment): RedirectResponse
     {
         $equipment->update($this->validated($request, $equipment));
+        $this->saveExtras($request, $equipment);
 
         return redirect()->route('equipment.index')->with('status', 'Item updated.');
     }
@@ -92,6 +95,37 @@ class EquipmentController extends Controller
         $equipment->delete();
 
         return redirect()->route('equipment.index')->with('status', 'Item removed.');
+    }
+
+    /**
+     * The picture and the "goes with it" list: neither is a plain column, so
+     * neither goes through validated().
+     */
+    private function saveExtras(Request $request, EquipmentItem $item): void
+    {
+        $extras = $request->validate([
+            // A phone photo of the item. 8 MB covers any camera roll.
+            'image' => ['nullable', 'image', 'max:8192'],
+            'remove_image' => ['sometimes', 'boolean'],
+            'bundle' => ['sometimes', 'array'],
+            'bundle.*.item_id' => ['required', Rule::exists('equipment_items', 'id'), Rule::notIn([$item->id])],
+            'bundle.*.quantity' => ['nullable', 'integer', 'min:1', 'max:99'],
+        ]);
+
+        if ($request->hasFile('image')) {
+            PublicUpload::delete($item->image_path);
+            $item->forceFill(['image_path' => PublicUpload::store($request->file('image'), 'equipment')])->save();
+        } elseif (! empty($extras['remove_image'])) {
+            PublicUpload::delete($item->image_path);
+            $item->forceFill(['image_path' => null])->save();
+        }
+
+        // The form always sends bundle_sent, so "nothing ticked" clears the list.
+        if ($request->has('bundle_sent')) {
+            $item->bundle()->sync(collect($extras['bundle'] ?? [])
+                ->mapWithKeys(fn (array $row) => [(int) $row['item_id'] => ['quantity' => (int) ($row['quantity'] ?? 1)]])
+                ->all());
+        }
     }
 
     /**

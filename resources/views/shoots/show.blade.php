@@ -14,6 +14,7 @@
         return [
             'id' => $line->id,
             'name' => $item?->name ?? 'Removed item',
+            'image' => $item?->thumbUrl(),
             'quantity' => $line->quantity,
             'checkedOut' => $line->checked_out_at !== null,
             'returned' => $line->returned_at !== null,
@@ -122,6 +123,10 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                         </span>
+
+                        <template x-if="!!row.image">
+                            <img :src="row.image" alt="" loading="lazy" class="h-10 w-10 shrink-0 rounded-lg bg-white/5 object-cover">
+                        </template>
 
                         <span class="min-w-0 flex-1">
                             <span class="block text-sm font-medium text-white truncate">

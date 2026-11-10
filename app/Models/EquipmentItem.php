@@ -5,7 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Support\ImageVariant;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -67,6 +69,35 @@ class EquipmentItem extends Model
     public function accessories(): HasMany
     {
         return $this->hasMany(self::class, 'paired_with_id');
+    }
+
+    /**
+     * What goes with this item on a shoot, and how many of each -- the FX30's
+     * power zoom lens and 256GB card. See App\Support\KitBundle.
+     */
+    public function bundle(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'equipment_bundle_items', 'parent_item_id', 'child_item_id')
+            ->withPivot('quantity')->withTimestamps()->orderBy('name');
+    }
+
+    /** The items this one travels with. */
+    public function bundledWith(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'equipment_bundle_items', 'child_item_id', 'parent_item_id')
+            ->orderBy('name');
+    }
+
+    /** The picture as uploaded, or null when it has none. */
+    public function imageUrl(): ?string
+    {
+        return $this->image_path ? ImageVariant::url($this->image_path, 800, 800) : null;
+    }
+
+    /** A small square-ish copy for lists and tiles. */
+    public function thumbUrl(): ?string
+    {
+        return $this->image_path ? ImageVariant::url($this->image_path, 200, 200) : null;
     }
 
     public function kits(): HasMany

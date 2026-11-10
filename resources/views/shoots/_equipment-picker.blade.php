@@ -19,15 +19,11 @@
             // EquipmentItem::accessories(). Already-on-the-shoot ones are
             // dropped the same way the top-level list is: nothing to
             // auto-add if it's already sitting on the kit.
-            $accessoryIds = $available
-                ->where('paired_with_id', $item->id)
-                ->reject(fn ($a) => in_array($a->id, $alreadyOn, true))
-                ->pluck('id')
+            $accessoryIds = $item->bundle->pluck('id')
+                ->reject(fn ($id) => in_array($id, $alreadyOn, true))
                 ->values();
 
-            $pairedWithName = $item->paired_with_id
-                ? $available->firstWhere('id', $item->paired_with_id)?->name
-                : null;
+            $pairedWithName = $item->bundledWith->pluck('name')->implode(', ') ?: null;
 
             return [
                 'id' => $item->id,
@@ -40,6 +36,8 @@
                 'statusLabel' => $item->isAvailable() ? null : $item->statusLabel(),
                 'accessoryIds' => $accessoryIds,
                 'pairedWithName' => $pairedWithName,
+                'image' => $item->thumbUrl(),
+                'brings' => $item->bundle->count(),
             ];
         })
         ->values();
@@ -48,10 +46,30 @@
 @endphp
 
 <div x-data="equipmentPicker({{ Illuminate\Support\Js::from($pickerItems) }})" x-cloak>
-    <x-btn type="button" size="sm" @click="open = true">
-        <x-icon name="plus" class="w-4 h-4" />
-        Add equipment
-    </x-btn>
+    <div class="flex flex-wrap items-center gap-2">
+        <x-btn type="button" size="sm" @click="open = true">
+            <x-icon name="plus" class="w-4 h-4" />
+            Add equipment
+        </x-btn>
+
+        @if (($usualKit ?? collect())->isNotEmpty())
+            {{-- What this client's last shoots actually took -- see KitSuggestion. --}}
+            <form method="POST" action="{{ route('shoots.kit.usual', $shoot) }}">
+                @csrf
+                <x-btn type="submit" size="sm" variant="secondary">
+                    Add usual kit for {{ $shoot->clientLabel() ?? 'this client' }} ({{ $usualKit->count() }})
+                </x-btn>
+            </form>
+        @endif
+    </div>
+    @if (($usualKit ?? collect())->isNotEmpty())
+        <p class="mt-1.5 text-xs text-brand-100/50">
+            Usually: {{ $usualKit->map(fn ($row) => $row['item']->name)->take(8)->implode(', ') }}@if ($usualKit->count() > 8) and {{ $usualKit->count() - 8 }} more @endif
+        </p>
+    @endif
+    @if ($shoot->notionShoot?->gear_needed)
+        <p class="mt-1 text-xs text-brand-100/40">Notion says: {{ $shoot->notionShoot->gear_needed }}</p>
+    @endif
 
     <div x-show="open" x-transition.opacity
          class="fixed inset-0 z-[70] flex items-end sm:items-center justify-center sm:p-4"
@@ -84,6 +102,12 @@
                         <template x-for="item in group.items" :key="item.id">
                             <div class="flex items-center gap-3 px-2.5 py-2.5 min-h-[56px] rounded-lg hover:bg-white/[0.05] transition"
                                  :class="picked(item.id) && 'bg-brand-400/10'">
+                                <template x-if="item.image">
+                                    <img :src="item.image" alt="" loading="lazy" class="h-11 w-11 shrink-0 rounded-lg bg-white/5 object-cover">
+                                </template>
+                                <template x-if="!item.image">
+                                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/5 text-sm font-semibold text-brand-100/30" x-text="item.name.charAt(0).toUpperCase()"></span>
+                                </template>
                                 <div class="min-w-0 flex-1">
                                     <p class="text-sm font-medium text-white truncate">
                                         <span x-text="item.name"></span>
@@ -95,7 +119,10 @@
                                         <template x-if="item.available && item.free > 0 && item.total > 1" x-text="item.free + ' of ' + item.total + ' free'"></template>
                                         <template x-if="item.available && item.free > 0 && item.total <= 1">Free</template>
                                     </p>
-                                    <p x-show="item.pairedWithName" class="text-[11px] mt-0.5 text-brand-300/70">
+                                    <p x-show="item.brings > 0" class="text-[11px] mt-0.5 text-brand-300/70">
+                                        <span x-text="'Brings ' + item.brings + (item.brings === 1 ? ' more item' : ' more items')"></span>
+                                    </p>
+                                    <p x-show="item.pairedWithName" class="text-[11px] mt-0.5 text-brand-100/40">
                                         <span x-text="'Goes with ' + item.pairedWithName"></span>
                                     </p>
                                 </div>

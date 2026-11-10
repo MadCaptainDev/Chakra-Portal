@@ -6,6 +6,8 @@ use App\Models\EquipmentItem;
 use App\Models\Shoot;
 use App\Models\ShootKit;
 use App\Services\KitCustody;
+use App\Support\KitBundle;
+use App\Support\KitSuggestion;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -34,9 +36,8 @@ class ShootKitController extends Controller
 
         // Adding the same item twice is a quantity, not a second row -- and the
         // unique index would refuse it anyway.
-        $line = $shoot->kits()->firstOrNew(['equipment_item_id' => $validated['equipment_item_id']]);
-        $line->quantity = $validated['quantity'] ?? 1;
-        $line->save();
+        KitBundle::addTo($shoot, [(int) $validated['equipment_item_id'] => (int) ($validated['quantity'] ?? 1)]);
+        $line = $shoot->kits()->where('equipment_item_id', $validated['equipment_item_id'])->firstOrFail();
 
         return response()->json($this->payload($line->fresh(['item', 'checkedOutBy'])), 201);
     }
@@ -54,15 +55,22 @@ class ShootKitController extends Controller
             'items.*.quantity' => ['nullable', 'integer', 'min:1', 'max:999'],
         ]);
 
-        foreach ($validated['items'] as $row) {
-            $line = $shoot->kits()->firstOrNew(['equipment_item_id' => $row['equipment_item_id']]);
-            $line->quantity = $row['quantity'] ?? 1;
-            $line->save();
-        }
-
-        $count = count($validated['items']);
+        // Each item brings what goes with it -- see KitBundle.
+        $before = $shoot->kits()->count();
+        KitBundle::addTo($shoot, collect($validated['items'])
+            ->mapWithKeys(fn (array $row) => [(int) $row['equipment_item_id'] => (int) ($row['quantity'] ?? 1)])->all());
+        $count = max(count($validated['items']), $shoot->kits()->count() - $before);
 
         return back()->with('status', $count === 1 ? 'Added 1 item to the kit.' : "Added {$count} items to the kit.");
+    }
+
+    /** One tap: everything this client's shoots usually take. */
+    public function storeUsual(Shoot $shoot): RedirectResponse
+    {
+        $usual = KitSuggestion::forShoot($shoot);
+        $added = KitBundle::addTo($shoot, $usual->mapWithKeys(fn (array $row) => [$row['item']->id => $row['quantity']])->all());
+
+        return back()->with('status', $added === 0 ? 'Nothing to add.' : "Added the usual kit: {$added} ".str('item')->plural($added).'.');
     }
 
     public function destroy(Shoot $shoot, ShootKit $kit): JsonResponse

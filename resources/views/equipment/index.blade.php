@@ -67,8 +67,13 @@
                         @foreach ($items as $item)
                             @php $short = (int) ($shortfalls[$item->id] ?? 0); @endphp
 
-                            <div class="p-4 flex items-start justify-between gap-3">
-                                <div class="min-w-0">
+                            <div class="p-4 flex items-start gap-3">
+                                @if ($item->thumbUrl())
+                                    <img src="{{ $item->thumbUrl() }}" alt="" loading="lazy" class="h-14 w-14 shrink-0 rounded-lg bg-white/5 object-cover ring-1 ring-white/10">
+                                @else
+                                    <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-white/5 text-lg font-semibold text-brand-100/30 ring-1 ring-white/10">{{ Str::upper(Str::substr($item->name, 0, 1)) }}</span>
+                                @endif
+                                <div class="min-w-0 flex-1">
                                     <p class="font-semibold text-white truncate flex items-center gap-1.5">
                                         {{ $item->name }}
                                         @unless ($item->is_active)
@@ -90,9 +95,14 @@
                                             {{ $short }} never came back
                                         </p>
                                     @endif
-                                    @if ($item->pairedWith)
+                                    @if ($item->bundle->isNotEmpty())
                                         <p class="text-xs text-brand-300/70 mt-0.5">
-                                            Goes with {{ $item->pairedWith->name }} — auto-added on shoots
+                                            Brings {{ $item->bundle->map(fn ($b) => $b->name.($b->pivot->quantity > 1 ? ' ×'.$b->pivot->quantity : ''))->implode(', ') }}
+                                        </p>
+                                    @endif
+                                    @if ($item->bundledWith->isNotEmpty())
+                                        <p class="text-xs text-brand-100/45 mt-0.5">
+                                            Goes with {{ $item->bundledWith->pluck('name')->implode(', ') }}
                                         </p>
                                     @endif
                                 </div>
@@ -110,7 +120,7 @@
 
                             @can('equipment.edit')
                                 <x-modal :name="'edit-equipment-'.$item->id" :show="false" maxWidth="lg">
-                                    <form method="POST" action="{{ route('equipment.update', $item) }}" class="p-6">
+                                    <form method="POST" action="{{ route('equipment.update', $item) }}" enctype="multipart/form-data" class="p-6">
                                         @csrf
                                         @method('PUT')
                                         <h2 class="text-lg font-semibold text-white mb-4">Edit {{ $item->name }}</h2>
@@ -146,7 +156,7 @@
 
     @can('equipment.create')
         <x-modal name="add-equipment" :show="$errors->any()" maxWidth="lg">
-            <form method="POST" action="{{ route('equipment.store') }}" class="p-6">
+            <form method="POST" action="{{ route('equipment.store') }}" enctype="multipart/form-data" class="p-6">
                 @csrf
                 <h2 class="text-lg font-semibold text-white mb-1">Add to the register</h2>
                 <p class="text-sm text-brand-100/60 mb-4">

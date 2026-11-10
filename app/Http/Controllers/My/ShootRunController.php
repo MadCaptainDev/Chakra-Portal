@@ -11,6 +11,8 @@ use App\Models\ShootVideo;
 use App\Services\KitCustody;
 use App\Services\ShootRun;
 use App\Support\CrewShootRecord;
+use App\Support\KitBundle;
+use App\Support\KitSuggestion;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -93,7 +95,8 @@ class ShootRunController extends Controller
             'kit' => $shoot->kits->sortBy(fn (ShootKit $l) => $l->item?->name)->values(),
             // What can still be added to the list, for the crew's own picker.
             'equipment' => $shoot->hasWrapped() || $shoot->isCancelled() ? collect() : EquipmentItem::query()->active()->ordered()
-                ->whereNotIn('id', $shoot->kits->pluck('equipment_item_id'))->get(['id', 'name', 'quantity', 'status']),
+                ->whereNotIn('id', $shoot->kits->pluck('equipment_item_id'))->with('bundle:id,name')->get(),
+            'usualKit' => $shoot->hasWrapped() || $shoot->isCancelled() ? collect() : KitSuggestion::forShoot($shoot),
             'myCrew' => $shoot->crew->firstWhere('user_id', $user->id),
             'nextShoot' => $shoot->hasWrapped() ? ShootRun::nextFor($shoot, $user) : null,
             'drives' => (array) config('shoots.drives'),
@@ -274,14 +277,23 @@ class ShootRunController extends Controller
         $this->authoriseCrew($shoot);
         abort_if($shoot->hasWrapped() || $shoot->isCancelled(), 422, 'This shoot is over.');
 
+        // "Add the usual kit": what this client's last shoots actually took.
+        if ($request->boolean('usual')) {
+            KitBundle::addTo($shoot, KitSuggestion::forShoot($shoot)
+                ->mapWithKeys(fn (array $row) => [$row['item']->id => $row['quantity']])->all());
+
+            return back();
+        }
+
         $data = $request->validate([
             'items' => ['required', 'array', 'min:1'],
             'items.*' => ['integer', Rule::exists('equipment_items', 'id')->where('is_active', true)],
         ]);
 
-        foreach (array_unique($data['items']) as $itemId) {
-            $shoot->kits()->firstOrCreate(['equipment_item_id' => $itemId], ['quantity' => 1]);
-        }
+        // Lines already on the list keep their quantity; each new item brings its bundle.
+        $have = $shoot->kits()->pluck('quantity', 'equipment_item_id');
+        KitBundle::addTo($shoot, collect($data['items'])->unique()
+            ->mapWithKeys(fn ($id) => [(int) $id => (int) ($have[$id] ?? 1)])->all());
 
         return back();
     }
