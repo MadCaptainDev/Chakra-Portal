@@ -32,6 +32,7 @@ export function videoReview(urls, initial) {
         editBody: '',
         quick: ['Cut this part', 'Audio too low', 'Spelling mistake', 'Looks dark', 'Text too small', 'Too slow here', 'Add music', 'Looks great ✓'],
         cache: { state: 'idle', pct: 0, mb: 0 },   // this device's copy of the video
+        fs: false,             // full screen (drawn on the page; real full screen where the browser allows it)
         aiAt: Date.now(),      // when the AI state last arrived, to count seconds between polls
         clockNow: Date.now(),
         busy: {},
@@ -162,8 +163,23 @@ export function videoReview(urls, initial) {
         },
         mute() { this.muted = !this.muted; if (this.$refs.video) this.$refs.video.muted = this.muted; },
         full() {
-            const el = this.$refs.stage;
-            if (document.fullscreenElement) document.exitFullscreen?.(); else (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
+            const el = this.$refs.theatre;
+            if (this.fs) {
+                this.fs = false;
+                document.body.style.overflow = '';
+                if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+                return;
+            }
+            this.fs = true;
+            document.body.style.overflow = 'hidden';
+            // The real thing where it exists (computers, Android); iPhones keep the drawn one.
+            try { (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el)?.catch?.(() => {}); } catch { /* drawn full screen still works */ }
+            if (!this._fsWatch) {
+                this._fsWatch = true;
+                document.addEventListener('fullscreenchange', () => {
+                    if (!document.fullscreenElement && this.fs) { this.fs = false; document.body.style.overflow = ''; }
+                });
+            }
         },
 
         // ——— Timeline: drag to scrub, with a preview of the time ———
@@ -194,6 +210,7 @@ export function videoReview(urls, initial) {
 
         // ——— Keys (never while typing) ———
         key(e) {
+            if (e.key === 'Escape' && this.fs && !document.fullscreenElement) { this.full(); return; }
             if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) || e.metaKey || e.ctrlKey || e.altKey || this.sheet) return;
             const act = {
                 ' ': () => this.toggle(), k: () => this.toggle(),
@@ -219,6 +236,7 @@ export function videoReview(urls, initial) {
             if (this.at === null) this.at = Math.round(this.t * 100) / 100;
             this.pin = true;
             this.tab = 'comments';
+            if (focus && this.fs) { this.$nextTick(() => this.$refs.theatre?.querySelector('textarea')?.focus()); return; }
             if (focus) this.$nextTick(() => { this.$refs.comment?.focus(); this.$refs.comment?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
         },
         nudge(by) {
@@ -413,8 +431,9 @@ export function videoReview(urls, initial) {
                     this.remember(url);
                     return;
                 }
-                // On a data-saver connection, wait to be asked.
-                if (!force && (conn.saveData || /2g/.test(conn.effectiveType || ''))) { this.cache.state = 'ask'; return; }
+                // Only when asked: nothing is downloaded until someone taps Save.
+                if (!force) { this.cache.state = 'ask'; return; }
+                void conn;
 
                 this.cache.state = 'saving';
                 const res = await fetch(url, { credentials: 'same-origin' });

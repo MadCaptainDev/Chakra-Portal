@@ -91,13 +91,16 @@
             {{-- ——— Player column (sticky on phones so the video stays in view while reading) ——— --}}
             {{-- No blur/transform on this block: either would trap the fixed comment bar inside it.
                  top-16 clears the app's own top bar on phones. --}}
-            <div class="sticky top-16 z-20 -mx-4 bg-brand-900 px-4 pb-2 pt-1 sm:mx-0 sm:px-0 lg:static lg:top-0 lg:bg-transparent lg:p-0">
-                <div x-ref="stage" class="group relative overflow-hidden rounded-2xl bg-black shadow-2xl ring-1 ring-white/10">
+            <div class="sticky top-16 -mx-4 bg-brand-900 px-4 pb-2 pt-1 sm:mx-0 sm:px-0 lg:static lg:top-0 lg:bg-transparent lg:p-0" :class="fs ? 'z-[100]' : 'z-20'">
+              {{-- Full screen: the picture, timeline, controls and a comment box fill the screen.
+                   Works on every phone (iPhones have no full-screen for a page element, so it is drawn). --}}
+              <div x-ref="theatre" :class="fs ? 'fixed inset-0 z-[100] flex flex-col justify-center gap-2 overflow-y-auto bg-black px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-[max(.75rem,env(safe-area-inset-top))] sm:px-8' : ''">
+                <div x-ref="stage" class="group relative overflow-hidden rounded-2xl bg-black shadow-2xl ring-1 ring-white/10" :class="fs ? 'rounded-none ring-0 shadow-none' : ''">
                     @if ($video->hasFile())
                         <video x-ref="video" src="{{ route('reviews.file', $video) }}" @if ($video->poster_path) poster="{{ route('reviews.poster', $video) }}" @endif
                                preload="metadata" playsinline controlsList="nodownload" disablePictureInPicture
-                               class="mx-auto block select-none bg-black {{ $vertical ? 'h-auto w-auto max-w-full max-h-[32vh] sm:max-h-[60vh] lg:max-h-[70vh]' : 'w-full max-h-[32vh] sm:max-h-[60vh] lg:max-h-[70vh]' }}"
-                               :class="(at !== null || body.trim()) ? 'max-lg:max-h-[24vh]' : ''"
+                               class="mx-auto block select-none bg-black {{ $vertical ? 'h-auto w-auto max-w-full max-h-[38vh] sm:max-h-[60vh] lg:max-h-[70vh]' : 'w-full max-h-[38vh] sm:max-h-[60vh] lg:max-h-[70vh]' }}"
+                               :class="fs ? '!max-h-[calc(100dvh-190px)] !w-auto !max-w-full' : ((at !== null || body.trim()) ? 'max-lg:max-h-[26vh]' : '')"
                                @contextmenu.prevent></video>
 
                         {{-- Tap layer: tap = play/pause, double-tap a side = 5s --}}
@@ -121,6 +124,13 @@
                         <button type="button" x-show="!playing && !flash" x-transition.opacity.duration.200ms @click.stop="toggle()"
                                 class="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-brand-900 shadow-xl transition hover:scale-105" aria-label="Play">
                             <svg class="h-7 w-7 translate-x-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                        </button>
+
+                        {{-- Full screen, on the picture itself --}}
+                        <button type="button" @click.stop="full()" class="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white shadow-lg transition hover:bg-black/75 active:scale-95"
+                                :aria-label="fs ? 'Leave full screen' : 'Full screen'">
+                            <svg x-show="!fs" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+                            <svg x-show="fs" x-cloak class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
                         </button>
 
                         {{-- Comment on this exact moment, from the picture itself --}}
@@ -191,7 +201,7 @@
                             <span class="ml-auto"></span>
                             <button type="button" @click="setRate()" class="{{ $btn }} h-10 min-w-[44px] bg-white/[0.06] px-2 font-mono text-white hover:bg-white/10" x-text="rate + '×'" aria-label="Speed"></button>
                             <button type="button" @click="mute()" class="{{ $btn }} hidden h-10 w-10 bg-white/[0.06] text-white hover:bg-white/10 sm:inline-flex" :aria-label="muted ? 'Sound on' : 'Mute'" x-text="muted ? '🔇' : '🔊'"></button>
-                            <button type="button" @click="full()" class="{{ $btn }} hidden h-10 w-10 bg-white/[0.06] text-white hover:bg-white/10 sm:inline-flex" aria-label="Full screen">⛶</button>
+                            <button type="button" @click="full()" class="{{ $btn }} h-10 w-10 bg-white/[0.06] text-white hover:bg-white/10" :aria-label="fs ? 'Leave full screen' : 'Full screen'" x-text="fs ? '✕' : '⛶'"></button>
                         </div>
 
                         {{-- This device's copy of the video --}}
@@ -206,13 +216,24 @@
                                 <span class="text-emerald-300/80">✓ Saved on this device · plays instantly, even offline <button type="button" @click="forgetCopy()" class="ml-1 text-brand-100/40 underline underline-offset-2 hover:text-white">remove</button></span>
                             </template>
                             <template x-if="cache.state === 'ask'">
-                                <button type="button" @click="deviceCopy(true)" class="text-brand-300 underline underline-offset-2 hover:text-white">Save to this device for smooth playback ({{ number_format($video->size / 1048576) }} MB)</button>
+                                <button type="button" @click="deviceCopy(true)" class="inline-flex items-center gap-1 rounded-full bg-white/[0.06] px-2.5 py-1 text-brand-200 ring-1 ring-white/10 hover:bg-white/10 hover:text-white">⬇ Save to this device ({{ number_format($video->size / 1048576) }} MB) — smooth seeking, works offline</button>
                             </template>
                             <template x-if="cache.state === 'big'"><span class="text-brand-100/40">Too big to keep on the device; plays from the portal.</span></template>
                         </div>
-                        <p class="mt-1.5 hidden text-[11px] text-brand-100/35 lg:block">Space play · J / L 5s · ← → 2s · Shift + ← → one frame · C comment · M mute · F full screen</p>
+                        <p class="mt-1.5 hidden text-[11px] text-brand-100/35 lg:block" x-show="!fs">Space play · J / L 5s · ← → 2s · Shift + ← → one frame · C comment · M mute · F full screen</p>
+
+                        {{-- Commenting without leaving full screen --}}
+                        <form x-show="fs" x-cloak @submit.prevent="send()" class="mx-auto mt-2 flex w-full max-w-3xl items-end gap-2">
+                            <span class="mb-3 shrink-0 rounded-full bg-amber-400/15 px-2.5 py-1 font-mono text-xs font-bold text-amber-200" x-text="'📍 ' + clock(at ?? t)"></span>
+                            <textarea x-model="body" rows="1" maxlength="2000" @focus="startComment(false)" @keydown.enter.ctrl.prevent="send()" @keydown.enter.meta.prevent="send()"
+                                      placeholder="Comment on this moment…" class="min-h-[48px] flex-1 resize-none rounded-2xl border-0 bg-white/10 px-4 py-3 text-[16px] text-white placeholder:text-white/40 focus:ring-2 focus:ring-amber-400/70"></textarea>
+                            <button type="submit" :disabled="!body.trim() || busy.send" aria-label="Send comment" class="{{ $btn }} h-12 w-12 shrink-0 rounded-full bg-amber-400 text-brand-900">
+                                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
+                            </button>
+                        </form>
                     </div>
                 @endif
+              </div>
 
                 {{-- ——— Writing a comment: fixed at the bottom on phones, under the player on computers.
                      Enter makes a new line; only Send (or Ctrl/Cmd + Enter) posts. ——— --}}
