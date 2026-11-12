@@ -25,7 +25,7 @@
                     <div class="rounded-xl bg-white/5 p-4 ring-1 ring-white/10">
                         <p class="font-semibold text-white">{{ $label }}</p>
                         @if ($r)
-                            <p class="mt-0.5 text-xs text-brand-100/55">Version {{ $r->version }} · {{ $r->created_at->format('j M Y') }}</p>
+                            <p class="mt-0.5 text-xs text-brand-100/55">Version {{ $r['version'] }}@if ($r['date']) · {{ $r['date']->format('j M Y') }}@endif</p>
                             <x-btn :href="route('api.planner.app.download', $platform)" size="sm" class="mt-3">Download</x-btn>
                         @else
                             <p class="mt-0.5 text-xs text-brand-100/45">Not released yet</p>
@@ -33,6 +33,11 @@
                     </div>
                 @endforeach
             </div>
+            @if ($releasesPage)
+                <p class="mt-3 text-xs text-brand-100/55">
+                    All versions and release notes: <a href="{{ $releasesPage }}" target="_blank" rel="noopener" class="text-brand-200 underline hover:text-white">GitHub releases</a>
+                </p>
+            @endif
 
             <div class="mt-4 grid gap-3 text-sm text-brand-100/75 sm:grid-cols-2">
                 <div class="rounded-lg bg-white/[0.03] p-3 ring-1 ring-white/10">

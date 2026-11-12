@@ -31,7 +31,9 @@ class PlannerPageController extends Controller
         $manage = $user->can('planner.manage');
 
         return view('planner.index', [
-            'releases' => PlannerRelease::latestPerPlatform(),
+            'releases' => collect(PlannerRelease::PLATFORMS)->keys()
+                ->mapWithKeys(fn (string $p) => [$p => \App\Services\Planner\PlannerGithubReleases::best($p)])->filter()->all(),
+            'releasesPage' => \App\Services\Planner\PlannerGithubReleases::pageUrl(),
             'mySessions' => PlannerSession::query()->where('user_id', $user->id)->latest('last_used_at')->get(),
             'manage' => $manage,
             'settings' => $manage ? PlannerSetting::current() : null,

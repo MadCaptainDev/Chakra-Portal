@@ -14,6 +14,11 @@ return [
     |
     */
 
+    // Chakra Planner desktop builds are published as releases here (public repo).
+    'planner' => [
+        'github_repo' => env('PLANNER_GITHUB_REPO', 'MadCaptainDev/chakra-planner-releases'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

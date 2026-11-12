@@ -516,6 +516,18 @@ Events are hints, not the record. If one is missed (offline, asleep), the next
 
 ## App updates (public, no token)
 
+**Where builds come from.** Two sources, merged per platform (higher version wins):
+
+1. **GitHub releases** of `MadCaptainDev/chakra-planner-releases` (public; set
+   `PLANNER_GITHUB_REPO` to change). The newest non-draft, non-prerelease
+   release is read and cached 10 minutes. Installers are matched by file name
+   (`…-setup.exe` / `.msi` → Windows; `…aarch64.dmg` → Apple chip;
+   `…x64.dmg` → Intel; `…universal.dmg` → both). Self-update needs the
+   release's **`latest.json`** asset (tauri-action uploads it by default); its
+   `platforms` entries give the signed updater URL and signature. A platform
+   missing from `latest.json` can be downloaded but won't self-update.
+2. **`POST /app/releases`** uploads (below), kept as a fallback.
+
 ### `GET /app/update/{target}/{arch}/{current_version}`
 
 Tauri v2's dynamic updater format. Configure

@@ -458,6 +458,39 @@ class PlannerApiTest extends TestCase
         $this->getJson(route('api.planner.app.latest'))->assertJsonPath('platforms.darwin-aarch64.version', '0.2.0');
     }
 
+    public function test_github_releases_feed_downloads_and_updates(): void
+    {
+        config(['services.planner.github_repo' => 'acme/planner-releases']);
+        $dl = 'https://github.com/acme/planner-releases/releases/download/v0.3.0/';
+        Http::fake([
+            'api.github.com/repos/acme/planner-releases/releases*' => Http::response([
+                ['tag_name' => 'v0.4.0', 'draft' => true, 'prerelease' => false, 'assets' => []],
+                ['tag_name' => 'v0.3.0', 'draft' => false, 'prerelease' => false, 'body' => 'Board view',
+                    'published_at' => '2026-11-12T08:00:00Z', 'html_url' => 'https://github.com/acme/planner-releases/releases/tag/v0.3.0',
+                    'assets' => collect(['Chakra.Planner_0.3.0_x64-setup.exe', 'Chakra.Planner_0.3.0_x64_en-US.msi',
+                        'Chakra.Planner_0.3.0_aarch64.dmg', 'Chakra.Planner_0.3.0_x64.dmg', 'latest.json'])
+                        ->map(fn ($n) => ['name' => $n, 'browser_download_url' => $dl.$n])->all()],
+            ]),
+            'github.com/acme/planner-releases/releases/download/v0.3.0/latest.json' => Http::response([
+                'version' => '0.3.0',
+                'platforms' => [
+                    'darwin-aarch64' => ['url' => $dl.'Chakra.Planner_aarch64.app.tar.gz', 'signature' => 'c2ln'],
+                    'windows-x86_64-nsis' => ['url' => $dl.'Chakra.Planner_0.3.0_x64-setup.exe', 'signature' => 'd2lu'],
+                ],
+            ]),
+        ]);
+
+        $this->get(route('api.planner.app.download', 'windows-x86_64'))->assertRedirect($dl.'Chakra.Planner_0.3.0_x64-setup.exe');
+        $this->get(route('api.planner.app.download', 'darwin-x86_64'))->assertRedirect($dl.'Chakra.Planner_0.3.0_x64.dmg');
+        $this->getJson(route('api.planner.app.update', ['darwin', 'aarch64', '0.2.0']))
+            ->assertOk()->assertJsonPath('version', '0.3.0')->assertJsonPath('signature', 'c2ln')->assertJsonPath('notes', 'Board view');
+        $this->getJson(route('api.planner.app.update', ['windows', 'x86_64', '0.2.0']))->assertJsonPath('signature', 'd2lu');
+        $this->getJson(route('api.planner.app.update', ['windows', 'x86_64', '0.3.0']))->assertNoContent();
+        // No updater entry for Intel Macs in latest.json: download yes, self-update no.
+        $this->getJson(route('api.planner.app.update', ['darwin', 'x86_64', '0.2.0']))->assertNoContent();
+        $this->getJson(route('api.planner.app.latest'))->assertJsonPath('platforms.darwin-aarch64.version', '0.3.0');
+    }
+
     public function test_the_desktop_app_origin_passes_cors(): void
     {
         $this->call('OPTIONS', '/api/planner/items', [], [], [], [

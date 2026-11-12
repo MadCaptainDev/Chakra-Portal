@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Planner;
 
 use App\Http\Controllers\Controller;
 use App\Models\PlannerRelease;
+use App\Services\Planner\PlannerGithubReleases;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,7 +14,9 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 
 /**
- * Chakra Planner's own updates, hosted by the portal.
+ * Chakra Planner's own updates. Builds come from the GitHub releases repo
+ * (PlannerGithubReleases) or are uploaded straight to the portal (store);
+ * per platform the higher version wins.
  *
  * GitHub builds the installers and uploads them here (store); the app's
  * built-in updater asks update() on start; people download from the Chakra
@@ -30,18 +33,20 @@ class PlannerReleaseController extends Controller
      */
     public function update(string $target, string $arch, string $current): JsonResponse|Response
     {
-        $release = PlannerRelease::latestPerPlatform()["{$target}-{$arch}"] ?? null;
+        $best = PlannerGithubReleases::best("{$target}-{$arch}");
 
-        if (! $release || version_compare($release->version, ltrim($current, 'v'), '<=')) {
+        // No signed updater file (e.g. a GitHub release without latest.json): nothing to install.
+        if (! $best || ! $best['updater_url'] || ! $best['signature']
+            || version_compare($best['version'], ltrim($current, 'v'), '<=')) {
             return response()->noContent();
         }
 
         return response()->json([
-            'version' => $release->version,
-            'notes' => (string) $release->notes,
-            'pub_date' => $release->created_at->toIso8601ZuluString(),
-            'url' => asset($release->file_path),
-            'signature' => (string) $release->signature,
+            'version' => $best['version'],
+            'notes' => $best['notes'],
+            'pub_date' => $best['date']?->toIso8601ZuluString(),
+            'url' => $best['updater_url'],
+            'signature' => $best['signature'],
         ]);
     }
 
@@ -49,25 +54,27 @@ class PlannerReleaseController extends Controller
     public function latest(): JsonResponse
     {
         return response()->json([
-            'platforms' => collect(PlannerRelease::latestPerPlatform())->map(fn (PlannerRelease $r) => [
-                'version' => $r->version,
-                'label' => PlannerRelease::PLATFORMS[$r->platform] ?? $r->platform,
-                'download_url' => route('api.planner.app.download', $r->platform),
-                'notes' => $r->notes,
-                'pub_date' => $r->created_at->toIso8601ZuluString(),
-            ]),
+            'platforms' => collect(PlannerRelease::PLATFORMS)
+                ->map(fn (string $label, string $platform) => ($b = PlannerGithubReleases::best($platform)) ? [
+                    'version' => $b['version'],
+                    'label' => $label,
+                    'download_url' => route('api.planner.app.download', $platform),
+                    'notes' => $b['notes'],
+                    'pub_date' => $b['date']?->toIso8601ZuluString(),
+                ] : null)
+                ->filter(),
         ]);
     }
 
     public function download(string $platform): RedirectResponse|JsonResponse
     {
-        $release = PlannerRelease::latestPerPlatform()[$platform] ?? null;
+        $best = PlannerGithubReleases::best($platform);
 
-        if (! $release) {
+        if (! $best) {
             return response()->json(['message' => 'No Chakra Planner release for that platform yet.', 'code' => 'no_release'], 404);
         }
 
-        return redirect()->away(asset($release->installer_path ?? $release->file_path));
+        return redirect()->away($best['installer_url']);
     }
 
     /** Upload one platform's build. Needs Chakra Planner → Manage. */
