@@ -64,6 +64,9 @@
             @forelse ($hub['inWorks'] as $item)
                 <div class="{{ $row }}">
                     <span class="min-w-0 truncate text-white">{{ $item->title ?: 'Untitled' }}</span>
+                    @foreach ($item->platforms ?? [] as $p)
+                        <span class="shrink-0 rounded bg-white/[0.06] px-1 py-px text-[10px] font-semibold text-brand-100/60">{{ \App\Support\VentureBoard::PLATFORMS[$p] ?? ucfirst($p) }}</span>
+                    @endforeach
                     <span class="shrink-0 text-xs text-amber-200">{{ $item->status }}{{ $item->published_date ? ' · '.$when($item->published_date) : '' }}</span>
                 </div>
             @empty

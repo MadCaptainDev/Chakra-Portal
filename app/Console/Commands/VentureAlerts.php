@@ -188,7 +188,8 @@ class VentureAlerts extends Command
             $lines = collect($board['rows'])->map(fn (array $r) => ($r['health'] === 'ok' ? '' : '⚠ ').$r['venture'].': '
                 .$r['in_hand'].' in hand ('.$r['stages']['ready'].' ready, '.$r['stages']['scheduled'].' scheduled), '
                 .$r['stages']['to_shoot'].' to shoot, '.$r['out_month'].' out this month'
-                .($r['overdue'] ? ', '.$r['overdue'].' past their date' : ''));
+                .($r['overdue'] ? ', '.$r['overdue'].' past their date' : '')
+                .($r['missing_youtube'] ? ', '.$r['missing_youtube'].' not on YouTube' : ''));
             $t = $board['totals'];
             $head = $t['in_hand'].' videos in hand across '.count($board['rows']).' ventures, '.$t['out_month'].' out this month.';
 

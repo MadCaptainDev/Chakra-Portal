@@ -24,7 +24,7 @@
         <div class="mr-auto">
             <h2 class="text-[22px] font-extrabold tracking-tight text-white">My ventures</h2>
             <p class="mt-0.5 text-[13px] text-brand-100/60">
-                <span x-text="board.totals.in_hand"></span> videos in hand ·
+                <span x-text="board.totals.in_hand"></span> videos in hand (a reel and its YouTube copy count once) ·
                 <span x-text="board.totals.stages.to_shoot"></span> to shoot ·
                 <span x-text="board.totals.out_month"></span> out in <span x-text="board.month"></span>
                 <span class="mx-1 text-brand-100/25">|</span>
@@ -54,7 +54,7 @@
     </p>
 
     {{-- Totals across the board, stage by stage --}}
-    <div class="mb-3 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+    <div class="mb-3 grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-9">
         <div class="rounded-xl bg-gradient-to-br from-brand-400/25 to-brand-400/5 px-3 py-2.5 ring-1 ring-brand-400/30">
             <p class="text-2xl font-extrabold tabular-nums text-white" x-text="board.totals.in_hand"></p>
             <p class="text-[11px] font-semibold uppercase tracking-wide text-brand-100/70">In hand</p>
@@ -71,57 +71,104 @@
             <p class="text-2xl font-extrabold tabular-nums text-emerald-300" x-text="board.totals.out_month"></p>
             <p class="text-[11px] font-semibold uppercase tracking-wide text-brand-100/55">Out this month</p>
         </div>
+        <div x-show="board.totals.missing_youtube > 0" class="rounded-xl bg-amber-400/[0.08] px-3 py-2.5 ring-1 ring-amber-400/25" title="Published or scheduled as a reel, with no YouTube copy in the planner">
+            <p class="text-2xl font-extrabold tabular-nums text-amber-200" x-text="board.totals.missing_youtube"></p>
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-amber-200/70">Not on YouTube</p>
+        </div>
     </div>
 
-    {{-- One card per venture --}}
+    {{-- One card per venture. A video counts once, however many planners it is in (reel + YouTube). --}}
     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 transition-opacity" :class="busy ? 'opacity-60' : ''">
-        <template x-for="row in board.rows" :key="row.venture">
-            <a :href="plannerUrl(row.venture)"
-               class="group flex flex-col rounded-2xl border bg-[#15303f] p-4 transition hover:-translate-y-0.5 hover:border-brand-400/40"
-               :class="{ ok: 'border-white/[0.06]', low: 'border-amber-400/35', empty: 'border-red-400/40' }[row.health]">
+        <template x-for="(row, n) in board.rows" :key="row.venture">
+            <article class="vb-card group flex flex-col rounded-2xl border bg-[#15303f] p-4 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/20"
+                     :style="`animation-delay:${n * 60}ms`"
+                     :class="{ ok: 'border-white/[0.06] hover:border-brand-400/40', low: 'border-amber-400/35', empty: 'border-red-400/40' }[row.health]">
                 <div class="flex items-center gap-3">
-                    <template x-if="row.logo_url"><img :src="row.logo_url" alt="" class="h-10 w-10 shrink-0 rounded-xl bg-white object-contain p-0.5"></template>
-                    <template x-if="!row.logo_url"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-sm font-bold text-white/70" x-text="initials(row.venture)"></span></template>
+                    <template x-if="row.logo_url"><img :src="row.logo_url" alt="" class="h-11 w-11 shrink-0 rounded-xl bg-white object-contain p-0.5"></template>
+                    <template x-if="!row.logo_url"><span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 text-sm font-bold text-white/70" x-text="initials(row.venture)"></span></template>
                     <div class="min-w-0 flex-1">
-                        <p class="truncate text-[15px] font-semibold text-white group-hover:text-brand-200" x-text="row.venture"></p>
+                        <a :href="plannerUrl(row.venture)" class="block truncate text-[15px] font-semibold text-white hover:text-brand-200" x-text="row.venture" title="Open in planner"></a>
                         <p class="text-xs text-brand-100/55">
-                            <span x-show="row.planned_until">Planned until <span x-text="day(row.planned_until)"></span></span>
+                            <span x-show="row.planned_until">Planned until <span class="font-semibold text-brand-100/80" x-text="day(row.planned_until)"></span></span>
                             <span x-show="!row.planned_until">Nothing dated ahead</span>
                         </p>
                     </div>
                     <div class="shrink-0 text-right">
                         <p class="text-3xl font-extrabold leading-none tabular-nums"
                            :class="{ ok: 'text-white', low: 'text-amber-300', empty: 'text-red-300' }[row.health]" x-text="row.in_hand"></p>
-                        <p class="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-100/50">in hand</p>
+                        <p class="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-100/50" x-text="row.in_hand === 1 ? 'video in hand' : 'videos in hand'"></p>
                     </div>
                 </div>
 
                 {{-- The pipeline as one bar --}}
                 <div class="mt-3 flex h-2 overflow-hidden rounded-full bg-white/[0.06]">
                     <template x-for="s in board.stages" :key="s.key">
-                        <span class="h-full transition-all duration-500" :style="`width:${share(row, s.key)}%;background:${s.color}`"></span>
+                        <span class="h-full transition-all duration-700 ease-out" :style="`width:${share(row, s.key)}%;background:${s.color}`"></span>
+                    </template>
+                </div>
+                <div class="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                    <template x-for="s in board.stages.filter((s) => row.stages[s.key])" :key="s.key">
+                        <span class="inline-flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-brand-100/80">
+                            <span class="h-1.5 w-1.5 rounded-full" :style="`background:${s.color}`"></span>
+                            <span class="font-bold tabular-nums text-white" x-text="row.stages[s.key]"></span><span x-text="s.label"></span>
+                        </span>
                     </template>
                 </div>
 
-                <div class="mt-3 grid grid-cols-6 gap-1 text-center">
-                    <template x-for="s in board.stages" :key="s.key">
-                        <div class="rounded-lg py-1.5" :class="row.stages[s.key] ? 'bg-white/[0.05]' : ''">
-                            <p class="text-[15px] font-bold tabular-nums" :class="row.stages[s.key] ? 'text-white' : 'text-brand-100/25'" x-text="row.stages[s.key]"></p>
-                            <p class="truncate text-[10px] text-brand-100/50" x-text="s.label"></p>
-                        </div>
-                    </template>
-                </div>
-
-                <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-white/[0.05] pt-2.5 text-xs">
-                    <span class="text-emerald-300/90">
-                        <span class="font-semibold tabular-nums" x-text="row.out_month"></span><span x-show="row.target" x-text="' / ' + row.target"></span> out this month
+                {{-- This month: what went out, and where --}}
+                <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl bg-emerald-400/[0.06] px-3 py-2 text-xs ring-1 ring-emerald-400/15">
+                    <span class="text-emerald-200">
+                        <span class="text-base font-extrabold tabular-nums" x-text="row.out_month"></span><span x-show="row.target" class="text-emerald-200/70" x-text="' / ' + row.target"></span>
+                        <span x-text="row.out_month === 1 ? 'video out' : 'videos out'"></span> in <span x-text="board.month.split(' ')[0]"></span>
                     </span>
-                    <span x-show="row.overdue > 0" class="text-red-300"><span x-text="row.overdue"></span> past their date</span>
+                    <span class="ml-auto flex gap-1.5">
+                        <template x-for="p in platforms" :key="p.key">
+                            <span x-show="row.out_by_type[p.key]" class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-semibold" :class="p.chip">
+                                <span x-text="p.icon"></span><span class="tabular-nums" x-text="row.out_by_type[p.key]"></span>
+                            </span>
+                        </template>
+                    </span>
+                    <div x-show="row.target" class="h-1 w-full overflow-hidden rounded-full bg-white/10">
+                        <div class="h-full rounded-full bg-emerald-400 transition-all duration-700 ease-out" :style="`width:${Math.min(100, row.target ? row.out_month / row.target * 100 : 0)}%`"></div>
+                    </div>
+                </div>
+
+                <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                    <span x-show="row.overdue > 0" class="text-red-300">⚠ <span x-text="row.overdue"></span> past their date</span>
+                    <span x-show="row.missing_youtube > 0" class="text-amber-300" title="Published or scheduled as a reel, with no YouTube copy in the planner">▶ <span x-text="row.missing_youtube"></span> not on YouTube</span>
                     <span x-show="row.health === 'low'" class="text-amber-300">Running low</span>
                     <span x-show="row.health === 'empty'" class="text-red-300">Nothing in hand or to shoot</span>
-                    <span class="ml-auto text-brand-300 opacity-0 transition group-hover:opacity-100">Open in planner →</span>
                 </div>
-            </a>
+
+                {{-- The videos themselves --}}
+                <button type="button" x-show="row.videos.length" @click="toggleOpen(row.venture)"
+                        class="mt-3 flex items-center gap-2 border-t border-white/[0.05] pt-2.5 text-left text-xs font-semibold text-brand-200 hover:text-white">
+                    <span x-text="isOpen(row.venture) ? 'Hide videos' : 'Show the ' + row.videos.length + ' videos'"></span>
+                    <span class="transition-transform duration-300" :class="isOpen(row.venture) ? 'rotate-180' : ''">▾</span>
+                </button>
+                <div class="grid transition-[grid-template-rows] duration-300 ease-out" :class="isOpen(row.venture) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'">
+                    <ul class="min-h-0 space-y-1 overflow-hidden">
+                        <template x-for="(v, i) in row.videos" :key="v.title + v.date">
+                            <li class="vb-video mt-1 flex items-start gap-2.5 rounded-lg px-2 py-1.5 transition hover:bg-white/[0.04]"
+                                :class="isOpen(row.venture) ? 'vb-in' : ''" :style="`animation-delay:${i * 35}ms`">
+                                <span class="mt-1 h-2 w-2 shrink-0 rounded-full" :style="`background:${stageColor(v.stage)}`" :title="stageLabel(v.stage)"></span>
+                                <div class="min-w-0 flex-1">
+                                    <p class="truncate text-[13px] text-white/90" :class="v.out ? 'text-white/70' : ''" x-text="v.title" :title="v.title"></p>
+                                    <p class="mt-0.5 flex flex-wrap items-center gap-1 text-[10.5px]">
+                                        <span class="text-brand-100/50" x-text="(v.out ? 'Out ' : '') + (v.date ? day(v.date) : 'No date') + (v.out ? '' : ' · ' + stageLabel(v.stage))"></span>
+                                        <template x-for="p in v.platforms" :key="p.source">
+                                            <span class="rounded px-1 py-px font-semibold"
+                                                  :class="p.out ? 'bg-emerald-400/15 text-emerald-200' : (p.scheduled ? 'bg-violet-400/15 text-violet-200' : 'bg-white/[0.06] text-brand-100/55')"
+                                                  :title="p.label + ': ' + p.status" x-text="(p.out ? '✓ ' : (p.scheduled ? '◷ ' : '')) + p.label"></span>
+                                        </template>
+                                        <span x-show="v.missing_youtube" class="rounded bg-amber-400/15 px-1 py-px font-semibold text-amber-200">No YouTube</span>
+                                    </p>
+                                </div>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+            </article>
         </template>
     </div>
     <p x-show="board.rows.length === 0" x-cloak class="rounded-2xl border border-white/[0.06] bg-[#15303f] px-5 py-8 text-center text-sm text-brand-100/60">

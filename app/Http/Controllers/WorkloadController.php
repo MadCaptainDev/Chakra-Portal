@@ -53,7 +53,7 @@ class WorkloadController extends Controller
 
         $items = ContentItem::query()
             ->whereNotNull('assigned_user_id')
-            ->select(['assigned_user_id', 'status', 'source', 'venture', 'shoot_date', 'notion_shoot_id'])
+            ->select(['assigned_user_id', 'status', 'source', 'venture', 'title', 'shoot_date', 'notion_shoot_id'])
             ->with('notionShoot:id,shoot_date,client_id')
             ->get();
 
@@ -91,20 +91,23 @@ class WorkloadController extends Controller
                 return $date !== null && $date->lt($overdueCutoff);
             });
 
-            $delivered = $mine->where('status', 'Published')->count();
+            // Counts are videos: a reel and its YouTube copy are one (the load
+            // below still weighs each platform's upload).
+            $videos = fn (Collection $rows) => \App\Support\ContentPieces::videos($rows)->count();
+            $delivered = $videos($mine->where('status', 'Published'));
 
             $weightedLoad = $active->sum(fn (ContentItem $item) => self::WEIGHTS[$item->source] ?? 1);
 
             $byClient = $active->groupBy($clientNameFor)
-                ->map(fn (Collection $group) => $group->count())
+                ->map(fn (Collection $group) => $videos($group))
                 ->sortDesc();
 
             return [
                 'user' => $user,
                 'active_shoots' => (int) ($activeShoots[$user->id] ?? 0),
-                'active_content' => $active->count(),
+                'active_content' => $videos($active),
                 'weighted_load' => $weightedLoad,
-                'overdue' => $overdue->count(),
+                'overdue' => $videos($overdue),
                 'delivered' => $delivered,
                 'by_client' => $byClient,
             ];

@@ -132,4 +132,97 @@ class ContentPieces
             'url' => $row->notion_url,
         ];
     }
+
+    /**
+     * The video a planner row belongs to, whatever planner it sits in: the
+     * Reel and YouTube rows of one cut are one video, so staff counts ("in
+     * hand", "out this month", an editor's output) count it once.
+     *
+     * Unlike collapse() this ignores the date -- the YouTube copy is often
+     * scheduled a day after the reel -- and the "Client - " in front of the
+     * title, which is typed differently between planners. Within one venture.
+     */
+    public static function videoKey(ContentItem $item): string
+    {
+        $core = self::core($item->title);
+
+        return self::family($item->venture).'|'.(mb_strlen($core) >= 4 ? $core : self::norm($item->title));
+    }
+
+    /**
+     * Which account a venture spelling belongs to. The planners spell one
+     * client differently ("Janet" in the Reel Planner, "janet Hospital" in
+     * YouTube; "Thillai Pets Clinic" and "Thillai pets"), and the content
+     * account connections already say they are one. Then the timesheet's
+     * client, then the spelling itself.
+     */
+    public static function family(?string $venture): string
+    {
+        $fold = mb_strtolower(trim((string) $venture));
+        $accounts = self::accountsByVenture();
+        if (isset($accounts[$fold])) {
+            return 'a:'.$accounts[$fold];
+        }
+        $client = TimesheetVenture::clientIdFor($venture);
+
+        return $client ? 'c:'.$client : 'v:'.$fold;
+    }
+
+    /**
+     * Every venture spelling connected to the same accounts as these.
+     *
+     * @param  list<string>  $ventures
+     * @return list<string>
+     */
+    public static function siblings(array $ventures): array
+    {
+        $families = collect($ventures)->map(fn ($v) => self::family($v))->unique();
+        $more = \App\Models\ContentAccountVenture::query()->pluck('venture')
+            ->filter(fn ($v) => $families->contains(self::family($v)));
+
+        return collect($ventures)->merge($more)->unique(fn ($v) => mb_strtolower(trim((string) $v)))->values()->all();
+    }
+
+    /** @return array<string, int> folded venture => content account id, once per request */
+    private static function accountsByVenture(): array
+    {
+        $key = 'content-pieces.accounts-by-venture';
+        if (! app()->bound($key)) {
+            app()->instance($key, \App\Models\ContentAccountVenture::query()->orderBy('id')->get(['venture', 'content_account_id'])
+                ->mapWithKeys(fn ($r) => [mb_strtolower(trim((string) $r->venture)) => (int) $r->content_account_id])->all());
+        }
+
+        return app($key);
+    }
+
+    /**
+     * Planner rows grouped into videos, each group keyed by videoKey().
+     *
+     * @param  Collection<int, ContentItem>  $items
+     * @return Collection<string, Collection<int, ContentItem>>
+     */
+    public static function videos(Collection $items): Collection
+    {
+        return $items->groupBy(fn (ContentItem $item) => self::videoKey($item));
+    }
+
+    /** Lower case, letters and digits only, single spaces. */
+    public static function norm(?string $title): string
+    {
+        return trim((string) preg_replace('/\s+/', ' ', (string) preg_replace('/[^\p{L}\p{N}]+/u', ' ', mb_strtolower((string) $title))));
+    }
+
+    /** The title without a leading "Client - ". */
+    public static function core(?string $title): string
+    {
+        return self::norm(preg_replace('/^[^-–—:]{2,32}\s[-–—:]\s*/u', '', (string) $title));
+    }
+
+    /** The title as people read it: without the "Client - " in front. */
+    public static function displayTitle(?string $title): string
+    {
+        $t = trim((string) preg_replace('/^[^-–—:]{2,32}\s[-–—:]\s*/u', '', (string) $title));
+
+        return $t !== '' ? $t : trim((string) $title);
+    }
 }

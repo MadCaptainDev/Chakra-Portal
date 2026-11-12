@@ -37,11 +37,17 @@ class ClientHub
             'target' => $a->targetFor(ContentItem::SOURCE_REEL),
         ]);
 
-        $inWorks = $client->contentItems()
+        // One line per video: a reel and its YouTube copy are one piece of work.
+        $inWorksVideos = ContentPieces::videos($client->contentItems()
             ->whereIn('status', ContentDashboard::STATUS_GROUPS['in_progress'])
             ->orderByRaw('published_date is null')->orderBy('published_date')
-            ->limit(8)
-            ->get(['id', 'title', 'status', 'source', 'published_date', 'editor']);
+            ->get(['id', 'title', 'venture', 'status', 'source', 'published_date', 'editor']));
+        $inWorks = $inWorksVideos->map(function ($parts) {
+            $first = $parts->first();
+            $first->setAttribute('platforms', $parts->pluck('source')->unique()->values()->all());
+
+            return $first;
+        })->values()->take(8);
 
         $shoots = $client->shoots()->where('status', '!=', Shoot::STATUS_CANCELLED)
             ->where('starts_at', '>=', today()->subDays(21))
@@ -59,7 +65,7 @@ class ClientHub
                 'target' => (int) $perAccount->sum(fn ($a) => $a['target'] ?? 0),
             ],
             'accounts' => $perAccount,
-            'inWorksCount' => $client->contentItems()->whereIn('status', ContentDashboard::STATUS_GROUPS['in_progress'])->count(),
+            'inWorksCount' => $inWorksVideos->count(),
             'inWorks' => $inWorks,
             'shoots' => $shoots,
             'unpaid' => $unpaid,

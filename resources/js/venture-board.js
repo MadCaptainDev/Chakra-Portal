@@ -170,5 +170,24 @@ export function ventureBoard(urls, initial) {
         plannerUrl(venture) {
             return `${urls.planner}?view=board&client=${encodeURIComponent(venture)}`;
         },
+
+        // ——— The list of videos on each card ———
+        open: {},
+        platforms: [
+            { key: 'reel', icon: 'Reel', chip: 'bg-pink-400/15 text-pink-200' },
+            { key: 'youtube', icon: 'YouTube', chip: 'bg-red-400/15 text-red-200' },
+            { key: 'post', icon: 'Post', chip: 'bg-sky-400/15 text-sky-200' },
+            { key: 'story', icon: 'Story', chip: 'bg-amber-400/15 text-amber-200' },
+        ],
+        isOpen(venture) { return !!this.open[venture]; },
+        toggleOpen(venture) { this.open[venture] = !this.open[venture]; },
+        stageColor(key) {
+            if (key === 'out') return '#34d399';
+            return (this.board.stages.find((s) => s.key === key) || {}).color || '#94a3b8';
+        },
+        stageLabel(key) {
+            if (key === 'out') return 'Out';
+            return (this.board.stages.find((s) => s.key === key) || {}).label || 'Other';
+        },
     };
 }

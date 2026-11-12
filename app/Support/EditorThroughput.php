@@ -103,7 +103,11 @@ class EditorThroughput
             ->whereNotNull('published_date')
             ->whereDate('published_date', '>=', $from->toDateString())
             ->whereDate('published_date', '<=', $to->toDateString())
-            ->get(['editor', 'tier', 'published_date', 'source', 'venture']);
+            ->get(['editor', 'tier', 'published_date', 'source', 'venture', 'title']);
+        // Editing the reel and putting the same cut on YouTube is one video
+        // edited, not two. The per-planner totals below still count each row.
+        $rows = $items;
+        $items = ContentPieces::videos($items)->map(fn ($parts) => $parts->first())->values();
 
         $hours = TimesheetEntry::with('user')
             ->where('task_type', TimesheetEntry::TASK_EDITING)
@@ -123,9 +127,9 @@ class EditorThroughput
             'months' => self::months($people, $items, $hours, $from, $to, $currentMonthKey),
             'shared' => $items->filter(fn (ContentItem $i) => self::isShared($i->editor))->count(),
             'unattributedItems' => $items->filter(fn (ContentItem $i) => blank($i->editor))->count(),
-            'byPlannerTotals' => self::plannerCounts($items),
+            'byPlannerTotals' => self::plannerCounts($rows),
             'lastSynced' => ContentItem::max('synced_at'),
-            'sources' => $items->pluck('source')->unique()->filter()->sort()->values()->all(),
+            'sources' => $rows->pluck('source')->unique()->filter()->sort()->values()->all(),
         ];
     }
 

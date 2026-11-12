@@ -44,6 +44,17 @@ class VentureBoard
     /** Never counted. */
     public const IGNORED = ['Canceled', 'Cancelled', 'Hold'];
 
+    /** Videos listed per venture card. */
+    public const LIST_MAX = 14;
+
+    /** Platforms in the order a card shows them. */
+    public const PLATFORMS = [
+        ContentItem::SOURCE_REEL => 'Reel',
+        ContentItem::SOURCE_YOUTUBE => 'YouTube',
+        ContentItem::SOURCE_POST => 'Post',
+        ContentItem::SOURCE_STORY => 'Story',
+    ];
+
     /** How many ventures a person sees before choosing any. */
     public const DEFAULT_COUNT = 6;
 
@@ -61,17 +72,30 @@ class VentureBoard
     public static function all(): Collection
     {
         $live = array_merge(...array_column(self::STAGES, 1));
+        $accountNames = \App\Models\ContentAccount::query()->pluck('name', 'id');
 
         return self::items()->whereNotNull('venture')->where('venture', '!=', '')
             ->selectRaw('venture, COUNT(*) AS total, SUM(CASE WHEN status IN ('.implode(',', array_fill(0, count($live), '?')).') THEN 1 ELSE 0 END) AS active', $live)
             ->groupBy('venture')
             ->get()
-            ->map(fn ($row) => [
-                'name' => $row->venture,
-                'active' => (int) $row->active,
-                'total' => (int) $row->total,
-                'logo_url' => PlannerVisuals::client($row->venture)['logo_url'] ?? null,
-            ])
+            // One entry per client, not per spelling: each Notion planner spells
+            // some clients its own way ("Janet" / "janet Hospital"), and the
+            // content account connections say which are one. Named by the
+            // spelling with the most rows.
+            ->groupBy(fn ($row) => ContentPieces::family($row->venture))
+            ->map(function ($rows, string $family) use ($accountNames) {
+                $named = str_starts_with($family, 'a:') ? mb_strtolower(trim((string) ($accountNames[(int) substr($family, 2)] ?? ''))) : null;
+                $main = ($named ? $rows->first(fn ($r) => mb_strtolower(trim($r->venture)) === $named) : null)?->venture
+                    ?? $rows->sortByDesc('total')->first()->venture;
+
+                return [
+                    'name' => $main,
+                    'active' => (int) $rows->sum('active'),
+                    'total' => (int) $rows->sum('total'),
+                    'spellings' => $rows->pluck('venture')->values()->all(),
+                    'logo_url' => PlannerVisuals::client($main)['logo_url'] ?? null,
+                ];
+            })
             ->sortBy([['active', 'desc'], ['total', 'desc'], ['name', 'asc']])
             ->values();
     }
@@ -79,7 +103,9 @@ class VentureBoard
     /** @return list<string> the ventures this person watches, in their order */
     public static function chosen(User $user): array
     {
-        return VentureWatch::query()->where('user_id', $user->id)->orderBy('sort_order')->orderBy('id')->pluck('venture')->all();
+        // Two spellings of one client chosen before they were merged count once.
+        return VentureWatch::query()->where('user_id', $user->id)->orderBy('sort_order')->orderBy('id')->pluck('venture')
+            ->unique(fn (string $v) => ContentPieces::family($v))->values()->all();
     }
 
     /**
@@ -104,48 +130,87 @@ class VentureBoard
      */
     public static function build(array $ventures, Carbon $month, int $low = 4): array
     {
+        $ventures = collect($ventures)->unique(fn (string $v) => ContentPieces::family($v))->values()->all();
         $rows = collect($ventures)->mapWithKeys(fn (string $v) => [$v => self::blank($v)])->all();
 
         if ($ventures !== []) {
             $from = $month->copy()->startOfMonth();
             $to = $month->copy()->endOfMonth();
 
-            $items = self::items()->whereIn('venture', $ventures)
+            // The other spellings of the same accounts too ("janet Hospital" is
+            // where Janet's YouTube copies are), so a reel meets its YouTube copy.
+            $items = self::items()->whereIn('venture', ContentPieces::siblings($ventures))
                 ->whereNotIn('status', self::IGNORED)
-                ->get(['id', 'venture', 'status', 'source', 'published_date']);
+                ->get(['id', 'title', 'venture', 'status', 'source', 'published_date']);
 
             // MySQL matched whereIn() ignoring case and trailing spaces
             // ("Janet " is "Janet"), so file each item under the name asked for.
             $asked = collect($ventures)->mapWithKeys(fn (string $v) => [self::fold($v) => $v]);
+            $byFamily = collect($ventures)->mapWithKeys(fn (string $v) => [ContentPieces::family($v) => $v]);
+            $order = array_flip([...array_keys(self::STAGES), 'other']);
 
-            foreach ($items as $item) {
-                $key = $asked[self::fold((string) $item->venture)] ?? null;
+            // One video, however many planners it sits in: the reel and its
+            // YouTube copy are counted once (see ContentPieces::videoKey).
+            foreach (ContentPieces::videos($items) as $parts) {
+                // Filed under the venture asked for: its own spelling first, else
+                // the asked venture of the same account.
+                $key = $parts->map(fn ($i) => $asked[self::fold((string) $i->venture)] ?? null)->filter()->first()
+                    ?? $byFamily[ContentPieces::family($parts->first()->venture)] ?? null;
                 if ($key === null) {
                     continue;
                 }
                 $row = &$rows[$key];
-                $stage = self::stageOf($item->status);
+                $done = $parts->filter(fn ($i) => in_array($i->status, self::DONE, true));
+                $open = $parts->reject(fn ($i) => in_array($i->status, self::DONE, true));
+                $video = self::video($parts);
 
-                if (in_array($item->status, self::DONE, true)) {
-                    if ($item->published_date && $item->published_date->between($from, $to)) {
+                if ($done->isNotEmpty()) {
+                    // Out (on at least one platform): never "in hand" again.
+                    $outOn = $done->max('published_date');
+                    if ($outOn && $outOn->between($from, $to)) {
                         $row['out_month']++;
-                        $row['out_by_type'][$item->source] = ($row['out_by_type'][$item->source] ?? 0) + 1;
+                        foreach ($done->pluck('source')->unique() as $source) {
+                            $row['out_by_type'][$source] = ($row['out_by_type'][$source] ?? 0) + 1;
+                        }
+                        $row['videos'][] = $video;
                     }
+                    if ($video['missing_youtube'] && $outOn && $outOn->gte($from)) {
+                        $row['missing_youtube']++;
+                    }
+                    unset($row);
+
                     continue;
                 }
 
+                // Not out anywhere: as far along as its least-advanced copy.
+                $stage = $open->map(fn ($i) => self::stageOf($i->status))->sortBy(fn ($s) => $order[$s])->first();
                 $row['stages'][$stage]++;
+                $date = $open->pluck('published_date')->filter()->min();
                 if (in_array($stage, self::IN_HAND, true)) {
                     $row['in_hand']++;
-                    if ($item->published_date && $item->published_date->gte(today())) {
-                        $row['planned_until'] = max($row['planned_until'] ?? '', $item->published_date->toDateString());
+                    if ($date && $date->gte(today())) {
+                        $row['planned_until'] = max($row['planned_until'] ?? '', $date->toDateString());
                     }
                 }
-                if ($item->published_date && $item->published_date->lt(today())) {
+                if ($date && $date->lt(today())) {
                     $row['overdue']++;
+                }
+                if ($video['missing_youtube']) {
+                    $row['missing_youtube']++;
+                }
+                if ($stage !== 'idea') {
+                    $row['videos'][] = $video;
                 }
                 unset($row);
             }
+
+            foreach ($rows as &$r) {
+                // Ready first, then by date; what went out this month after.
+                usort($r['videos'], fn ($a, $b) => [$a['out'], $a['out'] ? -strtotime((string) $a['date']) : -$a['rank'], $a['date'] ?? '9999']
+                    <=> [$b['out'], $b['out'] ? -strtotime((string) $b['date']) : -$b['rank'], $b['date'] ?? '9999']);
+                $r['videos'] = array_slice($r['videos'], 0, self::LIST_MAX);
+            }
+            unset($r);
 
             self::targets($rows);
         }
@@ -160,12 +225,50 @@ class VentureBoard
                     ->mapWithKeys(fn ($k) => [$k => array_sum(array_map(fn ($r) => $r['stages'][$k], $rows))])->all(),
                 'in_hand' => $sum('in_hand'),
                 'out_month' => $sum('out_month'),
+                'missing_youtube' => $sum('missing_youtube'),
                 'overdue' => $sum('overdue'),
             ],
             'stages' => collect(self::STAGES)->map(fn ($s, $k) => ['key' => $k, 'label' => $s[0], 'color' => $s[2]])->values()->all(),
             'month' => $month->format('F Y'),
             'last_synced_at' => NotionSyncRunner::lastSyncedAt()?->toIso8601String(),
             'generated_at' => now()->toIso8601String(),
+        ];
+    }
+
+    /**
+     * One video for the card: where it is, and each platform it goes to
+     * with whether it is out there. A video we publish or schedule goes to
+     * YouTube too; one only delivered to the client does not.
+     *
+     * @param  Collection<int, ContentItem>  $parts
+     * @return array<string, mixed>
+     */
+    public static function video(Collection $parts): array
+    {
+        $done = $parts->filter(fn ($i) => in_array($i->status, self::DONE, true));
+        $open = $parts->reject(fn ($i) => in_array($i->status, self::DONE, true));
+        $order = array_flip([...array_keys(self::STAGES), 'other']);
+        $stage = $done->isNotEmpty() ? 'out' : $open->map(fn ($i) => self::stageOf($i->status))->sortBy(fn ($s) => $order[$s])->first();
+        $date = $done->isNotEmpty() ? $done->max('published_date') : $open->pluck('published_date')->filter()->min();
+        $sources = $parts->pluck('source')->unique();
+        $posted = $parts->contains(fn ($i) => in_array($i->status, ['Published', 'Scheduled'], true));
+
+        return [
+            'title' => ContentPieces::displayTitle($parts->first()->title),
+            'stage' => $stage,
+            'rank' => $order[$stage] ?? 99,
+            'out' => $done->isNotEmpty(),
+            'date' => $date?->toDateString(),
+            'platforms' => collect(self::PLATFORMS)->filter(fn ($l, $src) => $sources->contains($src))
+                ->map(function ($label, $src) use ($parts) {
+                    $row = $parts->firstWhere('source', $src);
+
+                    return ['source' => $src, 'label' => $label, 'status' => $row->status,
+                        'out' => in_array($row->status, self::DONE, true), 'scheduled' => $row->status === 'Scheduled'];
+                })->values()->all(),
+            // Published or scheduled as a reel, and no YouTube copy at all.
+            'missing_youtube' => $posted && $sources->contains(ContentItem::SOURCE_REEL) && ! $sources->contains(ContentItem::SOURCE_YOUTUBE)
+                && ! $parts->contains(fn ($i) => $i->status === 'Delivered'),
         ];
     }
 
@@ -196,6 +299,8 @@ class VentureBoard
             'in_hand' => 0,
             'out_month' => 0,
             'out_by_type' => [],
+            'missing_youtube' => 0,
+            'videos' => [],
             'overdue' => 0,
             'planned_until' => null,
             'target' => null,

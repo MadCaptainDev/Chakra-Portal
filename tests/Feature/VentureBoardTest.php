@@ -28,10 +28,12 @@ class VentureBoardTest extends TestCase
         $this->admin = User::factory()->create(['role' => User::ROLE_ADMIN, 'name' => 'Keerthi']);
     }
 
-    private function item(string $venture, string $status, ?string $date = null, string $source = 'reel', string $title = 'Video'): ContentItem
+    private function item(string $venture, string $status, ?string $date = null, string $source = 'reel', ?string $title = null): ContentItem
     {
+        // Each row its own video unless a title is given: the same title in
+        // two planners is one video (see ContentPieces::videoKey).
         return ContentItem::factory()->create([
-            'source' => $source, 'venture' => $venture, 'status' => $status, 'title' => $title,
+            'source' => $source, 'venture' => $venture, 'status' => $status, 'title' => $title ?? 'Video '.uniqid('', true),
             'notion_page_id' => 'p-'.uniqid('', true), 'published_date' => $date,
         ]);
     }
@@ -216,5 +218,42 @@ class VentureBoardTest extends TestCase
         // what matters is that no row appears under another name.
         $this->assertCount(1, $rows);
         $this->assertSame('Janet', $rows[0]['venture']);
+    }
+
+    public function test_a_reel_and_its_youtube_copy_are_one_video_even_under_another_spelling(): void
+    {
+        $account = \App\Models\ContentAccount::create(['name' => 'Janet', 'client_id' => \App\Models\Client::factory()->create()->id]);
+        foreach (['Janet', 'janet Hospital'] as $v) {
+            \App\Models\ContentAccountVenture::create(['content_account_id' => $account->id, 'venture' => $v]);
+        }
+        // In hand: the reel and its YouTube copy, a day apart.
+        $this->item('Janet', 'To Be Edited', '2026-11-14', 'reel', 'Janet - BP in Pregnancy');
+        $this->item('janet Hospital', 'To Be Edited', '2026-11-15', 'youtube', 'JANET - BP in pregnancy');
+        // Out on both.
+        $this->item('Janet', 'Published', '2026-11-04', 'reel', 'Janet - Six Golden Days');
+        $this->item('janet Hospital', 'Published', '2026-11-04', 'youtube', 'Janet - Six Golden Days');
+        // Out as a reel and scheduled, never put on YouTube: flagged.
+        $this->item('Janet', 'Published', '2026-11-06', 'reel', 'Janet - Crackers and Pregnancy');
+        $this->item('Janet', 'Scheduled', '2026-11-20', 'reel', 'Janet - Secret Maths');
+        // Only delivered to the client: no YouTube expected.
+        $this->item('Janet', 'Delivered', '2026-11-07', 'reel', 'Janet - Doctor Intro');
+
+        $janet = VentureBoard::build(['Janet', 'janet Hospital'], now())['rows'];
+        $this->assertCount(1, $janet, 'One client, one row.');
+        $janet = $janet[0];
+        $this->assertSame(2, $janet['in_hand']);
+        $this->assertSame(3, $janet['out_month']);
+        $this->assertSame(['reel' => 3, 'youtube' => 1], $janet['out_by_type']);
+        $this->assertSame(2, $janet['missing_youtube']);
+
+        $bp = collect($janet['videos'])->firstWhere('title', 'BP in Pregnancy');
+        $this->assertSame(['Reel', 'YouTube'], array_column($bp['platforms'], 'label'));
+        $this->assertFalse($bp['out']);
+        $golden = collect($janet['videos'])->firstWhere('title', 'Six Golden Days');
+        $this->assertTrue($golden['out']);
+        $this->assertFalse($golden['missing_youtube']);
+
+        // The picker lists the client once.
+        $this->assertSame(['Janet'], VentureBoard::all()->pluck('name')->all());
     }
 }

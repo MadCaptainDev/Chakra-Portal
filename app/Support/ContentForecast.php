@@ -58,14 +58,19 @@ class ContentForecast
      */
     public static function forClient(Client $client): array
     {
-        [$remaining, $reliable, $fuzzy] = self::remainingFor($client);
+        [$remaining, $reliable, $fuzzy, $lastDated, $undated] = self::remainingFor($client);
         $weeklyCadence = self::weeklyCadenceFor($client);
         $nextShootDate = self::nextShootDateFor($client);
 
+        // The day the last video in hand goes out: the videos already given a
+        // date go out on it; the rest follow the last one at the target's
+        // pace (a 15-a-month client posts every two days). Surya's two reels
+        // dated 13 and 14 Nov run out on the 14th -- the old even-rate guess
+        // from today said the 17th.
         $depletionDate = match (true) {
             $weeklyCadence === null || $weeklyCadence <= 0 => null,
             $remaining <= 0 => now()->startOfDay(),
-            default => now()->startOfDay()->addDays((int) round($remaining / $weeklyCadence * 7)),
+            default => ($lastDated ?? now()->startOfDay())->copy()->addDays((int) round($undated / $weeklyCadence * 7)),
         };
 
         $bookByDate = $depletionDate?->copy()->subDays(self::EDIT_BUFFER_DAYS);
@@ -121,24 +126,32 @@ class ContentForecast
      * otherwise read as having a healthy runway on the strength of content
      * nobody's actually depending on for their reel cadence.
      *
-     * @return array{0: int, 1: int, 2: int} [remaining, reliable, fuzzy]
+     * Shot only: a reel still "To Be Shooted" cannot go out, so it is not
+     * runway (it is what the next shoot is for).
+     *
+     * @return array{0: int, 1: int, 2: int, 3: ?Carbon, 4: int} [remaining, reliable, fuzzy, last dated day, undated]
      */
     private static function remainingFor(Client $client): array
     {
-        $statuses = array_merge(
+        $statuses = array_values(array_diff(array_merge(
             ContentDashboard::STATUS_GROUPS['scheduled'],
             ContentDashboard::STATUS_GROUPS['in_progress'],
-        );
+        ), ['To Be Shooted']));
 
         $items = $client->contentItems()
             ->where('source', ContentItem::SOURCE_REEL)
             ->whereIn('status', $statuses)
-            ->select(['id', 'notion_shoot_id'])
+            ->select(['id', 'notion_shoot_id', 'published_date'])
             ->get();
 
         if ($items->isEmpty()) {
-            return [0, 0, 0];
+            return [0, 0, 0, null, 0];
         }
+
+        // A date already passed is a video still to go out, not a day booked.
+        $dated = $items->filter(fn (ContentItem $i) => $i->published_date && $i->published_date->gte(today()));
+        $lastDated = $dated->max('published_date')?->copy()->startOfDay();
+        $undated = $items->count() - $dated->count();
 
         $shootIds = $items->pluck('notion_shoot_id')->filter()->unique()->values();
 
@@ -149,7 +162,7 @@ class ContentForecast
 
         $reliable = $items->filter(fn (ContentItem $i) => $i->notion_shoot_id !== null && $reliableShootIds->contains($i->notion_shoot_id))->count();
 
-        return [$items->count(), $reliable, $items->count() - $reliable];
+        return [$items->count(), $reliable, $items->count() - $reliable, $lastDated, $undated];
     }
 
     /**

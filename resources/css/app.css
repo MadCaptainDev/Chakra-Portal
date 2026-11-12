@@ -417,3 +417,10 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
     .rv-flash, .rv-ripple, .rv-glow, .rv-ping::after, .rv-shimmer, .rv-pin, .rv-toast, .rv-done, .rv-burst, .rv-like, .rv-sheet { animation: none; }
 }
+
+/* Dashboard ventures board: cards rise in one after another; a card's video list slides open. */
+.vb-card { animation: settleIn .45s cubic-bezier(.2,.8,.2,1) both; }
+.vb-video { opacity: 0; transform: translateY(-4px); }
+.vb-video.vb-in { animation: vbVideoIn .3s ease-out both; }
+@keyframes vbVideoIn { to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .vb-card, .vb-video.vb-in { animation: none; } .vb-video { opacity: 1; transform: none; } }
