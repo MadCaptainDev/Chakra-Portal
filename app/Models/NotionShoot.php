@@ -59,6 +59,8 @@ class NotionShoot extends Model
         'gear_needed',
         'weather_forecast',
         'photo_url',
+        'client_confirmed',
+        'content_ready',
         'notion_created_at',
         'synced_at',
     ];

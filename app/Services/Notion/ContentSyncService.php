@@ -697,6 +697,8 @@ class ContentSyncService
                 'gear_needed' => $this->value($properties, $names['gear_needed'] ?? []),
                 'weather_forecast' => $this->value($properties, $names['weather_forecast'] ?? []),
                 'photo_url' => $this->value($properties, $names['photo_url'] ?? []),
+                'client_confirmed' => $this->value($properties, $names['client_confirmed'] ?? []),
+                'content_ready' => $this->value($properties, $names['content_ready'] ?? []),
                 'notion_created_at' => $this->toDateTime($page['created_time'] ?? null),
                 'synced_at' => now(),
         ];

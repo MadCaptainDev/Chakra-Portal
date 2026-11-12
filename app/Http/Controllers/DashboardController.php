@@ -163,7 +163,11 @@ class DashboardController extends Controller
             ->whereBetween('starts_at', [$month, $monthEnd])
             ->count();
 
+        // Tomorrow's shoots that are not ready -- see ShootReadiness.
+        $notReady = \App\Support\ShootReadiness::forDay(now()->addDay())->filter(fn (array $r) => $r['problems'] !== []);
+
         $actionItems = $this->actionItems([
+            'notReady' => $notReady,
             'unreadEnquiries' => $unreadEnquiries,
             'missedRoutinesCount' => $missedRoutinesCount,
             'portfolioSuggestion' => $portfolioSuggestion,
@@ -514,6 +518,19 @@ class DashboardController extends Controller
                 'detail' => 'Footage was shot, but nothing has been added to Notion\'s content pipeline for it.',
                 'href' => route('shoots.index', ['past' => 1, 'status' => 'completed']),
                 'cta' => 'Review',
+            ];
+        }
+
+        if (($ctx['notReady'] ?? collect())->isNotEmpty()) {
+            $first = $ctx['notReady']->first();
+            $items[] = [
+                'tone' => collect($first['problems'])->contains('tone', 'red') ? 'red' : 'amber',
+                'domain' => 'Shoots',
+                'title' => $ctx['notReady']->count().' of tomorrow\'s '.Str::plural('shoot', $ctx['notReady']->count()).' not ready',
+                'detail' => trim($first['shoot']->title).': '.collect($first['problems'])->pluck('label')->implode(', ')
+                    .($ctx['notReady']->count() > 1 ? ' — and '.($ctx['notReady']->count() - 1).' more.' : '.'),
+                'href' => $ctx['notReady']->count() === 1 ? route('shoots.show', $first['shoot']) : route('shoots.calendar'),
+                'cta' => 'Fix',
             ];
         }
 

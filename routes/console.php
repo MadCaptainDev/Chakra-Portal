@@ -89,6 +89,10 @@ Schedule::command('reports:notify-ready')->monthlyOn(2, '09:00')->timezone(confi
 // own doc block for why crew only, not the client.
 Schedule::command('shoots:send-reminders')->dailyAt('18:00')->timezone(config('app.timezone'));
 
+// Same hour, to the admins: which of tomorrow's shoots are not ready (client
+// not confirmed, content not ready, no crew or kit). See TomorrowShootCheck.
+Schedule::command('shoots:tomorrow-check')->dailyAt('18:00')->timezone(config('app.timezone'));
+
 // "It is getting late": a shoot not started, overrunning, or with footage or
 // kit still outstanding -- see ShootLateAlerts. Each kind is told once.
 Schedule::command('shoots:late-alerts')->everyFiveMinutes()->withoutOverlapping();

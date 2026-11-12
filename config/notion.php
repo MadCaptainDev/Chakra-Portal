@@ -133,6 +133,9 @@ return [
         'gear_needed' => ['Gear Needed'],
         'weather_forecast' => ['Weather Forecast'],
         'photo_url' => ['Photo'],
+        // Spelled "Conformation" in the studio's database, with a trailing space.
+        'client_confirmed' => ['Client Conformation', 'Client Confirmation'],
+        'content_ready' => ['Content'],
     ],
 
     /*

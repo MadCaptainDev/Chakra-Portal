@@ -27,6 +27,18 @@
     $previousDay = null;
 @endphp
 
+@php $readiness = ! $shoot->started_at && ! $shoot->isCancelled() ? \App\Support\ShootReadiness::problems($shoot) : []; @endphp
+@if (! $shoot->started_at && ! $shoot->isCancelled())
+    <div class="mb-4 flex flex-wrap items-center gap-2 rounded-xl px-4 py-3 text-sm {{ $readiness ? 'bg-amber-400/10 ring-1 ring-amber-400/30' : 'bg-emerald-400/10 ring-1 ring-emerald-400/25' }}">
+        <span class="font-semibold {{ $readiness ? 'text-amber-200' : 'text-emerald-200' }}">{{ $readiness ? 'Not ready yet:' : 'Ready to go' }}</span>
+        @foreach ($readiness as $p)
+            <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $p['tone'] === 'red' ? 'bg-red-400/15 text-red-200' : 'bg-amber-400/15 text-amber-200' }}">{{ $p['label'] }}</span>
+        @endforeach
+        @if ($shoot->notionShoot && in_array('unconfirmed', array_column($readiness, 'key'), true))
+            <span class="text-xs text-brand-100/50">Confirmation is read from Notion's "Client Conformation".</span>
+        @endif
+    </div>
+@endif
 <x-card class="p-4 sm:p-5">
     <div class="flex flex-wrap items-center gap-2">
         <h2 class="text-sm font-semibold text-white">Shoot day timeline</h2>
