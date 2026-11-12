@@ -315,7 +315,7 @@ export function plannerWeb(urls, canEdit) {
         },
         /** The list-row part of a detail, so the store never grows detail-only fields. */
         rowOf(item) {
-            const { script, show_notes, history: _h, timeline: _t, portal_script_text: _p, ...row } = item;
+            const { script, show_notes, history: _h, timeline: _t, portal_script_text: _p, caption_options: _o, caption_budget: _b, ...row } = item;
             return row;
         },
 
@@ -404,6 +404,51 @@ export function plannerWeb(urls, canEdit) {
             } else {
                 this.save(id, { editor: col.key ? [col.key] : [] });
             }
+        },
+
+        // ——— Captions (Gemini, inside the monthly limit) ———
+        cap: { note: '', language: 'english', busy: false, text: '', saved: '', dirty: false, copied: false, cost: null, reused: false },
+        openCaption() {
+            this.peekTab = 'caption';
+            const c = this.cap;
+            c.text = this.peek?.caption || '';
+            c.saved = c.text;
+            c.dirty = false;
+            c.cost = null;
+        },
+        async writeCaptions(fresh = false) {
+            const id = this.peek?.id;
+            if (!id || this.cap.busy) return;
+            this.cap.busy = true;
+            const r = await this.send('POST', urls.captions.replace('__ID__', id), { note: this.cap.note || null, language: this.cap.language, fresh })
+                .catch(() => ({ ok: false, data: {} }));
+            this.cap.busy = false;
+            if (!r.ok) { this.say(r.data.message || 'Could not write captions. Try again.', true); return; }
+            if (this.peek?.id !== id) return;
+            this.peek.caption_options = r.data.options;
+            this.peek.caption_budget = r.data.budget;
+            this.cap.cost = r.data.cost_usd;
+            this.cap.reused = r.data.reused;
+        },
+        useOption(o) {
+            this.cap.text = o.text;
+            this.cap.dirty = this.cap.text !== this.cap.saved;
+        },
+        hashtags(text) { return ((text || '').match(/(^|\s)#[\p{L}\p{N}_]+/gu) || []).length; },
+        async saveCaption() {
+            const id = this.peek?.id;
+            if (!id) return;
+            const r = await this.send('PUT', urls.caption.replace('__ID__', id), { caption: this.cap.text.trim() || null })
+                .catch(() => ({ ok: false, data: {} }));
+            if (!r.ok) { this.say(r.data.message || 'Could not save the caption.', true); return; }
+            this.cap.saved = r.data.caption || '';
+            this.cap.text = this.cap.saved;
+            this.cap.dirty = false;
+            this.paint(id, { caption: r.data.caption, has_caption: !!r.data.caption });
+            this.say(r.data.message);
+        },
+        async copyCaption(text) {
+            try { await navigator.clipboard.writeText(text); this.cap.copied = true; setTimeout(() => { this.cap.copied = false; }, 1500); } catch { this.say('Copy did not work in this browser. Select the text instead.', true); }
         },
 
         // ——— A new video ———

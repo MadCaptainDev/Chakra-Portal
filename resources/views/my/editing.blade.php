@@ -356,6 +356,19 @@
                                                 </div>
 
                                                 <div class="space-y-2 p-3">
+                                                    {{-- The caption written in the planner: copy it, paste it on Instagram. --}}
+                                                    <template x-if="card.caption && outMode(card) !== 'deliver'">
+                                                        <div x-data="{ open: false, copied: false }" class="rounded-lg bg-white/5 p-2.5">
+                                                            <div class="flex items-center gap-2">
+                                                                <button type="button" @click="open = !open" class="min-w-0 flex-1 truncate text-left text-xs text-brand-100/80">
+                                                                    <span class="font-semibold text-brand-200">Caption</span> <span x-text="card.caption.split('\n')[0]"></span>
+                                                                </button>
+                                                                <button type="button" @click="navigator.clipboard.writeText(card.caption).then(() => { copied = true; setTimeout(() => copied = false, 1500) })"
+                                                                        class="shrink-0 rounded-md bg-brand-400 px-2.5 py-1 text-[11px] font-bold text-brand-900" x-text="copied ? 'Copied' : 'Copy'"></button>
+                                                            </div>
+                                                            <p x-show="open" x-cloak class="mt-2 max-h-60 overflow-y-auto whitespace-pre-line text-xs leading-relaxed text-brand-100/75" x-text="card.caption"></p>
+                                                        </div>
+                                                    </template>
                                                     {{-- Type: posting and scheduling both need it. --}}
                                                     <div x-show="outMode(card) !== 'deliver'" class="flex flex-wrap gap-1">
                                                         <template x-for="key in (outMode(card) === 'schedule' ? ['reel', 'youtube'] : ['reel', 'youtube', 'post', 'story'])" :key="key">

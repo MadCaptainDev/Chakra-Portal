@@ -49,6 +49,7 @@ class ContentItem extends Model
     ];
 
     protected $casts = [
+        'caption_at' => 'datetime',
         'published_date' => 'date',
         'shoot_date' => 'date',
         'notion_created_at' => 'datetime',

@@ -400,6 +400,19 @@ one of `plan`·`script`·`shoot`·`edit`·`post`), `timeline_url` (the portal pa
 Answers `202` at once and syncs after the response; pick the changes up with `?updated_since=`.
 Without it the call behaves as before.
 
+### `POST /items/{id}/captions`: write captions with Gemini (needs `edit`, added 2026-11-12)
+
+`note` (optional, what to say or stress), `language` (`english`·`tanglish`·`tamil`), `fresh` (true to ask again
+even when the same ask was answered before). Answers `{ options: [{ angle, text }] x3, reused, cost_usd, budget: { spent, cap, left, blocked } }`.
+Every option is in the studio format (hook, `@handle - tagline`, body, call to action, `[keywords]`, at most 5 hashtags).
+`429 budget` when the monthly Gemini limit is used up; `502 failed` when Gemini could not answer.
+
+### `PUT /items/{id}/caption`: keep a caption (needs `edit`)
+
+`caption` (string, or null to clear; at most 2200 characters and 5 hashtags, else `422`).
+The detail shape carries `caption`, `caption_at`, `caption_options` (the last options written), `caption_budget`
+and `caption_handle`; list rows carry `has_caption`.
+
 ## Vocabulary
 
 ### `GET /meta`

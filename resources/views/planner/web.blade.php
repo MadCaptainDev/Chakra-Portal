@@ -17,6 +17,8 @@
              'item' => route('planner.data.item', ['item' => '__ID__']),
              'move' => route('planner.data.move', ['item' => '__ID__']),
              'store' => route('planner.data.store'),
+             'captions' => route('planner.data.captions', ['item' => '__ID__']),
+             'caption' => route('planner.data.caption', ['item' => '__ID__']),
              'refresh' => route('planner.data.refresh'),
          ]), @js($canEdit))">
 
@@ -360,8 +362,8 @@
 
                                 {{-- Details | Timeline --}}
                                 <div class="mt-5 flex gap-1 border-b border-white/[0.06]">
-                                    <template x-for="t in [['details', 'Script'], ['timeline', 'Timeline']]" :key="t[0]">
-                                        <button type="button" @click="peekTab = t[0]" class="-mb-px border-b-2 px-3 py-2 text-[13px] font-semibold transition"
+                                    <template x-for="t in [['details', 'Script'], ['caption', 'Caption'], ['timeline', 'Timeline']]" :key="t[0]">
+                                        <button type="button" @click="t[0] === 'caption' ? openCaption() : (peekTab = t[0])" class="-mb-px border-b-2 px-3 py-2 text-[13px] font-semibold transition"
                                                 :class="peekTab === t[0] ? 'border-brand-400 text-white' : 'border-transparent text-brand-100/50 hover:text-white'">
                                             <span x-text="t[1]"></span>
                                             <span x-show="t[0] === 'timeline' && peek.timeline && peek.timeline.length > 0" class="ml-1 text-xs font-normal text-brand-100/40" x-text="peek.timeline ? peek.timeline.length : ''"></span>
@@ -398,6 +400,64 @@
                                 </div>
 
                                 {{-- The video's whole story: shoot, editing, planner changes, post. --}}
+                                {{-- Caption: written by Gemini in the studio's format, kept here. --}}
+                                <div x-show="peekTab === 'caption'" x-cloak class="space-y-3 pt-3">
+                                    <template x-if="canEdit">
+                                        <div class="space-y-2 rounded-xl bg-[#0f2230] p-3">
+                                            <textarea x-model="cap.note" rows="2" maxlength="1000"
+                                                      placeholder="Note for the caption (optional): the offer, the occasion, who it is for, words to use or avoid…"
+                                                      class="w-full rounded-lg border-0 bg-white/[0.04] p-2.5 text-[13px] text-white placeholder:text-brand-100/35 focus:ring-1 focus:ring-brand-400"></textarea>
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <select x-model="cap.language" class="h-9 rounded-lg border-0 bg-white/[0.06] py-0 pl-2.5 pr-8 text-[13px] text-white focus:ring-1 focus:ring-brand-400" aria-label="Caption language">
+                                                    <option value="english" class="bg-[#15303f]">English</option>
+                                                    <option value="tanglish" class="bg-[#15303f]">Tanglish</option>
+                                                    <option value="tamil" class="bg-[#15303f]">Tamil + English</option>
+                                                </select>
+                                                <button type="button" @click="writeCaptions(!!(peek.caption_options && peek.caption_options.length))" :disabled="cap.busy || (peek.caption_budget && peek.caption_budget.blocked)"
+                                                        class="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand-400 px-3.5 text-[13px] font-bold text-brand-900 hover:bg-brand-300 disabled:opacity-50">
+                                                    <span x-show="cap.busy" class="h-3 w-3 animate-spin rounded-full border-2 border-brand-900/30 border-t-brand-900"></span>
+                                                    <span x-text="cap.busy ? 'Writing…' : (peek.caption_options && peek.caption_options.length ? 'Write new options' : 'Write caption')"></span>
+                                                </button>
+                                                <span class="ml-auto text-[11px] text-brand-100/45" x-show="!!peek.caption_budget"
+                                                      x-text="peek.caption_budget ? ('Gemini: $' + peek.caption_budget.spent.toFixed(2) + ' of $' + Number(peek.caption_budget.cap).toFixed(2) + ' this month') : ''"></span>
+                                            </div>
+                                            <p x-show="peek.caption_budget && peek.caption_budget.blocked" class="text-xs text-red-300">This month's Gemini limit is used up. It resets on the 1st, or an admin can raise it under AI settings.</p>
+                                            <p x-show="!peek.caption_handle" class="text-xs text-amber-200/80">No Instagram handle is connected for this client, so the @username line is left out.</p>
+                                            <p x-show="cap.cost !== null" class="text-[11px] text-brand-100/45"
+                                               x-text="cap.reused ? 'Same ask as last time: shown again, no new cost.' : ('This cost about $' + Number(cap.cost).toFixed(4) + '.')"></p>
+                                        </div>
+                                    </template>
+
+                                    {{-- The options --}}
+                                    <template x-for="(o, n) in (peek.caption_options || [])" :key="n">
+                                        <div class="rounded-xl border border-white/[0.06] bg-[#0f2230]/60 p-3">
+                                            <div class="mb-1.5 flex items-center gap-2">
+                                                <span class="text-[11px] font-semibold uppercase tracking-wider text-brand-300" x-text="'Option ' + (n + 1) + (o.angle ? ' · ' + o.angle : '')"></span>
+                                                <span class="text-[11px] text-brand-100/40" x-text="o.text.length + ' chars · ' + hashtags(o.text) + ' hashtags'"></span>
+                                                <button type="button" x-show="canEdit" @click="useOption(o)" class="ml-auto rounded-md bg-white/10 px-2.5 py-1 text-[12px] font-semibold text-white hover:bg-white/15">Use this</button>
+                                            </div>
+                                            <p class="whitespace-pre-line text-[13px] leading-relaxed text-brand-100/85" x-text="o.text"></p>
+                                        </div>
+                                    </template>
+
+                                    {{-- The one kept --}}
+                                    <div class="rounded-xl border border-brand-400/25 bg-brand-400/[0.05] p-3">
+                                        <div class="mb-1.5 flex items-center gap-2">
+                                            <span class="text-[11px] font-semibold uppercase tracking-wider text-brand-200">Caption for this video</span>
+                                            <span class="text-[11px]" :class="hashtags(cap.text) > 5 ? 'text-red-300' : 'text-brand-100/40'" x-text="cap.text.length + ' / 2200 · ' + hashtags(cap.text) + ' hashtags'"></span>
+                                            <button type="button" x-show="!!cap.text" @click="copyCaption(cap.text)" class="ml-auto rounded-md bg-white/10 px-2.5 py-1 text-[12px] font-semibold text-white hover:bg-white/15" x-text="cap.copied ? 'Copied' : 'Copy'"></button>
+                                        </div>
+                                        <textarea x-model="cap.text" @input="cap.dirty = cap.text !== cap.saved" :disabled="!canEdit" rows="12" maxlength="2200"
+                                                  placeholder="Write one, or pick an option above."
+                                                  class="w-full rounded-lg border-0 bg-[#0f2230] p-2.5 text-[13px] leading-relaxed text-white placeholder:text-brand-100/30 focus:ring-1 focus:ring-brand-400"></textarea>
+                                        <div class="mt-2 flex items-center gap-2" x-show="canEdit">
+                                            <p x-show="hashtags(cap.text) > 5" class="text-xs text-red-300">More than 5 hashtags. The studio's rule is 5 at most.</p>
+                                            <button type="button" @click="saveCaption()" :disabled="!cap.dirty || hashtags(cap.text) > 5"
+                                                    class="ml-auto inline-flex h-9 items-center rounded-lg bg-brand-400 px-4 text-[13px] font-bold text-brand-900 hover:bg-brand-300 disabled:opacity-40">Save caption</button>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div x-show="peekTab === 'timeline'" class="pt-4">
                                     <p x-show="!peek.timeline || peek.timeline.length === 0" class="text-[13px] text-brand-100/50">Nothing recorded for this video yet.</p>
                                     <ol>

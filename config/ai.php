@@ -30,4 +30,25 @@ return [
      */
     'gemini_reserve_usd' => 0.05,
 
+    /*
+     * The caption writer's house rules (App\Services\Ai\CaptionWriter).
+     * Applied twice: told to Gemini, then enforced on what comes back, so a
+     * caption that breaks one is fixed rather than shown.
+     */
+    'captions' => [
+        // Never more than this many hashtags.
+        'max_hashtags' => 5,
+        // The line every caption carries, second, right after the hook.
+        // {username} is the client's Instagram handle without the @.
+        'handle_line' => '@{username} -',
+        // The [keyword, keyword] line the studio puts before the hashtags.
+        'keywords' => true,
+        // Instagram's own limit.
+        'max_length' => 2200,
+        // How many past captions of the client's best reels to learn from.
+        'examples' => 3,
+        // Tried in order; the next is used when one is retired or busy.
+        'models' => ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.8-flash'],
+    ],
+
 ];

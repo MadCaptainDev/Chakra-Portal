@@ -47,6 +47,8 @@ Route::prefix('api/planner')->name('api.planner.')->group(function () {
         Route::get('items/{item}/script', [\App\Http\Controllers\Api\Planner\PlannerScriptController::class, 'show'])->whereNumber('item')->name('items.script');
         Route::patch('items/{item}', [PlannerItemController::class, 'update'])->whereNumber('item')->name('items.update');
         Route::post('items', [PlannerItemController::class, 'store'])->name('items.store');
+        Route::post('items/{item}/captions', [\App\Http\Controllers\Api\Planner\PlannerCaptionController::class, 'write'])->whereNumber('item')->name('items.captions');
+        Route::put('items/{item}/caption', [\App\Http\Controllers\Api\Planner\PlannerCaptionController::class, 'save'])->whereNumber('item')->name('items.caption');
 
         Route::post('app/releases', [PlannerReleaseController::class, 'store'])->name('app.releases.store');
     });

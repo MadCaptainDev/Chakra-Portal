@@ -51,6 +51,7 @@ class PlannerItems
                 'status' => $t->posted_at ? 'posted' : $t->status,
             ])->values()->all(),
             // A script written in Notion, or one written in the portal and linked to this row.
+            'has_caption' => filled($i->caption),
             'has_script' => filled($i->script) || ($i->relationLoaded('scriptRecord') && $i->scriptRecord !== null),
             'portal_script' => $i->relationLoaded('scriptRecord') && $i->scriptRecord ? [
                 'id' => $i->scriptRecord->id,
@@ -96,6 +97,12 @@ class PlannerItems
             'timeline' => \App\Services\Videos\VideoTimeline::forPlanner($i),
             'timeline_url' => route('videos.item', $i->id),
             'thumbnail_url' => $i->video?->thumbnail_path ? asset($i->video->thumbnail_path) : null,
+            // The caption: the one kept, the last options written, and what is left of the Gemini limit.
+            'caption' => $i->caption,
+            'caption_at' => $i->caption_at?->toIso8601String(),
+            'caption_options' => \App\Models\ContentCaption::query()->where('content_item_id', $i->id)->latest('id')->value('options'),
+            'caption_budget' => \App\Http\Controllers\Api\Planner\PlannerCaptionController::budget(),
+            'caption_handle' => ($c = \App\Services\Ai\CaptionWriter::clientFor($i)) ? \App\Services\Ai\CaptionWriter::usernameFor($c) : null,
         ];
     }
 
