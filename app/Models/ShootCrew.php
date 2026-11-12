@@ -44,6 +44,20 @@ class ShootCrew extends Model
         return $this->belongsTo(Shoot::class, 'next_shoot_id');
     }
 
+    /** Who is on the shoot is Notion's "Team": keep it in step. */
+    protected static function booted(): void
+    {
+        $push = function (ShootCrew $row) {
+            if (! \App\Services\Notion\NotionShootWriter::muted() && $row->shoot_id) {
+                $id = $row->shoot_id;
+                \Illuminate\Support\defer(fn () => ($shoot = Shoot::find($id)) && $shoot->notion_shoot_id
+                    ? \App\Services\Notion\NotionShootWriter::update($shoot) : null, 'notion-team-'.$id);
+            }
+        };
+        static::created($push);
+        static::deleted($push);
+    }
+
     public function isConfirmed(): bool
     {
         return $this->confirmed_at !== null;

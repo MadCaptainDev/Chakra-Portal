@@ -75,24 +75,62 @@ class NotionShootImporter
             return null;
         }
 
-        $shoot = Shoot::updateOrCreate(
-            ['notion_shoot_id' => $notionShoot->id],
-            [
+        return NotionShootWriter::mute(function () use ($notionShoot) {
+            // Not linked yet, but the same shoot was booked in the portal
+            // (same client, same day, not linked to any Notion page): link
+            // that one instead of making a second copy.
+            $twin = Shoot::query()->where('notion_shoot_id', $notionShoot->id)->exists() ? null : $this->portalTwin($notionShoot);
+            if ($twin) {
+                $twin->forceFill(['notion_shoot_id' => $notionShoot->id])->save();
+            }
+
+            $existing = Shoot::query()->where('notion_shoot_id', $notionShoot->id)->first();
+
+            $values = [
                 'title' => $notionShoot->title ?: 'Untitled Notion shoot',
-                'client_id' => $notionShoot->client_id,
-                // Notion carries a date, not a time. startOfDay is honest
-                // about that; inventing 09:00 would look like a call time
-                // somebody agreed to.
-                'starts_at' => $notionShoot->shoot_date->copy()->startOfDay(),
-                'location' => $notionShoot->location,
+                'client_id' => $notionShoot->client_id ?? $existing?->client_id,
+                'location' => $notionShoot->location ?? $existing?->location,
                 'status' => $notionShoot->portalStatus(),
-            ]
-        );
+            ];
 
-        $this->syncCrew($notionShoot, $shoot);
+            // Notion carries a date (sometimes a time). Keep a call time set in
+            // the portal when Notion only moved the day, rather than resetting
+            // it to midnight.
+            $day = $notionShoot->shoot_date->copy()->startOfDay();
+            $values['starts_at'] = $existing && $existing->starts_at && $existing->starts_at->isSameDay($day)
+                ? $existing->starts_at
+                : ($existing?->hasStartTime() ? $day->copy()->setTimeFrom($existing->starts_at) : $day);
 
-        return $shoot;
+            $shoot = Shoot::updateOrCreate(['notion_shoot_id' => $notionShoot->id], $values);
+
+            $this->syncCrew($notionShoot, $shoot);
+
+            return $shoot;
+        });
     }
+
+    /**
+     * A portal shoot that is the same shoot as this Notion one: same client,
+     * same day, not cancelled, not linked to any Notion page. Only when there
+     * is exactly one -- two candidates is a guess.
+     */
+    public function portalTwin(NotionShoot $notionShoot): ?Shoot
+    {
+        if (! $notionShoot->client_id || ! $notionShoot->shoot_date) {
+            return null;
+        }
+
+        $candidates = Shoot::query()
+            ->whereNull('notion_shoot_id')
+            ->where('client_id', $notionShoot->client_id)
+            ->where('status', '!=', Shoot::STATUS_CANCELLED)
+            ->whereBetween('starts_at', [$notionShoot->shoot_date->copy()->startOfDay(), $notionShoot->shoot_date->copy()->endOfDay()])
+            ->limit(2)->get();
+
+        return $candidates->count() === 1 ? $candidates->first() : null;
+    }
+
+
 
     /**
      * Add portal crew for the names on Notion's Team property.

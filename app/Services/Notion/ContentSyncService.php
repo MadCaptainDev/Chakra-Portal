@@ -267,6 +267,20 @@ class ContentSyncService
         return $item;
     }
 
+    /**
+     * Write one Shoots-database page into notion_shoots and return the row --
+     * what the shoot sync does for every page, for one page now (a shoot just
+     * created or changed from the portal).
+     */
+    public function applyShootPage(array $page): NotionShoot
+    {
+        $row = $this->shootRowFor($page);
+        $shoot = NotionShoot::query()->firstOrNew(['notion_page_id' => $page['id']]);
+        $shoot->forceFill(Arr::except($row, ['notion_page_id']))->save();
+
+        return $shoot;
+    }
+
     /** Which content planner a page lives in, from its parent database. */
     public function sourceForPage(array $page): ?string
     {

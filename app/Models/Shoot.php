@@ -98,6 +98,21 @@ class Shoot extends Model
                 $shoot->noteCancelled = false;
                 ShootEvent::record($shoot, auth()->user(), ShootEvent::CANCELLED);
             }
+
+            // A portal change to what Notion shows goes to its page too.
+            if ($shoot->wasChanged(['title', 'starts_at', 'ends_at', 'location', 'client_id', 'status'])
+                && ! \App\Services\Notion\NotionShootWriter::muted()) {
+                $fresh = $shoot->withoutRelations();
+                \Illuminate\Support\defer(fn () => \App\Services\Notion\NotionShootWriter::update($fresh->fresh()));
+            }
+        });
+
+        // Booked in the portal: made in Notion too, so the import never adds a second copy.
+        static::created(function (Shoot $shoot) {
+            if (! $shoot->notion_shoot_id && ! \App\Services\Notion\NotionShootWriter::muted()) {
+                $fresh = $shoot->withoutRelations();
+                \Illuminate\Support\defer(fn () => \App\Services\Notion\NotionShootWriter::create($fresh->fresh()));
+            }
         });
     }
 
