@@ -10,7 +10,7 @@ class ReviewComment extends Model
 {
     protected $fillable = ['review_video_id', 'parent_id', 'user_id', 'at_seconds', 'body'];
 
-    protected $casts = ['at_seconds' => 'float', 'resolved_at' => 'datetime'];
+    protected $casts = ['at_seconds' => 'float', 'resolved_at' => 'datetime', 'fix_checked_at' => 'datetime'];
 
     public function video(): BelongsTo
     {

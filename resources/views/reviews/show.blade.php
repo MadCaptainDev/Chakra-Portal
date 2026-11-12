@@ -27,6 +27,7 @@
              'changes' => route('reviews.changes', $video),
              'recheck' => route('reviews.recheck', $video),
              'edit' => route('reviews.comment.edit', ['comment' => '__ID__']),
+             'fix' => route('reviews.comment.fix', ['comment' => '__ID__']),
              'file' => $video->hasFile() ? route('reviews.file', $video) : null,
              'size' => $video->size,
          ]), @js($state))">
@@ -70,22 +71,22 @@
                   :class="{ pending: 'bg-sky-400/15 text-sky-200 ring-sky-400/30', approved: 'bg-emerald-400/15 text-emerald-200 ring-emerald-400/30', changes: 'bg-amber-400/15 text-amber-200 ring-amber-400/30' }[s.status]"
                   x-text="s.status_label"></span>
 
-            @if ($versions->count() > 1)
-                <div x-data="{ open: false }" class="relative" @click.outside="open = false">
-                    <button type="button" @click="open = !open" class="{{ $btn }} h-10 bg-white/[0.07] px-3 text-sm text-white ring-1 ring-white/10 hover:bg-white/10">
-                        v{{ $video->version }} <span class="text-brand-100/50">of {{ $versions->count() }}</span> ▾
-                    </button>
-                    <div x-show="open" x-cloak x-transition.origin.top.right class="absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-xl bg-[#15303f] p-1 shadow-2xl ring-1 ring-white/10">
-                        @foreach ($versions as $v)
-                            <a href="{{ route('reviews.show', $v) }}" class="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm {{ $v->id === $video->id ? 'bg-white/10 text-white' : 'text-brand-100/80 hover:bg-white/5' }}">
-                                <span>Version {{ $v->version }}</span>
-                                <span class="text-[11px] text-brand-100/50">{{ \App\Models\ReviewVideo::STATUSES[$v->status] ?? $v->status }}</span>
-                            </a>
-                        @endforeach
-                    </div>
-                </div>
-            @endif
+
         </header>
+
+        {{-- Every version of this cut, always in view --}}
+        <nav x-show="s.versions.length > 1" class="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0" aria-label="Versions">
+            <template x-for="v in s.versions" :key="v.id">
+                <a :href="v.url" class="flex shrink-0 items-center gap-2.5 rounded-2xl px-3.5 py-2 ring-1 transition"
+                   :class="v.current ? 'bg-white text-brand-900 ring-white shadow-lg' : 'bg-white/[0.05] text-white ring-white/10 hover:bg-white/10'" :aria-current="v.current ? 'page' : null">
+                    <span class="text-lg font-black" x-text="'v' + v.version"></span>
+                    <span class="leading-tight">
+                        <span class="block text-xs font-semibold" :class="{ pending: v.current ? 'text-sky-700' : 'text-sky-200', approved: v.current ? 'text-emerald-700' : 'text-emerald-300', changes: v.current ? 'text-amber-700' : 'text-amber-200' }[v.status]" x-text="v.label"></span>
+                        <span class="block text-[11px] opacity-60" x-text="v.when"></span>
+                    </span>
+                </a>
+            </template>
+        </nav>
 
         {{-- What a comment does now --}}
         <template x-if="s.status === 'changes' && s.latest">
@@ -311,6 +312,50 @@
 
                 {{-- ——— Comments ——— --}}
                 <section x-show="tab === 'comments'" x-transition.opacity.duration.150ms class="space-y-3">
+                    {{-- Changes asked on earlier versions: did the editor fix them? --}}
+                    <template x-if="s.previous_changes.length">
+                        <div class="rounded-2xl bg-[#15303f] p-4 ring-1 ring-white/[0.07]" x-data="{ openList: true }">
+                            <button type="button" @click="openList = !openList" class="flex w-full items-center gap-2 text-left">
+                                <span class="text-sm font-semibold text-white">Changes from earlier versions</span>
+                                <span class="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                                      :class="fixesConfirmed === s.previous_changes.length ? 'bg-emerald-400/15 text-emerald-200' : 'bg-white/10 text-brand-100/70'"
+                                      x-text="fixesConfirmed + ' of ' + s.previous_changes.length + ' checked'"></span>
+                                <span class="ml-auto text-brand-100/50" x-text="openList ? '▴' : '▾'"></span>
+                            </button>
+                            <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+                                <div class="h-full rounded-full bg-emerald-400 transition-all duration-700" :style="`width:${s.previous_changes.length ? fixesConfirmed / s.previous_changes.length * 100 : 0}%`"></div>
+                            </div>
+                            <ul x-show="openList" x-transition class="mt-3 space-y-2">
+                                <template x-for="f in s.previous_changes" :key="'f' + f.id">
+                                    <li class="rounded-xl p-3 ring-1 transition"
+                                        :class="f.state === 'confirmed' ? 'bg-emerald-400/[0.06] ring-emerald-400/25' : (f.state === 'not_fixed' ? 'bg-red-400/[0.06] ring-red-400/25' : 'bg-white/[0.03] ring-white/10')">
+                                        <div class="flex items-start gap-2">
+                                            <button type="button" x-show="f.at != null" @click="jump(f.at)" class="shrink-0 rounded-md bg-white/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-amber-200" x-text="f.stamp" title="See this moment in this version"></button>
+                                            <div class="min-w-0 flex-1">
+                                                <p class="text-[14px] text-white/90" :class="f.state === 'confirmed' ? 'line-through decoration-white/30' : ''" x-text="f.body"></p>
+                                                <p class="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px]">
+                                                    <span class="text-brand-100/45" x-text="'v' + f.version + ' · ' + f.by"></span>
+                                                    <span :class="f.editor_done ? 'text-sky-200' : 'text-amber-200'" x-text="f.editor_done ? 'Editor: fixed' + (f.editor_note ? ' (' + f.editor_note + ')' : '') : 'Editor: not marked fixed'"></span>
+                                                    <span x-show="f.state" :class="f.state === 'confirmed' ? 'text-emerald-300' : 'text-red-300'" x-text="(f.state === 'confirmed' ? '✓ Confirmed by ' : '✗ Not fixed, said ') + f.checked_by"></span>
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div x-show="s.can_review" class="mt-2 flex gap-1.5">
+                                            <template x-if="!f.state">
+                                                <div class="flex gap-1.5">
+                                                    <button type="button" @click="checkFix(f, 'confirmed')" class="{{ $btn }} h-9 bg-emerald-400/15 px-3 text-xs text-emerald-200 ring-1 ring-emerald-400/30 hover:bg-emerald-400/25">✓ Fixed</button>
+                                                    <button type="button" @click="checkFix(f, 'not_fixed')" class="{{ $btn }} h-9 bg-red-400/10 px-3 text-xs text-red-200 ring-1 ring-red-400/30 hover:bg-red-400/20">✗ Not fixed</button>
+                                                </div>
+                                            </template>
+                                            <button type="button" x-show="!!f.state" @click="checkFix(f, 'clear')" class="{{ $btn }} h-9 px-3 text-xs text-brand-100/50 hover:text-white">Undo</button>
+                                        </div>
+                                    </li>
+                                </template>
+                            </ul>
+                            <p x-show="openList" class="mt-2 text-[11px] text-brand-100/40">"Not fixed" raises it again here, on this version, at the same moment.</p>
+                        </div>
+                    </template>
+
                     {{-- Filters --}}
                     <div class="flex gap-1.5 overflow-x-auto pb-0.5 text-xs">
                         <template x-for="f in [['open', 'Open'], ['all', 'All'], ['mine', 'Mine'], ['resolved', 'Resolved']]" :key="f[0]">

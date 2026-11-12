@@ -444,4 +444,42 @@ class VideoReviewTest extends TestCase
             ->assertJsonPath('latest', false);
         $this->assertSame(0, $this->card->fresh()->corrections()->open()->count());
     }
+
+    public function test_on_version_two_reviewers_see_and_check_the_changes_from_version_one(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+        $this->uploadAs($this->editor)->assertCreated();
+        $v1 = ReviewVideo::first();
+        $this->actingAs($this->admin)->postJson(route('reviews.comment', $v1), ['body' => 'Logo too small', 'at_seconds' => 4])->assertCreated();
+        $this->postJson(route('reviews.comment', $v1), ['body' => 'Too dark', 'at_seconds' => 9])->assertCreated();
+        $this->postJson(route('reviews.changes', $v1))->assertOk();
+
+        $this->uploadAs($this->editor)->assertCreated();
+        $v2 = ReviewVideo::where('version', 2)->first();
+
+        $state = $this->actingAs($this->admin)->getJson(route('reviews.live', $v2))->assertOk()
+            ->assertJsonPath('versions.0.version', 1)->assertJsonPath('versions.1.current', true)
+            ->assertJsonCount(2, 'previous_changes')
+            ->assertJsonPath('previous_changes.0.body', 'Logo too small')
+            ->assertJsonPath('previous_changes.0.editor_done', true)
+            ->assertJsonPath('previous_changes.0.state', null);
+
+        $logo = ReviewComment::where('body', 'Logo too small')->first();
+        $dark = ReviewComment::where('body', 'Too dark')->first();
+        $this->postJson(route('reviews.comment.fix', $logo), ['state' => 'confirmed', 'on' => $v2->id])->assertOk()
+            ->assertJsonPath('previous_changes.0.state', 'confirmed')->assertJsonPath('previous_changes.0.checked_by', 'Keerthi');
+
+        // Not fixed: raised again on v2 at the same moment.
+        $this->postJson(route('reviews.comment.fix', $dark), ['state' => 'not_fixed', 'on' => $v2->id])->assertOk()
+            ->assertJsonPath('previous_changes.1.state', 'not_fixed');
+        $this->assertSame(['Still not fixed: Too dark'], $v2->comments()->pluck('body')->all());
+        $this->assertSame(9.0, $v2->comments()->first()->at_seconds);
+        // Twice is still once.
+        $this->postJson(route('reviews.comment.fix', $dark), ['state' => 'not_fixed', 'on' => $v2->id])->assertOk();
+        $this->assertSame(1, $v2->comments()->count());
+
+        // The editor sees it, but cannot check fixes.
+        $this->actingAs($this->editor)->postJson(route('reviews.comment.fix', $logo), ['state' => 'clear', 'on' => $v2->id])->assertForbidden();
+        $this->actingAs($this->admin)->get(route('reviews.show', $v2))->assertOk()->assertSee('Changes from earlier versions');
+    }
 }

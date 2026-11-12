@@ -317,6 +317,15 @@ export function videoReview(urls, initial) {
                 this.s.comments = keep;
             });
         },
+        get fixesConfirmed() { return (this.s.previous_changes || []).filter((f) => f.state === 'confirmed').length; },
+        async checkFix(f, state) {
+            if (this.busy[`f${f.id}`]) return;
+            this.busy[`f${f.id}`] = true;
+            try {
+                this.take(await this.call('POST', urls.fix.replace('__ID__', f.id), { state, on: this.s.id }), true);
+                if (state === 'not_fixed') this.toast('Raised again on this version', f.body);
+            } catch (e) { this.toast('Not saved', e.message, null, true); } finally { this.busy[`f${f.id}`] = false; }
+        },
         isAdopted(issue) {
             const key = `${issue.note}|${issue.at == null ? '' : Number(issue.at).toFixed(1)}`;
             return (this.s.adopted || []).includes(key);

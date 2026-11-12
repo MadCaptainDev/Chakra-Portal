@@ -308,6 +308,42 @@ class VideoReviewController extends Controller
         return response()->json($this->state($video->fresh(), $request->user()));
     }
 
+    /**
+     * On a newer version: was this change from the last one really fixed?
+     * "not_fixed" raises it again as a comment on the newer version, at the
+     * same moment, so it goes back to the editor with the rest.
+     */
+    public function checkFix(Request $request, ReviewComment $comment): JsonResponse
+    {
+        $user = $request->user();
+        $old = $comment->video;
+        $data = $request->validate([
+            'state' => ['required', \Illuminate\Validation\Rule::in(['confirmed', 'not_fixed', 'clear'])],
+            'on' => ['required', 'integer'],
+        ]);
+        $current = ReviewVideo::query()->where('todo_id', $old->todo_id)->where('version', '>', $old->version)->findOrFail($data['on']);
+        abort_unless($current->reviewableBy($user) && $comment->correction_todo_id !== null, 403);
+
+        if ($data['state'] === 'clear') {
+            $comment->forceFill(['fix_state' => null, 'fix_checked_by_id' => null, 'fix_checked_at' => null])->save();
+        } else {
+            $comment->forceFill(['fix_state' => $data['state'], 'fix_checked_by_id' => $user->id, 'fix_checked_at' => now()])->save();
+        }
+
+        if ($data['state'] === 'not_fixed') {
+            $body = 'Still not fixed: '.Str::after($comment->body, 'Still not fixed: ');
+            $exists = ReviewComment::query()->where('review_video_id', $current->id)->whereNull('parent_id')->where('body', $body)->exists();
+            if (! $exists) {
+                $again = ReviewComment::create(['review_video_id' => $current->id, 'user_id' => $user->id, 'at_seconds' => $comment->at_seconds, 'body' => $body]);
+                if ($current->status === ReviewVideo::CHANGES && $this->isLatest($current)) {
+                    $this->asCorrection($current, $again, $user);
+                }
+            }
+        }
+
+        return response()->json($this->state($current->fresh(), $user));
+    }
+
     /** Agree with a comment (again to take it back). */
     public function like(Request $request, ReviewComment $comment): JsonResponse
     {
@@ -506,6 +542,14 @@ class VideoReviewController extends Controller
             'can_review' => $video->reviewableBy($viewer),
             'sign_off' => $signOff = $video->signOff(),
             'latest' => $this->isLatest($video),
+            'versions' => ReviewVideo::query()->where('todo_id', $video->todo_id)->orderBy('version')
+                ->get(['id', 'version', 'status', 'created_at'])
+                ->map(fn (ReviewVideo $v) => [
+                    'id' => $v->id, 'version' => $v->version, 'status' => $v->status,
+                    'label' => ReviewVideo::STATUSES[$v->status] ?? $v->status, 'when' => $v->created_at->format('j M, g:i A'),
+                    'url' => route('reviews.show', $v), 'current' => $v->id === $video->id,
+                ])->values()->all(),
+            'previous_changes' => $this->previousChanges($video),
             'adopted' => $video->allComments()->whereNull('parent_id')->get(['body', 'at_seconds'])
                 ->map(fn ($c) => $c->body.'|'.($c->at_seconds === null ? '' : number_format((float) $c->at_seconds, 1, '.', '')))->values()->all(),
             'i_approved' => $video->approvals()->where('user_id', $viewer->id)->exists(),
@@ -534,6 +578,44 @@ class VideoReviewController extends Controller
                 ->values()->all(),
             'me' => ['id' => $viewer->id, 'name' => $viewer->name],
         ];
+    }
+
+    /**
+     * Every change asked on earlier versions, with whether the editor marked
+     * it fixed and whether a reviewer checked it, newest version first.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function previousChanges(ReviewVideo $video): array
+    {
+        $earlier = ReviewVideo::query()->where('todo_id', $video->todo_id)->where('version', '<', $video->version)->pluck('version', 'id');
+        if ($earlier->isEmpty()) {
+            return [];
+        }
+
+        return ReviewComment::query()->whereIn('review_video_id', $earlier->keys())->whereNotNull('correction_todo_id')
+            ->with(['user:id,name', 'video:id,version'])
+            ->get()
+            ->sortBy([['review_video_id', 'desc'], ['at_seconds', 'asc'], ['id', 'asc']])
+            ->map(function (ReviewComment $c) {
+                $fix = Todo::find($c->correction_todo_id);
+                $checker = $c->fix_checked_by_id ? User::find($c->fix_checked_by_id, ['id', 'name']) : null;
+
+                return [
+                    'id' => $c->id,
+                    'version' => $c->video?->version,
+                    'at' => $c->at_seconds,
+                    'stamp' => $c->stamp(),
+                    'body' => $c->body,
+                    'by' => $c->user?->name ?? 'Someone',
+                    'editor_done' => $fix?->status === Todo::STATUS_COMPLETED,
+                    'editor_note' => $fix && $fix->status === Todo::STATUS_COMPLETED
+                        ? optional($fix->updates()->where('to_status', Todo::STATUS_COMPLETED)->latest('id')->first())->note : null,
+                    'state' => $c->fix_state,
+                    'checked_by' => $checker?->name,
+                    'checked_at' => $c->fix_checked_at?->format('j M, g:i A'),
+                ];
+            })->values()->all();
     }
 
     private function isLatest(ReviewVideo $video): bool
