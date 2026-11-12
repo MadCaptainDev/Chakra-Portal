@@ -32,6 +32,8 @@ export function videoReview(urls, initial) {
         editBody: '',
         quick: ['Cut this part', 'Audio too low', 'Spelling mistake', 'Looks dark', 'Text too small', 'Too slow here', 'Add music', 'Looks great ✓'],
         cache: { state: 'idle', pct: 0, mb: 0 },   // this device's copy of the video
+        aiAt: Date.now(),      // when the AI state last arrived, to count seconds between polls
+        clockNow: Date.now(),
         busy: {},
         flash: null,           // big play/pause icon in the middle
         ripple: null,          // double-tap skip
@@ -63,6 +65,7 @@ export function videoReview(urls, initial) {
                 if (this.body.trim() || Object.values(this.replies).some((r) => (r || '').trim()) || this.editing) { e.preventDefault(); e.returnValue = ''; }
             });
             this.deviceCopy();
+            setInterval(() => { this.clockNow = Date.now(); }, 1000);
             window.addEventListener('keydown', (e) => this.key(e));
             try { localStorage.setItem(seenKey, new Date().toISOString()); } catch { /* */ }
             this.loop();
@@ -104,7 +107,10 @@ export function videoReview(urls, initial) {
                 next.comments = next.comments.filter((c) => c.id !== Number(id)).map((c) => ({ ...c, replies: c.replies.filter((r) => r.id !== Number(id)) }));
             });
             const aiLanded = this.s.ai.status !== 'done' && next.ai.status === 'done';
+            const approvedNow = this.s.status !== 'approved' && next.status === 'approved';
             this.s = next;
+            this.aiAt = Date.now();
+            if (approvedNow && !this.done) { this.done = 'approve'; setTimeout(() => { this.done = null; }, 2600); }
             fresh.forEach((x) => {
                 this.light(x.id);
                 if (!x.mine) this.toast(`${x.by.split(' ')[0]} ${x.at != null ? 'commented at ' + x.stamp : 'replied'}`, x.body, () => this.goTo(x));
@@ -357,6 +363,34 @@ export function videoReview(urls, initial) {
                 this.busy.verdict = false;
                 this.hold = 0;
             }
+        },
+        /** Take my OK back while the others have not all given theirs. */
+        async unapprove() {
+            if (this.busy.verdict) return;
+            this.busy.verdict = true;
+            try { this.take(await this.call('DELETE', urls.approve)); this.toast('Your approval was taken back'); } catch (e) { this.toast('Not done', e.message, null, true); } finally { this.busy.verdict = false; }
+        },
+        /** Seconds in the current AI step, counting between polls. */
+        get aiSecs() { return (this.s.ai.stage_secs || 0) + Math.max(0, Math.round((this.clockNow - this.aiAt) / 1000)); },
+        /** One bar across the whole check: sending 0-30, Gemini reading 30-45, watching 45-95, writing 95-100. */
+        get aiPct() {
+            const a = this.s.ai;
+            if (a.status === 'queued') return 2;
+            if (a.stage === 'uploading') return Math.round((a.progress || 0) * 0.3);
+            if (a.stage === 'processing') return 30 + Math.min(14, Math.round(this.aiSecs * 1.2));
+            if (a.stage === 'watching') return 45 + Math.min(49, Math.round((this.aiSecs / Math.max(10, a.expect_secs)) * 50));
+            if (a.stage === 'writing') return 98;
+            return 5;
+        },
+        get aiSteps() {
+            const order = ['uploading', 'processing', 'watching', 'writing'];
+            const at = this.s.ai.status === 'queued' ? -1 : order.indexOf(this.s.ai.stage);
+            return [
+                ['uploading', 'Sending the video to Gemini', this.s.ai.stage === 'uploading' ? `${this.s.ai.progress || 0}%` : ''],
+                ['processing', 'Gemini is reading the file', ''],
+                ['watching', 'Watching and listening, frame by frame', this.s.ai.stage === 'watching' ? `about ${Math.max(5, this.s.ai.expect_secs - this.aiSecs)}s left` : ''],
+                ['writing', 'Writing the report', ''],
+            ].map(([key, label, extra], i) => ({ key, label, extra, state: i < at ? 'done' : (i === at ? 'now' : 'next') }));
         },
         async recheck() {
             try { this.take(await this.call('POST', urls.recheck)); } catch (e) { this.toast('Not started', e.message, null, true); }

@@ -461,6 +461,8 @@ Route::middleware('auth')->group(function () {
         Route::put('reviews/comments/{comment}', 'edit')->name('reviews.comment.edit');
         Route::delete('reviews/comments/{comment}', 'forget')->name('reviews.comment.forget');
         Route::post('reviews/{video}/approve', 'approve')->whereNumber('video')->name('reviews.approve');
+        Route::delete('reviews/{video}/approve', 'unapprove')->whereNumber('video')->name('reviews.unapprove');
+        Route::put('reviews/settings', 'settings')->name('reviews.settings');
         Route::post('reviews/{video}/changes', 'changes')->whereNumber('video')->name('reviews.changes');
         Route::post('reviews/{video}/recheck', 'recheck')->whereNumber('video')->name('reviews.recheck');
     });

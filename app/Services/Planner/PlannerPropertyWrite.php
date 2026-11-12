@@ -43,6 +43,10 @@ class PlannerPropertyWrite
         if ($item->notion_missing_since) {
             throw new NotionWriteFailed('This item is no longer in Notion, so it cannot be changed.');
         }
+        if (($changes['status'] ?? null) === 'Video Ready' && $item->status !== 'Video Ready'
+            && ($why = \App\Support\ReviewGate::blocksPlannerReady($item))) {
+            throw new NotionWriteFailed($why);
+        }
 
         try {
             $page = $this->notion->fetchPage($item->notion_page_id);

@@ -56,6 +56,8 @@ class VideoReviewController extends Controller
             ->filter(fn (ReviewVideo $v) => $v->todo && $v->reviewableBy($user));
 
         return view('reviews.index', [
+            'settings' => \App\Models\ReviewSetting::current(),
+            'staff' => $user->isAdmin() ? User::query()->where('role', '!=', User::ROLE_CLIENT)->orderBy('name')->get(['id', 'name']) : collect(),
             'waiting' => $latest->where('status', ReviewVideo::PENDING)->sortBy('id')->values(),
             'done' => $latest->where('status', '!=', ReviewVideo::PENDING)->take(30)->values(),
         ]);
@@ -332,6 +334,11 @@ class VideoReviewController extends Controller
 
     // ——— The verdict ———
 
+    /**
+     * My OK on this version. The cut is approved once every required
+     * approver (Review settings) has given theirs -- or, with none set, on
+     * the first OK. Until then the others are asked.
+     */
     public function approve(Request $request, ReviewVideo $video): JsonResponse
     {
         $user = $request->user();
@@ -340,17 +347,66 @@ class VideoReviewController extends Controller
         $note = trim((string) $request->input('note', '')) ?: null;
 
         $card = $video->todo;
+        if ($video->status !== ReviewVideo::PENDING) {
+            return response()->json(['message' => 'This version has already been decided.'], 422);
+        }
         if ($card->status !== Todo::STATUS_COMPLETED) {
             return response()->json(['message' => 'The card is not finished: the editor has more to do on it.'], 422);
         }
 
-        $video->forceFill(['status' => ReviewVideo::APPROVED, 'reviewed_by_id' => $user->id, 'reviewed_at' => now(), 'review_note' => $note])->save();
-        $card->review(Todo::REVIEW_APPROVED, $user, $note ?? 'Approved v'.$video->version.' in review');
+        \App\Models\ReviewApproval::query()->updateOrCreate(
+            ['review_video_id' => $video->id, 'user_id' => $user->id],
+            ['note' => $note, 'created_at' => now()],
+        );
 
-        $this->tell(collect([$card->user])->filter(), $video, 'Approved: '.$card->title,
-            $user->name.' approved version '.$video->version.'. Make it Video ready with its publishing time.'.($note ? ' Note: '.$note : ''));
+        $signOff = $video->signOff();
+
+        if ($signOff['complete']) {
+            $names = collect($signOff['required'])->pluck('name')->map(fn ($n) => Str::before($n, ' '))
+                ->whenEmpty(fn ($c) => $c->push(Str::before($user->name, ' ')))->implode(' and ');
+            $video->forceFill(['status' => ReviewVideo::APPROVED, 'reviewed_by_id' => $user->id, 'reviewed_at' => now(), 'review_note' => $note])->save();
+            $card->review(Todo::REVIEW_APPROVED, $user, 'Approved v'.$video->version.' by '.$names.($note ? ': '.$note : ''));
+
+            $this->tell(collect([$card->user])->filter(), $video, 'Approved: '.$card->title,
+                'Approved by '.$names.'. You can make it Video ready with its publishing time now.');
+        } else {
+            $waiting = collect($signOff['required'])->where('approved', false);
+            $this->tell(User::query()->whereIn('id', $waiting->pluck('id'))->get(), $video, 'Your OK needed: '.$card->title,
+                Str::before($user->name, ' ').' approved version '.$video->version.'. It is approved when you approve too.');
+        }
 
         return response()->json($this->state($video->fresh(), $user));
+    }
+
+    /** Take my OK back, while the cut is still waiting. */
+    public function unapprove(Request $request, ReviewVideo $video): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($video->reviewableBy($user), 403);
+        abort_unless($video->status === ReviewVideo::PENDING, 422, 'This version has already been decided.');
+
+        \App\Models\ReviewApproval::query()->where('review_video_id', $video->id)->where('user_id', $user->id)->delete();
+
+        return response()->json($this->state($video->fresh(), $user));
+    }
+
+    /** Who must approve, and whether Video ready waits for it. Admins only. */
+    public function settings(Request $request): \Illuminate\Http\RedirectResponse
+    {
+        abort_unless($request->user()->isAdmin(), 403);
+        $data = $request->validate([
+            'approver_ids' => ['nullable', 'array', 'max:10'],
+            'approver_ids.*' => ['integer', \Illuminate\Validation\Rule::exists('users', 'id')->where(fn ($q) => $q->where('role', '!=', User::ROLE_CLIENT))],
+            'require_for_ready' => ['nullable', 'boolean'],
+        ]);
+
+        \App\Models\ReviewSetting::current()->update([
+            'approver_ids' => array_values(array_unique(array_map('intval', $data['approver_ids'] ?? []))),
+            'require_for_ready' => (bool) ($data['require_for_ready'] ?? false),
+            'updated_by_id' => $request->user()->id,
+        ]);
+
+        return back()->with('status', 'Review approvers saved.');
     }
 
     /** Send it back: each open comment becomes a correction on the card. */
@@ -450,12 +506,19 @@ class VideoReviewController extends Controller
             'reviewed_at' => $video->reviewed_at?->format('j M, g:i A'),
             'card_status' => $video->todo?->status,
             'can_review' => $video->reviewableBy($viewer),
+            'sign_off' => $signOff = $video->signOff(),
+            'i_approved' => $video->approvals()->where('user_id', $viewer->id)->exists(),
             'ai' => [
                 'status' => $video->ai_status,
                 'verdict' => $video->ai_verdict,
                 'verdict_label' => $video->verdictLabel(),
                 'report' => $video->ai_report,
                 'error' => $video->ai_error,
+                'stage' => $video->ai_stage,
+                'progress' => $video->ai_progress,
+                'stage_secs' => $video->ai_stage_at ? max(0, (int) $video->ai_stage_at->diffInSeconds(now(), true)) : 0,
+                'expect_secs' => (int) round(20 + ($video->duration ?? 45) * 1.2),
+                'attempt' => $video->ai_attempts,
             ],
             'comments' => $video->comments()->with(['user:id,name,avatar_path', 'likers:id,name', 'replies.user:id,name,avatar_path', 'replies.likers:id,name'])->get()
                 ->map(fn (ReviewComment $c) => $this->commentRow($c, $viewer) + [

@@ -270,6 +270,7 @@
                                               :class="{ good_to_go: 'bg-emerald-400/15 text-emerald-200', minor_fixes: 'bg-amber-400/15 text-amber-200', needs_fixes: 'bg-red-400/15 text-red-200' }[card.review.ai_verdict]"
                                               x-text="'AI: ' + card.review.ai_verdict_label"></span>
                                         <span x-show="['queued', 'running'].includes(card.review.ai_status)" class="text-brand-100/50">AI checking…</span>
+                                        <span x-show="card.review.approvals_needed > 0 && card.review.status === 'pending'" class="rounded bg-emerald-400/10 px-1.5 py-0.5 text-emerald-200" x-text="'✓ ' + card.review.approvals + '/' + card.review.approvals_needed + ' approved'"></span>
                                         <span x-show="card.review.open_comments > 0" class="text-brand-100/70" x-text="card.review.open_comments + ' comments'"></span>
                                         <span class="ml-auto text-brand-300">Open →</span>
                                     </a>

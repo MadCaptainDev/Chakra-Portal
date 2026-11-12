@@ -34,6 +34,7 @@ class VideoReviewTest extends TestCase
         GeminiBudget::reset();
         $this->withoutVite();
         config(['ai.review.enabled' => false]); // the AI check has its own test
+        config(['reviews.enforce' => true]);
         $this->editor = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'name' => 'Sanjai']);
         $this->admin = User::factory()->create(['role' => User::ROLE_ADMIN, 'name' => 'Keerthi']);
         $this->card = new Todo;
@@ -301,5 +302,92 @@ class VideoReviewTest extends TestCase
             ->assertSee('Comment on this moment', false)
             ->assertSee('Saved on this device', false)
             ->assertSee('Press and hold', false);
+    }
+
+    public function test_every_required_approver_must_approve_before_it_is_approved_and_ready(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+        $annamalai = User::factory()->create(['role' => User::ROLE_ADMIN, 'name' => 'Annamalai']);
+        \App\Models\ReviewSetting::current()->update(['approver_ids' => [$this->admin->id, $annamalai->id], 'require_for_ready' => true]);
+        $this->uploadAs($this->editor)->assertCreated();
+        $video = ReviewVideo::first();
+
+        // Keerthi approves: recorded, still waiting; Annamalai is asked.
+        $this->actingAs($this->admin)->postJson(route('reviews.approve', $video))->assertOk()
+            ->assertJsonPath('status', 'pending')->assertJsonPath('sign_off.done', 1)->assertJsonPath('sign_off.needed', 2)
+            ->assertJsonPath('i_approved', true);
+        \Illuminate\Support\Facades\Notification::assertSentTo($annamalai, \App\Notifications\VideoReviewUpdate::class, fn ($n) => str_starts_with($n->title, 'Your OK needed'));
+        $this->assertFalse($this->card->fresh()->isApproved());
+
+        // Not ready yet.
+        $this->actingAs($this->editor)->postJson(route('my.editing.act', $this->card), ['action' => 'ready', 'publish_at' => now()->addDay()->format('Y-m-d\TH:i')])
+            ->assertStatus(422)->assertJsonFragment(['message' => 'Waiting for approval from Annamalai (1 of 2 done).']);
+
+        // Keerthi changes her mind, then approves again; Annamalai approves: done.
+        $this->actingAs($this->admin)->deleteJson(route('reviews.unapprove', $video))->assertOk()->assertJsonPath('sign_off.done', 0);
+        $this->postJson(route('reviews.approve', $video))->assertOk();
+        $this->actingAs($annamalai)->postJson(route('reviews.approve', $video))->assertOk()
+            ->assertJsonPath('status', 'approved')->assertJsonPath('sign_off.complete', true);
+        $this->assertTrue($this->card->fresh()->isApproved());
+        \Illuminate\Support\Facades\Notification::assertSentTo($this->editor, \App\Notifications\VideoReviewUpdate::class, fn ($n) => $n->body === 'Approved by Keerthi and Annamalai. You can make it Video ready with its publishing time now.');
+
+        // Now it can be made ready.
+        $this->actingAs($this->editor)->postJson(route('my.editing.act', $this->card), ['action' => 'ready', 'publish_at' => now()->addDay()->format('Y-m-d\TH:i')])->assertOk();
+    }
+
+    public function test_one_approver_who_is_not_on_the_list_does_not_complete_it(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+        $annamalai = User::factory()->create(['role' => User::ROLE_ADMIN, 'name' => 'Annamalai']);
+        $other = User::factory()->create(['role' => User::ROLE_ADMIN, 'name' => 'Vasanth']);
+        \App\Models\ReviewSetting::current()->update(['approver_ids' => [$annamalai->id]]);
+        $this->uploadAs($this->editor)->assertCreated();
+
+        $this->actingAs($other)->postJson(route('reviews.approve', ReviewVideo::first()))->assertOk()
+            ->assertJsonPath('status', 'pending')->assertJsonPath('sign_off.extra.0.name', 'Vasanth');
+    }
+
+    public function test_a_card_with_no_upload_cannot_be_made_ready_unless_the_rule_is_off(): void
+    {
+        $this->card->forceFill(['status' => Todo::STATUS_COMPLETED])->save();
+        \App\Models\ReviewSetting::current()->update(['approver_ids' => [], 'require_for_ready' => true]);
+
+        $this->actingAs($this->editor)->postJson(route('my.editing.act', $this->card), ['action' => 'ready', 'publish_at' => now()->addDay()->format('Y-m-d\TH:i')])
+            ->assertStatus(422)->assertJsonFragment(['message' => 'Upload the cut for review first. It can be made ready once a reviewer has approved it.']);
+
+        $this->actingAs($this->admin)->put(route('reviews.settings'), ['approver_ids' => [], 'require_for_ready' => 0])->assertRedirect();
+        $this->actingAs($this->editor)->postJson(route('my.editing.act', $this->card), ['action' => 'ready', 'publish_at' => now()->addDay()->format('Y-m-d\TH:i')])->assertOk();
+    }
+
+    public function test_the_ai_check_reports_its_steps(): void
+    {
+        config(['ai.review.enabled' => true]);
+        AiSetting::current()->forceFill(['gemini_api_key' => 'AIza-test', 'gemini_monthly_cap_usd' => 5])->save();
+        $stages = [];
+        Http::fake([
+            'generativelanguage.googleapis.com/upload/v1beta/files' => Http::response([], 200, ['X-Goog-Upload-URL' => 'https://generativelanguage.googleapis.com/upload/session/1']),
+            'generativelanguage.googleapis.com/upload/session/*' => function () use (&$stages) {
+                $stages[] = ReviewVideo::first()?->ai_stage;
+
+                return Http::response(['file' => ['name' => 'files/abc', 'uri' => 'u', 'state' => 'ACTIVE', 'mimeType' => 'video/mp4']]);
+            },
+            'generativelanguage.googleapis.com/v1beta/files/*' => Http::response([]),
+            'generativelanguage.googleapis.com/*' => function () use (&$stages) {
+                $stages[] = ReviewVideo::first()?->ai_stage;
+
+                return Http::response(['candidates' => [['content' => ['parts' => [['text' => "```json\n".json_encode(['verdict' => 'good_to_go', 'score' => 9, 'summary' => 'Fine', 'issues' => []])."\n```"]]]]], 'usageMetadata' => ['promptTokenCount' => 10, 'candidatesTokenCount' => 10]]);
+            },
+        ]);
+        \Illuminate\Support\Facades\Notification::fake();
+
+        $this->uploadAs($this->editor)->assertCreated();
+
+        $video = ReviewVideo::first();
+        $this->assertSame('done', $video->ai_status, (string) $video->ai_error);
+        $this->assertSame('good_to_go', $video->ai_verdict, 'Fenced JSON is read.');
+        // The steps, in order, each seen at least once.
+        $order = array_values(array_unique(array_filter($stages)));
+        $this->assertSame(['uploading', 'watching'], array_values(array_intersect($order, ['uploading', 'watching'])));
+        $this->assertNull($video->ai_stage);
     }
 }

@@ -58,9 +58,12 @@
             </div>
 
             {{-- Verdict on phones lives up here, away from the comment box at the bottom. --}}
-            <div x-show="s.can_review" class="flex w-full gap-2 sm:w-auto lg:hidden">
+            <div x-show="s.can_review && s.status === 'pending'" class="flex w-full gap-2 sm:w-auto lg:hidden">
                 <button type="button" @click="decide('changes')" class="{{ $btn }} h-10 flex-1 bg-amber-400/90 px-3 text-xs font-bold text-brand-900 sm:flex-none">↩ Send back<span x-show="open.length" x-text="' (' + open.length + ')'"></span></button>
-                <button type="button" @click="decide('approve')" class="{{ $btn }} h-10 flex-1 bg-emerald-400/90 px-3 text-xs font-bold text-brand-900 sm:flex-none">✓ Good to go</button>
+                <button type="button" x-show="!s.i_approved" @click="decide('approve')" class="{{ $btn }} h-10 flex-1 bg-emerald-400/90 px-3 text-xs font-bold text-brand-900 sm:flex-none">
+                    ✓ I approve <span x-show="s.sign_off.needed" class="opacity-70" x-text="'(' + s.sign_off.done + '/' + s.sign_off.needed + ')'"></span>
+                </button>
+                <button type="button" x-show="s.i_approved" x-cloak @click="unapprove()" class="{{ $btn }} h-10 flex-1 bg-emerald-400/15 px-3 text-xs font-bold text-emerald-200 ring-1 ring-emerald-400/40 sm:flex-none">✓ Approved · Undo</button>
             </div>
 
             <span class="rounded-full px-3 py-1.5 text-xs font-bold ring-1 transition"
@@ -378,15 +381,38 @@
 
                 {{-- ——— AI check ——— --}}
                 <section x-show="tab === 'ai'" x-cloak x-transition.opacity.duration.150ms class="space-y-3">
-                    <template x-if="['queued', 'running'].includes(s.ai.status)">
-                        <div class="space-y-2 rounded-2xl bg-[#15303f] p-4 ring-1 ring-white/[0.07]">
-                            <p class="text-sm text-brand-100/70">Gemini is watching the cut… usually under a minute.</p>
-                            <div class="rv-shimmer h-4 w-3/4 rounded"></div>
-                            <div class="rv-shimmer h-4 w-1/2 rounded"></div>
-                            <div class="rv-shimmer h-16 rounded-xl"></div>
+                    <template x-if="['queued', 'running'].includes(s.ai.status) || (s.ai.status === 'failed' && s.ai.stage === 'retrying')">
+                        <div class="rounded-2xl bg-[#15303f] p-4 ring-1 ring-white/[0.07]">
+                            <div class="flex items-baseline justify-between">
+                                <p class="text-sm font-semibold text-white" x-text="s.ai.stage === 'retrying' ? 'Gemini was busy — trying again' : (s.ai.status === 'queued' ? 'Waiting to start…' : 'Gemini is checking the cut')"></p>
+                                <span class="font-mono text-xs text-brand-100/60" x-show="s.ai.status === 'running'" x-text="aiPct + '%'"></span>
+                            </div>
+                            {{-- One bar for the whole check --}}
+                            <div class="mt-2.5 h-2 overflow-hidden rounded-full bg-white/10">
+                                <div class="relative h-full rounded-full bg-gradient-to-r from-brand-400 to-amber-300 transition-all duration-700" :style="`width:${s.ai.stage === 'retrying' ? 100 : aiPct}%`">
+                                    <span class="rv-shimmer absolute inset-0"></span>
+                                </div>
+                            </div>
+                            <template x-if="s.ai.stage === 'retrying'">
+                                <p class="mt-3 text-xs text-amber-200/90" x-text="'Google said it is overloaded. The portal tries again by itself in a few minutes (attempt ' + s.ai.attempt + ' of 4) — nothing to do.'"></p>
+                            </template>
+                            <ol x-show="s.ai.stage !== 'retrying'" class="mt-3 space-y-2">
+                                <template x-for="step in aiSteps" :key="step.key">
+                                    <li class="flex items-center gap-2.5 text-[13px]" :class="step.state === 'next' ? 'text-brand-100/40' : 'text-white'">
+                                        <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition"
+                                              :class="step.state === 'done' ? 'bg-emerald-400 text-brand-900' : (step.state === 'now' ? 'bg-amber-400 text-brand-900' : 'bg-white/10')">
+                                            <span x-show="step.state === 'done'">✓</span>
+                                            <span x-show="step.state === 'now'" class="h-2.5 w-2.5 animate-spin rounded-full border-2 border-brand-900/30 border-t-brand-900"></span>
+                                        </span>
+                                        <span class="flex-1" x-text="step.label"></span>
+                                        <span class="font-mono text-[11px] text-brand-100/50" x-text="step.extra"></span>
+                                    </li>
+                                </template>
+                            </ol>
+                            <p x-show="s.ai.status === 'running'" class="mt-3 text-[11px] text-brand-100/40" x-text="'Running for ' + aiSecs + 's in this step. You can keep reviewing meanwhile.'"></p>
                         </div>
                     </template>
-                    <template x-if="['failed', 'skipped', 'none'].includes(s.ai.status)">
+                    <template x-if="['skipped', 'none'].includes(s.ai.status) || (s.ai.status === 'failed' && s.ai.stage !== 'retrying')">
                         <div class="rounded-2xl bg-[#15303f] p-4 text-sm ring-1 ring-white/[0.07]">
                             <p class="text-amber-200/90"><span x-text="s.ai.status === 'failed' ? 'The check did not finish' : 'Not checked'"></span><span x-show="s.ai.error" x-text="': ' + s.ai.error"></span></p>
                             <button type="button" @click="recheck()" class="{{ $btn }} mt-3 h-10 bg-white/10 px-4 text-sm text-white">Check again</button>
@@ -449,12 +475,41 @@
                     @endif
                 </section>
 
+                {{-- ——— Sign-off: everyone on the list has to approve ——— --}}
+                <div x-show="s.sign_off.needed > 0 || s.sign_off.extra.length" class="mt-4 rounded-2xl bg-[#15303f] p-4 ring-1 ring-white/[0.07]">
+                    <div class="flex items-baseline justify-between">
+                        <p class="text-sm font-semibold text-white">Approvals</p>
+                        <span class="text-xs" :class="s.sign_off.complete ? 'text-emerald-300' : 'text-brand-100/60'" x-text="s.sign_off.complete ? 'All approved ✓' : s.sign_off.done + ' of ' + s.sign_off.needed"></span>
+                    </div>
+                    <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+                        <div class="h-full rounded-full bg-emerald-400 transition-all duration-700" :style="`width:${s.sign_off.needed ? (s.sign_off.done / s.sign_off.needed) * 100 : (s.sign_off.complete ? 100 : 0)}%`"></div>
+                    </div>
+                    <ul class="mt-3 space-y-1.5">
+                        <template x-for="a in s.sign_off.required" :key="'r' + a.id">
+                            <li class="flex items-center gap-2.5 text-[13px]">
+                                <span class="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold transition"
+                                      :class="a.approved ? 'bg-emerald-400 text-brand-900' : 'bg-white/10 text-brand-100/60'" x-text="a.approved ? '✓' : initials(a.name)"></span>
+                                <span class="flex-1 text-white" x-text="a.name"></span>
+                                <span class="text-[11px]" :class="a.approved ? 'text-emerald-300/80' : 'text-brand-100/40'" x-text="a.approved ? a.at : 'waiting'"></span>
+                            </li>
+                        </template>
+                        <template x-for="a in s.sign_off.extra" :key="'x' + a.id">
+                            <li class="flex items-center gap-2.5 text-[13px] text-brand-100/70">
+                                <span class="flex h-7 w-7 items-center justify-center rounded-full bg-sky-400/20 text-[11px] font-bold text-sky-200">✓</span>
+                                <span class="flex-1" x-text="a.name + ' (also OK)'"></span>
+                                <span class="text-[11px] text-brand-100/40" x-text="a.at"></span>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+
                 {{-- ——— Verdict (desktop) ——— --}}
-                <div x-show="s.can_review" class="mt-4 hidden gap-2 lg:grid lg:grid-cols-2">
+                <div x-show="s.can_review && s.status === 'pending'" class="mt-3 hidden gap-2 lg:grid lg:grid-cols-2">
                     <button type="button" @click="decide('changes')" class="{{ $btn }} h-12 bg-amber-400 text-sm font-bold text-brand-900 hover:bg-amber-300">
                         ↩ Send back<span x-show="open.length" x-text="' (' + open.length + ')'"></span>
                     </button>
-                    <button type="button" @click="decide('approve')" class="{{ $btn }} h-12 bg-emerald-400 text-sm font-bold text-brand-900 hover:bg-emerald-300">✓ Good to go</button>
+                    <button type="button" x-show="!s.i_approved" @click="decide('approve')" class="{{ $btn }} h-12 bg-emerald-400 text-sm font-bold text-brand-900 hover:bg-emerald-300">✓ I approve</button>
+                    <button type="button" x-show="s.i_approved" x-cloak @click="unapprove()" :disabled="busy.verdict" class="{{ $btn }} h-12 bg-emerald-400/15 text-sm font-bold text-emerald-200 ring-1 ring-emerald-400/40" title="Take your approval back">✓ You approved · Undo</button>
                 </div>
             </div>
         </div>
@@ -469,8 +524,13 @@
                     <template x-if="sheet === 'approve'">
                         <div>
                             <p class="text-3xl">✅</p>
-                            <h3 class="mt-1 text-xl font-extrabold">Good to go?</h3>
-                            <p class="mt-1 text-sm text-brand-100/70">Marks version {{ $video->version }} as checked. {{ $card->user?->name ? Str::before($card->user->name, ' ') : 'The editor' }} is told, and sets it Video ready with its publishing time.</p>
+                            <h3 class="mt-1 text-xl font-extrabold">Approve version {{ $video->version }}?</h3>
+                            <p class="mt-1 text-sm text-brand-100/70" x-show="s.sign_off.needed && s.sign_off.done + 1 < s.sign_off.needed"
+                               x-text="'Your OK is recorded. It is approved when ' + s.sign_off.required.filter((a) => !a.approved && a.id !== s.me.id).map((a) => a.name.split(' ')[0]).join(' and ') + ' approve too — they are told now.'"></p>
+                            <p class="mt-1 text-sm text-brand-100/70" x-show="!s.sign_off.needed || s.sign_off.done + 1 >= s.sign_off.needed">
+                                This completes the approval. {{ $card->user?->name ? Str::before($card->user->name, ' ') : 'The editor' }} is told and can make it Video ready.
+                            </p>
+                            <p x-show="s.sign_off.needed && !s.sign_off.required.some((a) => a.id === s.me.id)" class="mt-2 text-xs text-brand-100/50">You are not on the approvers list, so your OK shows as "also OK".</p>
                             <p x-show="open.length" class="mt-3 rounded-xl bg-amber-400/10 px-3 py-2 text-sm text-amber-200" x-text="open.length + (open.length === 1 ? ' comment is' : ' comments are') + ' still open. They stay on the video but are not sent as changes.'"></p>
                         </div>
                     </template>

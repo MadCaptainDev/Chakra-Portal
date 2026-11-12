@@ -52,6 +52,8 @@ abstract class TestCase extends BaseTestCase
          * it and are about other things. ShootDayFlowTest turns it on.
          */
         config(['shoots.require_kit' => false]);
+        // Likewise "approved before Video ready": VideoReviewTest turns it on.
+        config(['reviews.enforce' => false]);
 
         \App\Models\TimesheetEntry::flushTaskTypes();
         \App\Support\BrandBrief::flush();

@@ -62,8 +62,11 @@ class VideoCheck
         $file = null;
 
         try {
+            self::stage($video, 'uploading', 0);
             $file = self::upload($video, $key);
+            self::stage($video, 'watching');
             $reply = GeminiBudget::during('review', fn () => self::ask($key, $file, self::prompt($video)), $video->uploadedBy);
+            self::stage($video, 'writing', 100);
             $report = self::json($reply);
             if (! is_array($report) || ! isset($report['verdict'])) {
                 throw new RuntimeException('Gemini did not return a report.');
@@ -89,12 +92,14 @@ class VideoCheck
                 ],
                 'ai_error' => null,
                 'ai_checked_at' => now(),
+                'ai_stage' => null,
             ])->save();
         } catch (GeminiBudgetExceeded) {
-            $video->forceFill(['ai_status' => 'skipped', 'ai_error' => 'This month\'s Gemini limit is used up.'])->save();
+            $video->forceFill(['ai_status' => 'skipped', 'ai_stage' => null, 'ai_error' => 'This month\'s Gemini limit is used up.'])->save();
         } catch (Throwable $e) {
             report($e);
-            $video->forceFill(['ai_status' => 'failed', 'ai_error' => Str::limit($e->getMessage(), 480)])->save();
+            $retrying = preg_match(self::RETRY_ON, $e->getMessage()) && (int) ReviewVideo::query()->whereKey($video->id)->value('ai_attempts') < self::MAX_ATTEMPTS;
+            $video->forceFill(['ai_status' => 'failed', 'ai_stage' => $retrying ? 'retrying' : null, 'ai_stage_at' => now(), 'ai_error' => Str::limit($e->getMessage(), 480)])->save();
         } finally {
             if ($file) {
                 rescue(fn () => Http::withHeaders(['x-goog-api-key' => $key])->timeout(15)->delete(self::API.'/v1beta/'.$file['name']), null, false);
@@ -124,6 +129,23 @@ class VideoCheck
         return is_array($out) ? $out : null;
     }
 
+    /** Where the check is up to, for the review page's progress. */
+    private static function stage(ReviewVideo $video, string $stage, int $progress = 0): void
+    {
+        $at = $video->ai_stage !== $stage ? now() : ($video->ai_stage_at ?? now());
+        ReviewVideo::query()->whereKey($video->id)->update([
+            'ai_stage' => $stage,
+            'ai_progress' => max(0, min(100, $progress)),
+            'ai_stage_at' => $at,
+            'updated_at' => now(),
+        ]);
+        $video->ai_stage = $stage;
+        $video->ai_progress = max(0, min(100, $progress));
+        $video->ai_stage_at = $at;
+        // Already written: later saves must see these as unchanged.
+        $video->syncOriginalAttributes(['ai_stage', 'ai_progress', 'ai_stage_at']);
+    }
+
     /** @return array{name: string, uri: string, mime: string} */
     private static function upload(ReviewVideo $video, string $key): array
     {
@@ -139,16 +161,31 @@ class VideoCheck
         ])->timeout(60)->post(self::API.'/upload/v1beta/files', ['file' => ['display_name' => 'review-'.$video->id]]);
         $url = $start->header('X-Goog-Upload-URL') ?: throw new RuntimeException('Gemini would not take the upload.');
 
+        // In 8 MB pieces, so the page can show how far the sending has got.
+        $size = filesize($path);
+        $piece = 8 * 1024 * 1024;
         $handle = fopen($path, 'rb');
+        $file = [];
         try {
-            $file = Http::withHeaders(['X-Goog-Upload-Offset' => '0', 'X-Goog-Upload-Command' => 'upload, finalize'])
-                ->withBody($handle, $mime)->timeout(600)->post($url)->throw()->json('file') ?? [];
+            for ($offset = 0; $offset < $size; $offset += $piece) {
+                $chunk = fread($handle, $piece);
+                $last = $offset + strlen($chunk) >= $size;
+                $response = Http::withHeaders([
+                    'X-Goog-Upload-Offset' => (string) $offset,
+                    'X-Goog-Upload-Command' => $last ? 'upload, finalize' : 'upload',
+                ])->withBody($chunk, $mime)->timeout(300)->post($url)->throw();
+                self::stage($video, 'uploading', (int) round(min($size, $offset + strlen($chunk)) / max(1, $size) * 100));
+                if ($last) {
+                    $file = $response->json('file') ?? [];
+                }
+            }
         } finally {
             if (is_resource($handle)) {
                 fclose($handle);
             }
         }
 
+        self::stage($video, 'processing');
         for ($i = 0; ($file['state'] ?? 'ACTIVE') === 'PROCESSING' && $i < 60; $i++) {
             sleep(3);
             $file = Http::withHeaders(['x-goog-api-key' => $key])->timeout(30)->get(self::API.'/v1beta/'.$file['name'])->json() ?? [];

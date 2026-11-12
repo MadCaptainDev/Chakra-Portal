@@ -37,6 +37,8 @@ class ReviewVideo extends Model
         'ai_report' => 'array',
         'duration' => 'float',
         'ai_attempts' => 'integer',
+        'ai_progress' => 'integer',
+        'ai_stage_at' => 'datetime',
         'size' => 'integer',
         'reviewed_at' => 'datetime',
         'ai_checked_at' => 'datetime',
@@ -69,6 +71,33 @@ class ReviewVideo extends Model
         return $this->hasMany(ReviewComment::class);
     }
 
+    /** Who has OK'd this version. */
+    public function approvals(): HasMany
+    {
+        return $this->hasMany(ReviewApproval::class)->orderBy('created_at');
+    }
+
+    /**
+     * The sign-off: who must approve, who has, who is still to.
+     *
+     * @return array{required: list<array<string, mixed>>, extra: list<array<string, mixed>>, done: int, needed: int, complete: bool}
+     */
+    public function signOff(): array
+    {
+        $approvals = $this->approvals()->with('user:id,name,avatar_path')->get()->keyBy('user_id');
+        $required = ReviewSetting::current()->approvers();
+
+        $row = fn (User $u, $a) => ['id' => $u->id, 'name' => $u->name, 'approved' => (bool) $a, 'at' => $a?->created_at?->format('j M, g:i A'), 'note' => $a?->note];
+
+        return [
+            'required' => $required->map(fn (User $u) => $row($u, $approvals->get($u->id)))->values()->all(),
+            'extra' => $approvals->reject(fn ($a) => $required->contains('id', $a->user_id))->map(fn ($a) => $row($a->user, $a))->values()->all(),
+            'done' => $required->filter(fn (User $u) => $approvals->has($u->id))->count(),
+            'needed' => $required->count(),
+            'complete' => $required->isEmpty() ? $approvals->isNotEmpty() : $required->every(fn (User $u) => $approvals->has($u->id)),
+        ];
+    }
+
     public function filePath(): ?string
     {
         return $this->path ? storage_path('app/private/'.$this->path) : null;
@@ -84,7 +113,7 @@ class ReviewVideo extends Model
     {
         $editor = $this->todo?->user;
 
-        return $editor && ($user->id === $editor->id || $user->manages($editor));
+        return $editor && ($user->id === $editor->id || $user->manages($editor) || ReviewSetting::current()->isApprover($user));
     }
 
     /** May this person approve it or send it back? */
@@ -92,7 +121,12 @@ class ReviewVideo extends Model
     {
         $editor = $this->todo?->user;
 
-        return $editor && $user->manages($editor) && ($user->id !== $editor->id || $user->isAdmin());
+        if (! $editor || $user->isClient()) {
+            return false;
+        }
+        $may = $user->manages($editor) || ReviewSetting::current()->isApprover($user);
+
+        return $may && ($user->id !== $editor->id || $user->isAdmin());
     }
 
     public function statusLabel(): string
@@ -117,6 +151,8 @@ class ReviewVideo extends Model
             'ai_verdict' => $this->ai_verdict,
             'ai_verdict_label' => $this->verdictLabel(),
             'open_comments' => $this->comments()->whereNull('resolved_at')->count(),
+            'approvals' => ($so = $this->signOff())['done'],
+            'approvals_needed' => $so['needed'],
             'url' => route('reviews.show', $this),
         ];
     }

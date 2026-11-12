@@ -9,6 +9,41 @@
             <p class="text-sm text-brand-100/60">{{ $waiting->count() }} waiting · editors upload from My Editing, Gemini checks each one, you decide.</p>
         </div>
 
+        {{-- Who must approve (admins) --}}
+        @if (auth()->user()->isAdmin())
+            @php $chosen = array_map('intval', $settings->approver_ids ?? []); @endphp
+            <details class="rounded-2xl bg-[#15303f] p-4 ring-1 ring-white/[0.07]" @if (! $chosen) open @endif>
+                <summary class="flex cursor-pointer list-none flex-wrap items-center gap-2">
+                    <span class="text-sm font-semibold text-white">Who must approve</span>
+                    <span class="text-xs text-brand-100/55">
+                        {{ $settings->approvers()->pluck('name')->implode(', ') ?: 'Anyone who reviews (one OK is enough)' }}
+                        · {{ $settings->require_for_ready ? 'Video ready waits for it' : 'Video ready does not wait' }}
+                    </span>
+                    <span class="ml-auto text-xs text-brand-300">Change</span>
+                </summary>
+                <form method="POST" action="{{ route('reviews.settings') }}" class="mt-4 space-y-4">
+                    @csrf @method('PUT')
+                    <div>
+                        <p class="text-xs text-brand-100/60">Every person ticked has to approve a cut before it is approved. Leave all unticked and the first OK from any reviewer is enough.</p>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            @foreach ($staff as $person)
+                                <label class="cursor-pointer">
+                                    <input type="checkbox" name="approver_ids[]" value="{{ $person->id }}" class="peer sr-only" @checked(in_array($person->id, $chosen, true))>
+                                    <span class="inline-flex h-10 items-center rounded-full px-4 text-sm ring-1 ring-white/15 transition peer-checked:bg-emerald-400 peer-checked:font-semibold peer-checked:text-brand-900 peer-checked:ring-emerald-400 text-brand-100/80">{{ $person->name }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                    </div>
+                    <label class="flex items-center gap-2.5 text-sm text-white">
+                        <input type="hidden" name="require_for_ready" value="0">
+                        <input type="checkbox" name="require_for_ready" value="1" @checked($settings->require_for_ready) class="h-5 w-5 rounded border-white/30 bg-transparent text-emerald-400 focus:ring-emerald-400">
+                        A video can only be made Video ready once its cut is approved
+                    </label>
+                    <x-btn type="submit">Save</x-btn>
+                </form>
+            </details>
+        @endif
+
         <section>
             <h2 class="mb-3 text-[17px] font-semibold text-white">Waiting for you</h2>
             <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

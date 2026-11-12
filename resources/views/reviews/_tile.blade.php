@@ -19,6 +19,10 @@
             @elseif (in_array($v->ai_status, ['queued', 'running'], true))
                 <span class="rounded bg-white/10 px-1.5 py-0.5 text-brand-100/60">AI checking…</span>
             @endif
+            @php $so = $v->signOff(); @endphp
+            @if ($so['needed'] && $v->status === \App\Models\ReviewVideo::PENDING)
+                <span class="rounded px-1.5 py-0.5 {{ $so['done'] ? 'bg-emerald-400/15 text-emerald-200' : 'bg-white/10 text-brand-100/70' }}">✓ {{ $so['done'] }}/{{ $so['needed'] }}</span>
+            @endif
             @if ($v->open_comments)
                 <span class="rounded bg-white/10 px-1.5 py-0.5 text-brand-100/80">{{ $v->open_comments }} open</span>
             @endif

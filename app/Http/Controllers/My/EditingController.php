@@ -220,6 +220,9 @@ class EditingController extends Controller
                 if ($todo->corrections()->open()->exists()) {
                     return response()->json(['message' => 'Finish the open corrections first.'], 422);
                 }
+                if ($why = \App\Support\ReviewGate::blocksReady($todo)) {
+                    return response()->json(['message' => $why], 422);
+                }
                 $at = Carbon::parse($data['publish_at']);
                 $wasReady = $todo->ready_at !== null;
                 $todo->forceFill([
