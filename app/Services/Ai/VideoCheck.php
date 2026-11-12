@@ -20,6 +20,11 @@ class VideoCheck
 {
     private const API = 'https://generativelanguage.googleapis.com';
 
+    /** A failure worth trying again later: Gemini busy or slow, not a broken file. */
+    public const RETRY_ON = '/high demand|overloaded|unavailable|try again|timed out|timeout|slow|503|429|500/i';
+
+    public const MAX_ATTEMPTS = 4;
+
     public static function run(ReviewVideo $video): void
     {
         if (! config('ai.review.enabled', true) || ! in_array($video->ai_status, ['queued', 'failed', 'none'], true)) {
@@ -49,7 +54,7 @@ class VideoCheck
         }
 
         // Claimed, so two runs never check the same cut.
-        if (! ReviewVideo::query()->whereKey($video->id)->whereIn('ai_status', ['queued', 'failed', 'none'])->update(['ai_status' => 'running', 'updated_at' => now()])) {
+        if (! ReviewVideo::query()->whereKey($video->id)->whereIn('ai_status', ['queued', 'failed', 'none'])->update(['ai_status' => 'running', 'ai_attempts' => \Illuminate\Support\Facades\DB::raw('ai_attempts + 1'), 'updated_at' => now()])) {
             return;
         }
 

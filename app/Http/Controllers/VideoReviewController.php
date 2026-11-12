@@ -79,6 +79,17 @@ class VideoReviewController extends Controller
     {
         abort_unless($video->visibleTo($request->user()), 404);
 
+        // Where this person is in the cut, so the others see them watching.
+        if ($request->has('t')) {
+            DB::table('review_presence')->upsert([[
+                'review_video_id' => $video->id,
+                'user_id' => $request->user()->id,
+                'at_seconds' => max(0, min(36000, (float) $request->query('t'))),
+                'playing' => $request->boolean('p'),
+                'seen_at' => now(),
+            ]], ['review_video_id', 'user_id'], ['at_seconds', 'playing', 'seen_at']);
+        }
+
         return response()->json($this->state($video->fresh(), $request->user()));
     }
 
@@ -232,15 +243,53 @@ class VideoReviewController extends Controller
 
     public function comment(Request $request, ReviewVideo $video): JsonResponse
     {
-        abort_unless($video->visibleTo($request->user()), 404);
+        $user = $request->user();
+        abort_unless($video->visibleTo($user), 404);
         $data = $request->validate([
             'body' => ['required', 'string', 'max:2000'],
             'at_seconds' => ['nullable', 'numeric', 'min:0', 'max:36000'],
+            'parent_id' => ['nullable', 'integer'],
         ]);
 
-        ReviewComment::create(['review_video_id' => $video->id, 'user_id' => $request->user()->id] + $data);
+        $parent = null;
+        if (! empty($data['parent_id'])) {
+            $parent = ReviewComment::query()->where('review_video_id', $video->id)->whereNull('parent_id')->findOrFail($data['parent_id']);
+            $data['at_seconds'] = null; // a reply belongs to its comment's moment
+        }
 
-        return response()->json($this->state($video->fresh(), $request->user()), 201);
+        // The same words twice in a few seconds is a double tap, not two comments.
+        $twin = ReviewComment::query()->where('review_video_id', $video->id)->where('user_id', $user->id)
+            ->where('body', trim($data['body']))->where('created_at', '>=', now()->subSeconds(20))->exists();
+        if (! $twin) {
+            ReviewComment::create([
+                'review_video_id' => $video->id,
+                'parent_id' => $parent?->id,
+                'user_id' => $user->id,
+                'at_seconds' => $data['at_seconds'] ?? null,
+                'body' => trim($data['body']),
+            ]);
+
+            // A reply reaches the person who wrote the comment; a comment reaches the editor.
+            $to = $parent ? collect([$parent->user]) : collect([$video->todo?->user]);
+            $to = $to->filter()->reject(fn (User $u) => $u->id === $user->id);
+            if ($to->isNotEmpty()) {
+                $this->tell($to, $video, ($parent ? 'Reply from ' : 'Comment from ').$user->name.' · '.$video->todo?->title,
+                    Str::limit(($parent || empty($data['at_seconds']) ? '' : ReviewComment::clock((float) $data['at_seconds']).' — ').trim($data['body']), 180));
+            }
+        }
+
+        return response()->json($this->state($video->fresh(), $user), 201);
+    }
+
+    /** Agree with a comment (again to take it back). */
+    public function like(Request $request, ReviewComment $comment): JsonResponse
+    {
+        $video = $comment->video;
+        abort_unless($video->visibleTo($request->user()), 404);
+
+        $comment->likers()->toggle([$request->user()->id => ['created_at' => now()]]);
+
+        return response()->json($this->state($video->fresh(), $request->user()));
     }
 
     public function resolve(Request $request, ReviewComment $comment): JsonResponse
@@ -260,7 +309,7 @@ class VideoReviewController extends Controller
         $video = $comment->video;
         abort_unless($comment->user_id === $request->user()->id || $video->reviewableBy($request->user()), 403);
         abort_if($comment->correction_todo_id !== null, 422, 'This comment is already a correction on the card.');
-        $comment->delete();
+        $comment->delete(); // replies and likes go with it
 
         return response()->json($this->state($video->fresh(), $request->user()));
     }
@@ -304,7 +353,8 @@ class VideoReviewController extends Controller
 
         DB::transaction(function () use ($video, $card, $user, $open, $note) {
             foreach ($open as $comment) {
-                $title = Str::limit(($comment->stamp() ? $comment->stamp().' — ' : '').$comment->body, 250);
+                $agreed = $comment->likers()->count();
+                $title = Str::limit(($comment->stamp() ? $comment->stamp().' — ' : '').$comment->body.($agreed ? ' (+'.$agreed.')' : ''), 250);
                 $fix = Todo::create([
                     'user_id' => $card->user_id,
                     'assigned_by_id' => $user->id,
@@ -391,18 +441,46 @@ class VideoReviewController extends Controller
                 'report' => $video->ai_report,
                 'error' => $video->ai_error,
             ],
-            'comments' => $video->comments()->with('user:id,name,avatar_path')->get()->map(fn (ReviewComment $c) => [
-                'id' => $c->id,
-                'at' => $c->at_seconds,
-                'stamp' => $c->stamp(),
-                'body' => $c->body,
-                'by' => $c->user?->name ?? 'Someone',
-                'mine' => $c->user_id === $viewer->id,
-                'resolved' => $c->resolved_at !== null,
-                'correction' => $c->correction_todo_id !== null,
-                'when' => $c->created_at?->diffForHumans(),
-            ])->values()->all(),
+            'comments' => $video->comments()->with(['user:id,name,avatar_path', 'likers:id,name', 'replies.user:id,name,avatar_path', 'replies.likers:id,name'])->get()
+                ->map(fn (ReviewComment $c) => $this->commentRow($c, $viewer) + [
+                    'replies' => $c->replies->map(fn (ReviewComment $r) => $this->commentRow($r, $viewer))->values()->all(),
+                ])->values()->all(),
+            // Everyone else on this cut in the last 15 seconds, and where they are in it.
+            'watching' => DB::table('review_presence')->join('users', 'users.id', '=', 'review_presence.user_id')
+                ->where('review_video_id', $video->id)->where('user_id', '!=', $viewer->id)
+                ->where('seen_at', '>=', now()->subSeconds(15))
+                ->get(['users.id', 'users.name', 'users.avatar_path', 'at_seconds', 'playing'])
+                ->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'avatar' => $this->avatar($p->avatar_path), 'at' => $p->at_seconds !== null ? (float) $p->at_seconds : null, 'playing' => (bool) $p->playing])
+                ->values()->all(),
+            'me' => ['id' => $viewer->id, 'name' => $viewer->name],
         ];
+    }
+
+    /** @return array<string, mixed> */
+    private function commentRow(ReviewComment $c, User $viewer): array
+    {
+        return [
+            'id' => $c->id,
+            'at' => $c->at_seconds,
+            'stamp' => $c->stamp(),
+            'body' => $c->body,
+            'by' => $c->user?->name ?? 'Someone',
+            'by_id' => $c->user_id,
+            'avatar' => $this->avatar($c->user?->avatar_path),
+            'mine' => $c->user_id === $viewer->id,
+            'resolved' => $c->resolved_at !== null,
+            'correction' => $c->correction_todo_id !== null,
+            'when' => $c->created_at?->diffForHumans(null, true, true),
+            'created' => $c->created_at?->toIso8601String(),
+            'likes' => $c->likers->count(),
+            'liked' => $c->likers->contains('id', $viewer->id),
+            'liked_by' => $c->likers->pluck('name')->map(fn ($n) => Str::before($n, ' '))->values()->all(),
+        ];
+    }
+
+    private function avatar(?string $path): ?string
+    {
+        return $path && is_file(public_path($path)) ? asset($path) : null;
     }
 
     private function authoriseUpload(Todo $card, User $user): void

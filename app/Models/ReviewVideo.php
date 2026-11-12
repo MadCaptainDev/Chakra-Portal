@@ -36,6 +36,7 @@ class ReviewVideo extends Model
     protected $casts = [
         'ai_report' => 'array',
         'duration' => 'float',
+        'ai_attempts' => 'integer',
         'size' => 'integer',
         'reviewed_at' => 'datetime',
         'ai_checked_at' => 'datetime',
@@ -57,9 +58,15 @@ class ReviewVideo extends Model
         return $this->belongsTo(User::class, 'reviewed_by_id');
     }
 
+    /** Top-level comments, in the order they sit in the video; replies hang off them. */
     public function comments(): HasMany
     {
-        return $this->hasMany(ReviewComment::class)->orderByRaw('at_seconds is null')->orderBy('at_seconds')->orderBy('id');
+        return $this->hasMany(ReviewComment::class)->whereNull('parent_id')->orderByRaw('at_seconds is null')->orderBy('at_seconds')->orderBy('id');
+    }
+
+    public function allComments(): HasMany
+    {
+        return $this->hasMany(ReviewComment::class);
     }
 
     public function filePath(): ?string

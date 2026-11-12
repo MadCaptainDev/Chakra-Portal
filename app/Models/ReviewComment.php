@@ -8,13 +8,29 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /** A comment on a cut, pinned to a moment in it (or to the whole cut). */
 class ReviewComment extends Model
 {
-    protected $fillable = ['review_video_id', 'user_id', 'at_seconds', 'body'];
+    protected $fillable = ['review_video_id', 'parent_id', 'user_id', 'at_seconds', 'body'];
 
     protected $casts = ['at_seconds' => 'float', 'resolved_at' => 'datetime'];
 
     public function video(): BelongsTo
     {
         return $this->belongsTo(ReviewVideo::class, 'review_video_id');
+    }
+
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    public function replies(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(self::class, 'parent_id')->orderBy('id');
+    }
+
+    /** People who agreed with it. */
+    public function likers(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'review_comment_likes')->withPivot('created_at');
     }
 
     public function user(): BelongsTo

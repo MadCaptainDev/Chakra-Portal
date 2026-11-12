@@ -388,3 +388,32 @@ html, body {
         border-color: transparent;
     }
 }
+
+/* ——— Video review (reviews/show) ——— */
+@keyframes rvFlash { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.6); } 25% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.35); } }
+@keyframes rvRipple { 0% { opacity: .55; transform: scale(.2); } 100% { opacity: 0; transform: scale(1.6); } }
+@keyframes rvGlow { 0% { box-shadow: 0 0 0 0 rgba(251, 191, 36, .55); background-color: rgba(251, 191, 36, .14); } 100% { box-shadow: 0 0 0 14px rgba(251, 191, 36, 0); background-color: transparent; } }
+@keyframes rvPing { 0% { transform: scale(1); opacity: .7; } 80%, 100% { transform: scale(1.9); opacity: 0; } }
+@keyframes rvShimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes rvPinIn { 0% { transform: translate(-50%, -6px) scale(.2); opacity: 0; } 70% { transform: translate(-50%, 0) scale(1.15); } 100% { transform: translate(-50%, 0) scale(1); opacity: 1; } }
+@keyframes rvToastIn { 0% { transform: translateY(16px) scale(.96); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes rvDone { 0% { transform: scale(.4); opacity: 0; } 55% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes rvBurst { 0% { transform: rotate(var(--r)) translateY(0) scale(1); opacity: 1; } 100% { transform: rotate(var(--r)) translateY(-90px) scale(.3); opacity: 0; } }
+@keyframes rvLike { 0% { transform: scale(1); } 40% { transform: scale(1.45) rotate(-12deg); } 100% { transform: scale(1); } }
+@keyframes rvSlideUp { 0% { transform: translateY(100%); } 100% { transform: none; } }
+
+.rv-flash { animation: rvFlash .6s ease-out forwards; }
+.rv-ripple { animation: rvRipple .6s ease-out forwards; }
+.rv-glow { animation: rvGlow 2.2s ease-out; }
+.rv-ping::after { content: ''; position: absolute; inset: -3px; border-radius: 9999px; border: 2px solid currentColor; animation: rvPing 1.8s cubic-bezier(0, 0, .2, 1) infinite; }
+.rv-shimmer { background: linear-gradient(90deg, rgba(255,255,255,.04) 25%, rgba(255,255,255,.12) 50%, rgba(255,255,255,.04) 75%); background-size: 200% 100%; animation: rvShimmer 1.4s linear infinite; }
+.rv-pin { animation: rvPinIn .45s cubic-bezier(.2, .8, .2, 1) both; }
+.rv-toast { animation: rvToastIn .28s cubic-bezier(.2, .8, .2, 1) both; }
+.rv-done { animation: rvDone .6s cubic-bezier(.2, .8, .2, 1) both; }
+.rv-burst { animation: rvBurst .9s cubic-bezier(.2, .8, .2, 1) forwards; }
+.rv-like { animation: rvLike .35s ease-out; }
+.rv-sheet { animation: rvSlideUp .28s cubic-bezier(.2, .8, .2, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+    .rv-flash, .rv-ripple, .rv-glow, .rv-ping::after, .rv-shimmer, .rv-pin, .rv-toast, .rv-done, .rv-burst, .rv-like, .rv-sheet { animation: none; }
+}

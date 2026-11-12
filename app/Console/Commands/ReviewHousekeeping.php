@@ -38,6 +38,15 @@ class ReviewHousekeeping extends Command
         ReviewVideo::query()->where('ai_status', 'running')->where('updated_at', '<=', now()->subMinutes(30))
             ->update(['ai_status' => 'failed', 'ai_error' => 'The check did not finish. Try again.']);
 
+        // Gemini was busy: try again after a pause, a few times.
+        ReviewVideo::query()->where('ai_status', 'failed')->where('ai_attempts', '<', VideoCheck::MAX_ATTEMPTS)
+            ->whereNull('deleted_file_at')->where('updated_at', '<=', now()->subMinutes(10))->limit(2)->get()
+            ->filter(fn (ReviewVideo $v) => preg_match(VideoCheck::RETRY_ON, (string) $v->ai_error))
+            ->each(function (ReviewVideo $v) use (&$checked) {
+                VideoCheck::run($v);
+                $checked++;
+            });
+
         $deleted = 0;
         $old = ReviewVideo::query()->whereNull('deleted_file_at')->whereNotNull('path')->with('todo:id,posted_at,status')->get()
             ->filter(function (ReviewVideo $v) {

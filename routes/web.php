@@ -457,6 +457,7 @@ Route::middleware('auth')->group(function () {
         Route::post('reviews/uploads/{upload}/finish', 'finish')->name('reviews.upload.finish');
         Route::post('reviews/{video}/comments', 'comment')->whereNumber('video')->name('reviews.comment');
         Route::patch('reviews/comments/{comment}', 'resolve')->name('reviews.comment.resolve');
+        Route::post('reviews/comments/{comment}/like', 'like')->name('reviews.comment.like');
         Route::delete('reviews/comments/{comment}', 'forget')->name('reviews.comment.forget');
         Route::post('reviews/{video}/approve', 'approve')->whereNumber('video')->name('reviews.approve');
         Route::post('reviews/{video}/changes', 'changes')->whereNumber('video')->name('reviews.changes');

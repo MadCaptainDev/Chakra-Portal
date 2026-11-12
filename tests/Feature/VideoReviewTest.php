@@ -208,4 +208,72 @@ class VideoReviewTest extends TestCase
         $this->actingAs($this->admin)->get(route('reviews.index'))->assertOk()->assertSee('Waiting for you')->assertSee('Janet - Superfetation');
         $this->actingAs($this->editor)->get(route('reviews.index'))->assertForbidden();
     }
+
+    public function test_two_reviewers_see_each_other_reply_and_agree(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+        $this->uploadAs($this->editor)->assertCreated();
+        $video = ReviewVideo::first();
+        $second = User::factory()->create(['role' => User::ROLE_ADMIN, 'name' => 'Vasanth']);
+
+        // Keerthi watches at 0:08; Vasanth sees her there.
+        $this->actingAs($this->admin)->getJson(route('reviews.live', ['video' => $video, 't' => 8.2, 'p' => 1]))->assertOk();
+        $this->actingAs($second)->getJson(route('reviews.live', ['video' => $video, 't' => 3]))->assertOk()
+            ->assertJsonPath('watching.0.name', 'Keerthi')->assertJsonPath('watching.0.at', 8.2)->assertJsonPath('watching.0.playing', true);
+
+        // Keerthi comments; Vasanth agrees and replies; the same comment twice is one.
+        $this->actingAs($this->admin)->postJson(route('reviews.comment', $video), ['body' => 'Logo too small', 'at_seconds' => 4])->assertCreated();
+        $this->postJson(route('reviews.comment', $video), ['body' => 'Logo too small', 'at_seconds' => 4])->assertCreated();
+        $this->assertSame(1, $video->comments()->count());
+        $comment = $video->comments()->first();
+        \Illuminate\Support\Facades\Notification::assertSentTo($this->editor, \App\Notifications\VideoReviewUpdate::class, fn ($n) => str_starts_with($n->title, 'Comment from Keerthi'));
+
+        $this->actingAs($second)->postJson(route('reviews.comment.like', $comment))->assertOk()
+            ->assertJsonPath('comments.0.likes', 1)->assertJsonPath('comments.0.liked', true);
+        $this->postJson(route('reviews.comment', $video), ['body' => 'Agree, and move it left', 'parent_id' => $comment->id])->assertCreated()
+            ->assertJsonPath('comments.0.replies.0.body', 'Agree, and move it left')
+            ->assertJsonPath('comments.0.replies.0.at', null);
+        \Illuminate\Support\Facades\Notification::assertSentTo($this->admin, \App\Notifications\VideoReviewUpdate::class, fn ($n) => str_starts_with($n->title, 'Reply from Vasanth'));
+
+        // Liking again takes it back.
+        $this->postJson(route('reviews.comment.like', $comment))->assertOk()->assertJsonPath('comments.0.likes', 0);
+        $this->postJson(route('reviews.comment.like', $comment));
+
+        // Either reviewer can send it back; the agreement travels with the correction, replies do not become corrections.
+        $this->postJson(route('reviews.changes', $video))->assertOk()->assertJsonPath('status', 'changes');
+        $this->assertSame(['0:04 — Logo too small (+1)'], $this->card->fresh()->corrections()->pluck('title')->all());
+
+        // The editor sees the whole thread and can reply too.
+        $this->actingAs($this->editor)->getJson(route('reviews.live', $video))->assertOk()->assertJsonPath('comments.0.replies.0.by', 'Vasanth');
+        $this->postJson(route('reviews.comment', $video), ['body' => 'Fixed in v2', 'parent_id' => $comment->id])->assertCreated();
+    }
+
+    public function test_a_reply_cannot_hang_off_another_videos_comment(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+        $this->uploadAs($this->editor)->assertCreated();
+        $video = ReviewVideo::first();
+        $other = new ReviewVideo;
+        $other->forceFill(['todo_id' => $this->card->id, 'version' => 9, 'status' => 'pending'])->save();
+        $foreign = ReviewComment::create(['review_video_id' => $other->id, 'user_id' => $this->admin->id, 'body' => 'x']);
+
+        $this->actingAs($this->admin)->postJson(route('reviews.comment', $video), ['body' => 'y', 'parent_id' => $foreign->id])->assertNotFound();
+    }
+
+    public function test_a_busy_gemini_is_tried_again_later_but_not_forever(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+        $this->uploadAs($this->editor)->assertCreated();
+        $video = ReviewVideo::first();
+        $video->forceFill(['ai_status' => 'failed', 'ai_attempts' => 1, 'ai_error' => 'Gemini could not check the video: This model is currently experiencing high demand.', 'updated_at' => now()->subMinutes(11)])->saveQuietly();
+        config(['ai.review.enabled' => true]);
+        AiSetting::current()->forceFill(['gemini_api_key' => null])->save(); // so the retry ends quickly as skipped
+
+        $this->artisan('reviews:housekeeping')->assertSuccessful();
+        $this->assertSame('skipped', $video->fresh()->ai_status);
+
+        $video->fresh()->forceFill(['ai_status' => 'failed', 'ai_attempts' => 4, 'updated_at' => now()->subHour()])->saveQuietly();
+        $this->artisan('reviews:housekeeping')->assertSuccessful();
+        $this->assertSame('failed', $video->fresh()->ai_status, 'After four tries it is left for a person.');
+    }
 }
