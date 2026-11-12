@@ -25,6 +25,7 @@ class AiSettingController extends Controller
 
         return view('ai.edit', [
             'settings' => $settings,
+            'gemini' => \App\Services\Ai\GeminiBudget::summary(),
             'answeredToday' => AdminAgentMessage::query()
                 ->where('role', AdminAgentMessage::ROLE_USER)
                 ->whereDate('created_at', today())
@@ -124,5 +125,20 @@ class AiSettingController extends Controller
         ]);
 
         return redirect()->route('ai.edit')->with('status', 'Key removed and the assistant switched off.');
+    }
+
+    /** The monthly Gemini spend limit, in US dollars. */
+    public function geminiCap(Request $request): RedirectResponse
+    {
+        $data = $request->validate(['gemini_monthly_cap_usd' => ['required', 'numeric', 'min:0', 'max:500']]);
+
+        AiSetting::current()->forceFill([
+            'gemini_monthly_cap_usd' => round((float) $data['gemini_monthly_cap_usd'], 2),
+            // A new limit gets fresh 80% / 100% warnings.
+            'gemini_cap_alerted' => null,
+            'updated_by_id' => $request->user()->id,
+        ])->save();
+
+        return redirect(route('ai.edit').'#gemini-spend')->with('status', 'Gemini limit set to $'.number_format((float) $data['gemini_monthly_cap_usd'], 2).' a month.');
     }
 }

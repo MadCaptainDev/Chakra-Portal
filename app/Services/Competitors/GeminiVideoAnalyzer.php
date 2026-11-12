@@ -125,7 +125,7 @@ class GeminiVideoAnalyzer
         $url = self::generateUrl($this->model).'?key='.$this->apiKey;
 
         for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
-            $response = Http::timeout(90)->asJson()->post($url, [
+            $response = \App\Services\Ai\GeminiBudget::during('competitor', fn () => Http::timeout(90)->asJson()->post($url, [
                 'contents' => [[
                     'role' => 'user',
                     'parts' => [
@@ -133,7 +133,7 @@ class GeminiVideoAnalyzer
                         ['text' => $prompt],
                     ],
                 ]],
-            ]);
+            ]));
 
             if ($response->successful()) {
                 $text = $response->json('candidates.0.content.parts.0.text') ?? '';

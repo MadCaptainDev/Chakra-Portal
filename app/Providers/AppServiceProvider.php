@@ -46,6 +46,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // The monthly Gemini spend limit, on every Gemini call made through
+        // the HTTP client: refused before sending when the month is used up,
+        // and priced from Google's token counts after. See GeminiBudget.
+        \Illuminate\Support\Facades\Http::globalRequestMiddleware(fn ($request) => \App\Services\Ai\GeminiBudget::guard($request));
+        \Illuminate\Support\Facades\Http::globalMiddleware(fn (callable $handler) => fn ($request, array $options) => $handler($request, $options)
+            ->then(fn ($response) => \App\Services\Ai\GeminiBudget::meter($request, $response)));
+
         // Short morph aliases for routine subjects (stored on occurrences)
         // and WhatsApp send log targets (stored on whatsapp_send_logs).
         Relation::enforceMorphMap(array_merge(

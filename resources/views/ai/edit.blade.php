@@ -166,6 +166,56 @@
             </form>
         </x-card>
 
+        {{-- Gemini monthly spend limit (App\Services\Ai\GeminiBudget). --}}
+        @php $g = $gemini; @endphp
+        <x-card padding="md" id="gemini-spend" class="scroll-mt-24">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <p class="text-sm font-semibold text-white">Gemini spend limit</p>
+                @if ($g['blocked'])
+                    <x-badge status="overdue">Limit reached — paused until {{ $g['resets']->format('j M') }}</x-badge>
+                @elseif ($g['pct'] >= 80)
+                    <x-badge status="pending">{{ $g['pct'] }}% used</x-badge>
+                @else
+                    <x-badge status="active">{{ $g['pct'] }}% used</x-badge>
+                @endif
+            </div>
+
+            <div class="mt-3 flex items-baseline gap-2">
+                <span class="text-3xl font-extrabold tabular-nums text-white">${{ number_format($g['spent'], 2) }}</span>
+                <span class="text-sm text-brand-100/60">of ${{ number_format($g['cap'], 2) }} this month · ${{ number_format($g['left'], 2) }} left · {{ number_format($g['calls']) }} {{ Str::plural('call', $g['calls']) }}</span>
+            </div>
+            <div class="mt-2 h-2.5 overflow-hidden rounded-full bg-white/[0.07]">
+                <div class="h-full rounded-full {{ $g['pct'] >= 100 ? 'bg-red-400' : ($g['pct'] >= 80 ? 'bg-amber-400' : 'bg-emerald-400') }}" style="width: {{ max($g['pct'], $g['spent'] > 0 ? 1 : 0) }}%"></div>
+            </div>
+
+            @if ($g['features']->isNotEmpty())
+                <ul class="mt-3 divide-y divide-white/5 text-sm">
+                    @foreach ($g['features'] as $f)
+                        <li class="flex items-center justify-between gap-3 py-1.5">
+                            <span class="text-brand-100/80">{{ ['transcribe' => 'Reel transcripts', 'captions' => 'Captions', 'competitor' => 'Competitor analysis'][$f->feature] ?? ucfirst($f->feature) }}</span>
+                            <span class="tabular-nums text-brand-100/60">{{ number_format($f->calls) }} {{ Str::plural('call', $f->calls) }} · ${{ number_format((float) $f->cost, 3) }}</span>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+
+            <form method="POST" action="{{ route('ai.gemini-cap') }}" class="mt-4 flex flex-wrap items-end gap-2">
+                @csrf @method('PUT')
+                <label class="block">
+                    <span class="text-xs text-brand-100/60">Monthly limit (US $)</span>
+                    <input type="number" name="gemini_monthly_cap_usd" step="0.5" min="0" max="500" value="{{ number_format($g['cap'], 2, '.', '') }}"
+                           class="mt-1 w-32 rounded-md border-white/15 bg-white/5 text-sm text-white">
+                </label>
+                <x-primary-button>Save limit</x-primary-button>
+            </form>
+            <p class="mt-3 text-xs text-brand-100/50">
+                Every Gemini call in the portal counts: reel transcripts, captions and competitor analysis. When the month's limit is reached they stop,
+                with nothing sent to Google, until the 1st. Admins are told at 80% and at 100%. The figure is worked out from the tokens Google reports and
+                its published prices, rounded up, so it runs slightly high. Google's own bill is the final word: for a hard backstop, also set a budget
+                in Google Cloud → Billing → Budgets &amp; alerts for the project the key belongs to.
+            </p>
+        </x-card>
+
         {{-- The Reel Transcriber's ear for Tamil (App\Services\Ai\ReelTranscriber). --}}
         <x-card padding="md">
             <form method="POST" action="{{ route('ai.gemini') }}" class="space-y-3">

@@ -50,6 +50,7 @@ class AiSetting extends Model
         // back. Same trade as NotionSetting::$api_key.
         'api_key' => 'encrypted',
         'gemini_api_key' => 'encrypted',
+        'gemini_monthly_cap_usd' => 'decimal:2',
         'meta_discovery_token' => 'encrypted',
         'is_active' => 'boolean',
         'last_answered_at' => 'datetime',

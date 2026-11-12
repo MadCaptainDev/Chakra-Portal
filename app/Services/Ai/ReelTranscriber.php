@@ -168,12 +168,12 @@ class ReelTranscriber
         $text = 'Return JSON only.'.($caption ? "\n\nThe post's caption, for context only (do not copy it into the transcript):\n".$caption : '');
 
         foreach (self::GEMINI_MODELS as $i => $model) {
-            $response = Http::withHeaders(['x-goog-api-key' => $apiKey])->timeout(180)
+            $response = \App\Services\Ai\GeminiBudget::during('transcribe', fn () => Http::withHeaders(['x-goog-api-key' => $apiKey])->timeout(180)
                 ->post(self::GEMINI.'/v1beta/models/'.$model.':generateContent', [
                     'system_instruction' => ['parts' => [['text' => self::GEMINI_PROMPT]]],
                     'contents' => [['parts' => [$video, ['text' => $text]]]],
                     'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0.1],
-                ]);
+                ]), $by);
             $retired = in_array($response->status(), [400, 404], true) && preg_match('/no longer available|not found|is not supported/i', (string) $response->json('error.message'));
             $busy = in_array($response->status(), [429, 500, 503], true);
             if (! ($retired || $busy) || $i === count(self::GEMINI_MODELS) - 1) {
