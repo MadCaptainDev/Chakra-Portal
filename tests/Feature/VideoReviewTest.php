@@ -152,8 +152,10 @@ class VideoReviewTest extends TestCase
         ]);
         Notification::fake();
 
-        // The check runs straight after the upload answers.
+        // The upload only queues it; the every-minute job runs it.
         $this->uploadAs($this->editor)->assertCreated();
+        $this->assertSame('queued', ReviewVideo::first()->ai_status);
+        $this->artisan('reviews:housekeeping')->assertSuccessful();
         $video = ReviewVideo::first();
 
         $this->assertSame('done', $video->ai_status);
@@ -179,7 +181,7 @@ class VideoReviewTest extends TestCase
         Notification::fake();
 
         $this->uploadAs($this->editor)->assertCreated();
-        VideoCheck::run(ReviewVideo::first());
+        $this->artisan('reviews:housekeeping')->assertSuccessful();
 
         $this->assertSame('skipped', ReviewVideo::first()->ai_status);
         Http::assertNotSent(fn ($r) => str_contains($r->url(), ':generateContent'));
@@ -268,7 +270,7 @@ class VideoReviewTest extends TestCase
         \Illuminate\Support\Facades\Notification::fake();
         $this->uploadAs($this->editor)->assertCreated();
         $video = ReviewVideo::first();
-        $video->forceFill(['ai_status' => 'failed', 'ai_attempts' => 1, 'ai_error' => 'Gemini could not check the video: This model is currently experiencing high demand.', 'updated_at' => now()->subMinutes(11)])->saveQuietly();
+        $video->forceFill(['ai_status' => 'failed', 'ai_attempts' => 1, 'ai_error' => 'Gemini could not check the video: This model is currently experiencing high demand.', 'updated_at' => now()->subMinutes(4)])->saveQuietly();
         config(['ai.review.enabled' => true]);
         AiSetting::current()->forceFill(['gemini_api_key' => null])->save(); // so the retry ends quickly as skipped
 
@@ -383,6 +385,7 @@ class VideoReviewTest extends TestCase
         \Illuminate\Support\Facades\Notification::fake();
 
         $this->uploadAs($this->editor)->assertCreated();
+        $this->artisan('reviews:housekeeping')->assertSuccessful();
 
         $video = ReviewVideo::first();
         $this->assertSame('done', $video->ai_status, (string) $video->ai_error);
@@ -391,5 +394,54 @@ class VideoReviewTest extends TestCase
         $order = array_values(array_unique(array_filter($stages)));
         $this->assertSame(['uploading', 'watching'], array_values(array_intersect($order, ['uploading', 'watching'])));
         $this->assertNull($video->ai_stage);
+    }
+
+    public function test_an_ai_flag_or_comment_cannot_be_added_twice(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+        $this->uploadAs($this->editor)->assertCreated();
+        $video = ReviewVideo::first();
+
+        $this->actingAs($this->admin)->postJson(route('reviews.comment', $video), ['body' => 'EXCERCISE should be EXERCISE', 'at_seconds' => 21])->assertCreated()
+            ->assertJsonFragment(['adopted' => ['EXCERCISE should be EXERCISE|21.0']]);
+        $this->travel(5)->minutes();
+        $second = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $this->actingAs($second)->postJson(route('reviews.comment', $video), ['body' => 'EXCERCISE should be EXERCISE', 'at_seconds' => 21])->assertCreated();
+
+        $this->assertSame(1, $video->comments()->count());
+        // The same words at another moment are a different comment.
+        $this->postJson(route('reviews.comment', $video), ['body' => 'EXCERCISE should be EXERCISE', 'at_seconds' => 40])->assertCreated();
+        $this->assertSame(2, $video->comments()->count());
+    }
+
+    public function test_after_one_approver_sends_it_back_the_others_comments_still_reach_the_editor(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+        $annamalai = User::factory()->create(['role' => User::ROLE_ADMIN, 'name' => 'Annamalai']);
+        \App\Models\ReviewSetting::current()->update(['approver_ids' => [$this->admin->id, $annamalai->id]]);
+        $this->uploadAs($this->editor)->assertCreated();
+        $video = ReviewVideo::first();
+
+        $this->actingAs($this->admin)->postJson(route('reviews.comment', $video), ['body' => 'Too dark', 'at_seconds' => 2])->assertCreated();
+        $this->postJson(route('reviews.changes', $video))->assertOk()->assertJsonPath('status', 'changes');
+
+        // Annamalai can no longer approve this version...
+        $this->actingAs($annamalai)->postJson(route('reviews.approve', $video))->assertStatus(422);
+        // ...but a comment from him becomes one more change in the editor's To do.
+        $this->postJson(route('reviews.comment', $video), ['body' => 'Music too loud', 'at_seconds' => 30])->assertCreated()
+            ->assertJsonPath('latest', true);
+
+        $this->assertSame(['0:02 — Too dark', '0:30 — Music too loud'], $this->card->fresh()->corrections()->orderBy('id')->pluck('title')->all());
+        $this->assertSame(Todo::STATUS_WAITING, $this->card->fresh()->status);
+
+        // The editor's own reply-style note on the old version is just a note.
+        $this->actingAs($this->editor)->postJson(route('reviews.comment', $video), ['body' => 'On it'])->assertCreated();
+        $this->assertSame(2, $this->card->fresh()->corrections()->count());
+
+        // Once v2 is up, comments on v1 are notes only.
+        $this->uploadAs($this->editor)->assertCreated();
+        $this->actingAs($annamalai)->postJson(route('reviews.comment', $video), ['body' => 'Late note', 'at_seconds' => 5])->assertCreated()
+            ->assertJsonPath('latest', false);
+        $this->assertSame(0, $this->card->fresh()->corrections()->open()->count());
     }
 }

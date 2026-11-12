@@ -30,17 +30,19 @@ class ReviewHousekeeping extends Command
     public function handle(): int
     {
         $checked = 0;
-        ReviewVideo::query()->where('ai_status', 'queued')->where('updated_at', '<=', now()->subMinutes(3))->limit(3)->get()
+        // Queued checks start straight away (this runs every minute, from the
+        // command line, with no time limit -- unlike a web request).
+        ReviewVideo::query()->where('ai_status', 'queued')->orderBy('id')->limit(3)->get()
             ->each(function (ReviewVideo $v) use (&$checked) {
                 VideoCheck::run($v);
                 $checked++;
             });
-        ReviewVideo::query()->where('ai_status', 'running')->where('updated_at', '<=', now()->subMinutes(30))
+        ReviewVideo::query()->where('ai_status', 'running')->where('updated_at', '<=', now()->subMinutes(8))
             ->update(['ai_status' => 'failed', 'ai_error' => 'The check did not finish. Try again.']);
 
         // Gemini was busy: try again after a pause, a few times.
         ReviewVideo::query()->where('ai_status', 'failed')->where('ai_attempts', '<', VideoCheck::MAX_ATTEMPTS)
-            ->whereNull('deleted_file_at')->where('updated_at', '<=', now()->subMinutes(10))->limit(2)->get()
+            ->whereNull('deleted_file_at')->where('updated_at', '<=', now()->subMinutes(3))->limit(2)->get()
             ->filter(fn (ReviewVideo $v) => preg_match(VideoCheck::RETRY_ON, (string) $v->ai_error))
             ->each(function (ReviewVideo $v) use (&$checked) {
                 VideoCheck::run($v);

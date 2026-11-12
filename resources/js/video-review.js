@@ -317,11 +317,17 @@ export function videoReview(urls, initial) {
                 this.s.comments = keep;
             });
         },
+        isAdopted(issue) {
+            const key = `${issue.note}|${issue.at == null ? '' : Number(issue.at).toFixed(1)}`;
+            return (this.s.adopted || []).includes(key);
+        },
         async adopt(issue) {
+            if (this.isAdopted(issue) || this.busy[`a${issue.note}`]) return;
+            this.busy[`a${issue.note}`] = true;
             try {
                 this.take(await this.call('POST', urls.comment, { body: issue.note, at_seconds: issue.at }), true);
                 this.toast('Added as a comment', issue.note);
-            } catch (e) { this.toast('Not added', e.message, null, true); }
+            } catch (e) { this.toast('Not added', e.message, null, true); } finally { this.busy[`a${issue.note}`] = false; }
         },
         /** Jump to a comment's moment and light it up in the list. */
         goTo(c) {

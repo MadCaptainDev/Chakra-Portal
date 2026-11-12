@@ -87,6 +87,19 @@
             @endif
         </header>
 
+        {{-- What a comment does now --}}
+        <template x-if="s.status === 'changes' && s.latest">
+            <p class="animate-rise-in mb-4 rounded-2xl border border-amber-400/30 bg-amber-400/[0.08] px-4 py-3 text-sm text-amber-100/90">
+                <span class="font-semibold">Sent back<span x-show="s.reviewed_by" x-text="' by ' + s.reviewed_by"></span>.</span>
+                Comments added now still go straight to the editor's To do as changes, until they upload the next version.
+            </p>
+        </template>
+        <template x-if="!s.latest">
+            <p class="mb-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-brand-100/80">
+                This is an older version. Comments here are notes only; review the latest version to decide.
+            </p>
+        </template>
+
         <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">
             {{-- ——— Player column (sticky on phones so the video stays in view while reading) ——— --}}
             {{-- No blur/transform on this block: either would trap the fixed comment bar inside it.
@@ -407,7 +420,7 @@
                     <template x-if="['queued', 'running'].includes(s.ai.status) || (s.ai.status === 'failed' && s.ai.stage === 'retrying')">
                         <div class="rounded-2xl bg-[#15303f] p-4 ring-1 ring-white/[0.07]">
                             <div class="flex items-baseline justify-between">
-                                <p class="text-sm font-semibold text-white" x-text="s.ai.stage === 'retrying' ? 'Gemini was busy — trying again' : (s.ai.status === 'queued' ? 'Waiting to start…' : 'Gemini is checking the cut')"></p>
+                                <p class="text-sm font-semibold text-white" x-text="s.ai.stage === 'retrying' ? 'Gemini was busy — trying again' : (s.ai.status === 'queued' ? 'Starting within a minute…' : 'Gemini is checking the cut')"></p>
                                 <span class="font-mono text-xs text-brand-100/60" x-show="s.ai.status === 'running'" x-text="aiPct + '%'"></span>
                             </div>
                             {{-- One bar for the whole check --}}
@@ -468,7 +481,9 @@
                                                 <p class="mt-0.5 text-[14px] text-white/90" x-text="i.note"></p>
                                             </div>
                                         </div>
-                                        <button type="button" @click="adopt(i)" class="{{ $btn }} mt-2 h-9 bg-white/[0.06] px-3 text-xs text-white ring-1 ring-white/10 hover:bg-white/10">+ Add as a comment</button>
+                                        <button type="button" @click="adopt(i)" :disabled="isAdopted(i)" class="{{ $btn }} mt-2 h-9 px-3 text-xs ring-1"
+                                                :class="isAdopted(i) ? 'bg-emerald-400/10 text-emerald-200 ring-emerald-400/30' : 'bg-white/[0.06] text-white ring-white/10 hover:bg-white/10'"
+                                                x-text="isAdopted(i) ? '✓ Added as a comment' : '+ Add as a comment'"></button>
                                     </li>
                                 </template>
                             </ul>

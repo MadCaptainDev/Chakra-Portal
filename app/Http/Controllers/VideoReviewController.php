@@ -234,9 +234,8 @@ class VideoReviewController extends Controller
         $this->tell($this->reviewersOf($card), $video, 'Video '.($video->version > 1 ? 'v'.$video->version.' ' : '').'to review: '.$card->title,
             $user->name.' uploaded '.($video->version > 1 ? 'version '.$video->version : 'a cut').($card->venture ? ' for '.$card->venture : '').'.');
 
-        if ($video->ai_status === 'queued') {
-            defer(fn () => VideoCheck::run($video->fresh()));
-        }
+        // The check itself runs from the scheduler (reviews:housekeeping, every
+        // minute): a web request is cut off long before a big cut is checked.
 
         return response()->json(['video' => $video->summary(), 'url' => route('reviews.show', $video)], 201);
     }
@@ -259,17 +258,27 @@ class VideoReviewController extends Controller
             $data['at_seconds'] = null; // a reply belongs to its comment's moment
         }
 
-        // The same words twice in a few seconds is a double tap, not two comments.
-        $twin = ReviewComment::query()->where('review_video_id', $video->id)->where('user_id', $user->id)
-            ->where('body', trim($data['body']))->where('created_at', '>=', now()->subSeconds(20))->exists();
+        // The same words on the same moment is one comment: a double tap, or
+        // an AI flag somebody already added.
+        $at = $data['at_seconds'] ?? null;
+        $twin = ReviewComment::query()->where('review_video_id', $video->id)->where('parent_id', $parent?->id)
+            ->where('body', trim($data['body']))
+            ->when($at === null, fn ($q) => $q->whereNull('at_seconds'), fn ($q) => $q->whereBetween('at_seconds', [(float) $at - 0.05, (float) $at + 0.05]))
+            ->exists();
         if (! $twin) {
-            ReviewComment::create([
+            $comment = ReviewComment::create([
                 'review_video_id' => $video->id,
                 'parent_id' => $parent?->id,
                 'user_id' => $user->id,
                 'at_seconds' => $data['at_seconds'] ?? null,
                 'body' => trim($data['body']),
             ]);
+
+            // Already sent back, and the editor has not uploaded the fix yet:
+            // a reviewer's new comment is one more change, not a note nobody acts on.
+            if (! $parent && $video->status === ReviewVideo::CHANGES && $video->reviewableBy($user) && $this->isLatest($video)) {
+                $this->asCorrection($video, $comment, $user);
+            }
 
             // A reply reaches the person who wrote the comment; a comment reaches the editor.
             $to = $parent ? collect([$parent->user]) : collect([$video->todo?->user]);
@@ -426,18 +435,7 @@ class VideoReviewController extends Controller
         DB::transaction(function () use ($video, $card, $user, $open, $note) {
             foreach ($open as $comment) {
                 $agreed = $comment->likers()->count();
-                $title = Str::limit(($comment->stamp() ? $comment->stamp().' — ' : '').$comment->body.($agreed ? ' (+'.$agreed.')' : ''), 250);
-                $fix = Todo::create([
-                    'user_id' => $card->user_id,
-                    'assigned_by_id' => $user->id,
-                    'parent_id' => $card->id,
-                    'title' => $title,
-                    'venture' => $card->venture,
-                    'starts_on' => today()->toDateString(),
-                    'due_on' => today()->toDateString(),
-                ]);
-                TodoUpdate::record($fix, $user, TodoUpdate::CREATED, ['to_status' => $fix->status, 'from_on' => $fix->starts_on, 'to_on' => $fix->due_on, 'note' => 'From review of v'.$video->version]);
-                $comment->forceFill(['correction_todo_id' => $fix->id])->save();
+                $this->asCorrection($video, $comment, $user, $agreed ? ' (+'.$agreed.')' : '', reopen: false);
             }
 
             $video->forceFill(['status' => ReviewVideo::CHANGES, 'reviewed_by_id' => $user->id, 'reviewed_at' => now(), 'review_note' => $note])->save();
@@ -458,8 +456,7 @@ class VideoReviewController extends Controller
         abort_unless($video->reviewableBy($request->user()) || $video->uploaded_by_id === $request->user()->id, 403);
         abort_unless($video->hasFile(), 422, 'The file is gone.');
 
-        $video->forceFill(['ai_status' => 'queued', 'ai_error' => null])->save();
-        defer(fn () => VideoCheck::run($video->fresh()));
+        $video->forceFill(['ai_status' => 'queued', 'ai_stage' => null, 'ai_error' => null, 'ai_attempts' => 0])->save();
 
         return response()->json($this->state($video->fresh(), $request->user()));
     }
@@ -508,6 +505,9 @@ class VideoReviewController extends Controller
             'card_status' => $video->todo?->status,
             'can_review' => $video->reviewableBy($viewer),
             'sign_off' => $signOff = $video->signOff(),
+            'latest' => $this->isLatest($video),
+            'adopted' => $video->allComments()->whereNull('parent_id')->get(['body', 'at_seconds'])
+                ->map(fn ($c) => $c->body.'|'.($c->at_seconds === null ? '' : number_format((float) $c->at_seconds, 1, '.', '')))->values()->all(),
             'i_approved' => $video->approvals()->where('user_id', $viewer->id)->exists(),
             'ai' => [
                 'status' => $video->ai_status,
@@ -534,6 +534,35 @@ class VideoReviewController extends Controller
                 ->values()->all(),
             'me' => ['id' => $viewer->id, 'name' => $viewer->name],
         ];
+    }
+
+    private function isLatest(ReviewVideo $video): bool
+    {
+        return ! ReviewVideo::query()->where('todo_id', $video->todo_id)->where('version', '>', $video->version)->exists();
+    }
+
+    /** One comment, made a correction on the editor's card (in their To do). */
+    private function asCorrection(ReviewVideo $video, ReviewComment $comment, User $by, string $suffix = '', bool $reopen = true): Todo
+    {
+        $card = $video->todo;
+        $fix = Todo::create([
+            'user_id' => $card->user_id,
+            'assigned_by_id' => $by->id,
+            'parent_id' => $card->id,
+            'title' => Str::limit(($comment->stamp() ? $comment->stamp().' — ' : '').$comment->body.$suffix, 250),
+            'venture' => $card->venture,
+            'starts_on' => today()->toDateString(),
+            'due_on' => today()->toDateString(),
+        ]);
+        TodoUpdate::record($fix, $by, TodoUpdate::CREATED, ['to_status' => $fix->status, 'from_on' => $fix->starts_on, 'to_on' => $fix->due_on, 'note' => 'From review of v'.$video->version]);
+        $comment->forceFill(['correction_todo_id' => $fix->id])->save();
+
+        // Finished since the send back? Then it is open again.
+        if ($reopen && $card->status === Todo::STATUS_COMPLETED) {
+            $card->moveTo(Todo::STATUS_WAITING, $by, 'Another change from review');
+        }
+
+        return $fix;
     }
 
     /** @return array<string, mixed> */
