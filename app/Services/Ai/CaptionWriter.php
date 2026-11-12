@@ -118,8 +118,16 @@ class CaptionWriter
         $models = (array) config('ai.captions.models');
 
         foreach ($models as $i => $model) {
-            $response = Http::withHeaders(['x-goog-api-key' => $key])->timeout(60)
-                ->post('https://generativelanguage.googleapis.com/v1beta/models/'.$model.':generateContent', $body);
+            try {
+                $response = Http::withHeaders(['x-goog-api-key' => $key])->timeout(90)
+                    ->post('https://generativelanguage.googleapis.com/v1beta/models/'.$model.':generateContent', $body);
+            } catch (\Illuminate\Http\Client\ConnectionException $e) {
+                // Slow or busy: the next model, else say so.
+                if ($i === count($models) - 1) {
+                    throw new RuntimeException('Gemini is slow right now. Try again in a minute.');
+                }
+                continue;
+            }
 
             $retired = in_array($response->status(), [400, 404], true) && preg_match('/no longer available|not found|is not supported/i', (string) $response->json('error.message'));
             $busy = in_array($response->status(), [429, 500, 503], true);
@@ -291,7 +299,7 @@ class CaptionWriter
     }
 
     /** @return list<array{caption: string, views: int}> the client's best-viewed captions */
-    private static function examples(Client $client): array
+    public static function examples(Client $client): array
     {
         $media = SocialMediaItem::query()
             ->whereHas('socialAccount', fn ($q) => $q->where('client_id', $client->id))

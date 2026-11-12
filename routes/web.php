@@ -419,6 +419,8 @@ Route::middleware('auth')->group(function () {
     Route::patch('my/shoots/{shoot}/videos/{video}', [ShootRunController::class, 'renameVideo'])->name('my.shoots.videos.rename');
     Route::get('my/shoots/{shoot}/live', [ShootRunController::class, 'live'])->name('my.shoots.live');
     Route::post('my/shoots/{shoot}/live-link/{script}', [ShootRunController::class, 'shareScript'])->name('my.shoots.script-link');
+    Route::post('my/shoots/{shoot}/scripts/{script}/hooks', [\App\Http\Controllers\ScriptHookController::class, 'writeOnSet'])->middleware('throttle:12,1')->name('my.shoots.hooks');
+    Route::post('my/shoots/{shoot}/scripts/{script}/hooks/use', [\App\Http\Controllers\ScriptHookController::class, 'useOnSet'])->name('my.shoots.hooks.use');
     Route::post('my/shoots/{shoot}/finish', [ShootRunController::class, 'finish'])->name('my.shoots.finish');
     // Kit from the runner, and the day after the wrap.
     Route::post('my/shoots/{shoot}/kit', [ShootRunController::class, 'addKit'])->name('my.shoots.kit.add');
@@ -538,6 +540,10 @@ Route::middleware(['auth', 'module:scripts,view'])->scopeBindings()->group(funct
     });
 
     Route::get('writing/{script}', [ScriptController::class, 'show'])->name('scripts.show');
+
+    // Hook ideas from Gemini (inside the monthly limit) -- see ScriptHookController.
+    Route::post('writing/{script}/hooks', [\App\Http\Controllers\ScriptHookController::class, 'write'])->middleware('throttle:12,1')->name('scripts.hooks');
+    Route::post('writing/{script}/hooks/use', [\App\Http\Controllers\ScriptHookController::class, 'use'])->name('scripts.hooks.use');
 
     Route::post('writing/{script}/comments', [ScriptCommentController::class, 'store'])
         ->middleware('module:scripts,comment')->name('scripts.comments.store');

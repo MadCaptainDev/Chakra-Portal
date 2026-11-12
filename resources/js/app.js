@@ -14,6 +14,7 @@ import { editorTimeline } from './editor-timeline.js';
 import { plannerWeb } from './planner-web.js';
 import { ventureBoard } from './venture-board.js';
 import { videoReview, reviewUploader } from './video-review.js';
+import { hookIdeas } from './hook-ideas.js';
 import { shootScripts, shootLive } from './shoot-scripts.js';
 
 window.Alpine = Alpine;
@@ -38,6 +39,8 @@ Alpine.data('ventureBoard', ventureBoard);
 // Video review and the editors' upload -- see resources/js/video-review.js.
 Alpine.data('videoReview', videoReview);
 Alpine.data('reviewUploader', reviewUploader);
+// Hook ideas for a script -- see resources/js/hook-ideas.js.
+Alpine.data('hookIdeas', hookIdeas);
 Alpine.data('shootScripts', shootScripts);
 Alpine.data('shootLive', shootLive);
 

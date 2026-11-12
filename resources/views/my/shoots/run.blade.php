@@ -288,6 +288,7 @@
                                         <span class="block h-5 w-5 text-center text-lg leading-5" aria-hidden="true">✕</span>
                                     </button>
                                     <p class="min-w-0 flex-1 truncate text-sm font-semibold"><span class="text-amber-300" x-text="'#' + reading?.id"></span> <span x-text="reading?.title"></span></p>
+                                    <button type="button" @click="$dispatch('open-hooks', { id: reading.id, title: reading.title })" class="h-10 shrink-0 rounded-lg bg-white/10 px-3 text-sm font-bold text-amber-300" aria-label="Hook ideas for this script">Hooks</button>
                                     <button type="button" @click="shareLive()" class="h-10 shrink-0 rounded-lg bg-amber-400 px-3 text-sm font-bold text-black" aria-label="Share a live link to this script"
                                             x-text="sharing === 'done' ? 'Copied' : (sharing ? '…' : 'Share')"></button>
                                     <button type="button" @click="smaller()" class="h-10 w-10 rounded-lg bg-white/10 text-sm font-bold" aria-label="Smaller text">A−</button>
@@ -419,4 +420,28 @@
             @endunless
         @endif
     </div>
+    {{-- Hook ideas on set: five stronger opening lines for the script being read. --}}
+    @if ($shoot->client_id)
+        <div x-data="Object.assign(hookIdeas(@js(route('my.shoots.hooks', [$shoot, '__ID__'])), @js(route('my.shoots.hooks.use', [$shoot, '__ID__'])), null, true), { open: false, title: '', cache: {} })"
+             @open-hooks.window="if (scriptId) cache[scriptId] = hooks; scriptId = $event.detail.id; title = $event.detail.title; hooks = cache[scriptId] || []; info = ''; error = ''; open = true"
+             @hook-added.window="open = false">
+            <template x-teleport="body">
+                <div x-show="open" x-cloak class="fixed inset-0 z-[90] flex flex-col bg-black text-white" @keydown.escape.window="open = false">
+                    <div class="flex items-center gap-2 border-b border-white/10 px-3 py-2.5">
+                        <button type="button" @click="open = false" class="rounded-lg p-2 text-white/60 hover:bg-white/10" aria-label="Back to the script">
+                            <span class="block h-5 w-5 text-center text-lg leading-5" aria-hidden="true">✕</span>
+                        </button>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Hook ideas</p>
+                            <p class="truncate text-sm font-semibold" x-text="title"></p>
+                        </div>
+                    </div>
+                    <div class="flex-1 overflow-y-auto px-4 pb-10 pt-4">
+                        @include('scripts._hooks', ['dark' => true])
+                        <p class="mt-4 text-center text-xs text-white/35">"Add to the top of the script" puts it in as the first part, for everyone on set.</p>
+                    </div>
+                </div>
+            </template>
+        </div>
+    @endif
 </x-editor-layout>

@@ -42,6 +42,20 @@
     <div class="max-w-3xl mx-auto space-y-5">
         @include('scripts._notion-reel')
 
+        {{-- Hook ideas: five stronger opening lines from Gemini. --}}
+        <x-card class="p-4 print:hidden"
+                x-data="hookIdeas(@js(route('scripts.hooks', $script)), @js(route('scripts.hooks.use', $script)), @js(\App\Http\Controllers\ScriptHookController::last($script)), @js(auth()->user()->can('scripts.edit')))"
+                @hook-added.window="setTimeout(() => location.reload(), 900)">
+            <details :open="hooks.length > 0">
+                <summary class="flex cursor-pointer list-none items-center gap-2">
+                    <x-icon name="sparkles" class="h-4 w-4 text-amber-300" />
+                    <span class="text-sm font-semibold text-white">Hook ideas</span>
+                    <span class="text-xs text-brand-100/50">Five stronger opening lines, ready to shoot</span>
+                </summary>
+                <div class="mt-3">@include('scripts._hooks')</div>
+            </details>
+        </x-card>
+
         {{-- The live link for the shoot: one script, read and edited on any
              phone with no login (LiveScriptController). --}}
         @can('scripts.edit')
