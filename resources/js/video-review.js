@@ -21,7 +21,8 @@ export function videoReview(urls, initial) {
         playing: false,
         muted: false,
         rate: 1,
-        tab: 'comments',
+        // Version 2 on opens on what to check; the first cut on the comments.
+        tab: initial.ai_applies === false && (initial.previous_changes || []).length ? 'check' : 'comments',
         filter: 'open',
         body: readDraft(),
         pin: true,
@@ -317,7 +318,8 @@ export function videoReview(urls, initial) {
                 this.s.comments = keep;
             });
         },
-        get fixesConfirmed() { return (this.s.previous_changes || []).filter((f) => f.state === 'confirmed').length; },
+        /** Changes from the last version nobody has marked Fixed or Not fixed yet. */
+        get fixesLeft() { return (this.s.previous_changes || []).filter((f) => !f.state).length; },
         async checkFix(f, state) {
             if (this.busy[`f${f.id}`]) return;
             this.busy[`f${f.id}`] = true;

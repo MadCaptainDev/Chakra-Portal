@@ -41,6 +41,9 @@ class VideoReviewController extends Controller
 
     public const TYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
 
+    /** Seconds of AI-check steps one web request starts after answering. */
+    private const CHECK_SLICE = 20;
+
     // ——— The queue and the page ———
 
     public function index(Request $request): View
@@ -92,7 +95,14 @@ class VideoReviewController extends Controller
             ]], ['review_video_id', 'user_id'], ['at_seconds', 'playing', 'seen_at']);
         }
 
-        return response()->json($this->state($video->fresh(), $request->user()));
+        // While the page is open it moves the AI check on, a slice after each
+        // answer, so the check never hangs on the every-minute job alone.
+        $video = $video->fresh();
+        if (VideoCheck::wantsWork($video)) {
+            defer(fn () => VideoCheck::run($video, self::CHECK_SLICE));
+        }
+
+        return response()->json($this->state($video, $request->user()));
     }
 
     /** The file, with byte ranges so the player can seek. */
@@ -218,7 +228,9 @@ class VideoReviewController extends Controller
                 'width' => $data['width'] ?? null,
                 'height' => $data['height'] ?? null,
                 'status' => ReviewVideo::PENDING,
-                'ai_status' => config('ai.review.enabled', true) ? 'queued' : 'none',
+                // Only the first cut gets the AI check; later versions are checked
+                // against the changes asked on the one before.
+                'ai_status' => $version === 1 && config('ai.review.enabled', true) ? 'queued' : 'none',
             ])->save();
 
             if (filled($data['note'] ?? null)) {
@@ -234,8 +246,11 @@ class VideoReviewController extends Controller
         $this->tell($this->reviewersOf($card), $video, 'Video '.($video->version > 1 ? 'v'.$video->version.' ' : '').'to review: '.$card->title,
             $user->name.' uploaded '.($video->version > 1 ? 'version '.$video->version : 'a cut').($card->venture ? ' for '.$card->venture : '').'.');
 
-        // The check itself runs from the scheduler (reviews:housekeeping, every
-        // minute): a web request is cut off long before a big cut is checked.
+        // The AI check starts after this answer, a step at a time; the page's
+        // polling and reviews:housekeeping carry it on from where it got to.
+        if (VideoCheck::wantsWork($video)) {
+            defer(fn () => VideoCheck::run($video, self::CHECK_SLICE));
+        }
 
         return response()->json(['video' => $video->summary(), 'url' => route('reviews.show', $video)], 201);
     }
@@ -491,8 +506,11 @@ class VideoReviewController extends Controller
     {
         abort_unless($video->reviewableBy($request->user()) || $video->uploaded_by_id === $request->user()->id, 403);
         abort_unless($video->hasFile(), 422, 'The file is gone.');
+        abort_if($video->version > 1, 422, 'Only the first version gets the AI check. Check this one against the changes asked.');
+        abort_if($video->ai_status === 'running' && $video->ai_lease_until?->isFuture(), 422, 'The check is running.');
 
-        $video->forceFill(['ai_status' => 'queued', 'ai_stage' => null, 'ai_error' => null, 'ai_attempts' => 0])->save();
+        $video->forceFill(['ai_status' => 'queued', 'ai_stage' => null, 'ai_error' => null, 'ai_attempts' => 0, 'ai_lease_until' => null])->save();
+        defer(fn () => VideoCheck::run($video, self::CHECK_SLICE));
 
         return response()->json($this->state($video->fresh(), $request->user()));
     }
@@ -550,6 +568,9 @@ class VideoReviewController extends Controller
                     'url' => route('reviews.show', $v), 'current' => $v->id === $video->id,
                 ])->values()->all(),
             'previous_changes' => $this->previousChanges($video),
+            // Only the first version gets the AI check; later ones are checked
+            // against previous_changes.
+            'ai_applies' => $video->version === 1,
             'adopted' => $video->allComments()->whereNull('parent_id')->get(['body', 'at_seconds'])
                 ->map(fn ($c) => $c->body.'|'.($c->at_seconds === null ? '' : number_format((float) $c->at_seconds, 1, '.', '')))->values()->all(),
             'i_approved' => $video->approvals()->where('user_id', $viewer->id)->exists(),
@@ -581,8 +602,12 @@ class VideoReviewController extends Controller
     }
 
     /**
-     * Every change asked on earlier versions, with whether the editor marked
-     * it fixed and whether a reviewer checked it, newest version first.
+     * What to check on this version: every change asked on the version just
+     * before (the editor had to fix each one), plus older changes nobody has
+     * checked yet. Older ones already checked are settled -- a "not fixed"
+     * was raised again on the next version, so it is in that list instead.
+     * With whether the editor marked it fixed and whether a reviewer checked
+     * it, newest version first, then in the order they come in the video.
      *
      * @return list<array<string, mixed>>
      */
@@ -592,8 +617,10 @@ class VideoReviewController extends Controller
         if ($earlier->isEmpty()) {
             return [];
         }
+        $last = $earlier->search($earlier->max());
 
         return ReviewComment::query()->whereIn('review_video_id', $earlier->keys())->whereNotNull('correction_todo_id')
+            ->where(fn ($q) => $q->where('review_video_id', $last)->orWhereNull('fix_state'))
             ->with(['user:id,name', 'video:id,version'])
             ->get()
             ->sortBy([['review_video_id', 'desc'], ['at_seconds', 'asc'], ['id', 'asc']])

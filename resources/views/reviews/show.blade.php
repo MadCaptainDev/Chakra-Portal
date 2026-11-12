@@ -188,7 +188,7 @@
                                         :class="c.resolved ? 'opacity-40' : ''" :style="`left:${pos(c.at)};background:${hue(c.by_id)}`" :title="c.stamp + ' ' + c.by + ': ' + c.body" x-text="initials(c.by)"></button>
                             </template>
                             {{-- AI flags (below) --}}
-                            <template x-for="(i, n) in ((s.ai.report && s.ai.report.issues) || []).filter((i) => i.at != null)" :key="'a' + n">
+                            <template x-for="(i, n) in ((s.ai_applies && s.ai.report && s.ai.report.issues) || []).filter((i) => i.at != null)" :key="'a' + n">
                                 <button type="button" @pointerdown.stop @click.stop="jump(i.at); tab = 'ai'"
                                         class="absolute bottom-0 h-3 w-3 -translate-x-1/2 rotate-45 rounded-[2px] transition hover:scale-150" :class="i.severity === 'high' ? 'bg-red-400' : 'bg-amber-300'"
                                         :style="`left:${pos(i.at)}`" :title="'AI ' + clock(i.at) + ': ' + i.note"></button>
@@ -302,7 +302,10 @@
                     <button type="button" role="tab" @click="tab = 'comments'" :aria-selected="tab === 'comments'" class="h-10 rounded-lg transition" :class="tab === 'comments' ? 'bg-white text-brand-900 shadow' : 'text-brand-100/70 hover:text-white'">
                         Comments <span class="ml-0.5 rounded-full px-1.5 text-[11px]" :class="tab === 'comments' ? 'bg-brand-900/10' : 'bg-white/10'" x-text="open.length"></span>
                     </button>
-                    <button type="button" role="tab" @click="tab = 'ai'" :aria-selected="tab === 'ai'" class="relative h-10 rounded-lg transition" :class="tab === 'ai' ? 'bg-white text-brand-900 shadow' : 'text-brand-100/70 hover:text-white'">
+                    <button x-show="!s.ai_applies" type="button" role="tab" @click="tab = 'check'" :aria-selected="tab === 'check'" class="relative h-10 rounded-lg transition" :class="tab === 'check' ? 'bg-white text-brand-900 shadow' : 'text-brand-100/70 hover:text-white'">
+                        To check <span class="ml-0.5 rounded-full px-1.5 text-[11px]" :class="[tab === 'check' ? 'bg-brand-900/10' : 'bg-white/10', fixesLeft ? '' : 'text-emerald-500']" x-text="fixesLeft || '✓'"></span>
+                    </button>
+                    <button x-show="s.ai_applies" type="button" role="tab" @click="tab = 'ai'" :aria-selected="tab === 'ai'" class="relative h-10 rounded-lg transition" :class="tab === 'ai' ? 'bg-white text-brand-900 shadow' : 'text-brand-100/70 hover:text-white'">
                         AI check
                         <span x-show="['queued', 'running'].includes(s.ai.status)" class="absolute right-2 top-2 h-2 w-2 animate-pulse rounded-full bg-brand-300"></span>
                         <span x-show="s.ai.verdict" class="absolute right-2 top-2 h-2 w-2 rounded-full" :style="`background:${(@js(collect($tones)->map(fn ($t) => $t[2])))[s.ai.verdict] || '#999'}`"></span>
@@ -312,50 +315,6 @@
 
                 {{-- ——— Comments ——— --}}
                 <section x-show="tab === 'comments'" x-transition.opacity.duration.150ms class="space-y-3">
-                    {{-- Changes asked on earlier versions: did the editor fix them? --}}
-                    <template x-if="s.previous_changes.length">
-                        <div class="rounded-2xl bg-[#15303f] p-4 ring-1 ring-white/[0.07]" x-data="{ openList: true }">
-                            <button type="button" @click="openList = !openList" class="flex w-full items-center gap-2 text-left">
-                                <span class="text-sm font-semibold text-white">Changes from earlier versions</span>
-                                <span class="rounded-full px-2 py-0.5 text-[11px] font-bold"
-                                      :class="fixesConfirmed === s.previous_changes.length ? 'bg-emerald-400/15 text-emerald-200' : 'bg-white/10 text-brand-100/70'"
-                                      x-text="fixesConfirmed + ' of ' + s.previous_changes.length + ' checked'"></span>
-                                <span class="ml-auto text-brand-100/50" x-text="openList ? '▴' : '▾'"></span>
-                            </button>
-                            <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-                                <div class="h-full rounded-full bg-emerald-400 transition-all duration-700" :style="`width:${s.previous_changes.length ? fixesConfirmed / s.previous_changes.length * 100 : 0}%`"></div>
-                            </div>
-                            <ul x-show="openList" x-transition class="mt-3 space-y-2">
-                                <template x-for="f in s.previous_changes" :key="'f' + f.id">
-                                    <li class="rounded-xl p-3 ring-1 transition"
-                                        :class="f.state === 'confirmed' ? 'bg-emerald-400/[0.06] ring-emerald-400/25' : (f.state === 'not_fixed' ? 'bg-red-400/[0.06] ring-red-400/25' : 'bg-white/[0.03] ring-white/10')">
-                                        <div class="flex items-start gap-2">
-                                            <button type="button" x-show="f.at != null" @click="jump(f.at)" class="shrink-0 rounded-md bg-white/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-amber-200" x-text="f.stamp" title="See this moment in this version"></button>
-                                            <div class="min-w-0 flex-1">
-                                                <p class="text-[14px] text-white/90" :class="f.state === 'confirmed' ? 'line-through decoration-white/30' : ''" x-text="f.body"></p>
-                                                <p class="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px]">
-                                                    <span class="text-brand-100/45" x-text="'v' + f.version + ' · ' + f.by"></span>
-                                                    <span :class="f.editor_done ? 'text-sky-200' : 'text-amber-200'" x-text="f.editor_done ? 'Editor: fixed' + (f.editor_note ? ' (' + f.editor_note + ')' : '') : 'Editor: not marked fixed'"></span>
-                                                    <span x-show="f.state" :class="f.state === 'confirmed' ? 'text-emerald-300' : 'text-red-300'" x-text="(f.state === 'confirmed' ? '✓ Confirmed by ' : '✗ Not fixed, said ') + f.checked_by"></span>
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div x-show="s.can_review" class="mt-2 flex gap-1.5">
-                                            <template x-if="!f.state">
-                                                <div class="flex gap-1.5">
-                                                    <button type="button" @click="checkFix(f, 'confirmed')" class="{{ $btn }} h-9 bg-emerald-400/15 px-3 text-xs text-emerald-200 ring-1 ring-emerald-400/30 hover:bg-emerald-400/25">✓ Fixed</button>
-                                                    <button type="button" @click="checkFix(f, 'not_fixed')" class="{{ $btn }} h-9 bg-red-400/10 px-3 text-xs text-red-200 ring-1 ring-red-400/30 hover:bg-red-400/20">✗ Not fixed</button>
-                                                </div>
-                                            </template>
-                                            <button type="button" x-show="!!f.state" @click="checkFix(f, 'clear')" class="{{ $btn }} h-9 px-3 text-xs text-brand-100/50 hover:text-white">Undo</button>
-                                        </div>
-                                    </li>
-                                </template>
-                            </ul>
-                            <p x-show="openList" class="mt-2 text-[11px] text-brand-100/40">"Not fixed" raises it again here, on this version, at the same moment.</p>
-                        </div>
-                    </template>
-
                     {{-- Filters --}}
                     <div class="flex gap-1.5 overflow-x-auto pb-0.5 text-xs">
                         <template x-for="f in [['open', 'Open'], ['all', 'All'], ['mine', 'Mine'], ['resolved', 'Resolved']]" :key="f[0]">
@@ -458,6 +417,61 @@
                         <p class="text-2xl">💬</p>
                         <p class="mt-1 text-sm text-brand-100/60" x-text="filter === 'open' ? 'No open comments. Pause where something is wrong and add one.' : 'Nothing here.'"></p>
                     </div>
+                </section>
+
+                {{-- ——— To check (version 2 on): the changes asked on the version before. Only the first cut gets the AI check. ——— --}}
+                <section x-show="tab === 'check'" x-cloak x-transition.opacity.duration.150ms class="space-y-3">
+                    <div class="rounded-2xl bg-[#15303f] p-4 text-sm ring-1 ring-white/[0.07]">
+                        <p class="font-semibold text-white" x-text="'What to check in v' + s.version"></p>
+                        <p class="mt-1 text-[13px] leading-relaxed text-brand-100/60" x-text="s.previous_changes.length
+                            ? 'Each change asked on the last version. Tap the time to see that moment in this version, then mark it Fixed or Not fixed. Watch the whole cut too: anything new goes in Comments.'
+                            : 'No changes were asked on the last version. Watch it through and comment as usual.'"></p>
+                        <p x-show="s.previous_changes.length && !fixesLeft" class="mt-2 font-semibold text-emerald-300">✓ All checked. Approve it, or send it back with what is still wrong.</p>
+                    </div>
+                    {{-- Changes asked on earlier versions: did the editor fix them? --}}
+                    <template x-if="s.previous_changes.length">
+                        <div class="rounded-2xl bg-[#15303f] p-4 ring-1 ring-white/[0.07]" x-data="{ openList: true }">
+                            <button type="button" @click="openList = !openList" class="flex w-full items-center gap-2 text-left">
+                                <span class="text-sm font-semibold text-white">Changes from earlier versions</span>
+                                <span class="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                                      :class="!fixesLeft ? 'bg-emerald-400/15 text-emerald-200' : 'bg-white/10 text-brand-100/70'"
+                                      x-text="(s.previous_changes.length - fixesLeft) + ' of ' + s.previous_changes.length + ' checked'"></span>
+                                <span class="ml-auto text-brand-100/50" x-text="openList ? '▴' : '▾'"></span>
+                            </button>
+                            <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+                                <div class="h-full rounded-full bg-emerald-400 transition-all duration-700" :style="`width:${s.previous_changes.length ? (s.previous_changes.length - fixesLeft) / s.previous_changes.length * 100 : 0}%`"></div>
+                            </div>
+                            <ul x-show="openList" x-transition class="mt-3 space-y-2">
+                                <template x-for="f in s.previous_changes" :key="'f' + f.id">
+                                    <li class="rounded-xl p-3 ring-1 transition"
+                                        :class="f.state === 'confirmed' ? 'bg-emerald-400/[0.06] ring-emerald-400/25' : (f.state === 'not_fixed' ? 'bg-red-400/[0.06] ring-red-400/25' : 'bg-white/[0.03] ring-white/10')">
+                                        <div class="flex items-start gap-2">
+                                            <button type="button" x-show="f.at != null" @click="jump(f.at)" class="shrink-0 rounded-md bg-white/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-amber-200" x-text="f.stamp" title="See this moment in this version"></button>
+                                            <div class="min-w-0 flex-1">
+                                                <p class="text-[14px] text-white/90" :class="f.state === 'confirmed' ? 'line-through decoration-white/30' : ''" x-text="f.body"></p>
+                                                <p class="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px]">
+                                                    <span class="text-brand-100/45" x-text="'v' + f.version + ' · ' + f.by"></span>
+                                                    <span :class="f.editor_done ? 'text-sky-200' : 'text-amber-200'" x-text="f.editor_done ? 'Editor: fixed' + (f.editor_note ? ' (' + f.editor_note + ')' : '') : 'Editor: not marked fixed'"></span>
+                                                    <span x-show="f.state" :class="f.state === 'confirmed' ? 'text-emerald-300' : 'text-red-300'" x-text="(f.state === 'confirmed' ? '✓ Confirmed by ' : '✗ Not fixed, said ') + f.checked_by"></span>
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div x-show="s.can_review" class="mt-2 flex gap-1.5">
+                                            <template x-if="!f.state">
+                                                <div class="flex gap-1.5">
+                                                    <button type="button" @click="checkFix(f, 'confirmed')" class="{{ $btn }} h-9 bg-emerald-400/15 px-3 text-xs text-emerald-200 ring-1 ring-emerald-400/30 hover:bg-emerald-400/25">✓ Fixed</button>
+                                                    <button type="button" @click="checkFix(f, 'not_fixed')" class="{{ $btn }} h-9 bg-red-400/10 px-3 text-xs text-red-200 ring-1 ring-red-400/30 hover:bg-red-400/20">✗ Not fixed</button>
+                                                </div>
+                                            </template>
+                                            <button type="button" x-show="!!f.state" @click="checkFix(f, 'clear')" class="{{ $btn }} h-9 px-3 text-xs text-brand-100/50 hover:text-white">Undo</button>
+                                        </div>
+                                    </li>
+                                </template>
+                            </ul>
+                            <p x-show="openList" class="mt-2 text-[11px] text-brand-100/40">"Not fixed" raises it again here, on this version, at the same moment.</p>
+                        </div>
+                    </template>
+
                 </section>
 
                 {{-- ——— AI check ——— --}}

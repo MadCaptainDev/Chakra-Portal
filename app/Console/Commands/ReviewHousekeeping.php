@@ -11,15 +11,16 @@ use Illuminate\Support\Facades\File;
 /**
  * Keeps video review tidy:
  *
- *   - runs any AI check that was queued and never ran (the check normally
- *     runs straight after the upload answers; this catches one that died)
+ *   - runs the AI check on first versions: starts queued ones and carries
+ *     on any whose worker was cut off (the review page also moves a check
+ *     on while it is open, so it does not hang on this job alone)
  *   - deletes review files a week after the video was posted or delivered,
  *     two weeks after a newer version replaced them, and after 60 days in
  *     any case -- these are review copies; the masters stay on the drive
  *   - throws away uploads abandoned half way for a day
  *
- * Every five minutes for the checks; the deleting is cheap enough to share
- * the run.
+ * Every minute for the checks; the deleting is cheap enough to share the
+ * run.
  */
 class ReviewHousekeeping extends Command
 {
@@ -30,18 +31,21 @@ class ReviewHousekeeping extends Command
     public function handle(): int
     {
         $checked = 0;
-        // Queued checks start straight away (this runs every minute, from the
-        // command line, with no time limit -- unlike a web request).
-        ReviewVideo::query()->where('ai_status', 'queued')->orderBy('id')->limit(3)->get()
+        // First versions only (later ones are checked against the changes
+        // asked). Start the queued; carry on any whose worker was cut off
+        // (its lease ran out) from the step it got to; stop any past the
+        // time limit so the page shows it failed rather than waiting.
+        VideoCheck::expire();
+        ReviewVideo::query()->where('version', 1)
+            ->where(fn ($q) => $q->where('ai_status', 'queued')->orWhere(fn ($q) => $q->where('ai_status', 'running')
+                ->where(fn ($q) => $q->whereNull('ai_lease_until')->orWhere('ai_lease_until', '<', now()))))
+            ->orderBy('id')->limit(3)->get()
             ->each(function (ReviewVideo $v) use (&$checked) {
                 VideoCheck::run($v);
                 $checked++;
             });
-        ReviewVideo::query()->where('ai_status', 'running')->where('updated_at', '<=', now()->subMinutes(8))
-            ->update(['ai_status' => 'failed', 'ai_error' => 'The check did not finish. Try again.']);
-
         // Gemini was busy: try again after a pause, a few times.
-        ReviewVideo::query()->where('ai_status', 'failed')->where('ai_attempts', '<', VideoCheck::MAX_ATTEMPTS)
+        ReviewVideo::query()->where('version', 1)->where('ai_status', 'failed')->where('ai_attempts', '<', VideoCheck::MAX_ATTEMPTS)
             ->whereNull('deleted_file_at')->where('updated_at', '<=', now()->subMinutes(3))->limit(2)->get()
             ->filter(fn (ReviewVideo $v) => preg_match(VideoCheck::RETRY_ON, (string) $v->ai_error))
             ->each(function (ReviewVideo $v) use (&$checked) {

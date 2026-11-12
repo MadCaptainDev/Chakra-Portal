@@ -152,10 +152,9 @@ class VideoReviewTest extends TestCase
         ]);
         Notification::fake();
 
-        // The upload only queues it; the every-minute job runs it.
+        // The upload starts it straight after answering, in steps; it does
+        // not wait for the every-minute job.
         $this->uploadAs($this->editor)->assertCreated();
-        $this->assertSame('queued', ReviewVideo::first()->ai_status);
-        $this->artisan('reviews:housekeeping')->assertSuccessful();
         $video = ReviewVideo::first();
 
         $this->assertSame('done', $video->ai_status);
@@ -481,5 +480,146 @@ class VideoReviewTest extends TestCase
         // The editor sees it, but cannot check fixes.
         $this->actingAs($this->editor)->postJson(route('reviews.comment.fix', $logo), ['state' => 'clear', 'on' => $v2->id])->assertForbidden();
         $this->actingAs($this->admin)->get(route('reviews.show', $v2))->assertOk()->assertSee('Changes from earlier versions');
+    }
+
+    /** Gemini answering every step of a check, counting the checks it is asked for. */
+    private function fakeGemini(int &$asked, array &$pieces = []): void
+    {
+        config(['ai.review.enabled' => true]);
+        AiSetting::current()->forceFill(['gemini_api_key' => 'AIza-test', 'gemini_monthly_cap_usd' => 5])->save();
+        Http::fake([
+            'generativelanguage.googleapis.com/upload/v1beta/files' => Http::response([], 200, ['X-Goog-Upload-URL' => 'https://generativelanguage.googleapis.com/upload/session/1']),
+            'generativelanguage.googleapis.com/upload/session/*' => function ($r) use (&$pieces) {
+                if ($r->header('X-Goog-Upload-Command')[0] === 'query') {
+                    return Http::response('', 200, ['X-Goog-Upload-Status' => 'active', 'X-Goog-Upload-Size-Received' => '500']);
+                }
+                $pieces[] = [(int) $r->header('X-Goog-Upload-Offset')[0], strlen($r->body())];
+
+                return Http::response(['file' => ['name' => 'files/abc', 'uri' => 'https://g/files/abc', 'state' => 'ACTIVE', 'mimeType' => 'video/mp4']]);
+            },
+            'generativelanguage.googleapis.com/v1beta/files/*' => Http::response([]),
+            'generativelanguage.googleapis.com/*' => function ($r) use (&$asked) {
+                if (! str_contains($r->url(), ':generateContent')) {
+                    return Http::response([]);
+                }
+                $asked++;
+
+                return Http::response(['candidates' => [['content' => ['parts' => [['text' => json_encode(['verdict' => 'good_to_go', 'score' => 9, 'summary' => 'Fine', 'issues' => []])]]]]], 'usageMetadata' => ['promptTokenCount' => 10, 'candidatesTokenCount' => 10]]);
+            },
+        ]);
+    }
+
+    public function test_only_the_first_version_gets_the_ai_check_later_ones_open_on_what_to_check(): void
+    {
+        Notification::fake();
+        $asked = 0;
+        $this->fakeGemini($asked);
+
+        $this->uploadAs($this->editor)->assertCreated();
+        $v1 = ReviewVideo::first();
+        $this->assertSame('done', $v1->fresh()->ai_status);
+        $this->actingAs($this->admin)->postJson(route('reviews.comment', $v1), ['body' => 'Logo too small', 'at_seconds' => 4])->assertCreated();
+        $this->postJson(route('reviews.changes', $v1))->assertOk();
+
+        $this->uploadAs($this->editor)->assertCreated();
+        $v2 = ReviewVideo::where('version', 2)->first();
+        $this->artisan('reviews:housekeeping')->assertSuccessful();
+
+        $this->assertSame('none', $v2->fresh()->ai_status);
+        $this->assertSame(1, $asked, 'Gemini checked v1 only.');
+        $this->actingAs($this->admin)->getJson(route('reviews.live', $v2))->assertOk()
+            ->assertJsonPath('ai_applies', false)
+            ->assertJsonPath('previous_changes.0.body', 'Logo too small');
+        $this->postJson(route('reviews.recheck', $v2))->assertStatus(422);
+        $this->get(route('reviews.show', $v2))->assertOk()->assertSee('To check')->assertSee('What to check in v');
+        $this->assertSame(1, $asked);
+    }
+
+    public function test_version_three_checks_the_changes_from_version_two_and_older_ones_never_checked(): void
+    {
+        Notification::fake();
+        $this->uploadAs($this->editor)->assertCreated();
+        $v1 = ReviewVideo::first();
+        $this->actingAs($this->admin)->postJson(route('reviews.comment', $v1), ['body' => 'Logo too small', 'at_seconds' => 4])->assertCreated();
+        $this->postJson(route('reviews.comment', $v1), ['body' => 'Too dark', 'at_seconds' => 9])->assertCreated();
+        $this->postJson(route('reviews.comment', $v1), ['body' => 'Music loud'])->assertCreated();
+        $this->postJson(route('reviews.changes', $v1))->assertOk();
+
+        $this->uploadAs($this->editor)->assertCreated();
+        $v2 = ReviewVideo::where('version', 2)->first();
+        $logo = ReviewComment::where('body', 'Logo too small')->first();
+        $dark = ReviewComment::where('body', 'Too dark')->first();
+        $this->actingAs($this->admin)->postJson(route('reviews.comment.fix', $logo), ['state' => 'confirmed', 'on' => $v2->id])->assertOk();
+        $this->postJson(route('reviews.comment.fix', $dark), ['state' => 'not_fixed', 'on' => $v2->id])->assertOk();
+        $this->postJson(route('reviews.comment', $v2), ['body' => 'Wrong phone number', 'at_seconds' => 20])->assertCreated();
+        $this->postJson(route('reviews.changes', $v2))->assertOk();
+
+        $this->uploadAs($this->editor)->assertCreated();
+        $v3 = ReviewVideo::where('version', 3)->first();
+
+        // v2's changes (the re-raised one included), then v1's never checked;
+        // v1's already checked ones are settled.
+        $rows = collect($this->actingAs($this->admin)->getJson(route('reviews.live', $v3))->assertOk()->json('previous_changes'));
+        $this->assertSame(['Still not fixed: Too dark', 'Wrong phone number', 'Music loud'], $rows->pluck('body')->all());
+        $this->assertSame([2, 2, 1], $rows->pluck('version')->all());
+    }
+
+    public function test_a_check_cut_off_part_way_is_carried_on_from_where_it_got_to(): void
+    {
+        Notification::fake();
+        $this->uploadAs($this->editor)->assertCreated();
+        $video = ReviewVideo::first();
+        $asked = 0;
+        $pieces = [];
+        $this->fakeGemini($asked, $pieces);
+        // A worker sent half the file, then was cut off; its lease ran out.
+        $video->forceFill(['ai_status' => 'running', 'ai_stage' => 'uploading', 'ai_attempts' => 1, 'ai_started_at' => now()->subMinutes(2),
+            'ai_upload_url' => 'https://generativelanguage.googleapis.com/upload/session/1', 'ai_upload_offset' => 500, 'ai_lease_until' => now()->subSecond()])->saveQuietly();
+
+        $this->artisan('reviews:housekeeping')->assertSuccessful();
+
+        $video->refresh();
+        $this->assertSame('done', $video->ai_status, (string) $video->ai_error);
+        $this->assertSame([[500, 500]], $pieces, 'Only the second half was sent.');
+        $this->assertSame(1, $video->ai_attempts, 'Carrying on is not a new try.');
+        $this->assertNull($video->ai_lease_until);
+    }
+
+    public function test_a_worker_on_a_check_is_not_doubled_and_a_check_past_its_time_fails_visibly(): void
+    {
+        Notification::fake();
+        $this->uploadAs($this->editor)->assertCreated();
+        $video = ReviewVideo::first();
+        $asked = 0;
+        $this->fakeGemini($asked);
+
+        // Someone is on it (lease held): the page and the job leave it alone.
+        $video->forceFill(['ai_status' => 'running', 'ai_stage' => 'watching', 'ai_attempts' => 1, 'ai_started_at' => now()->subMinutes(16),
+            'ai_file' => ['name' => 'files/abc', 'uri' => 'u', 'state' => 'ACTIVE'], 'ai_lease_until' => now()->addMinute()])->saveQuietly();
+        $this->actingAs($this->admin)->getJson(route('reviews.live', $video))->assertOk()->assertJsonPath('ai.status', 'running');
+        $this->artisan('reviews:housekeeping')->assertSuccessful();
+        $this->assertSame('running', $video->fresh()->ai_status);
+        $this->assertSame(0, $asked);
+
+        // Its worker died and the 15 minutes are up: failed, said so, not retried by itself.
+        $video->forceFill(['ai_lease_until' => now()->subSecond()])->saveQuietly();
+        $this->getJson(route('reviews.live', $video))->assertOk();
+        $video->refresh();
+        $this->assertSame('failed', $video->ai_status);
+        $this->assertStringContainsString('longer than 15 minutes', $video->ai_error);
+        $this->assertSame(0, $asked);
+        $this->artisan('reviews:housekeeping')->assertSuccessful();
+        $this->assertSame('failed', $video->fresh()->ai_status);
+        $this->getJson(route('reviews.live', $video))->assertJsonPath('ai.status', 'failed')->assertJsonPath('ai.stage', null);
+
+        // The job alone fails one nobody has open either.
+        $video->forceFill(['ai_status' => 'running', 'ai_stage' => 'uploading', 'ai_started_at' => now()->subMinutes(20), 'ai_lease_until' => null])->saveQuietly();
+        $this->artisan('reviews:housekeeping')->assertSuccessful();
+        $this->assertSame('failed', $video->fresh()->ai_status);
+
+        // Check again starts over, and finishes.
+        $this->postJson(route('reviews.recheck', $video))->assertOk();
+        $this->assertSame('done', $video->fresh()->ai_status);
+        $this->assertSame(1, $asked);
     }
 }
