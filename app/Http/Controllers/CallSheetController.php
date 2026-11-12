@@ -20,7 +20,7 @@ class CallSheetController extends Controller
 {
     public function show(Shoot $shoot): View
     {
-        $shoot->load(['client', 'crew.user', 'kit.item.category', 'scripts']);
+        $shoot->load(['client', 'crew.user', 'kits.item.category', 'scripts']);
 
         return view('shoots.call-sheet', ['shoot' => $shoot]);
     }

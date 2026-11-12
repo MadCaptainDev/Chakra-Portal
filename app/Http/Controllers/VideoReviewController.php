@@ -281,6 +281,22 @@ class VideoReviewController extends Controller
         return response()->json($this->state($video->fresh(), $user), 201);
     }
 
+    /** Fix your own comment's words (not once it has become a correction). */
+    public function edit(Request $request, ReviewComment $comment): JsonResponse
+    {
+        $video = $comment->video;
+        abort_unless($video->visibleTo($request->user()) && $comment->user_id === $request->user()->id, 403);
+        abort_if($comment->correction_todo_id !== null, 422, 'This comment is already a correction on the card.');
+
+        $data = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+            'at_seconds' => ['nullable', 'numeric', 'min:0', 'max:36000'],
+        ]);
+        $comment->forceFill(['body' => trim($data['body'])] + ($comment->parent_id === null && $request->has('at_seconds') ? ['at_seconds' => $data['at_seconds']] : []))->save();
+
+        return response()->json($this->state($video->fresh(), $request->user()));
+    }
+
     /** Agree with a comment (again to take it back). */
     public function like(Request $request, ReviewComment $comment): JsonResponse
     {
@@ -471,6 +487,7 @@ class VideoReviewController extends Controller
             'resolved' => $c->resolved_at !== null,
             'correction' => $c->correction_todo_id !== null,
             'when' => $c->created_at?->diffForHumans(null, true, true),
+            'edited' => $c->updated_at && $c->created_at && $c->updated_at->gt($c->created_at->copy()->addSeconds(5)) && $c->resolved_at === null,
             'created' => $c->created_at?->toIso8601String(),
             'likes' => $c->likers->count(),
             'liked' => $c->likers->contains('id', $viewer->id),

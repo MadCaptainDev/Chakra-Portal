@@ -21,7 +21,7 @@ class VideoCheck
     private const API = 'https://generativelanguage.googleapis.com';
 
     /** A failure worth trying again later: Gemini busy or slow, not a broken file. */
-    public const RETRY_ON = '/high demand|overloaded|unavailable|try again|timed out|timeout|slow|503|429|500/i';
+    public const RETRY_ON = '/high demand|overloaded|unavailable|try again|timed out|timeout|slow|did not return|503|429|500/i';
 
     public const MAX_ATTEMPTS = 4;
 
@@ -64,7 +64,7 @@ class VideoCheck
         try {
             $file = self::upload($video, $key);
             $reply = GeminiBudget::during('review', fn () => self::ask($key, $file, self::prompt($video)), $video->uploadedBy);
-            $report = json_decode((string) data_get($reply, 'candidates.0.content.parts.0.text', ''), true);
+            $report = self::json($reply);
             if (! is_array($report) || ! isset($report['verdict'])) {
                 throw new RuntimeException('Gemini did not return a report.');
             }
@@ -100,6 +100,28 @@ class VideoCheck
                 rescue(fn () => Http::withHeaders(['x-goog-api-key' => $key])->timeout(15)->delete(self::API.'/v1beta/'.$file['name']), null, false);
             }
         }
+    }
+
+    /**
+     * The JSON report out of Gemini's reply: every text part joined (thinking
+     * parts skipped), code fences stripped, and the outermost {...} taken
+     * if anything was said around it.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function json(array $reply): ?array
+    {
+        $text = collect(data_get($reply, 'candidates.0.content.parts', []))
+            ->reject(fn ($p) => ! empty($p['thought']))
+            ->pluck('text')->filter()->implode('');
+        $text = trim(preg_replace('/^```(?:json)?\s*|\s*```$/m', '', $text));
+
+        $out = json_decode($text, true);
+        if (! is_array($out) && preg_match('/\{.*\}/s', $text, $m)) {
+            $out = json_decode($m[0], true);
+        }
+
+        return is_array($out) ? $out : null;
     }
 
     /** @return array{name: string, uri: string, mime: string} */

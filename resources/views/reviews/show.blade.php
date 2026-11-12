@@ -17,7 +17,7 @@
     $btn = 'inline-flex items-center justify-center gap-1.5 rounded-xl font-semibold transition active:scale-[.97] disabled:opacity-40 disabled:active:scale-100';
 @endphp
 <x-app-layout :title="'Review · '.$card->title" dark>
-    <div class="mx-auto max-w-7xl pb-28 lg:pb-12"
+    <div class="mx-auto max-w-7xl pb-44 lg:pb-12"
          x-data="videoReview(@js([
              'live' => route('reviews.live', $video),
              'comment' => route('reviews.comment', $video),
@@ -26,6 +26,9 @@
              'approve' => route('reviews.approve', $video),
              'changes' => route('reviews.changes', $video),
              'recheck' => route('reviews.recheck', $video),
+             'edit' => route('reviews.comment.edit', ['comment' => '__ID__']),
+             'file' => $video->hasFile() ? route('reviews.file', $video) : null,
+             'size' => $video->size,
          ]), @js($state))">
 
         {{-- ——— Top bar ——— --}}
@@ -52,6 +55,12 @@
                     </button>
                 </template>
                 <span class="pl-3 text-xs text-brand-100/60" x-text="s.watching.length === 1 ? s.watching[0].name.split(' ')[0] + ' is watching' : s.watching.length + ' watching'"></span>
+            </div>
+
+            {{-- Verdict on phones lives up here, away from the comment box at the bottom. --}}
+            <div x-show="s.can_review" class="flex w-full gap-2 sm:w-auto lg:hidden">
+                <button type="button" @click="decide('changes')" class="{{ $btn }} h-10 flex-1 bg-amber-400/90 px-3 text-xs font-bold text-brand-900 sm:flex-none">↩ Send back<span x-show="open.length" x-text="' (' + open.length + ')'"></span></button>
+                <button type="button" @click="decide('approve')" class="{{ $btn }} h-10 flex-1 bg-emerald-400/90 px-3 text-xs font-bold text-brand-900 sm:flex-none">✓ Good to go</button>
             </div>
 
             <span class="rounded-full px-3 py-1.5 text-xs font-bold ring-1 transition"
@@ -83,6 +92,7 @@
                         <video x-ref="video" src="{{ route('reviews.file', $video) }}" @if ($video->poster_path) poster="{{ route('reviews.poster', $video) }}" @endif
                                preload="metadata" playsinline controlsList="nodownload" disablePictureInPicture
                                class="mx-auto block w-full select-none bg-black {{ $vertical ? 'max-h-[44vh] w-auto sm:max-h-[64vh] lg:max-h-[70vh]' : 'max-h-[44vh] lg:max-h-[70vh]' }}"
+                               :class="(at !== null || body.trim()) ? 'max-lg:max-h-[26vh]' : ''"
                                @contextmenu.prevent></video>
 
                         {{-- Tap layer: tap = play/pause, double-tap a side = 5s --}}
@@ -106,6 +116,12 @@
                         <button type="button" x-show="!playing && !flash" x-transition.opacity.duration.200ms @click.stop="toggle()"
                                 class="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-brand-900 shadow-xl transition hover:scale-105" aria-label="Play">
                             <svg class="h-7 w-7 translate-x-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                        </button>
+
+                        {{-- Comment on this exact moment, from the picture itself --}}
+                        <button type="button" @click.stop="startComment()"
+                                class="absolute bottom-3 right-3 flex h-12 items-center gap-1.5 rounded-full bg-amber-400 px-4 text-sm font-bold text-brand-900 shadow-xl transition hover:scale-105 active:scale-95">
+                            💬 <span class="hidden sm:inline">Comment at</span> <span class="font-mono" x-text="clock(t)"></span>
                         </button>
 
                         {{-- After a verdict --}}
@@ -171,13 +187,73 @@
                             <button type="button" @click="setRate()" class="{{ $btn }} h-10 min-w-[44px] bg-white/[0.06] px-2 font-mono text-white hover:bg-white/10" x-text="rate + '×'" aria-label="Speed"></button>
                             <button type="button" @click="mute()" class="{{ $btn }} h-10 w-10 bg-white/[0.06] text-white hover:bg-white/10" :aria-label="muted ? 'Sound on' : 'Mute'" x-text="muted ? '🔇' : '🔊'"></button>
                             <button type="button" @click="full()" class="{{ $btn }} hidden h-10 w-10 bg-white/[0.06] text-white hover:bg-white/10 sm:inline-flex" aria-label="Full screen">⛶</button>
-                            <button type="button" @click="startComment()" class="{{ $btn }} h-10 bg-amber-400 px-3.5 font-bold text-brand-900 hover:bg-amber-300">
-                                + Comment at <span class="font-mono" x-text="clock(t)"></span>
-                            </button>
+                        </div>
+
+                        {{-- This device's copy of the video --}}
+                        <div class="mt-1.5 flex items-center gap-2 text-[11px]">
+                            <template x-if="cache.state === 'saving'">
+                                <span class="flex items-center gap-2 text-brand-100/60">
+                                    <span class="h-1.5 w-24 overflow-hidden rounded-full bg-white/10"><span class="block h-full bg-brand-300 transition-all" :style="`width:${cache.pct}%`"></span></span>
+                                    Saving to this device <span x-text="cache.pct + '%'"></span>
+                                </span>
+                            </template>
+                            <template x-if="cache.state === 'saved'">
+                                <span class="text-emerald-300/80">✓ Saved on this device · plays instantly, even offline <button type="button" @click="forgetCopy()" class="ml-1 text-brand-100/40 underline underline-offset-2 hover:text-white">remove</button></span>
+                            </template>
+                            <template x-if="cache.state === 'ask'">
+                                <button type="button" @click="deviceCopy(true)" class="text-brand-300 underline underline-offset-2 hover:text-white">Save to this device for smooth playback ({{ number_format($video->size / 1048576) }} MB)</button>
+                            </template>
+                            <template x-if="cache.state === 'big'"><span class="text-brand-100/40">Too big to keep on the device; plays from the portal.</span></template>
                         </div>
                         <p class="mt-1.5 hidden text-[11px] text-brand-100/35 lg:block">Space play · J / L 5s · ← → 2s · Shift + ← → one frame · C comment · M mute · F full screen</p>
                     </div>
                 @endif
+
+                {{-- ——— Writing a comment: fixed at the bottom on phones, under the player on computers.
+                     Enter makes a new line; only Send (or Ctrl/Cmd + Enter) posts. ——— --}}
+                <form @submit.prevent="send()"
+                      class="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#11283a]/95 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-12px_30px_rgba(0,0,0,.35)] backdrop-blur
+                             lg:static lg:mt-4 lg:rounded-2xl lg:border lg:border-white/[0.08] lg:bg-[#15303f] lg:p-3 lg:shadow-none">
+                    <div class="mx-auto max-w-3xl">
+                        {{-- The moment it is about --}}
+                        <div class="mb-2 flex items-center gap-1.5 text-xs">
+                            <template x-if="pin">
+                                <span class="flex items-center gap-1 rounded-full bg-amber-400/15 py-0.5 pl-2.5 pr-1 text-amber-200 ring-1 ring-amber-400/40">
+                                    📍 <span class="font-mono font-bold" x-text="clock(at ?? t)"></span>
+                                    <button type="button" @click="nudge(-1)" class="flex h-7 w-7 items-center justify-center rounded-full hover:bg-white/10" aria-label="One second earlier">−</button>
+                                    <button type="button" @click="nudge(1)" class="flex h-7 w-7 items-center justify-center rounded-full hover:bg-white/10" aria-label="One second later">+</button>
+                                </span>
+                            </template>
+                            <button type="button" @click="pin = !pin" class="h-8 rounded-full px-3 ring-1 transition" :class="pin ? 'text-brand-100/60 ring-white/10 hover:text-white' : 'bg-white/10 text-white ring-white/20'"
+                                    x-text="pin ? 'On the whole video instead' : 'Whole video · tap to pin to a moment'"></button>
+                            <span x-show="at !== null && !playing" class="hidden text-brand-100/40 sm:inline">Video paused while you write</span>
+                        </div>
+
+                        {{-- Quick phrases: they fill the box, they never send --}}
+                        <div x-show="at !== null || body.trim()" x-cloak x-transition.opacity class="-mx-1 mb-2 flex gap-1.5 overflow-x-auto px-1 pb-1">
+                            <template x-for="q in quick" :key="q">
+                                <button type="button" @click="useQuick(q)" class="h-8 shrink-0 rounded-full bg-white/[0.07] px-3 text-xs text-white ring-1 ring-white/10 transition hover:bg-white/15 active:scale-95" x-text="q"></button>
+                            </template>
+                        </div>
+
+                        <div class="flex items-end gap-2">
+                            <textarea x-ref="comment" x-model="body" rows="1" maxlength="2000"
+                                      x-effect="body; $nextTick(() => { $el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 140) + 'px' })"
+                                      @focus="startComment(false)" @keydown.enter.ctrl.prevent="send()" @keydown.enter.meta.prevent="send()" @keydown.escape="$el.blur()"
+                                      placeholder="Comment on this moment…"
+                                      class="max-h-[140px] min-h-[48px] flex-1 resize-none rounded-2xl border-0 bg-[#0b1d29] px-4 py-3 text-[16px] leading-snug text-white placeholder:text-brand-100/35 focus:ring-2 focus:ring-amber-400/70"></textarea>
+                            <button type="submit" :disabled="!body.trim() || busy.send" aria-label="Send comment"
+                                    class="{{ $btn }} h-12 w-12 shrink-0 rounded-full bg-amber-400 text-brand-900 shadow-lg hover:bg-amber-300">
+                                <span x-show="busy.send" class="h-4 w-4 animate-spin rounded-full border-2 border-brand-900/30 border-t-brand-900"></span>
+                                <svg x-show="!busy.send" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
+                            </button>
+                        </div>
+                        <div x-show="body.trim()" x-cloak class="mt-1 flex items-center justify-between px-1 text-[11px] text-brand-100/40">
+                            <span>Draft kept if you leave · Ctrl/⌘ + Enter sends</span>
+                            <button type="button" @click="clearComment()" class="hover:text-white">Clear</button>
+                        </div>
+                    </div>
+                </form>
             </div>
 
             {{-- ——— Side: tabs ——— --}}
@@ -196,25 +272,6 @@
 
                 {{-- ——— Comments ——— --}}
                 <section x-show="tab === 'comments'" x-transition.opacity.duration.150ms class="space-y-3">
-                    {{-- Composer: Enter makes a new line; only the button (or Ctrl/Cmd + Enter) sends --}}
-                    <form @submit.prevent="send()" class="rounded-2xl bg-[#15303f] p-3 ring-1 ring-white/[0.08] transition focus-within:ring-amber-400/60">
-                        <textarea x-ref="comment" x-model="body" rows="2" maxlength="2000"
-                                  @keydown.enter.ctrl.prevent="send()" @keydown.enter.meta.prevent="send()" @focus="$refs.video && $refs.video.pause()"
-                                  placeholder="What needs changing? The word, the sound, the frame…"
-                                  class="w-full resize-none rounded-xl border-0 bg-[#0f2230] p-3 text-[15px] text-white placeholder:text-brand-100/35 focus:ring-0"></textarea>
-                        <div class="mt-2 flex items-center gap-2">
-                            <button type="button" @click="pin = !pin" class="{{ $btn }} h-10 px-3 text-xs ring-1" :class="pin ? 'bg-amber-400/15 text-amber-200 ring-amber-400/40' : 'bg-white/5 text-brand-100/60 ring-white/10'">
-                                <span x-show="pin">📍 At <span class="font-mono" x-text="clock(t)"></span></span>
-                                <span x-show="!pin" x-cloak>Whole video</span>
-                            </button>
-                            <span x-show="body.trim()" x-cloak class="hidden text-[11px] text-brand-100/35 sm:inline">Draft saved · Ctrl+Enter to send</span>
-                            <button type="submit" :disabled="!body.trim() || busy.send" class="{{ $btn }} ml-auto h-10 bg-white px-5 text-sm font-bold text-brand-900">
-                                <span x-show="busy.send" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand-900/30 border-t-brand-900"></span>
-                                Send
-                            </button>
-                        </div>
-                    </form>
-
                     {{-- Filters --}}
                     <div class="flex gap-1.5 overflow-x-auto pb-0.5 text-xs">
                         <template x-for="f in [['open', 'Open'], ['all', 'All'], ['mine', 'Mine'], ['resolved', 'Resolved']]" :key="f[0]">
@@ -226,7 +283,7 @@
                     <ul class="space-y-2.5">
                         <template x-for="c in shown" :key="c.id">
                             <li :id="'c-' + c.id" class="rounded-2xl bg-[#15303f] p-3.5 ring-1 transition"
-                                :class="[glow[c.id] ? 'rv-glow ring-amber-400/60' : 'ring-white/[0.07]', c.resolved ? 'opacity-60' : '']"
+                                :class="[glow[c.id] ? 'rv-glow ring-amber-400/60' : (isNow(c) ? 'ring-amber-400/70 bg-amber-400/[0.06]' : 'ring-white/[0.07]'), c.resolved ? 'opacity-60' : '']"
                                 x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0">
                                 <div class="flex items-start gap-3">
                                     <span class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-[11px] font-bold text-brand-900" :style="`background:${hue(c.by_id)}`">
@@ -241,7 +298,17 @@
                                             <span x-show="isNew(c)" class="rounded-full bg-brand-400 px-1.5 text-[10px] font-bold text-brand-900">NEW</span>
                                             <span x-show="c.correction" class="rounded-full bg-amber-400/15 px-1.5 text-[10px] font-semibold text-amber-200">sent as a correction</span>
                                         </p>
-                                        <p class="mt-1 whitespace-pre-line break-words text-[14.5px] leading-relaxed text-white/95" :class="c.resolved ? 'line-through decoration-white/30' : ''" x-text="c.body"></p>
+                                        <p x-show="editing !== c.id" class="mt-1 whitespace-pre-line break-words text-[15px] leading-relaxed text-white/95" :class="c.resolved ? 'line-through decoration-white/30' : ''">
+                                            <span x-text="c.body"></span><span x-show="c.edited" class="ml-1 text-[11px] text-brand-100/35">(edited)</span>
+                                        </p>
+                                        <form x-show="editing === c.id" x-cloak @submit.prevent="saveEdit(c)" class="mt-1.5">
+                                            <textarea :id="'edit-' + c.id" x-model="editBody" rows="2" maxlength="2000" @keydown.escape="editing = null" @keydown.enter.ctrl.prevent="saveEdit(c)" @keydown.enter.meta.prevent="saveEdit(c)"
+                                                      class="w-full resize-none rounded-xl border-0 bg-[#0f2230] p-2.5 text-[15px] text-white focus:ring-2 focus:ring-amber-400/70"></textarea>
+                                            <div class="mt-1.5 flex gap-2">
+                                                <button type="submit" :disabled="!editBody.trim()" class="{{ $btn }} h-9 bg-white px-4 text-xs font-bold text-brand-900">Save</button>
+                                                <button type="button" @click="editing = null" class="{{ $btn }} h-9 px-3 text-xs text-brand-100/60">Cancel</button>
+                                            </div>
+                                        </form>
 
                                         {{-- Actions: big enough for a thumb, spaced so one tap cannot hit two --}}
                                         <div class="mt-2 flex flex-wrap items-center gap-1.5">
@@ -251,9 +318,7 @@
                                                 <span :class="c.liked ? 'rv-like' : ''" :key="'lk' + c.id + c.liked">👍</span>
                                                 <span x-text="c.likes ? c.likes : 'Agree'"></span>
                                             </button>
-                                            <button type="button" @click="openReply(c)" class="{{ $btn }} h-9 bg-white/[0.04] px-3 text-xs text-brand-100/70 ring-1 ring-white/10 hover:text-white">
-                                                Reply<span x-show="c.replies.length" x-text="' · ' + c.replies.length"></span>
-                                            </button>
+                                            <button type="button" x-show="c.mine && !c.correction && editing !== c.id" @click="startEdit(c)" class="{{ $btn }} h-9 bg-white/[0.04] px-3 text-xs text-brand-100/70 ring-1 ring-white/10 hover:text-white">✎ Edit</button>
                                             <button type="button" x-show="!c.resolved" @click="resolve(c)" class="{{ $btn }} h-9 bg-white/[0.04] px-3 text-xs text-emerald-300 ring-1 ring-white/10 hover:bg-emerald-400/10">✓ Resolve</button>
                                             <button type="button" x-show="c.resolved" x-cloak @click="resolve(c, false)" class="{{ $btn }} h-9 bg-white/[0.04] px-3 text-xs text-brand-100/70 ring-1 ring-white/10">Reopen</button>
                                             <button type="button" x-show="c.mine && !c.correction" @click="remove(c)" class="{{ $btn }} ml-auto h-9 w-9 text-brand-100/35 hover:bg-red-400/10 hover:text-red-300" aria-label="Delete comment">🗑</button>
@@ -282,11 +347,24 @@
                                             </ul>
                                         </template>
 
-                                        <form x-show="replyTo === c.id" x-cloak x-transition @submit.prevent="reply(c)" class="mt-2.5 flex items-end gap-2">
-                                            <textarea :id="'reply-' + c.id" x-model="replyBody" rows="1" maxlength="2000" @keydown.enter.ctrl.prevent="reply(c)" @keydown.enter.meta.prevent="reply(c)" @keydown.escape="replyTo = null"
-                                                      placeholder="Reply…" class="min-h-[40px] flex-1 resize-none rounded-xl border-0 bg-[#0f2230] p-2.5 text-sm text-white placeholder:text-brand-100/35 focus:ring-1 focus:ring-amber-400"></textarea>
-                                            <button type="submit" :disabled="!replyBody.trim() || busy.reply" class="{{ $btn }} h-10 bg-white px-4 text-sm font-bold text-brand-900">Reply</button>
-                                        </form>
+                                        {{-- Reply: always one tap away, under the thread --}}
+                                        <div class="mt-2.5">
+                                            <button type="button" x-show="!replyOpen[c.id]" @click="openReply(c)"
+                                                    class="flex h-10 w-full items-center gap-2 rounded-xl bg-white/[0.04] px-3 text-left text-sm text-brand-100/45 ring-1 ring-white/[0.07] transition hover:bg-white/[0.07] hover:text-brand-100/70">
+                                                ↳ <span x-text="c.replies.length ? 'Reply to ' + c.by.split(' ')[0] + '…' : 'Reply…'"></span>
+                                            </button>
+                                            <form x-show="!!replyOpen[c.id]" x-cloak x-transition.opacity @submit.prevent="reply(c)" class="flex items-end gap-2">
+                                                <textarea :id="'reply-' + c.id" x-model="replies[c.id]" rows="1" maxlength="2000"
+                                                          x-effect="replies[c.id]; $nextTick(() => { $el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 120) + 'px' })"
+                                                          @keydown.enter.ctrl.prevent="reply(c)" @keydown.enter.meta.prevent="reply(c)" @keydown.escape="if (!(replies[c.id] || '').trim()) replyOpen[c.id] = false"
+                                                          :placeholder="'Reply to ' + c.by.split(' ')[0] + '…'"
+                                                          class="min-h-[44px] flex-1 resize-none rounded-xl border-0 bg-[#0f2230] px-3 py-2.5 text-[15px] text-white placeholder:text-brand-100/35 focus:ring-2 focus:ring-amber-400/70"></textarea>
+                                                <button type="submit" :disabled="!(replies[c.id] || '').trim() || !!busy['r' + c.id]" aria-label="Send reply"
+                                                        class="{{ $btn }} h-11 w-11 shrink-0 rounded-full bg-white text-brand-900">
+                                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
+                                                </button>
+                                            </form>
+                                        </div>
                                     </div>
                                 </div>
                             </li>
@@ -381,14 +459,6 @@
             </div>
         </div>
 
-        {{-- ——— Verdict bar (phones): fixed, away from the comment buttons ——— --}}
-        <div x-show="s.can_review" class="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-brand-900/95 px-4 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur lg:hidden">
-            <div class="mx-auto grid max-w-md grid-cols-2 gap-3">
-                <button type="button" @click="decide('changes')" class="{{ $btn }} h-12 bg-amber-400 text-sm font-bold text-brand-900">↩ Send back<span x-show="open.length" x-text="' (' + open.length + ')'"></span></button>
-                <button type="button" @click="decide('approve')" class="{{ $btn }} h-12 bg-emerald-400 text-sm font-bold text-brand-900">✓ Good to go</button>
-            </div>
-        </div>
-
         {{-- ——— The verdict sheet: read what will happen, then press and hold ——— --}}
         <template x-teleport="body">
             <div x-show="!!sheet" x-cloak class="fixed inset-0 z-[90] flex items-end justify-center sm:items-center sm:p-4" role="dialog" aria-modal="true"
@@ -436,7 +506,7 @@
 
         {{-- ——— Toasts ——— --}}
         <template x-teleport="body">
-            <div class="pointer-events-none fixed inset-x-0 bottom-24 z-[95] flex flex-col items-center gap-2 px-4 lg:bottom-6 lg:items-end lg:pr-6">
+            <div class="pointer-events-none fixed inset-x-0 bottom-40 z-[95] flex flex-col items-center gap-2 px-4 lg:bottom-6 lg:items-end lg:pr-6">
                 <template x-for="t in toasts" :key="t.id">
                     <div class="rv-toast pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl px-4 py-3 shadow-2xl ring-1"
                          :class="t.bad ? 'bg-red-500 text-white ring-red-300/30' : 'bg-white text-brand-900 ring-black/5'">

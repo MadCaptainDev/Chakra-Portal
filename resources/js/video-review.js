@@ -25,8 +25,13 @@ export function videoReview(urls, initial) {
         filter: 'open',
         body: readDraft(),
         pin: true,
-        replyTo: null,
-        replyBody: '',
+        at: null,              // the moment the comment is about, locked when you start writing
+        replies: {},           // comment id => reply draft
+        replyOpen: {},         // comment id => reply box open
+        editing: null,         // comment id being edited
+        editBody: '',
+        quick: ['Cut this part', 'Audio too low', 'Spelling mistake', 'Looks dark', 'Text too small', 'Too slow here', 'Add music', 'Looks great ✓'],
+        cache: { state: 'idle', pct: 0, mb: 0 },   // this device's copy of the video
         busy: {},
         flash: null,           // big play/pause icon in the middle
         ripple: null,          // double-tap skip
@@ -54,7 +59,10 @@ export function videoReview(urls, initial) {
                 v.addEventListener('ended', () => { this.playing = false; });
             }
             this.$watch('body', (b) => { try { b ? localStorage.setItem(draftKey, b) : localStorage.removeItem(draftKey); } catch { /* */ } });
-            window.addEventListener('beforeunload', (e) => { if (this.body.trim() || this.replyBody.trim()) { e.preventDefault(); e.returnValue = ''; } });
+            window.addEventListener('beforeunload', (e) => {
+                if (this.body.trim() || Object.values(this.replies).some((r) => (r || '').trim()) || this.editing) { e.preventDefault(); e.returnValue = ''; }
+            });
+            this.deviceCopy();
             window.addEventListener('keydown', (e) => this.key(e));
             try { localStorage.setItem(seenKey, new Date().toISOString()); } catch { /* */ }
             this.loop();
@@ -199,33 +207,63 @@ export function videoReview(urls, initial) {
         },
         get timed() { return this.s.comments.filter((c) => c.at != null); },
         isNew(c) { return !!this.lastSeen && !c.mine && c.created > this.lastSeen; },
-        startComment() {
+        /** Start writing about this moment: the video stops and the time is held. */
+        startComment(focus = true) {
             this.$refs.video?.pause();
+            if (this.at === null) this.at = Math.round(this.t * 100) / 100;
             this.pin = true;
             this.tab = 'comments';
-            this.$nextTick(() => this.$refs.comment?.focus());
+            if (focus) this.$nextTick(() => { this.$refs.comment?.focus(); this.$refs.comment?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
         },
+        nudge(by) {
+            this.at = Math.max(0, Math.min(this.duration || 99999, Math.round(((this.at ?? this.t) + by) * 100) / 100));
+            this.seek(this.at);
+        },
+        useQuick(q) {
+            this.startComment(false);
+            this.body = this.body.trim() ? `${this.body.trim()} ${q}` : q;
+            this.$nextTick(() => { const el = this.$refs.comment; el?.focus(); el?.setSelectionRange(el.value.length, el.value.length); });
+        },
+        clearComment() { this.body = ''; this.at = null; },
         async send() {
             const body = this.body.trim();
             if (!body || this.busy.send) return;
             this.busy.send = true;
+            const at = this.pin ? (this.at ?? Math.round(this.t * 100) / 100) : null;
             try {
-                this.take(await this.call('POST', urls.comment, { body, at_seconds: this.pin ? Math.round(this.t * 100) / 100 : null }), true);
+                this.take(await this.call('POST', urls.comment, { body, at_seconds: at }), true);
                 this.body = '';
+                this.at = null;
                 if (this.filter === 'resolved') this.filter = 'open';
             } catch (e) { this.toast('Not sent', e.message, null, true); } finally { this.busy.send = false; }
         },
-        openReply(c) { this.replyTo = this.replyTo === c.id ? null : c.id; this.replyBody = ''; this.$nextTick(() => document.getElementById(`reply-${c.id}`)?.focus()); },
+        openReply(c) {
+            this.replyOpen[c.id] = true;
+            this.$nextTick(() => document.getElementById(`reply-${c.id}`)?.focus());
+        },
         async reply(c) {
-            const body = this.replyBody.trim();
-            if (!body || this.busy.reply) return;
-            this.busy.reply = true;
+            const body = (this.replies[c.id] || '').trim();
+            if (!body || this.busy[`r${c.id}`]) return;
+            this.busy[`r${c.id}`] = true;
             try {
                 this.take(await this.call('POST', urls.comment, { body, parent_id: c.id }), true);
-                this.replyBody = '';
-                this.replyTo = null;
-            } catch (e) { this.toast('Not sent', e.message, null, true); } finally { this.busy.reply = false; }
+                this.replies[c.id] = '';
+                this.replyOpen[c.id] = false;
+            } catch (e) { this.toast('Not sent', e.message, null, true); } finally { this.busy[`r${c.id}`] = false; }
         },
+        startEdit(c) { this.editing = c.id; this.editBody = c.body; this.$nextTick(() => document.getElementById(`edit-${c.id}`)?.focus()); },
+        async saveEdit(c) {
+            const body = this.editBody.trim();
+            if (!body) return;
+            if (body === c.body) { this.editing = null; return; }
+            try {
+                this.take(await this.call('PUT', urls.edit.replace('__ID__', c.id), { body }));
+                this.editing = null;
+                this.toast('Saved', body);
+            } catch (e) { this.toast('Not saved', e.message, null, true); }
+        },
+        /** The comment at the moment playing now, lit while the video passes it. */
+        isNow(c) { return c.at != null && Math.abs(this.t - c.at) < 1.5 && (this.playing || this.dragging); },
         async like(c) {
             if (this.busy[`l${c.id}`]) return;
             this.busy[`l${c.id}`] = true;
@@ -322,6 +360,86 @@ export function videoReview(urls, initial) {
         },
         async recheck() {
             try { this.take(await this.call('POST', urls.recheck)); } catch (e) { this.toast('Not started', e.message, null, true); }
+        },
+
+        // ——— A copy of the video on this device: instant seeking, no buffering, works offline ———
+        async deviceCopy(force = false) {
+            const v = this.$refs.video;
+            const url = urls.file;
+            if (!v || !url || !('caches' in window)) { this.cache.state = 'off'; return; }
+            const max = 400 * 1024 * 1024;
+            if ((urls.size || 0) > max) { this.cache.state = 'big'; return; }
+            const conn = navigator.connection || {};
+            try {
+                const box = await caches.open('chakra-reviews');
+                const hit = await box.match(url);
+                if (hit) {
+                    this.swap(URL.createObjectURL(await hit.blob()));
+                    this.cache.state = 'saved';
+                    this.remember(url);
+                    return;
+                }
+                // On a data-saver connection, wait to be asked.
+                if (!force && (conn.saveData || /2g/.test(conn.effectiveType || ''))) { this.cache.state = 'ask'; return; }
+
+                this.cache.state = 'saving';
+                const res = await fetch(url, { credentials: 'same-origin' });
+                if (!res.ok || !res.body) throw new Error(res.status);
+                const total = Number(res.headers.get('Content-Length')) || urls.size || 0;
+                const reader = res.body.getReader();
+                const parts = [];
+                let got = 0;
+                for (;;) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    parts.push(value);
+                    got += value.length;
+                    this.cache.pct = total ? Math.min(100, Math.round((got / total) * 100)) : 0;
+                    this.cache.mb = Math.round(got / 1048576);
+                }
+                const blob = new Blob(parts, { type: res.headers.get('Content-Type') || 'video/mp4' });
+                await box.put(url, new Response(blob, { headers: { 'Content-Type': blob.type, 'Content-Length': String(blob.size) } }));
+                this.swap(URL.createObjectURL(blob));
+                this.cache.state = 'saved';
+                this.remember(url);
+                this.prune(box);
+            } catch {
+                this.cache.state = 'failed'; // the video still plays from the portal
+            }
+        },
+        /** Play from the saved copy, from the same moment, without a jump. */
+        swap(objectUrl) {
+            const v = this.$refs.video;
+            const at = v.currentTime;
+            const was = !v.paused;
+            v.src = objectUrl;
+            v.addEventListener('loadedmetadata', () => { v.currentTime = at; if (was) v.play(); }, { once: true });
+        },
+        remember(url) {
+            try {
+                const list = JSON.parse(localStorage.getItem('chakra-reviews-saved') || '[]').filter((x) => x.url !== url);
+                list.unshift({ url, at: Date.now() });
+                localStorage.setItem('chakra-reviews-saved', JSON.stringify(list.slice(0, 50)));
+            } catch { /* */ }
+        },
+        /** Keep the last 8 cuts, and nothing older than two weeks. */
+        async prune(box) {
+            try {
+                const list = JSON.parse(localStorage.getItem('chakra-reviews-saved') || '[]');
+                const keep = list.filter((x, i) => i < 8 && Date.now() - x.at < 14 * 864e5);
+                for (const x of list.filter((x) => !keep.includes(x))) await box.delete(x.url);
+                localStorage.setItem('chakra-reviews-saved', JSON.stringify(keep));
+            } catch { /* */ }
+        },
+        async forgetCopy() {
+            try {
+                const box = await caches.open('chakra-reviews');
+                await box.delete(urls.file);
+                const list = JSON.parse(localStorage.getItem('chakra-reviews-saved') || '[]').filter((x) => x.url !== urls.file);
+                localStorage.setItem('chakra-reviews-saved', JSON.stringify(list));
+            } catch { /* */ }
+            this.cache.state = 'ask';
+            this.toast('Removed from this device', 'It plays from the portal again.');
         },
 
         // ——— Toasts (with Undo where it helps) ———

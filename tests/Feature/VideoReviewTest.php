@@ -276,4 +276,30 @@ class VideoReviewTest extends TestCase
         $this->artisan('reviews:housekeeping')->assertSuccessful();
         $this->assertSame('failed', $video->fresh()->ai_status, 'After four tries it is left for a person.');
     }
+
+    public function test_people_fix_their_own_comments_only(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+        $this->uploadAs($this->editor)->assertCreated();
+        $video = ReviewVideo::first();
+        $this->actingAs($this->admin)->postJson(route('reviews.comment', $video), ['body' => 'Speling', 'at_seconds' => 3])->assertCreated();
+        $comment = ReviewComment::query()->where('body', 'Speling')->first();
+
+        $this->putJson(route('reviews.comment.edit', $comment), ['body' => 'Spelling: Trichy', 'at_seconds' => 3.5])->assertOk()
+            ->assertJsonFragment(['body' => 'Spelling: Trichy']);
+        $this->assertSame(3.5, $comment->fresh()->at_seconds);
+
+        $this->actingAs($this->editor)->putJson(route('reviews.comment.edit', $comment), ['body' => 'hijack'])->assertForbidden();
+    }
+
+    public function test_the_page_offers_the_comment_bar_and_device_copy(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+        $this->uploadAs($this->editor)->assertCreated();
+
+        $this->actingAs($this->admin)->get(route('reviews.show', ReviewVideo::first()))->assertOk()
+            ->assertSee('Comment on this moment', false)
+            ->assertSee('Saved on this device', false)
+            ->assertSee('Press and hold', false);
+    }
 }
