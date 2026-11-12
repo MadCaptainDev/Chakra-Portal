@@ -97,6 +97,10 @@ Schedule::command('shoots:late-alerts')->everyFiveMinutes()->withoutOverlapping(
 // person's morning summary at their own time. See VentureAlerts.
 Schedule::command('ventures:alerts')->everyFiveMinutes()->withoutOverlapping();
 
+// Video review: stuck AI checks, and review copies deleted a week after
+// posting. See ReviewHousekeeping.
+Schedule::command('reviews:housekeeping')->everyFiveMinutes()->withoutOverlapping();
+
 // One push to admins each morning -- see SendDailyDigest's own doc block.
 Schedule::command('digest:send-daily')->dailyAt('08:30')->timezone(config('app.timezone'));
 

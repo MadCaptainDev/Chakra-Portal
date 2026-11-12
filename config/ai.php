@@ -51,4 +51,14 @@ return [
         'models' => ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.8-flash'],
     ],
 
+    /* The quick AI check of a cut uploaded for review (App\Services\Ai\VideoCheck). */
+    'review' => [
+        'enabled' => true,
+        // Longer cuts are not sent: a check is for reels, not a 20-minute film.
+        'max_seconds' => 300,
+        // Gemini's file store takes up to 2 GB; this keeps the upload sane.
+        'max_mb' => 500,
+        'models' => ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.8-flash'],
+    ],
+
 ];

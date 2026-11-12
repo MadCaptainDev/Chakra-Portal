@@ -503,6 +503,9 @@ class EditingController extends Controller
             'post_url' => $t->post_url,
             // The caption written for it in the planner, to paste when posting.
             'caption' => $t->contentItem?->caption,
+            // The latest cut uploaded for review, if any.
+            'review' => $t->parent_id ? null : \App\Models\ReviewVideo::query()->where('todo_id', $t->id)->latest('version')->first()?->summary(),
+            'review_upload' => $t->parent_id ? null : route('reviews.upload.start', $t->id),
             'working_minutes' => $t->workingMinutes(),
             'working_since' => $t->status === Todo::STATUS_STARTED ? optional($t->updates->last(fn ($u) => $u->to_status === Todo::STATUS_STARTED))->created_at?->getTimestampMs() : null,
             'sent_back' => $t->wasSentBack() ? $t->review_note : null,

@@ -25,6 +25,7 @@ class AdminNav
             'Today' => [
                 self::link('dashboard', 'Dashboard', 'home', 'dashboard', ['dashboard']),
                 self::link('editor-updates', 'Editor Updates', 'film-cut', 'editor-updates', ['editor-updates', 'editor-updates.editor', 'editors.*']),
+                self::link('reviews', 'Video review', 'check-circle', 'reviews.index', ['reviews.*']),
                 self::link('inbox-desk', 'Comment & Message Checker', 'chat-check', 'inbox-desk.index', ['inbox-desk.*']),
                 self::link('todos', $user->logsWork() ? 'Team To-dos' : 'To-dos', 'check-circle', 'todos.index', ['todos.index']),
                 self::link('studio-map', 'Studio Map', 'map-pin', 'studio-map', ['studio-map']),

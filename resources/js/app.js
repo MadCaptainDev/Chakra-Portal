@@ -13,6 +13,7 @@ import { editingDay } from './editing-day.js';
 import { editorTimeline } from './editor-timeline.js';
 import { plannerWeb } from './planner-web.js';
 import { ventureBoard } from './venture-board.js';
+import { videoReview, reviewUploader } from './video-review.js';
 import { shootScripts, shootLive } from './shoot-scripts.js';
 
 window.Alpine = Alpine;
@@ -34,6 +35,9 @@ Alpine.data('editorTimeline', editorTimeline);
 Alpine.data('plannerWeb', plannerWeb);
 // The admin dashboard's "My ventures" -- see resources/js/venture-board.js.
 Alpine.data('ventureBoard', ventureBoard);
+// Video review and the editors' upload -- see resources/js/video-review.js.
+Alpine.data('videoReview', videoReview);
+Alpine.data('reviewUploader', reviewUploader);
 Alpine.data('shootScripts', shootScripts);
 Alpine.data('shootLive', shootLive);
 

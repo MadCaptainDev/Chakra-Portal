@@ -442,6 +442,24 @@ Route::middleware('auth')->group(function () {
     Route::get('editor-updates', [EditorUpdatesController::class, 'index'])->name('editor-updates');
     Route::get('editor-updates/live', [EditorUpdatesController::class, 'live'])->name('editor-updates.live');
     Route::get('editor-updates/editor/{user}', [EditorUpdatesController::class, 'editor'])->name('editor-updates.editor');
+
+    // Video review: upload a cut, comment on moments, approve or send back. See VideoReviewController.
+    Route::controller(\App\Http\Controllers\VideoReviewController::class)->group(function () {
+        Route::get('reviews', 'index')->name('reviews.index');
+        Route::get('reviews/{video}', 'show')->whereNumber('video')->name('reviews.show');
+        Route::get('reviews/{video}/live', 'live')->whereNumber('video')->name('reviews.live');
+        Route::get('reviews/{video}/file', 'file')->whereNumber('video')->name('reviews.file');
+        Route::get('reviews/{video}/poster', 'poster')->whereNumber('video')->name('reviews.poster');
+        Route::post('reviews/cards/{todo}/uploads', 'start')->name('reviews.upload.start');
+        Route::post('reviews/uploads/{upload}/chunk', 'chunk')->name('reviews.upload.chunk');
+        Route::post('reviews/uploads/{upload}/finish', 'finish')->name('reviews.upload.finish');
+        Route::post('reviews/{video}/comments', 'comment')->whereNumber('video')->name('reviews.comment');
+        Route::patch('reviews/comments/{comment}', 'resolve')->name('reviews.comment.resolve');
+        Route::delete('reviews/comments/{comment}', 'forget')->name('reviews.comment.forget');
+        Route::post('reviews/{video}/approve', 'approve')->whereNumber('video')->name('reviews.approve');
+        Route::post('reviews/{video}/changes', 'changes')->whereNumber('video')->name('reviews.changes');
+        Route::post('reviews/{video}/recheck', 'recheck')->whereNumber('video')->name('reviews.recheck');
+    });
     // One video's whole story: by its editing card, or by its planner row.
     Route::get('videos/card/{todo}', [\App\Http\Controllers\VideoTimelineController::class, 'card'])->name('videos.card');
     Route::get('videos/item/{item}', [\App\Http\Controllers\VideoTimelineController::class, 'item'])->name('videos.item');

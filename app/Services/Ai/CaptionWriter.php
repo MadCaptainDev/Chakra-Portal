@@ -261,7 +261,7 @@ class CaptionWriter
     }
 
     /** What is said in the video: the portal script, else the one written in Notion. Trimmed. */
-    private static function scriptOf(ContentItem $item): ?string
+    public static function scriptOf(ContentItem $item): ?string
     {
         $portal = $item->scriptRecord()->with('sections')->first();
         $text = $portal

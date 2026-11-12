@@ -259,6 +259,22 @@
                                 </template>
 
                                 {{-- What you can do next, by stage. --}}
+                                {{-- Where its review stands --}}
+                                <template x-if="card.review">
+                                    <a :href="card.review.url" class="mt-2.5 flex flex-wrap items-center gap-1.5 rounded-lg bg-white/[0.04] px-2.5 py-2 text-xs ring-1 ring-white/10 hover:bg-white/[0.07]">
+                                        <span class="font-semibold text-white" x-text="'Review v' + card.review.version"></span>
+                                        <span class="rounded px-1.5 py-0.5"
+                                              :class="{ pending: 'bg-sky-400/15 text-sky-200', approved: 'bg-emerald-400/15 text-emerald-200', changes: 'bg-amber-400/15 text-amber-200' }[card.review.status]"
+                                              x-text="card.review.status_label"></span>
+                                        <span x-show="card.review.ai_verdict" class="rounded px-1.5 py-0.5"
+                                              :class="{ good_to_go: 'bg-emerald-400/15 text-emerald-200', minor_fixes: 'bg-amber-400/15 text-amber-200', needs_fixes: 'bg-red-400/15 text-red-200' }[card.review.ai_verdict]"
+                                              x-text="'AI: ' + card.review.ai_verdict_label"></span>
+                                        <span x-show="['queued', 'running'].includes(card.review.ai_status)" class="text-brand-100/50">AI checking…</span>
+                                        <span x-show="card.review.open_comments > 0" class="text-brand-100/70" x-text="card.review.open_comments + ' comments'"></span>
+                                        <span class="ml-auto text-brand-300">Open →</span>
+                                    </a>
+                                </template>
+
                                 <div class="mt-3 flex flex-wrap gap-2 sm:mt-2.5 sm:gap-1.5">
                                     <template x-if="card.status === 'waiting'">
                                         <button type="button" @click="act(card, 'start')" :disabled="!!busy[card.id + 'start']"
@@ -267,6 +283,12 @@
                                     <template x-if="card.status === 'blocked'">
                                         <button type="button" @click="act(card, 'start')" :disabled="!!busy[card.id + 'start']"
                                                 class="min-h-[44px] flex-1 rounded-lg bg-amber-400 px-3 text-sm font-bold text-brand-900 hover:bg-amber-300 disabled:opacity-50 sm:min-h-[32px] sm:flex-none sm:text-xs">▶ Resume</button>
+                                    </template>
+                                    {{-- Upload the cut: it goes for review, and Gemini checks it. --}}
+                                    <template x-if="card.review_upload && ['started', 'completed'].includes(card.status) && !card.posted_at">
+                                        <button type="button" @click="$dispatch('review-upload', card)"
+                                                class="min-h-[44px] flex-1 rounded-lg bg-brand-400 px-3 text-sm font-bold text-brand-900 hover:bg-brand-300 sm:min-h-[32px] sm:flex-none sm:text-xs"
+                                                x-text="card.review ? '⬆ Upload v' + (card.review.version + 1) : '⬆ Upload for review'"></button>
                                     </template>
                                     <template x-if="card.status === 'started'">
                                         <button type="button" @click="act(card, 'done')" :disabled="openFixes(card) > 0 || !!busy[card.id + 'done']"
@@ -467,5 +489,54 @@
                 </template>
             </ul>
         </div>
+    </div>
+    {{-- Upload a cut for review (resources/js/video-review.js: reviewUploader). --}}
+    <div x-data="reviewUploader()" @review-upload.window="openFor($event.detail); open = true" x-init="$data.open = false">
+        <template x-teleport="body">
+            <div x-show="open" x-cloak class="fixed inset-0 z-[80] flex items-end justify-center sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Upload for review">
+                <div class="absolute inset-0 bg-black/60" @click="if (!stage) open = false"></div>
+                <div class="theme-dark relative w-full rounded-t-2xl bg-[#15303f] p-5 text-white ring-1 ring-white/10 shadow-2xl sm:max-w-md sm:rounded-2xl">
+                    <div class="flex items-start gap-3">
+                        <div class="min-w-0 flex-1">
+                            <h3 class="text-lg font-bold">Upload for review</h3>
+                            <p class="truncate text-xs text-brand-100/60" x-text="card ? card.title : ''"></p>
+                        </div>
+                        <button type="button" x-show="!stage" @click="open = false" class="flex h-9 w-9 items-center justify-center rounded-lg text-brand-100/60 hover:bg-white/10" aria-label="Close">✕</button>
+                    </div>
+
+                    <template x-if="!done">
+                        <div class="mt-4 space-y-3">
+                            <label class="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-white/15 px-4 py-6 text-center hover:border-brand-400/60">
+                                <input type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.m4v" class="sr-only" @change="pick($event)" :disabled="!!stage">
+                                <span class="text-sm font-semibold" x-text="file ? file.name : 'Choose the video'"></span>
+                                <span class="text-xs text-brand-100/50" x-text="file ? mb(file.size) : 'MP4 (H.264) plays everywhere. Up to 1.5 GB.'"></span>
+                            </label>
+                            <textarea x-model="note" rows="2" maxlength="1000" :disabled="!!stage" placeholder="Anything the reviewer should know? (optional)"
+                                      class="w-full rounded-lg border-0 bg-[#0f2230] p-2.5 text-sm text-white placeholder:text-brand-100/35 focus:ring-1 focus:ring-brand-400"></textarea>
+                            <div x-show="stage" class="space-y-1.5">
+                                <div class="h-2 overflow-hidden rounded-full bg-white/10"><div class="h-full rounded-full bg-brand-400 transition-all" :style="`width:${pct}%`"></div></div>
+                                <p class="text-xs text-brand-100/70" x-text="stage"></p>
+                                <p class="text-[11px] text-brand-100/40">Keep this page open until it finishes.</p>
+                            </div>
+                            <p x-show="error" class="rounded-lg bg-red-500/15 px-3 py-2 text-sm text-red-200" x-text="error"></p>
+                            <button type="button" @click="upload()" :disabled="!file || !!stage"
+                                    class="w-full rounded-xl bg-brand-400 px-4 py-3 text-sm font-bold text-brand-900 hover:bg-brand-300 disabled:opacity-50"
+                                    x-text="stage ? 'Uploading…' : 'Upload and send for review'"></button>
+                            <p class="text-[11px] text-brand-100/45">It goes to review straight away and Gemini gives it a quick check. Corrections from the last review count as fixed by this version.</p>
+                        </div>
+                    </template>
+                    <template x-if="done">
+                        <div class="mt-4 space-y-3 text-center">
+                            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15"><x-icon name="check-circle" class="h-6 w-6 text-emerald-300" /></div>
+                            <p class="text-sm" x-text="'Version ' + done.video.version + ' is with the reviewers.'"></p>
+                            <div class="flex gap-2">
+                                <a :href="done.url" class="flex-1 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/15">Open the review</a>
+                                <button type="button" @click="open = false; location.reload()" class="flex-1 rounded-xl bg-brand-400 px-4 py-2.5 text-sm font-bold text-brand-900">Done</button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
     </div>
 </x-app-layout>
