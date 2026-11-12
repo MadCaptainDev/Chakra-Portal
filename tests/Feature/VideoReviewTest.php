@@ -104,8 +104,10 @@ class VideoReviewTest extends TestCase
         $this->postJson(route('reviews.changes', $v1), ['note' => 'Two small things'])->assertOk()->assertJsonPath('status', 'changes');
 
         $card = $this->card->fresh();
-        $this->assertSame(Todo::STATUS_STARTED, $card->status);
+        // Back in the editor's To do, not straight into Editing.
+        $this->assertSame(Todo::STATUS_WAITING, $card->status);
         $this->assertTrue($card->wasSentBack());
+        $this->assertSame([Todo::STATUS_WAITING, Todo::STATUS_WAITING], $card->corrections()->pluck('status')->all());
         $this->assertSame(['0:12 — Spelling: Trichy', 'Music too loud at the end'], $card->corrections()->orderBy('id')->pluck('title')->all());
         Notification::assertSentTo($this->editor, VideoReviewUpdate::class, fn ($n) => str_starts_with($n->title, 'Changes asked'));
 

@@ -89,13 +89,15 @@
 
         <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">
             {{-- ——— Player column (sticky on phones so the video stays in view while reading) ——— --}}
-            <div class="sticky top-0 z-20 -mx-4 bg-brand-900/95 px-4 pb-3 pt-1 backdrop-blur sm:mx-0 sm:px-0 lg:static lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
+            {{-- No blur/transform on this block: either would trap the fixed comment bar inside it.
+                 top-16 clears the app's own top bar on phones. --}}
+            <div class="sticky top-16 z-20 -mx-4 bg-brand-900 px-4 pb-2 pt-1 sm:mx-0 sm:px-0 lg:static lg:top-0 lg:bg-transparent lg:p-0">
                 <div x-ref="stage" class="group relative overflow-hidden rounded-2xl bg-black shadow-2xl ring-1 ring-white/10">
                     @if ($video->hasFile())
                         <video x-ref="video" src="{{ route('reviews.file', $video) }}" @if ($video->poster_path) poster="{{ route('reviews.poster', $video) }}" @endif
                                preload="metadata" playsinline controlsList="nodownload" disablePictureInPicture
-                               class="mx-auto block w-full select-none bg-black {{ $vertical ? 'max-h-[44vh] w-auto sm:max-h-[64vh] lg:max-h-[70vh]' : 'max-h-[44vh] lg:max-h-[70vh]' }}"
-                               :class="(at !== null || body.trim()) ? 'max-lg:max-h-[26vh]' : ''"
+                               class="mx-auto block select-none bg-black {{ $vertical ? 'h-auto w-auto max-w-full max-h-[32vh] sm:max-h-[60vh] lg:max-h-[70vh]' : 'w-full max-h-[32vh] sm:max-h-[60vh] lg:max-h-[70vh]' }}"
+                               :class="(at !== null || body.trim()) ? 'max-lg:max-h-[24vh]' : ''"
                                @contextmenu.prevent></video>
 
                         {{-- Tap layer: tap = play/pause, double-tap a side = 5s --}}
@@ -148,8 +150,8 @@
 
                 @if ($video->hasFile())
                     {{-- ——— Timeline: drag to scrub; pins for comments, diamonds for AI flags, dots for others watching ——— --}}
-                    <div class="mt-3 select-none">
-                        <div x-ref="track" class="relative h-12 cursor-pointer touch-none"
+                    <div class="mt-2 select-none sm:mt-3">
+                        <div x-ref="track" class="relative h-11 cursor-pointer touch-none sm:h-12"
                              @pointerdown="scrubStart($event)" @pointermove="scrubMove($event)" @pointerup="scrubEnd()" @pointercancel="scrubEnd()" @pointerleave="if (!dragging) hover = null">
                             <div class="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-full bg-white/10 transition-all" :class="dragging || hover ? 'h-2.5' : ''">
                                 <div class="absolute inset-y-0 left-0 bg-white/15" :style="`width:${pos(buffered)}`"></div>
@@ -164,7 +166,7 @@
                             {{-- AI flags (below) --}}
                             <template x-for="(i, n) in ((s.ai.report && s.ai.report.issues) || []).filter((i) => i.at != null)" :key="'a' + n">
                                 <button type="button" @pointerdown.stop @click.stop="jump(i.at); tab = 'ai'"
-                                        class="rv-pin absolute bottom-0 h-3 w-3 -translate-x-1/2 rotate-45 transition hover:scale-150" :class="i.severity === 'high' ? 'bg-red-400' : 'bg-amber-300'"
+                                        class="absolute bottom-0 h-3 w-3 -translate-x-1/2 rotate-45 rounded-[2px] transition hover:scale-150" :class="i.severity === 'high' ? 'bg-red-400' : 'bg-amber-300'"
                                         :style="`left:${pos(i.at)}`" :title="'AI ' + clock(i.at) + ': ' + i.note"></button>
                             </template>
                             {{-- Others' playheads --}}
@@ -179,21 +181,21 @@
 
                         {{-- Controls --}}
                         <div class="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-brand-100/60">
-                            <button type="button" @click="skip(-5)" class="{{ $btn }} h-10 w-10 bg-white/[0.06] text-white hover:bg-white/10" aria-label="Back 5 seconds">«5</button>
+                            <button type="button" @click="skip(-5)" class="{{ $btn }} hidden h-10 w-10 bg-white/[0.06] text-white hover:bg-white/10 sm:inline-flex" aria-label="Back 5 seconds">«5</button>
                             <button type="button" @click="toggle()" class="{{ $btn }} h-10 w-12 bg-white text-brand-900" :aria-label="playing ? 'Pause' : 'Play'">
                                 <svg x-show="!playing" class="h-5 w-5 translate-x-px" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                                 <svg x-show="playing" x-cloak class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
                             </button>
-                            <button type="button" @click="skip(5)" class="{{ $btn }} h-10 w-10 bg-white/[0.06] text-white hover:bg-white/10" aria-label="On 5 seconds">5»</button>
+                            <button type="button" @click="skip(5)" class="{{ $btn }} hidden h-10 w-10 bg-white/[0.06] text-white hover:bg-white/10 sm:inline-flex" aria-label="On 5 seconds">5»</button>
                             <span class="ml-1 font-mono tabular-nums text-white/80" x-text="clock(t) + ' / ' + clock(duration)"></span>
                             <span class="ml-auto"></span>
                             <button type="button" @click="setRate()" class="{{ $btn }} h-10 min-w-[44px] bg-white/[0.06] px-2 font-mono text-white hover:bg-white/10" x-text="rate + '×'" aria-label="Speed"></button>
-                            <button type="button" @click="mute()" class="{{ $btn }} h-10 w-10 bg-white/[0.06] text-white hover:bg-white/10" :aria-label="muted ? 'Sound on' : 'Mute'" x-text="muted ? '🔇' : '🔊'"></button>
+                            <button type="button" @click="mute()" class="{{ $btn }} hidden h-10 w-10 bg-white/[0.06] text-white hover:bg-white/10 sm:inline-flex" :aria-label="muted ? 'Sound on' : 'Mute'" x-text="muted ? '🔇' : '🔊'"></button>
                             <button type="button" @click="full()" class="{{ $btn }} hidden h-10 w-10 bg-white/[0.06] text-white hover:bg-white/10 sm:inline-flex" aria-label="Full screen">⛶</button>
                         </div>
 
                         {{-- This device's copy of the video --}}
-                        <div class="mt-1.5 flex items-center gap-2 text-[11px]">
+                        <div class="mt-1 flex min-h-[16px] items-center gap-2 truncate text-[11px]">
                             <template x-if="cache.state === 'saving'">
                                 <span class="flex items-center gap-2 text-brand-100/60">
                                     <span class="h-1.5 w-24 overflow-hidden rounded-full bg-white/10"><span class="block h-full bg-brand-300 transition-all" :style="`width:${cache.pct}%`"></span></span>

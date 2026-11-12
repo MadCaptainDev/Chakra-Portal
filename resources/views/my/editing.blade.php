@@ -286,7 +286,7 @@
                                                 class="min-h-[44px] flex-1 rounded-lg bg-amber-400 px-3 text-sm font-bold text-brand-900 hover:bg-amber-300 disabled:opacity-50 sm:min-h-[32px] sm:flex-none sm:text-xs">▶ Resume</button>
                                     </template>
                                     {{-- Upload the cut: it goes for review, and Gemini checks it. --}}
-                                    <template x-if="card.review_upload && ['started', 'completed'].includes(card.status) && !card.posted_at">
+                                    <template x-if="card.review_upload && ['waiting', 'started', 'blocked', 'completed'].includes(card.status) && !card.posted_at">
                                         <button type="button" @click="$dispatch('review-upload', card)"
                                                 class="min-h-[44px] flex-1 rounded-lg bg-brand-400 px-3 text-sm font-bold text-brand-900 hover:bg-brand-300 sm:min-h-[32px] sm:flex-none sm:text-xs"
                                                 x-text="card.review ? '⬆ Upload v' + (card.review.version + 1) : '⬆ Upload for review'"></button>

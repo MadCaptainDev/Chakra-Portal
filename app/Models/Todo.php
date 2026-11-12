@@ -442,7 +442,7 @@ class Todo extends Model
      * first: that would clear the verdict it was in the middle of recording,
      * and leave the timeline reading "Started" before "Sent back".
      */
-    public function review(string $state, User $reviewer, ?string $note = null): void
+    public function review(string $state, User $reviewer, ?string $note = null, string $reopenAs = self::STATUS_STARTED): void
     {
         $from = $this->status;
         $sendingBack = $state === self::REVIEW_REJECTED && ! $this->isOpen();
@@ -455,7 +455,7 @@ class Todo extends Model
         ];
 
         if ($sendingBack) {
-            $attributes['status'] = self::STATUS_STARTED;
+            $attributes['status'] = $reopenAs;
             $attributes['closed_on'] = null;
         }
 
@@ -463,7 +463,7 @@ class Todo extends Model
 
         TodoUpdate::record($this, $reviewer, TodoUpdate::REVIEWED, [
             'from_status' => $sendingBack ? $from : null,
-            'to_status' => $sendingBack ? self::STATUS_STARTED : null,
+            'to_status' => $sendingBack ? $reopenAs : null,
             'note' => $note,
         ]);
     }

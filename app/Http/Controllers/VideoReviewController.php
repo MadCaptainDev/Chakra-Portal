@@ -442,7 +442,8 @@ class VideoReviewController extends Controller
 
             $video->forceFill(['status' => ReviewVideo::CHANGES, 'reviewed_by_id' => $user->id, 'reviewed_at' => now(), 'review_note' => $note])->save();
             $card->forceFill(['posted_at' => null, 'post_url' => null, 'posted_by_id' => null, 'ready_at' => null, 'publish_at' => null, 'publish_reminded_at' => null, 'scheduled_at' => null, 'scheduled_by_id' => null])->save();
-            $card->review(Todo::REVIEW_REJECTED, $user, $note ?? $open->count().' '.Str::plural('change', $open->count()).' from review of v'.$video->version);
+            // Back to the editor's To do (not straight into Editing): they start it when they pick it up.
+            $card->review(Todo::REVIEW_REJECTED, $user, $note ?? $open->count().' '.Str::plural('change', $open->count()).' from review of v'.$video->version, Todo::STATUS_WAITING);
         });
 
         $this->tell(collect([$card->user])->filter(), $video, 'Changes asked: '.$card->title,
