@@ -154,7 +154,7 @@
                                                     @if ($shoot->hasKitProblems())
                                                         <x-badge status="overdue">Kit issue</x-badge>
                                                     @endif
-                                                    @if ($shoot->isMissingContent())
+                                                    @if ($missingContentIds->has($shoot->id))
                                                         <span title="Completed, but nothing linked in the Reel Planner yet">
                                                             <x-badge status="overdue">Add to Notion</x-badge>
                                                         </span>

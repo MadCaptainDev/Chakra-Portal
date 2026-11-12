@@ -159,9 +159,9 @@ class DashboardController extends Controller
         // ever add a reel for now was inflating this count indefinitely
         // (63 all-time vs 2 this month, live). "Needs attention today"
         // means this month's shoots, not the studio's entire backlog.
-        $missingContentCount = Shoot::needsContentAdded()
-            ->whereBetween('starts_at', [$month, $monthEnd])
-            ->count();
+        // ShootContentCheck also counts reels whose Notion "Shoot" field was
+        // left empty, and the twin of a shoot booked twice.
+        $missingContentCount = \App\Support\ShootContentCheck::missing(Shoot::query()->whereBetween('starts_at', [$month, $monthEnd]))->count();
 
         // Tomorrow's shoots that are not ready -- see ShootReadiness.
         $notReady = \App\Support\ShootReadiness::forDay(now()->addDay())->filter(fn (array $r) => $r['problems'] !== []);

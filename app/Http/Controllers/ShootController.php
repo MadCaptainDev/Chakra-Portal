@@ -86,7 +86,8 @@ class ShootController extends Controller
             // Independent of the board's own filters (which default to
             // upcoming only, and a completed shoot is never upcoming) --
             // see Shoot::scopeNeedsContentAdded().
-            'missingContentCount' => Shoot::needsContentAdded()->count(),
+            'missingContentCount' => ($missingContentIds = \App\Support\ShootContentCheck::missing()->pluck('id'))->count(),
+            'missingContentIds' => $missingContentIds->flip(),
         ]);
     }
 

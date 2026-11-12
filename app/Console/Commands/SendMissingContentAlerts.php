@@ -43,12 +43,12 @@ class SendMissingContentAlerts extends Command
 
     public function handle(): int
     {
-        $shoots = Shoot::query()
-            ->needsContentAdded()
+        // ShootContentCheck: reels with the Notion "Shoot" field left empty
+        // still count, so nobody is pinged about a shoot that is in the planner.
+        $shoots = \App\Support\ShootContentCheck::missing(Shoot::query()
             ->whereNull('content_missing_alert_sent_at')
             ->where('starts_at', '>=', now()->subDays(self::ALERT_WINDOW_DAYS))
-            ->with('client.teamMembers')
-            ->get();
+            ->with('client.teamMembers'));
 
         if ($shoots->isEmpty()) {
             $this->info('Nothing to alert — every completed shoot has content linked (or was already alerted).');
