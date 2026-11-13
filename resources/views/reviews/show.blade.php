@@ -587,7 +587,7 @@
                                 <span class="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold transition"
                                       :class="a.approved ? 'bg-emerald-400 text-brand-900' : 'bg-white/10 text-brand-100/60'" x-text="a.approved ? '✓' : initials(a.name)"></span>
                                 <span class="flex-1 text-white" x-text="a.name"></span>
-                                <span class="text-[11px]" :class="a.approved ? 'text-emerald-300/80' : 'text-brand-100/40'" x-text="a.approved ? a.at : 'waiting'"></span>
+                                <span class="text-[11px]" :class="a.approved ? 'text-emerald-300/80' : 'text-brand-100/40'" x-text="a.approved ? (a.by ? 'by ' + a.by.split(' ')[0] + ' · ' : '') + a.at : 'waiting'"></span>
                             </li>
                         </template>
                         <template x-for="a in s.sign_off.extra" :key="'x' + a.id">
@@ -622,12 +622,18 @@
                         <div>
                             <p class="text-3xl">✅</p>
                             <h3 class="mt-1 text-xl font-extrabold">Approve version {{ $video->version }}?</h3>
-                            <p class="mt-1 text-sm text-brand-100/70" x-show="s.sign_off.needed && s.sign_off.done + 1 < s.sign_off.needed"
+                            <p class="mt-1 text-sm text-brand-100/70" x-show="s.sign_off.needed && s.sign_off.done + 1 < s.sign_off.needed && !forAll"
                                x-text="'Your OK is recorded. It is approved when ' + s.sign_off.required.filter((a) => !a.approved && a.id !== s.me.id).map((a) => a.name.split(' ')[0]).join(' and ') + ' approve too — they are told now.'"></p>
-                            <p class="mt-1 text-sm text-brand-100/70" x-show="!s.sign_off.needed || s.sign_off.done + 1 >= s.sign_off.needed">
+                            <p class="mt-1 text-sm text-brand-100/70" x-show="!s.sign_off.needed || s.sign_off.done + 1 >= s.sign_off.needed || forAll">
                                 This completes the approval. {{ $card->user?->name ? Str::before($card->user->name, ' ') : 'The editor' }} is told and can make it Video ready.
                             </p>
-                            <p x-show="s.sign_off.needed && !s.sign_off.required.some((a) => a.id === s.me.id)" class="mt-2 text-xs text-brand-100/50">You are not on the approvers list, so your OK shows as "also OK".</p>
+                            <p x-show="s.sign_off.needed && !s.sign_off.required.some((a) => a.id === s.me.id) && !forAll" class="mt-2 text-xs text-brand-100/50">You are not on the approvers list, so your OK shows as "also OK".</p>
+                            {{-- One approver can sign off for the rest (when they are away). --}}
+                            <label x-show="s.can_approve_all && s.sign_off.required.some((a) => !a.approved && a.id !== s.me.id)" class="mt-3 flex cursor-pointer items-start gap-3 rounded-xl bg-emerald-400/10 px-3 py-2.5 ring-1 ring-emerald-400/25">
+                                <input type="checkbox" x-model="forAll" class="mt-0.5 h-5 w-5 rounded border-white/30 bg-transparent text-emerald-400 focus:ring-emerald-400">
+                                <span class="text-sm text-white">Approve for everyone
+                                    <span class="block text-xs text-brand-100/60" x-text="'Gives ' + s.sign_off.required.filter((a) => !a.approved && a.id !== s.me.id).map((a) => a.name.split(' ')[0]).join(' and ') + '\'s OK too, so it is approved now. They are told.'"></span></span>
+                            </label>
                             <p x-show="open.length" class="mt-3 rounded-xl bg-amber-400/10 px-3 py-2 text-sm text-amber-200" x-text="open.length + (open.length === 1 ? ' comment is' : ' comments are') + ' still open. They stay on the video but are not sent as changes.'"></p>
                         </div>
                     </template>

@@ -338,6 +338,30 @@ class VideoReviewTest extends TestCase
         $this->actingAs($this->editor)->postJson(route('my.editing.act', $this->card), ['action' => 'ready', 'publish_at' => now()->addDay()->format('Y-m-d\TH:i')])->assertOk();
     }
 
+    public function test_one_approver_can_approve_for_everyone(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+        $annamalai = User::factory()->create(['role' => User::ROLE_ADMIN, 'name' => 'Annamalai']);
+        \App\Models\ReviewSetting::current()->update(['approver_ids' => [$this->admin->id, $annamalai->id], 'require_for_ready' => true]);
+        $this->uploadAs($this->editor)->assertCreated();
+        $video = ReviewVideo::first();
+
+
+        $this->actingAs($this->admin)->getJson(route('reviews.live', $video))->assertJsonPath('can_approve_all', true);
+        $this->actingAs($this->admin)->postJson(route('reviews.approve', $video), ['for_all' => true])->assertOk()
+            ->assertJsonPath('status', 'approved')->assertJsonPath('sign_off.complete', true)
+            ->assertJsonPath('sign_off.required.1.by', $this->admin->name);
+        $this->assertTrue($this->card->fresh()->isApproved());
+        \Illuminate\Support\Facades\Notification::assertSentTo($annamalai, \App\Notifications\VideoReviewUpdate::class, fn ($n) => str_starts_with($n->title, 'Approved for you'));
+        \Illuminate\Support\Facades\Notification::assertSentTo($this->editor, \App\Notifications\VideoReviewUpdate::class, fn ($n) => str_contains($n->body, 'Keerthi (for everyone)'));
+    }
+
+    public function test_the_review_list_is_grouped_by_day(): void
+    {
+        $this->uploadAs($this->editor)->assertCreated();
+        $this->actingAs($this->admin)->get(route('reviews.index'))->assertOk()->assertSee('Today');
+    }
+
     public function test_one_approver_who_is_not_on_the_list_does_not_complete_it(): void
     {
         \Illuminate\Support\Facades\Notification::fake();

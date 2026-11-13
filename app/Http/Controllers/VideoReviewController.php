@@ -398,13 +398,21 @@ class VideoReviewController extends Controller
      * My OK on this version. The cut is approved once every required
      * approver (Review settings) has given theirs -- or, with none set, on
      * the first OK. Until then the others are asked.
+     *
+     * for_all: an approver (or an admin) approves for everyone still to --
+     * the usual case when the others are away. Each of those OKs records who
+     * gave it, and they are told.
      */
     public function approve(Request $request, ReviewVideo $video): JsonResponse
     {
         $user = $request->user();
         abort_unless($video->reviewableBy($user), 403);
-        $request->validate(['note' => ['nullable', 'string', 'max:1000']]);
+        $request->validate(['note' => ['nullable', 'string', 'max:1000'], 'for_all' => ['nullable', 'boolean']]);
         $note = trim((string) $request->input('note', '')) ?: null;
+        $forAll = $request->boolean('for_all');
+        if ($forAll && ! $this->canApproveForAll($user)) {
+            return response()->json(['message' => 'Only an approver can approve for everyone.'], 403);
+        }
 
         $card = $video->todo;
         if ($video->status !== ReviewVideo::PENDING) {
@@ -416,19 +424,34 @@ class VideoReviewController extends Controller
 
         \App\Models\ReviewApproval::query()->updateOrCreate(
             ['review_video_id' => $video->id, 'user_id' => $user->id],
-            ['note' => $note, 'created_at' => now()],
+            ['by_user_id' => $user->id, 'note' => $note, 'created_at' => now()],
         );
+
+        $covered = collect();
+        if ($forAll) {
+            foreach (collect($video->signOff()['required'])->where('approved', false) as $other) {
+                \App\Models\ReviewApproval::query()->create([
+                    'review_video_id' => $video->id, 'user_id' => $other['id'], 'by_user_id' => $user->id,
+                    'note' => 'Approved by '.$user->name.' for everyone', 'created_at' => now(),
+                ]);
+                $covered->push($other['id']);
+            }
+        }
 
         $signOff = $video->signOff();
 
         if ($signOff['complete']) {
-            $names = collect($signOff['required'])->pluck('name')->map(fn ($n) => Str::before($n, ' '))
+            $names = $covered->isNotEmpty() ? Str::before($user->name, ' ').' (for everyone)' : collect($signOff['required'])->pluck('name')->map(fn ($n) => Str::before($n, ' '))
                 ->whenEmpty(fn ($c) => $c->push(Str::before($user->name, ' ')))->implode(' and ');
             $video->forceFill(['status' => ReviewVideo::APPROVED, 'reviewed_by_id' => $user->id, 'reviewed_at' => now(), 'review_note' => $note])->save();
             $card->review(Todo::REVIEW_APPROVED, $user, 'Approved v'.$video->version.' by '.$names.($note ? ': '.$note : ''));
 
             $this->tell(collect([$card->user])->filter(), $video, 'Approved: '.$card->title,
                 'Approved by '.$names.'. You can make it Video ready with its publishing time now.');
+            if ($covered->isNotEmpty()) {
+                $this->tell(User::query()->whereIn('id', $covered)->get(), $video, 'Approved for you: '.$card->title,
+                    Str::before($user->name, ' ').' approved version '.$video->version.' for everyone, your OK included.');
+            }
         } else {
             $waiting = collect($signOff['required'])->where('approved', false);
             $this->tell(User::query()->whereIn('id', $waiting->pluck('id'))->get(), $video, 'Your OK needed: '.$card->title,
@@ -436,6 +459,12 @@ class VideoReviewController extends Controller
         }
 
         return response()->json($this->state($video->fresh(), $user));
+    }
+
+    /** An approver on the list, or an admin, may approve for everyone. */
+    private function canApproveForAll(User $user): bool
+    {
+        return $user->isAdmin() || in_array($user->id, array_map('intval', \App\Models\ReviewSetting::current()->approver_ids ?? []), true);
     }
 
     /** Take my OK back, while the cut is still waiting. */
@@ -574,6 +603,7 @@ class VideoReviewController extends Controller
             'adopted' => $video->allComments()->whereNull('parent_id')->get(['body', 'at_seconds'])
                 ->map(fn ($c) => $c->body.'|'.($c->at_seconds === null ? '' : number_format((float) $c->at_seconds, 1, '.', '')))->values()->all(),
             'i_approved' => $video->approvals()->where('user_id', $viewer->id)->exists(),
+            'can_approve_all' => $this->canApproveForAll($viewer),
             'ai' => [
                 'status' => $video->ai_status,
                 'verdict' => $video->ai_verdict,

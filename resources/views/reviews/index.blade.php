@@ -1,6 +1,10 @@
 {{-- Videos waiting for a verdict, oldest first, and the ones decided lately. --}}
 @php
     $verdictTone = ['good_to_go' => 'bg-emerald-400/15 text-emerald-200', 'minor_fixes' => 'bg-amber-400/15 text-amber-200', 'needs_fixes' => 'bg-red-400/15 text-red-200'];
+    // By day: waiting by the day it was uploaded, decided by the day it was decided.
+    $day = fn ($at) => $at->isToday() ? 'Today' : ($at->isYesterday() ? 'Yesterday' : $at->format($at->isCurrentYear() ? 'l, j M' : 'j M Y'));
+    $waitingByDay = $waiting->groupBy(fn ($v) => $v->created_at->toDateString())->sortKeysDesc();
+    $doneByDay = $done->groupBy(fn ($v) => ($v->reviewed_at ?? $v->updated_at)->toDateString())->sortKeysDesc();
 @endphp
 <x-app-layout title="Video review" dark>
     <div class="mx-auto max-w-6xl space-y-8 pb-16">
@@ -46,23 +50,35 @@
 
         <section>
             <h2 class="mb-3 text-[17px] font-semibold text-white">Waiting for you</h2>
-            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                @forelse ($waiting as $v)
-                    @include('reviews._tile', ['v' => $v])
-                @empty
-                    <p class="rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.06] px-5 py-6 text-sm text-emerald-100/85 sm:col-span-2 lg:col-span-3">Nothing waiting. New uploads appear here and on the bell.</p>
-                @endforelse
-            </div>
+            @forelse ($waitingByDay as $date => $videos)
+                <p class="mb-2 mt-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-brand-100/55 first:mt-0">
+                    {{ $day(\Illuminate\Support\Carbon::parse($date)) }} <span class="rounded-full bg-white/10 px-2 py-0.5 text-[11px] normal-case tracking-normal text-brand-100/70">{{ $videos->count() }}</span>
+                    <span class="h-px flex-1 bg-white/10"></span>
+                </p>
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    @foreach ($videos as $v)
+                        @include('reviews._tile', ['v' => $v])
+                    @endforeach
+                </div>
+            @empty
+                <p class="rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.06] px-5 py-6 text-sm text-emerald-100/85">Nothing waiting. New uploads appear here and on the bell.</p>
+            @endforelse
         </section>
 
         @if ($done->isNotEmpty())
             <section>
                 <h2 class="mb-3 text-[17px] font-semibold text-white">Decided lately</h2>
-                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    @foreach ($done as $v)
-                        @include('reviews._tile', ['v' => $v])
-                    @endforeach
-                </div>
+                @foreach ($doneByDay as $date => $videos)
+                    <p class="mb-2 mt-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-brand-100/55 first:mt-0">
+                        {{ $day(\Illuminate\Support\Carbon::parse($date)) }} <span class="rounded-full bg-white/10 px-2 py-0.5 text-[11px] normal-case tracking-normal text-brand-100/70">{{ $videos->count() }}</span>
+                        <span class="h-px flex-1 bg-white/10"></span>
+                    </p>
+                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        @foreach ($videos as $v)
+                            @include('reviews._tile', ['v' => $v])
+                        @endforeach
+                    </div>
+                @endforeach
             </section>
         @endif
     </div>

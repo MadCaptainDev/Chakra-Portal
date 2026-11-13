@@ -88,10 +88,12 @@ class ReviewVideo extends Model
      */
     public function signOff(): array
     {
-        $approvals = $this->approvals()->with('user:id,name,avatar_path')->get()->keyBy('user_id');
+        $approvals = $this->approvals()->with('user:id,name,avatar_path', 'byUser:id,name')->get()->keyBy('user_id');
         $required = ReviewSetting::current()->approvers();
 
-        $row = fn (User $u, $a) => ['id' => $u->id, 'name' => $u->name, 'approved' => (bool) $a, 'at' => $a?->created_at?->format('j M, g:i A'), 'note' => $a?->note];
+        $row = fn (User $u, $a) => ['id' => $u->id, 'name' => $u->name, 'approved' => (bool) $a, 'at' => $a?->created_at?->format('j M, g:i A'), 'note' => $a?->note,
+            // Approved for them by another approver.
+            'by' => $a?->by_user_id && $a->by_user_id !== $u->id ? $a->byUser?->name : null];
 
         return [
             'required' => $required->map(fn (User $u) => $row($u, $approvals->get($u->id)))->values()->all(),

@@ -37,6 +37,7 @@ export function videoReview(urls, initial) {
         aiAt: Date.now(),      // when the AI state last arrived, to count seconds between polls
         clockNow: Date.now(),
         busy: {},
+        forAll: false, // approve for everyone still to (an approver, or an admin)
         flash: null,           // big play/pause icon in the middle
         ripple: null,          // double-tap skip
         hover: null,           // timeline preview { x, t }
@@ -387,9 +388,10 @@ export function videoReview(urls, initial) {
             }
             this.busy.verdict = true;
             try {
-                this.take(await this.call('POST', kind === 'approve' ? urls.approve : urls.changes, { note: this.note.trim() || null }));
+                this.take(await this.call('POST', kind === 'approve' ? urls.approve : urls.changes, { note: this.note.trim() || null, ...(kind === 'approve' && this.forAll ? { for_all: true } : {}) }));
                 this.sheet = null;
                 this.note = '';
+                this.forAll = false;
                 this.done = kind;
                 setTimeout(() => { this.done = null; }, 2600);
             } catch (e) {
