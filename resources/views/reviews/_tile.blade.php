@@ -13,7 +13,11 @@
         <span class="block truncate text-[11px] text-brand-100/50">{{ $v->todo->contentItem?->venture ?? $v->todo->venture ?? 'Video' }} · {{ $v->todo->user?->name }}</span>
         <span class="mt-0.5 block line-clamp-2 text-sm font-semibold leading-snug text-white group-hover:text-brand-200">{{ $v->todo->title }}</span>
         <span class="mt-1.5 flex flex-wrap gap-1 text-[10.5px]">
-            <span class="rounded bg-white/10 px-1.5 py-0.5 text-brand-100/80">v{{ $v->version }}</span>
+            @if (count($v->day_versions ?? []) > 1)
+                <span class="rounded bg-white/10 px-1.5 py-0.5 text-brand-100/80" title="Versions uploaded that day">{{ collect($v->day_versions)->map(fn ($n) => 'v'.$n)->implode(' → ') }}</span>
+            @else
+                <span class="rounded bg-white/10 px-1.5 py-0.5 text-brand-100/80">v{{ $v->version }}</span>
+            @endif
             @if ($v->ai_verdict)
                 <span class="rounded px-1.5 py-0.5 {{ $tone[$v->ai_verdict] ?? '' }}">AI: {{ $v->verdictLabel() }}</span>
             @elseif (in_array($v->ai_status, ['queued', 'running'], true))

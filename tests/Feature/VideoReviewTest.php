@@ -365,6 +365,19 @@ class VideoReviewTest extends TestCase
         $this->get(route("reviews.index", ["view" => "calendar", "month" => "rubbish"]))->assertOk()->assertSee(now()->format("F Y"));
     }
 
+    public function test_the_calendar_shows_each_video_once_a_day_with_its_versions(): void
+    {
+        $this->uploadAs($this->editor)->assertCreated();
+        // A second version the same day: same video, not a second entry.
+        $v2 = ReviewVideo::first()->replicate();
+        $v2->forceFill(['version' => 2, 'status' => ReviewVideo::PENDING])->save();
+        ReviewVideo::first()->forceFill(['status' => ReviewVideo::CHANGES])->save();
+
+        $this->actingAs($this->admin)->get(route('reviews.index', ['view' => 'calendar']))->assertOk()
+            ->assertSee('1 video')->assertSee('2 uploads')->assertSee('v1 → v2')
+            ->assertSee('1 waiting')->assertSee('0 sent back');
+    }
+
     public function test_the_review_list_is_grouped_by_day(): void
     {
         $this->uploadAs($this->editor)->assertCreated();

@@ -70,11 +70,43 @@
         <div class="space-y-7" x-data="editorTimeline(@js($timeline), @js(route('editor-updates.live', ['date' => $day->toDateString()])), @js(route('editor-updates.editor', ['user' => '__ID__', 'date' => $day->toDateString()])))">
             @include('editor-updates._now')
 
-            @include('editor-updates._queue')
+            {{-- ═══ The detail, one tab at a time ═══ --}}
+            <nav class="flex gap-1 overflow-x-auto rounded-2xl bg-white/[0.04] p-1 ring-1 ring-white/[0.07]" role="tablist">
+                @foreach (['queues' => ['📋', 'To review & post'], 'timeline' => ['🕒', 'Timeline'], 'moves' => ['🎬', 'Video by video'], 'recent' => ['⚡', 'Just now']] as $key => [$icon, $label])
+                    <button type="button" role="tab" @click="tab = @js($key)" :aria-selected="tab === @js($key)"
+                            @if ($key === 'recent') x-show="data.board" @endif
+                            class="flex h-10 shrink-0 items-center gap-1.5 rounded-xl px-4 text-sm font-semibold transition"
+                            :class="tab === @js($key) ? 'bg-white text-brand-900 shadow' : 'text-brand-100/70 hover:text-white'">{{ $icon }} {{ $label }}</button>
+                @endforeach
+            </nav>
 
-            @include('editor-updates._timeline')
-        </div>
+            <div x-show="tab === 'queues'">@include('editor-updates._queue')</div>
+            <div x-show="tab === 'timeline'" x-cloak>@include('editor-updates._timeline')</div>
 
+            {{-- Just now: the latest moves, newest first --}}
+            <template x-if="data.board">
+                <div x-show="tab === 'recent'" x-cloak class="overflow-hidden rounded-[20px] border border-white/[0.08] bg-[#15303f]">
+                    <p x-show="!data.board.recent.length" class="px-5 py-6 text-sm text-brand-100/50">No moves yet today.</p>
+                    <template x-for="(m, i) in data.board.recent" :key="m.time + m.title + i">
+                        <div class="flex items-center gap-3 border-b border-white/[0.05] px-5 py-2.5 last:border-b-0">
+                            <template x-if="photoOf(m.person)">
+                                <img :src="photoOf(m.person)" :alt="m.person" class="h-8 w-8 shrink-0 rounded-full object-cover">
+                            </template>
+                            <template x-if="!photoOf(m.person)">
+                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-brand-900" :style="`background:hsl(${hueOf(m.person)} 70% 58%)`" x-text="(m.person || '?').slice(0, 1)"></span>
+                            </template>
+                            <p class="min-w-0 flex-1 truncate text-[13px] text-brand-100/80">
+                                <span class="font-semibold text-white" x-text="m.person"></span>
+                                <span x-text="' ' + icon(m) + ' ' + m.label.toLowerCase()"></span>
+                                <span class="text-white" x-text="' · ' + m.title"></span>
+                            </p>
+                            <span class="shrink-0 text-xs tabular-nums text-brand-100/45" x-text="m.time"></span>
+                        </div>
+                    </template>
+                </div>
+            </template>
+
+            <div x-show="tab === 'moves'" x-cloak class="space-y-4">
         {{-- A past day: its numbers (today's are in the live flow above) --}}
         <div class="grid grid-cols-2 gap-2 sm:grid-cols-4" @if ($isToday) hidden @endif>
             @foreach ([['Added', $totals['added'], 'text-white'], ['Corrections', $totals['fixes'], 'text-orange-200'], ['Done', $totals['done'], 'text-sky-200'], ['Posted', $totals['posted'], 'text-emerald-200']] as [$label, $n, $color])
@@ -93,7 +125,7 @@
         @endif
 
         @if ($people->isNotEmpty())
-            <h2 class="pt-2 text-xs font-bold uppercase tracking-[0.16em] text-brand-100/50">Video by video <span class="font-normal normal-case tracking-normal text-brand-100/40">— every move, tap a name to open</span></h2>
+            <p class="text-xs text-brand-100/50">Every move, person by person — tap a name to open.</p>
         @endif
 
         @foreach ($people as $p)
@@ -186,5 +218,7 @@
                 @endif
             </details>
         @endforeach
+            </div>
+        </div>
     </div>
 </x-app-layout>

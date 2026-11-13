@@ -1,120 +1,129 @@
 {{--
     The top of Editor Updates, today only, live from data.board
-    (App\Support\EditorBoard, re-read every 15 seconds): one line per
-    editor with their photo -- what they are on, how the day went, what is
-    next -- then what needs you beside what just happened.
+    (App\Support\EditorBoard, re-read every 15 seconds). Read in three looks:
+
+    1. The verdict -- the day in one sentence, and its flow left to right.
+    2. Needs you -- only things a person has to act on, each with its button.
+    3. The team -- one card each: on what, for how long, the day so far, next.
+
+    Everything else (queues, timeline, every move) is in the tabs below.
 --}}
 <template x-if="data.board">
-    <div class="space-y-6">
-        {{-- ═══ The team, one line each ═══ --}}
-        <section class="overflow-hidden rounded-[20px] border border-white/[0.08] bg-[#15303f]">
-            <div class="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-white/[0.06] px-5 py-3.5">
-                <h2 class="text-[15px] font-bold text-white">The team</h2>
-                <p class="text-[13px] text-brand-100/60">
-                    <span class="text-amber-300" x-text="data.board.flow.editing + ' editing'"></span> ·
-                    <span x-text="data.board.flow.review + ' in review'"></span> ·
-                    <span x-text="data.board.flow.ready + ' ready'"></span> ·
-                    <span class="text-emerald-300" x-text="data.board.flow.out + ' out today'"></span>
-                </p>
-            </div>
-            <p x-show="!data.board.editors.length" class="px-6 py-8 text-center text-sm text-brand-100/50">Nobody on the team has used My Editing in the last two weeks.</p>
-            <template x-for="ed in data.board.editors" :key="ed.person">
-                <a :href="ed.user_id ? editorUrl.replace('__ID__', ed.user_id) : '#'"
-                   class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3 border-b border-white/[0.05] px-5 py-4 last:border-b-0 hover:bg-white/[0.03] md:grid-cols-[auto_minmax(0,1.3fr)_auto_minmax(0,1fr)]">
-                    {{-- Photo with a ring for their state --}}
-                    <span class="relative shrink-0" :class="'et-' + ed.state">
-                        <template x-if="ed.photo">
-                            <img :src="ed.photo" :alt="ed.person" class="et-av h-14 w-14 object-cover" :style="`box-shadow:0 0 0 3px #15303f,0 0 0 5px ${look(ed).dot}`">
-                        </template>
-                        <template x-if="!ed.photo">
-                            <span class="et-av h-14 w-14 text-xl" :style="`background:hsl(${ed.hue} 70% 58%);box-shadow:0 0 0 3px #15303f,0 0 0 5px ${look(ed).dot}`" x-text="ed.initial"></span>
-                        </template>
-                    </span>
-
-                    {{-- Who, and what they are on --}}
-                    <div class="min-w-0">
-                        <div class="flex flex-wrap items-center gap-2">
-                            <p class="text-base font-bold text-white" x-text="ed.person"></p>
-                            <span class="inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold" :class="look(ed).pill">
-                                <span x-text="look(ed).word"></span><span class="et-dots" x-show="ed.state === 'working'"><i></i><i></i><i></i></span>
-                            </span>
-                        </div>
-                        <p class="mt-1 truncate text-sm" :class="ed.state === 'working' ? 'text-white' : 'text-brand-100/60'">
-                            <template x-if="ed.state === 'working'">
-                                <span><span x-text="ed.title"></span> · <span class="font-semibold tabular-nums text-amber-300" x-text="span(runFor(ed.started_at))"></span></span>
-                            </template>
-                            <template x-if="ed.state !== 'working'">
-                                <span x-text="ed.holding.length ? '⏸ ' + ed.holding[0].title + ' · ' + ed.holding[0].for + (ed.holding[0].note ? ' · “' + ed.holding[0].note + '”' : '') : (ed.last ? ed.last.time + ' · ' + ed.last.label + ' · ' + ed.last.title : 'No moves yet today')"></span>
-                            </template>
-                        </p>
-                    </div>
-
-                    {{-- Their day in numbers --}}
-                    <div class="col-span-2 flex gap-1.5 md:col-span-1">
-                        <span class="flex min-w-[58px] flex-col items-center rounded-[10px] bg-[#1a3a4b] px-2 py-1.5"><b class="text-lg leading-tight text-sky-300" x-text="ed.done"></b><span class="text-[10.5px] text-brand-100/60">done</span></span>
-                        <span class="flex min-w-[58px] flex-col items-center rounded-[10px] bg-[#1a3a4b] px-2 py-1.5"><b class="text-lg leading-tight text-emerald-300" x-text="ed.out"></b><span class="text-[10.5px] text-brand-100/60">out</span></span>
-                        <span class="flex min-w-[58px] flex-col items-center rounded-[10px] bg-[#1a3a4b] px-2 py-1.5"><b class="text-lg leading-tight" :class="ed.fixes ? 'text-orange-300' : 'text-white'" x-text="ed.fixes"></b><span class="text-[10.5px] text-brand-100/60">fixes</span></span>
-                        <span class="flex min-w-[58px] flex-col items-center rounded-[10px] bg-[#1a3a4b] px-2 py-1.5"><b class="text-lg leading-tight text-white" x-text="span(laneOf(ed.person)?.minutes ?? 0) || '0m'"></b><span class="text-[10.5px] text-brand-100/60">editing</span></span>
-                    </div>
-
-                    {{-- What is next for them --}}
-                    <div class="col-span-2 min-w-0 md:col-span-1">
-                        <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-brand-100/45" x-text="'Up next' + (ed.waiting ? ' · ' + ed.waiting : '')"></p>
-                        <template x-for="t in ed.next" :key="t">
-                            <p class="truncate text-[13px] text-brand-100/85" x-text="t"></p>
-                        </template>
-                        <p x-show="!ed.next.length" class="text-[13px] text-brand-100/45">Nothing on today's board</p>
-                    </div>
-                </a>
-            </template>
-        </section>
-
-        {{-- ═══ Needs you · Just now ═══ --}}
-        <section class="grid gap-5 lg:grid-cols-2">
-            <div class="overflow-hidden rounded-[20px] border bg-[#15303f]" :class="data.board.needs.length ? 'border-amber-400/35' : 'border-emerald-400/30'">
-                <h2 class="flex items-center gap-2 border-b border-white/[0.06] px-5 py-3.5 text-[15px] font-bold" :class="data.board.needs.length ? 'text-amber-300' : 'text-emerald-300'">
-                    <span x-text="data.board.needs.length ? 'Needs you' : 'All clear'"></span>
-                    <span x-show="data.board.needs.length" class="rounded-full bg-amber-400 px-2 text-[12px] text-[#0f2230]" x-text="data.board.needs.length"></span>
-                </h2>
-                <p x-show="!data.board.needs.length" class="px-5 py-6 text-sm text-emerald-100/80">No reviews waiting, nothing late, nobody stuck.</p>
-                <template x-for="(n, i) in data.board.needs" :key="n.kind + i">
-                    <div class="flex items-center gap-3 border-b border-white/[0.05] px-5 py-3 last:border-b-0">
-                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-base font-bold" :class="needLook(n).chip" x-text="needLook(n).icon"></span>
-                        <div class="min-w-0 flex-1">
-                            <p class="truncate text-sm font-semibold" :class="needLook(n).text" x-text="needTitle(n)"></p>
-                            <p class="truncate text-xs text-brand-100/60" x-text="needLine(n)"></p>
-                        </div>
-                        <a x-show="needHref(n)" :href="needHref(n)" class="inline-flex h-9 shrink-0 items-center rounded-lg px-3 text-[13px] font-semibold"
-                           :class="['late', 'review'].includes(n.kind) ? 'bg-brand-400 text-brand-900 hover:bg-brand-300' : 'bg-[#1a3a4b] text-white hover:bg-white/15'"
-                           x-text="needCta(n)"></a>
-                    </div>
-                </template>
-                <div x-show="data.board.next.length" class="border-t border-white/[0.06] px-5 py-3 text-[13px] text-brand-100/70">
-                    <span class="font-semibold text-violet-300">Publishing next:</span>
-                    <template x-for="n in data.board.next" :key="n.title">
-                        <span class="block truncate text-white" x-text="n.at + ' · ' + n.title + ' (in ' + n.in + ')'"></span>
-                    </template>
+    <div class="space-y-5">
+        {{-- ═══ 1. The verdict ═══ --}}
+        <section class="relative overflow-hidden rounded-[24px] p-5 ring-1 sm:p-6"
+                 :class="{
+                     red: 'bg-gradient-to-br from-red-500/20 to-[#15303f] ring-red-400/35',
+                     amber: 'bg-gradient-to-br from-amber-400/15 to-[#15303f] ring-amber-400/30',
+                     green: 'bg-gradient-to-br from-emerald-400/15 to-[#15303f] ring-emerald-400/30',
+                     calm: 'bg-[#15303f] ring-white/[0.08]',
+                 }[verdict.tone]">
+            <div class="flex flex-wrap items-center gap-3">
+                <span class="text-3xl leading-none" x-text="verdict.icon"></span>
+                <div class="min-w-0 flex-1">
+                    <h2 class="text-xl font-extrabold tracking-tight text-white sm:text-2xl" x-text="verdict.title"></h2>
+                    <p class="mt-0.5 text-sm text-brand-100/70" x-text="verdict.sum"></p>
                 </div>
             </div>
 
-            <div class="overflow-hidden rounded-[20px] border border-white/[0.08] bg-[#15303f]">
-                <h2 class="border-b border-white/[0.06] px-5 py-3.5 text-[15px] font-bold text-white">Just now</h2>
-                <p x-show="!data.board.recent.length" class="px-5 py-6 text-sm text-brand-100/50">No moves yet today.</p>
-                <template x-for="(m, i) in data.board.recent" :key="m.time + m.title + i">
-                    <div class="flex items-center gap-3 border-b border-white/[0.05] px-5 py-2.5 last:border-b-0">
-                        <template x-if="photoOf(m.person)">
-                            <img :src="photoOf(m.person)" :alt="m.person" class="h-8 w-8 shrink-0 rounded-full object-cover">
-                        </template>
-                        <template x-if="!photoOf(m.person)">
-                            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-brand-900" :style="`background:hsl(${hueOf(m.person)} 70% 58%)`" x-text="(m.person || '?').slice(0, 1)"></span>
-                        </template>
-                        <p class="min-w-0 flex-1 truncate text-[13px] text-brand-100/80">
-                            <span class="font-semibold text-white" x-text="m.person"></span>
-                            <span x-text="' ' + icon(m) + ' ' + m.label.toLowerCase()"></span>
-                            <span class="text-white" x-text="' · ' + m.title"></span>
-                        </p>
-                        <span class="shrink-0 text-xs tabular-nums text-brand-100/45" x-text="m.time"></span>
+            {{-- The day's flow, left to right --}}
+            <ol class="mt-5 grid grid-cols-3 gap-2 sm:grid-cols-6 sm:gap-0">
+                <template x-for="(st, i) in steps" :key="st.key">
+                    <li class="relative flex flex-col items-center rounded-2xl bg-black/15 px-2 py-3 sm:rounded-none sm:bg-transparent sm:py-1"
+                        :class="st.n ? '' : 'opacity-45'">
+                        <span class="text-[28px] font-extrabold leading-none tabular-nums sm:text-[34px]" :class="st.cls" x-text="st.n"></span>
+                        <span class="mt-1 text-center text-[11px] font-semibold uppercase tracking-[0.1em] text-brand-100/60" x-text="st.label"></span>
+                        <span x-show="i < steps.length - 1" class="absolute right-0 top-3 hidden translate-x-1/2 text-lg text-brand-100/25 sm:block" aria-hidden="true">→</span>
+                    </li>
+                </template>
+            </ol>
+        </section>
+
+        {{-- ═══ 2. Needs you ═══ --}}
+        <section x-show="data.board.needs.length" class="overflow-hidden rounded-[20px] border border-amber-400/30 bg-[#15303f]">
+            <h2 class="flex items-center gap-2 border-b border-white/[0.06] px-5 py-3 text-[15px] font-bold text-amber-300">
+                Needs you <span class="rounded-full bg-amber-400 px-2 text-[12px] text-[#0f2230]" x-text="data.board.needs.length"></span>
+                <span class="ml-auto text-xs font-normal text-brand-100/50">most urgent first</span>
+            </h2>
+            <template x-for="(n, i) in data.board.needs" :key="n.kind + i">
+                <div class="flex items-center gap-3 border-b border-white/[0.05] px-5 py-3 last:border-b-0">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg font-bold" :class="needLook(n).chip" x-text="needLook(n).icon"></span>
+                    <div class="min-w-0 flex-1">
+                        <p class="truncate text-sm font-semibold" :class="needLook(n).text" x-text="needTitle(n)"></p>
+                        <p class="truncate text-xs text-brand-100/60" x-text="needLine(n)"></p>
                     </div>
+                    <a x-show="needHref(n)" :href="needHref(n)" @click="goNeed(n, $event)"
+                       class="inline-flex h-10 shrink-0 items-center rounded-xl px-4 text-[13px] font-bold"
+                       :class="['late', 'review'].includes(n.kind) ? 'bg-brand-400 text-brand-900 hover:bg-brand-300' : 'bg-[#1a3a4b] text-white hover:bg-white/15'"
+                       x-text="needCta(n)"></a>
+                </div>
+            </template>
+            <div x-show="data.board.next.length" class="border-t border-white/[0.06] bg-violet-400/[0.05] px-5 py-2.5 text-[13px] text-brand-100/70">
+                <span class="font-semibold text-violet-300">🕒 Going out next:</span>
+                <template x-for="n in data.board.next" :key="n.title">
+                    <span class="ml-2 inline-block text-white" x-text="n.at + ' ' + n.title + ' (in ' + n.in + ')'"></span>
+                </template>
+            </div>
+        </section>
+
+        {{-- ═══ 3. The team, a card each ═══ --}}
+        <section>
+            <h2 class="mb-2.5 flex items-baseline gap-2 text-[15px] font-bold text-white">
+                The team <span class="text-xs font-normal text-brand-100/50">tap a card for their whole day</span>
+            </h2>
+            <p x-show="!data.board.editors.length" class="rounded-2xl bg-white/[0.04] px-6 py-8 text-center text-sm text-brand-100/50">Nobody on the team has used My Editing in the last two weeks.</p>
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <template x-for="ed in data.board.editors" :key="ed.person">
+                    <a :href="ed.user_id ? editorUrl.replace('__ID__', ed.user_id) : '#'"
+                       class="group flex flex-col rounded-[20px] border bg-[#15303f] p-4 transition hover:-translate-y-0.5 hover:bg-[#183849]" :class="look(ed).ring">
+                        <div class="flex items-center gap-3">
+                            <span class="relative shrink-0" :class="'et-' + ed.state">
+                                <template x-if="ed.photo">
+                                    <img :src="ed.photo" :alt="ed.person" class="et-av h-12 w-12 object-cover" :style="`box-shadow:0 0 0 3px #15303f,0 0 0 5px ${look(ed).dot}`">
+                                </template>
+                                <template x-if="!ed.photo">
+                                    <span class="et-av h-12 w-12 text-lg" :style="`background:hsl(${ed.hue} 70% 58%);box-shadow:0 0 0 3px #15303f,0 0 0 5px ${look(ed).dot}`" x-text="ed.initial"></span>
+                                </template>
+                            </span>
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate text-base font-bold text-white" x-text="ed.person"></p>
+                                <span class="mt-0.5 inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold" :class="look(ed).pill">
+                                    <span x-text="look(ed).word"></span><span class="et-dots" x-show="ed.state === 'working'"><i></i><i></i><i></i></span>
+                                </span>
+                            </div>
+                        </div>
+
+                        {{-- What they are on right now --}}
+                        <div class="mt-3 min-h-[44px] rounded-xl px-3 py-2"
+                             :class="ed.state === 'working' ? 'bg-amber-400/10' : (ed.holding.length ? 'bg-violet-400/10' : 'bg-white/[0.03]')">
+                            <template x-if="ed.state === 'working'">
+                                <p class="text-sm text-white"><span class="line-clamp-1 font-semibold" x-text="ed.title"></span>
+                                    <span class="text-xs text-amber-200">for <b class="tabular-nums" x-text="span(runFor(ed.started_at))"></b></span></p>
+                            </template>
+                            <template x-if="ed.state !== 'working' && ed.holding.length">
+                                <p class="text-sm text-white"><span class="line-clamp-1 font-semibold" x-text="'⏸ ' + ed.holding[0].title"></span>
+                                    <span class="line-clamp-1 text-xs text-violet-200" x-text="ed.holding[0].for + (ed.holding[0].note ? ' · “' + ed.holding[0].note + '”' : '')"></span></p>
+                            </template>
+                            <template x-if="ed.state !== 'working' && !ed.holding.length">
+                                <p class="line-clamp-2 text-[13px] text-brand-100/60" x-text="ed.last ? 'Last: ' + ed.last.time + ' · ' + ed.last.label + ' · ' + ed.last.title : 'No moves yet today'"></p>
+                            </template>
+                        </div>
+
+                        {{-- The day so far --}}
+                        <div class="mt-3 grid grid-cols-4 gap-1.5 text-center">
+                            <span class="rounded-lg bg-black/15 py-1.5"><b class="block text-base leading-tight text-emerald-300" x-text="ed.out"></b><span class="text-[10px] text-brand-100/55">out</span></span>
+                            <span class="rounded-lg bg-black/15 py-1.5"><b class="block text-base leading-tight text-sky-300" x-text="ed.done"></b><span class="text-[10px] text-brand-100/55">done</span></span>
+                            <span class="rounded-lg bg-black/15 py-1.5"><b class="block text-base leading-tight" :class="ed.fixes ? 'text-orange-300' : 'text-white'" x-text="ed.fixes"></b><span class="text-[10px] text-brand-100/55">fixes</span></span>
+                            <span class="rounded-lg bg-black/15 py-1.5"><b class="block text-base leading-tight text-white" x-text="span(laneOf(ed.person)?.minutes ?? 0) || '0m'"></b><span class="text-[10px] text-brand-100/55">editing</span></span>
+                        </div>
+
+                        {{-- Next --}}
+                        <p class="mt-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-brand-100/45" x-text="'Up next' + (ed.waiting ? ' · ' + ed.waiting + ' waiting' : '')"></p>
+                        <template x-for="t in ed.next.slice(0, 2)" :key="t">
+                            <p class="truncate text-[13px] text-brand-100/85" x-text="'· ' + t"></p>
+                        </template>
+                        <p x-show="!ed.next.length" class="text-[13px] text-brand-100/45">Nothing queued</p>
+                    </a>
                 </template>
             </div>
         </section>

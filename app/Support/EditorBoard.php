@@ -176,6 +176,8 @@ class EditorBoard
             'needs' => $needs,
             'editors' => $editors->all(),
             'flow' => [
+                'todo' => $open->where('status', Todo::STATUS_WAITING)->count(),
+                'held' => $open->where('status', Todo::STATUS_BLOCKED)->count(),
                 'editing' => $open->where('status', Todo::STATUS_STARTED)->count(),
                 'added' => $moves->where('type', 'added')->count(),
                 'done' => $moves->where('type', 'done')->count(),

@@ -8,7 +8,7 @@
     $end = $month->copy()->endOfMonth()->endOfWeek(\Carbon\CarbonInterface::SUNDAY);
     $ring = [\App\Models\ReviewVideo::PENDING => 'ring-amber-300', \App\Models\ReviewVideo::APPROVED => 'ring-emerald-400', \App\Models\ReviewVideo::CHANGES => 'ring-rose-400'];
     $dot = [\App\Models\ReviewVideo::PENDING => 'bg-amber-300', \App\Models\ReviewVideo::APPROVED => 'bg-emerald-400', \App\Models\ReviewVideo::CHANGES => 'bg-rose-400'];
-    $all = $monthVideos->flatten(1);
+    $all = $monthVideos->flatten(1)->sortByDesc('id')->unique('todo_id');
     $count = fn ($status) => $all->where('status', $status)->count();
     $firstDay = $monthVideos->keys()->contains(today()->toDateString()) ? today()->toDateString() : $monthVideos->keys()->last();
 @endphp
@@ -90,11 +90,15 @@
         <div x-show="day === @js($key)" x-cloak x-transition.opacity>
             <p class="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-brand-100/55">
                 {{ \Illuminate\Support\Carbon::parse($key)->isToday() ? 'Today' : \Illuminate\Support\Carbon::parse($key)->format('l, j F') }}
-                <span class="rounded-full bg-white/10 px-2 py-0.5 text-[11px] normal-case tracking-normal text-brand-100/70">{{ $videos->count() }} {{ Str::plural('upload', $videos->count()) }}</span>
+                <span class="rounded-full bg-white/10 px-2 py-0.5 text-[11px] normal-case tracking-normal text-brand-100/70">{{ $videos->count() }} {{ Str::plural('video', $videos->count()) }}</span>
+                @php $uploads = $videos->sum(fn ($v) => count($v->day_versions ?? [1])); @endphp
+                @if ($uploads > $videos->count())
+                    <span class="text-[11px] normal-case tracking-normal text-brand-100/45">{{ $uploads }} uploads</span>
+                @endif
                 <span class="h-px flex-1 bg-white/10"></span>
             </p>
             <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                @foreach ($videos->sortByDesc('id') as $v)
+                @foreach ($videos as $v)
                     @include('reviews._tile', ['v' => $v])
                 @endforeach
             </div>

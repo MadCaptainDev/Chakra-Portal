@@ -25,6 +25,7 @@ export function editorTimeline(initial, url, editorUrl = '') {
         received: Date.now(), // when data.now was true, to move the now line between reads
         loading: false,
         failed: false,
+        tab: initial.is_today ? 'queues' : 'moves', // the detail below the board
 
         init() {
             this.data.lanes.forEach((l) => l.marks.forEach((m) => this.seen.add(m.id)));
@@ -109,6 +110,39 @@ export function editorTimeline(initial, url, editorUrl = '') {
                 working: 'Editing', hold: 'On hold', celebrate: 'Just posted!', active: 'Active', idle: 'Idle',
             }[lane.state] ?? '';
         },
+        // ——— The verdict: the day in one line, so nobody has to add it up ———
+        get verdict() {
+            const b = this.data.board;
+            if (!b) return null;
+            const f = b.flow;
+            const sum = `${f.out} out · ${f.editing} editing · ${f.review} in review · ${f.ready} ready to post`;
+            const n = b.needs.length;
+            const things = `${n} ${n === 1 ? 'thing needs' : 'things need'} you`;
+            if (b.needs.some((x) => x.kind === 'late')) return { tone: 'red', icon: '⚠️', title: `${things} — a video is late`, sum };
+            if (n) return { tone: 'amber', icon: '👀', title: things, sum };
+            if (!f.editing && !f.out && !f.done) return { tone: 'calm', icon: '☕', title: 'Quiet so far — nobody has started', sum };
+            return { tone: 'green', icon: '✨', title: 'On track — nothing needs you', sum };
+        },
+        /** The day as one flow, left to right. */
+        get steps() {
+            const f = this.data.board?.flow ?? {};
+            return [
+                { key: 'todo', label: 'To edit', n: f.todo ?? 0, cls: 'text-white' },
+                { key: 'editing', label: 'Editing', n: f.editing ?? 0, cls: 'text-amber-300' },
+                { key: 'held', label: 'On hold', n: f.held ?? 0, cls: 'text-violet-300' },
+                { key: 'review', label: 'In review', n: f.review ?? 0, cls: 'text-sky-300' },
+                { key: 'ready', label: 'Ready to post', n: f.ready ?? 0, cls: 'text-fuchsia-300' },
+                { key: 'out', label: 'Out today', n: f.out ?? 0, cls: 'text-emerald-300' },
+            ];
+        },
+        /** A late or review need opens its queue, in the tabs below. */
+        goNeed(n, e) {
+            if (!['late', 'review'].includes(n.kind)) return;
+            e.preventDefault();
+            this.tab = 'queues';
+            this.$nextTick(() => document.getElementById(n.kind === 'late' ? 'ready-queue' : 'review-queue')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        },
+
         // ——— The board on top: what needs the admin, and each editor ———
         needLook(n) {
             return {

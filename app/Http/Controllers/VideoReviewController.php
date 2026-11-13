@@ -58,7 +58,8 @@ class VideoReviewController extends Controller
             ->latest('id')->limit(200)->get()
             ->filter(fn (ReviewVideo $v) => $v->todo && $v->reviewableBy($user));
 
-        // The month calendar: every version uploaded that month, on its day.
+        // The month calendar: each video once a day -- its latest version that
+        // day, carrying the versions uploaded that day (v1 → v2 → v3).
         $month = rescue(fn () => \Illuminate\Support\Carbon::createFromFormat('Y-m', (string) $request->query('month', now()->format('Y-m')))->startOfMonth(), now()->startOfMonth(), false);
         $monthVideos = ReviewVideo::query()
             ->whereBetween('created_at', [$month, $month->copy()->endOfMonth()])
@@ -66,7 +67,13 @@ class VideoReviewController extends Controller
             ->withCount(['comments as open_comments' => fn ($q) => $q->whereNull('resolved_at')])
             ->orderBy('created_at')->get()
             ->filter(fn (ReviewVideo $v) => $v->todo && $v->reviewableBy($user))
-            ->groupBy(fn (ReviewVideo $v) => $v->created_at->toDateString());
+            ->groupBy(fn (ReviewVideo $v) => $v->created_at->toDateString())
+            ->map(fn ($day) => $day->groupBy('todo_id')->map(function ($versions) {
+                $latest = $versions->sortBy('version')->last();
+                $latest->setAttribute('day_versions', $versions->pluck('version')->sort()->values()->all());
+
+                return $latest;
+            })->sortByDesc('id')->values());
 
         return view('reviews.index', [
             'view' => $request->query('view') === 'calendar' ? 'calendar' : 'list',
