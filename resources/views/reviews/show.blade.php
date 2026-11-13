@@ -241,7 +241,7 @@
                             <span class="mb-3 shrink-0 rounded-full bg-amber-400/15 px-2.5 py-1 font-mono text-xs font-bold text-amber-200" x-text="'📍 ' + clock(at ?? t)"></span>
                             <textarea x-model="body" rows="1" maxlength="2000" @focus="startComment(false)" @keydown.enter.ctrl.prevent="send()" @keydown.enter.meta.prevent="send()"
                                       placeholder="Comment on this moment…" class="min-h-[48px] flex-1 resize-none rounded-2xl border-0 bg-white/10 px-4 py-3 text-[16px] text-white placeholder:text-white/40 focus:ring-2 focus:ring-amber-400/70"></textarea>
-                            <button type="submit" :disabled="!body.trim() || busy.send" aria-label="Send comment" class="{{ $btn }} h-12 w-12 shrink-0 rounded-full bg-amber-400 text-brand-900">
+                            <button type="submit" :disabled="!body.trim() || !!busy.send" aria-label="Send comment" class="{{ $btn }} h-12 w-12 shrink-0 rounded-full bg-amber-400 text-brand-900">
                                 <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
                             </button>
                         </form>
@@ -282,7 +282,7 @@
                                       @focus="startComment(false)" @keydown.enter.ctrl.prevent="send()" @keydown.enter.meta.prevent="send()" @keydown.escape="$el.blur()"
                                       placeholder="Comment on this moment…"
                                       class="max-h-[140px] min-h-[48px] flex-1 resize-none rounded-2xl border-0 bg-[#0b1d29] px-4 py-3 text-[16px] leading-snug text-white placeholder:text-brand-100/35 focus:ring-2 focus:ring-amber-400/70"></textarea>
-                            <button type="submit" :disabled="!body.trim() || busy.send" aria-label="Send comment"
+                            <button type="submit" :disabled="!body.trim() || !!busy.send" aria-label="Send comment"
                                     class="{{ $btn }} h-12 w-12 shrink-0 rounded-full bg-amber-400 text-brand-900 shadow-lg hover:bg-amber-300">
                                 <span x-show="busy.send" class="h-4 w-4 animate-spin rounded-full border-2 border-brand-900/30 border-t-brand-900"></span>
                                 <svg x-show="!busy.send" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
@@ -606,7 +606,7 @@
                         ↩ Send back<span x-show="open.length" x-text="' (' + open.length + ')'"></span>
                     </button>
                     <button type="button" x-show="!s.i_approved" @click="decide('approve')" class="{{ $btn }} h-12 bg-emerald-400 text-sm font-bold text-brand-900 hover:bg-emerald-300">✓ I approve</button>
-                    <button type="button" x-show="s.i_approved" x-cloak @click="unapprove()" :disabled="busy.verdict" class="{{ $btn }} h-12 bg-emerald-400/15 text-sm font-bold text-emerald-200 ring-1 ring-emerald-400/40" title="Take your approval back">✓ You approved · Undo</button>
+                    <button type="button" x-show="s.i_approved" x-cloak @click="unapprove()" :disabled="!!busy.verdict" class="{{ $btn }} h-12 bg-emerald-400/15 text-sm font-bold text-emerald-200 ring-1 ring-emerald-400/40" title="Take your approval back">✓ You approved · Undo</button>
                 </div>
             </div>
         </div>
@@ -648,7 +648,7 @@
                               class="mt-4 w-full resize-none rounded-xl border-0 bg-[#0f2230] p-3 text-sm text-white placeholder:text-brand-100/35 focus:ring-1 focus:ring-amber-400"></textarea>
 
                     {{-- Press and hold: a stray tap does nothing --}}
-                    <button type="button" :disabled="busy.verdict"
+                    <button type="button" :disabled="!!busy.verdict"
                             @pointerdown.prevent="holdStart()" @pointerup="holdEnd()" @pointerleave="holdEnd()" @pointercancel="holdEnd()" @contextmenu.prevent
                             @keydown.enter.prevent="holdStart()" @keyup.enter="holdEnd()" @keydown.space.prevent="holdStart()" @keyup.space="holdEnd()"
                             class="relative mt-4 h-14 w-full select-none overflow-hidden rounded-2xl text-base font-extrabold text-brand-900 disabled:opacity-60"
@@ -656,7 +656,7 @@
                         <span class="absolute inset-y-0 left-0" :class="sheet === 'approve' ? 'bg-emerald-400' : 'bg-amber-400'" :style="`width:${hold * 100}%`"></span>
                         <span class="relative" x-text="busy.verdict ? 'Saving…' : (hold > 0 ? 'Keep holding…' : (sheet === 'approve' ? 'Press and hold to approve' : 'Press and hold to send back'))"></span>
                     </button>
-                    <button type="button" @click="sheet = null" :disabled="busy.verdict" class="mt-2 h-11 w-full rounded-xl text-sm text-brand-100/60 hover:text-white">Cancel</button>
+                    <button type="button" @click="sheet = null" :disabled="!!busy.verdict" class="mt-2 h-11 w-full rounded-xl text-sm text-brand-100/60 hover:text-white">Cancel</button>
                 </div>
             </div>
         </template>
