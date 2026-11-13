@@ -356,6 +356,15 @@ class VideoReviewTest extends TestCase
         \Illuminate\Support\Facades\Notification::assertSentTo($this->editor, \App\Notifications\VideoReviewUpdate::class, fn ($n) => str_contains($n->body, 'Keerthi (for everyone)'));
     }
 
+    public function test_the_calendar_shows_the_month_with_the_days_uploads(): void
+    {
+        $this->uploadAs($this->editor)->assertCreated();
+        $this->actingAs($this->admin)->get(route("reviews.index", ["view" => "calendar"]))->assertOk()
+            ->assertSee(now()->format("F Y"))->assertSee("1 waiting")->assertSee($this->card->title);
+        $this->get(route("reviews.index", ["view" => "calendar", "month" => now()->subMonths(2)->format("Y-m")]))->assertOk()->assertSee("Nothing was uploaded");
+        $this->get(route("reviews.index", ["view" => "calendar", "month" => "rubbish"]))->assertOk()->assertSee(now()->format("F Y"));
+    }
+
     public function test_the_review_list_is_grouped_by_day(): void
     {
         $this->uploadAs($this->editor)->assertCreated();

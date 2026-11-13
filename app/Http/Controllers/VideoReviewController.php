@@ -58,7 +58,20 @@ class VideoReviewController extends Controller
             ->latest('id')->limit(200)->get()
             ->filter(fn (ReviewVideo $v) => $v->todo && $v->reviewableBy($user));
 
+        // The month calendar: every version uploaded that month, on its day.
+        $month = rescue(fn () => \Illuminate\Support\Carbon::createFromFormat('Y-m', (string) $request->query('month', now()->format('Y-m')))->startOfMonth(), now()->startOfMonth(), false);
+        $monthVideos = ReviewVideo::query()
+            ->whereBetween('created_at', [$month, $month->copy()->endOfMonth()])
+            ->with(['todo.user:id,name,avatar_path', 'todo.contentItem:id,venture', 'uploadedBy:id,name'])
+            ->withCount(['comments as open_comments' => fn ($q) => $q->whereNull('resolved_at')])
+            ->orderBy('created_at')->get()
+            ->filter(fn (ReviewVideo $v) => $v->todo && $v->reviewableBy($user))
+            ->groupBy(fn (ReviewVideo $v) => $v->created_at->toDateString());
+
         return view('reviews.index', [
+            'view' => $request->query('view') === 'calendar' ? 'calendar' : 'list',
+            'month' => $month,
+            'monthVideos' => $monthVideos,
             'settings' => \App\Models\ReviewSetting::current(),
             'staff' => $user->isAdmin() ? User::query()->where('role', '!=', User::ROLE_CLIENT)->orderBy('name')->get(['id', 'name']) : collect(),
             'waiting' => $latest->where('status', ReviewVideo::PENDING)->sortBy('id')->values(),

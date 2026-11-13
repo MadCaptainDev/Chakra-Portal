@@ -8,9 +8,18 @@
 @endphp
 <x-app-layout title="Video review" dark>
     <div class="mx-auto max-w-6xl space-y-8 pb-16">
-        <div>
-            <h1 class="text-[28px] font-extrabold tracking-tight text-white">Video review</h1>
-            <p class="text-sm text-brand-100/60">{{ $waiting->count() }} waiting · editors upload from My Editing, Gemini checks each one, you decide.</p>
+        <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+                <h1 class="text-[28px] font-extrabold tracking-tight text-white">Video review</h1>
+                <p class="text-sm text-brand-100/60">{{ $waiting->count() }} waiting · editors upload from My Editing, Gemini checks each one, you decide.</p>
+            </div>
+            {{-- List / Calendar --}}
+            <div class="flex rounded-full bg-white/[0.06] p-1 ring-1 ring-white/10" role="tablist">
+                <a href="{{ route('reviews.index') }}" role="tab" aria-selected="{{ $view === 'list' ? 'true' : 'false' }}"
+                   class="rounded-full px-4 py-1.5 text-sm font-semibold transition {{ $view === 'list' ? 'bg-white text-brand-900 shadow' : 'text-brand-100/70 hover:text-white' }}">☰ List</a>
+                <a href="{{ route('reviews.index', ['view' => 'calendar']) }}" role="tab" aria-selected="{{ $view === 'calendar' ? 'true' : 'false' }}"
+                   class="rounded-full px-4 py-1.5 text-sm font-semibold transition {{ $view === 'calendar' ? 'bg-white text-brand-900 shadow' : 'text-brand-100/70 hover:text-white' }}">📅 Calendar</a>
+            </div>
         </div>
 
         {{-- Who must approve (admins) --}}
@@ -48,6 +57,9 @@
             </details>
         @endif
 
+        @if ($view === 'calendar')
+            @include('reviews._calendar')
+        @else
         <section>
             <h2 class="mb-3 text-[17px] font-semibold text-white">Waiting for you</h2>
             @forelse ($waitingByDay as $date => $videos)
@@ -80,6 +92,7 @@
                     </div>
                 @endforeach
             </section>
+        @endif
         @endif
     </div>
 </x-app-layout>
