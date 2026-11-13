@@ -332,9 +332,12 @@ class VideoReviewTest extends TestCase
         $this->actingAs($annamalai)->postJson(route('reviews.approve', $video))->assertOk()
             ->assertJsonPath('status', 'approved')->assertJsonPath('sign_off.complete', true);
         $this->assertTrue($this->card->fresh()->isApproved());
-        \Illuminate\Support\Facades\Notification::assertSentTo($this->editor, \App\Notifications\VideoReviewUpdate::class, fn ($n) => $n->body === 'Approved by Keerthi and Annamalai. You can make it Video ready with its publishing time now.');
+        \Illuminate\Support\Facades\Notification::assertSentTo($this->editor, \App\Notifications\VideoReviewUpdate::class, fn ($n) => str_starts_with($n->body, 'Approved by Keerthi and Annamalai. It is Video ready now, to go out '));
 
-        // Now it can be made ready.
+        // Approved means Video ready, at the next hour (no planner date here); the editor can still change the time.
+        $card = $this->card->fresh();
+        $this->assertTrue($card->isReady());
+        $this->assertSame(now()->addHour()->startOfHour()->toDateTimeString(), $card->publish_at->toDateTimeString());
         $this->actingAs($this->editor)->postJson(route('my.editing.act', $this->card), ['action' => 'ready', 'publish_at' => now()->addDay()->format('Y-m-d\TH:i')])->assertOk();
     }
 

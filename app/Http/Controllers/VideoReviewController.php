@@ -466,8 +466,10 @@ class VideoReviewController extends Controller
             $video->forceFill(['status' => ReviewVideo::APPROVED, 'reviewed_by_id' => $user->id, 'reviewed_at' => now(), 'review_note' => $note])->save();
             $card->review(Todo::REVIEW_APPROVED, $user, 'Approved v'.$video->version.' by '.$names.($note ? ': '.$note : ''));
 
-            $this->tell(collect([$card->user])->filter(), $video, 'Approved: '.$card->title,
-                'Approved by '.$names.'. You can make it Video ready with its publishing time now.');
+            $at = $this->makeReady($card->fresh(), $user);
+            $this->tell(collect([$card->user])->filter(), $video, 'Approved: '.$card->title, 'Approved by '.$names.'. '.($at
+                ? 'It is Video ready now, to go out '.$at->format('D j M, g:i A').' (change the time in My Editing if that is wrong).'
+                : 'You can make it Video ready with its publishing time now.'));
             if ($covered->isNotEmpty()) {
                 $this->tell(User::query()->whereIn('id', $covered)->get(), $video, 'Approved for you: '.$card->title,
                     Str::before($user->name, ' ').' approved version '.$video->version.' for everyone, your OK included.');
@@ -479,6 +481,46 @@ class VideoReviewController extends Controller
         }
 
         return response()->json($this->state($video->fresh(), $user));
+    }
+
+    /**
+     * Approved means ready: the card becomes Video ready straight away, to
+     * go out at the planner's publishing date (6 PM) or, with none ahead, the
+     * next hour -- the same default the editor's own Video ready box offers --
+     * and the planner row turns Video Ready in Notion after the response.
+     * Returns the publishing time, or null when the card cannot be made
+     * ready (open corrections, already out, not finished).
+     */
+    private function makeReady(Todo $card, User $by): ?\Illuminate\Support\Carbon
+    {
+        if ($card->parent_id || $card->status !== Todo::STATUS_COMPLETED || $card->posted_at || $card->corrections()->open()->exists()) {
+            return null;
+        }
+        if ($card->ready_at) {
+            return $card->publish_at;
+        }
+        $planned = $card->contentItem?->published_date;
+        $at = $planned && \Illuminate\Support\Carbon::parse($planned)->gte(today())
+            ? \Illuminate\Support\Carbon::parse($planned)->setTime(18, 0)
+            : now()->addHour()->startOfHour();
+
+        $card->forceFill(['ready_at' => now(), 'publish_at' => $at, 'publish_reminded_at' => null, 'scheduled_at' => null, 'scheduled_by_id' => null])->save();
+        TodoUpdate::record($card, $by, TodoUpdate::READY, ['note' => 'Publish '.$at->format('D j M, g:i A').' (on approval)']);
+
+        if ($item = $card->contentItem) {
+            defer(function () use ($item, $by) {
+                if ($item->status === 'Video Ready' || $item->notion_missing_since) {
+                    return;
+                }
+                try {
+                    app(\App\Services\Planner\PlannerPropertyWrite::class)->update($item, ['status' => 'Video Ready'], [], $by);
+                } catch (Throwable $e) {
+                    Log::warning('Approved video: the planner row could not be set to Video Ready.', ['content_item_id' => $item->id, 'error' => $e->getMessage()]);
+                }
+            });
+        }
+
+        return $at;
     }
 
     /** An approver on the list, or an admin, may approve for everyone. */
