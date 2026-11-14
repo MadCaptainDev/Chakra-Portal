@@ -130,6 +130,7 @@ Route::get('/', LandingController::class)->name('home');
 // can never shadow each other.
 Route::get('/portfolio', [PublicPortfolioController::class, 'index'])->name('portfolio');
 Route::get('/portfolio/live', [PublicPortfolioController::class, 'live'])->middleware('throttle:60,1')->name('portfolio.live');
+Route::get('/portfolio/{portfolioItem}/play', [PublicPortfolioController::class, 'play'])->middleware('throttle:60,1')->name('portfolio.play');
 
 // The case study for one piece. Named portfolio.detail rather than
 // portfolio.show because the portfolio.* names belong to the admin CRUD.

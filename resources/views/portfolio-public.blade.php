@@ -82,7 +82,7 @@
 
             <div class="pf-rise mt-8 flex flex-wrap items-center gap-3" style="--d: 240ms">
                 @if ($hits->isNotEmpty())
-                    <button type="button" @click="$dispatch('pf-play', @js(['src' => $hits[0]['src'], 'kind' => $hits[0]['kind'], 'title' => $hits[0]['title']]))"
+                    <button type="button" @click="$dispatch('pf-play', @js(['src' => $hits[0]['src'], 'kind' => $hits[0]['kind'], 'title' => $hits[0]['title'], 'id' => $hits[0]['pid'], 'cover' => $hits[0]['cover']]))"
                             class="inline-flex min-h-[54px] items-center gap-3 rounded-full bg-white py-2 pl-2 pr-6 text-sm font-bold text-brand-900 transition hover:scale-[1.03]">
                         <span class="flex h-10 w-10 items-center justify-center rounded-full bg-brand-400">
                             <svg class="ml-0.5 h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.3 2.84A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.27l9.34-5.89a1.5 1.5 0 000-2.54L6.3 2.84z" /></svg>
@@ -318,7 +318,7 @@
                         const el = this.$refs.stage;
                         el.classList.remove('pf-swap'); void el.offsetWidth; el.classList.add('pf-swap');
                     },
-                    play() { this.$dispatch('pf-play', { src: this.h.src, kind: this.h.kind, title: this.h.title }); },
+                    play() { this.$dispatch('pf-play', { src: this.h.src, kind: this.h.kind, title: this.h.title, id: this.h.pid, cover: this.h.cover }); },
                     fmt(n) {
                         if (n >= 1e6) return (Math.floor(n / 1e5) / 10).toString() + 'M';
                         if (n >= 1e3) return Math.floor(n / 1e3) + 'K';

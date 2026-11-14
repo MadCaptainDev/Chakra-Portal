@@ -36,53 +36,68 @@
         'id' => $i->id, 'title' => $i->title, 'client' => $i->clientLabel(), 'views' => (int) $i->views,
         'thumb' => $i->thumbnailUrl(), 'src' => $i->playbackUrl(), 'kind' => $i->isUploaded() ? 'file' : 'link',
     ])->values();
+    $pageSize = $pageSize ?? 24;
 @endphp
 
-<div x-data="portfolioGrid(@js($tabs->contains('slug', $activeCategory) ? $activeCategory : 'all'), @js($counts), @js($stars), @js($liveUrl ?? null))"
-     @pf-play.window="openSrc($event.detail.src, $event.detail.kind, $event.detail.title)">
+<div x-data="portfolioGrid(@js($tabs->contains('slug', $activeCategory) ? $activeCategory : 'all'), @js($counts), @js($stars), @js($liveUrl ?? null), @js($pageSize), @js(url('/portfolio')))"
+     @pf-play.window="openSrc($event.detail.src, $event.detail.kind, $event.detail.title, $event.detail.id, $event.detail.cover)">
     {{-- Filters stay in reach while scrolling the grid; sorting is the full page's. --}}
     <div class="{{ ($sortable ?? false) ? 'sticky top-16 sm:top-20 z-30 -mx-3 sm:-mx-5 px-3 sm:px-5 py-3 bg-brand-900/85 backdrop-blur-md border-b border-white/[0.06]' : '' }} flex flex-wrap items-center gap-3">
     @if ($tabs->isNotEmpty())
-        <div class="min-w-0 flex-1 -mx-3 sm:mx-0 px-3 sm:px-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div class="flex gap-2 min-w-max sm:min-w-0 sm:flex-wrap" role="tablist" aria-label="Portfolio categories">
+        @php
+            // A picture for each niche, so the row reads at a glance on a phone.
+            $icon = ['healthcare' => '🏥', 'beauty-bridal' => '💄', 'food-restaurants' => '🍽️', 'fashion-retail' => '👗',
+                'jewellery' => '💍', 'pet-care' => '🐾', 'homes-interiors' => '🏠', 'artists-events' => '🎤'];
+        @endphp
+        {{-- Categories get a whole row on a phone (they were squeezed behind the
+             sort buttons into a strip where only "All work" showed), with a count
+             on each and a fade at the edge to say there are more to swipe to. --}}
+        <div class="relative basis-full sm:basis-auto min-w-0 sm:flex-1 -mx-3 sm:mx-0">
+        <div class="overflow-x-auto px-3 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div class="flex gap-2 min-w-max sm:min-w-0 sm:flex-wrap pr-8 sm:pr-0" role="tablist" aria-label="Portfolio categories">
                 <button type="button" role="tab" @click="active = 'all'"
                         :aria-selected="active === 'all' ? 'true' : 'false'"
-                        class="shrink-0 inline-flex items-center min-h-[44px] px-5 rounded-full text-sm font-semibold border transition-colors"
+                        class="shrink-0 inline-flex items-center gap-1.5 min-h-[40px] sm:min-h-[44px] px-3.5 sm:px-5 rounded-full text-[13px] sm:text-sm font-semibold border transition-colors"
                         :class="active === 'all'
                             ? 'bg-brand-400 border-brand-400 text-brand-900'
-                            : 'bg-white/5 border-white/15 text-brand-100/70 hover:text-white hover:border-white/30'">
+                            : 'bg-white/5 border-white/15 text-brand-100/80 hover:text-white hover:border-white/30'">
                     All work
+                    <span class="rounded-full px-1.5 text-[11px] font-bold" :class="active === 'all' ? 'bg-brand-900/15' : 'bg-white/10 text-brand-100/60'">{{ $counts['all'] }}</span>
                 </button>
 
                 @foreach ($tabs as $category)
-                    <button type="button" role="tab" @click="active = @js($category->slug)"
-                            :aria-selected="active === @js($category->slug) ? 'true' : 'false'"
-                            class="shrink-0 inline-flex items-center min-h-[44px] px-5 rounded-full text-sm font-semibold border transition-colors"
-                            :class="active === @js($category->slug)
-                                ? 'bg-brand-400 border-brand-400 text-brand-900'
-                                : 'bg-white/5 border-white/15 text-brand-100/70 hover:text-white hover:border-white/30'">
-                        {{ $category->name }}
-                    </button>
+                <button type="button" role="tab" @click="active = @js($category->slug)"
+                        :aria-selected="active === @js($category->slug) ? 'true' : 'false'"
+                        class="shrink-0 inline-flex items-center gap-1.5 min-h-[40px] sm:min-h-[44px] px-3.5 sm:px-5 rounded-full text-[13px] sm:text-sm font-semibold border transition-colors"
+                        :class="active === @js($category->slug)
+                            ? 'bg-brand-400 border-brand-400 text-brand-900'
+                            : 'bg-white/5 border-white/15 text-brand-100/80 hover:text-white hover:border-white/30'">
+                    <span aria-hidden="true">{{ $icon[$category->slug] ?? '🎬' }}</span> {{ $category->name }}
+                    <span class="rounded-full px-1.5 text-[11px] font-bold" :class="active === @js($category->slug) ? 'bg-brand-900/15' : 'bg-white/10 text-brand-100/60'">{{ $counts[$category->slug] ?? 0 }}</span>
+                </button>
                 @endforeach
 
                 @if ($hasUncategorised)
-                    <button type="button" role="tab" @click="active = 'other'"
-                            :aria-selected="active === 'other' ? 'true' : 'false'"
-                            class="shrink-0 inline-flex items-center min-h-[44px] px-5 rounded-full text-sm font-semibold border transition-colors"
-                            :class="active === 'other'
-                                ? 'bg-brand-400 border-brand-400 text-brand-900'
-                                : 'bg-white/5 border-white/15 text-brand-100/70 hover:text-white hover:border-white/30'">
-                        Other
-                    </button>
+                <button type="button" role="tab" @click="active = 'other'"
+                        :aria-selected="active === 'other' ? 'true' : 'false'"
+                        class="shrink-0 inline-flex items-center gap-1.5 min-h-[40px] sm:min-h-[44px] px-3.5 sm:px-5 rounded-full text-[13px] sm:text-sm font-semibold border transition-colors"
+                        :class="active === 'other'
+                            ? 'bg-brand-400 border-brand-400 text-brand-900'
+                            : 'bg-white/5 border-white/15 text-brand-100/80 hover:text-white hover:border-white/30'">
+                    Other
+                    <span class="rounded-full px-1.5 text-[11px] font-bold" :class="active === 'other' ? 'bg-brand-900/15' : 'bg-white/10 text-brand-100/60'">{{ $counts['other'] }}</span>
+                </button>
                 @endif
             </div>
         </div>
+        <span class="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-brand-900 to-transparent sm:hidden" aria-hidden="true"></span>
+        </div>
     @endif
     @if ($sortable ?? false)
-        <div class="ml-auto flex shrink-0 rounded-full bg-white/[0.06] p-1 ring-1 ring-white/10" role="group" aria-label="Sort">
+        <div class="sm:ml-auto flex shrink-0 rounded-full bg-white/[0.06] p-1 ring-1 ring-white/10" role="group" aria-label="Sort">
             @foreach (['mix' => 'Mix', 'views' => 'Most viewed', 'new' => 'Newest'] as $mode => $label)
                 <button type="button" @click="sortBy(@js($mode))" :aria-pressed="sort === @js($mode) ? 'true' : 'false'"
-                        class="min-h-[36px] rounded-full px-3.5 text-[13px] font-semibold transition"
+                        class="min-h-[32px] sm:min-h-[36px] rounded-full px-3 sm:px-3.5 text-xs sm:text-[13px] font-semibold transition"
                         :class="sort === @js($mode) ? 'bg-white text-brand-900' : 'text-brand-100/70 hover:text-white'">{{ $label }}</button>
             @endforeach
         </div>
@@ -95,7 +110,7 @@
 
             <article x-show="active === 'all' || active === @js($slug)"
                      x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
-                     data-pf-card data-n="{{ $loop->index }}" data-views="{{ (int) $item->views }}" data-date="{{ $item->published_on?->format('Ymd') ?? 0 }}"
+                     data-pf-card data-cat="{{ $slug }}" data-n="{{ $loop->index }}" data-views="{{ (int) $item->views }}" data-date="{{ $item->published_on?->format('Ymd') ?? 0 }}"
                      style="--i: {{ $loop->index % 10 }}"
                      class="pf-card group rounded-xl overflow-hidden bg-white/5 border border-white/10 hover:border-brand-400/40 hover:shadow-[0_18px_40px_-18px_rgba(103,188,212,0.45)]">
                 <button type="button"
@@ -104,6 +119,7 @@
                         data-kind="{{ $item->isUploaded() ? 'file' : 'link' }}"
                         data-title="{{ $item->title }}"
                         data-id="{{ $item->id }}"
+                        data-cover="{{ $item->thumbnailUrl() }}"
                         @unless ($item->playbackUrl()) disabled @endunless
                         class="block w-full text-left">
                     <div class="pf-tilt relative {{ $item->isVertical() ? 'aspect-[9/16]' : 'aspect-video' }} bg-brand-900/60 overflow-hidden">
@@ -210,6 +226,13 @@
         @endforeach
     </div>
 
+    {{-- The rest on request: a phone builds 24 cards, not 170. --}}
+    <div x-show="more > 0" x-cloak class="mt-8 flex justify-center">
+        <button type="button" @click="showMore()" class="inline-flex min-h-[48px] items-center gap-2 rounded-full bg-white/10 px-6 text-sm font-semibold text-white ring-1 ring-white/15 transition hover:bg-white/15">
+            Show more work <span class="text-brand-100/60" x-text="'(' + more + ' more)'"></span>
+        </button>
+    </div>
+
     {{-- Every piece is hidden when a tab holds nothing the visitor can see. --}}
     <p x-show="! (counts[active] ?? 0)" x-cloak class="text-center text-brand-100/70 py-12">
         Nothing here yet — try another category.
@@ -234,16 +257,35 @@
 
             {{-- Rebuilt per open so the <video> starts from the top and the
                  previous file stops downloading. --}}
-            <template x-if="player && ! player.embed">
-                <video controls autoplay playsinline class="w-full max-h-[75vh] rounded-lg bg-black"
-                       :src="player.src"></video>
-            </template>
-            {{-- An Instagram reel plays right here, in Instagram's own player. --}}
-            <template x-if="player && player.embed">
-                <div class="mx-auto w-full max-w-[400px]">
-                    <iframe :src="player.embed" class="h-[min(78vh,720px)] w-full rounded-lg bg-white" allowtransparency="true" allow="autoplay; encrypted-media; picture-in-picture" loading="lazy" title="Instagram reel"></iframe>
-                    <a :href="player.src" target="_blank" rel="noopener" class="mt-2 block text-center text-xs text-white/60 hover:text-white">Open on Instagram ↗</a>
+            <template x-if="player && player.src && ! player.ig">
+                {{-- Browsers refuse sound without a fresh tap (the file was fetched first),
+                     so it starts muted with one clear button for sound, as Instagram does. --}}
+                <div class="relative mx-auto w-fit" x-data="{ hush: false }">
+                    <video controls autoplay playsinline class="mx-auto max-h-[78vh] w-auto max-w-full rounded-lg bg-black"
+                           :poster="player.cover || ''" :src="player.src" x-on:error="player.src = null; player.ig = player.igUrl"
+                           x-init="$nextTick(() => $el.play().catch(() => { $el.muted = true; hush = true; $el.play().catch(() => {}); }))"></video>
+                    <button type="button" x-show="hush" x-cloak @click="$el.previousElementSibling.muted = false; hush = false"
+                            class="absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-white/95 px-4 py-2 text-sm font-bold text-brand-900 shadow-lg">🔊 Tap for sound</button>
                 </div>
+            </template>
+            {{-- Fetching the reel's own file from Instagram. --}}
+            <template x-if="player && player.loading">
+                <div class="relative mx-auto aspect-[9/16] max-h-[78vh] overflow-hidden rounded-lg bg-black">
+                    <img x-show="player.cover" :src="player.cover" alt="" class="h-full w-full object-cover opacity-60">
+                    <span class="absolute inset-0 flex items-center justify-center"><span class="h-10 w-10 animate-spin rounded-full border-4 border-white/25 border-t-white"></span></span>
+                </div>
+            </template>
+            {{-- Instagram keeps this reel's file to itself (licensed music): one clear way to watch it. --}}
+            <template x-if="player && player.ig && ! player.loading">
+                <a :href="player.ig" target="_blank" rel="noopener" class="group relative mx-auto block aspect-[9/16] max-h-[78vh] overflow-hidden rounded-lg bg-black">
+                    <img x-show="player.cover" :src="player.cover" alt="" class="h-full w-full object-cover transition group-hover:scale-105">
+                    <span class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/45">
+                        <span class="flex h-16 w-16 items-center justify-center rounded-full bg-white text-brand-900 shadow-xl transition group-hover:scale-110">
+                            <svg class="ml-1 h-7 w-7" viewBox="0 0 20 20" fill="currentColor"><path d="M6.3 2.84A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.27l9.34-5.89a1.5 1.5 0 000-2.54L6.3 2.84z"/></svg>
+                        </span>
+                        <span class="rounded-full bg-white/95 px-4 py-2 text-sm font-bold text-brand-900">Watch on Instagram ↗</span>
+                    </span>
+                </a>
             </template>
         </div>
     </div>
@@ -273,6 +315,7 @@
         <style>
             .pf-rise { animation: pfRise .7s cubic-bezier(.2,.8,.2,1) both; animation-delay: var(--d, 0ms); }
             .pf-card { opacity: 0; transform: translateY(18px); }
+            .pf-card.pf-over { display: none !important; }
             .pf-card.pf-in { opacity: 1; transform: none; transition: opacity .55s ease, transform .55s cubic-bezier(.2,.8,.2,1), border-color .3s, box-shadow .3s; transition-delay: calc(var(--i) * 45ms), calc(var(--i) * 45ms), 0s, 0s; }
             .pf-tilt { transition: transform .25s ease; will-change: transform; }
             .pf-card.pf-in:hover { transform: translateY(-4px); transition-delay: 0s; }
@@ -286,9 +329,12 @@
     @endpush
     @push('scripts')
         <script>
-            function portfolioGrid(initial, counts, stars, liveUrl) {
+            function portfolioGrid(initial, counts, stars, liveUrl, pageSize, base) {
                 return {
                     active: initial || 'all',
+                    limit: pageSize || 24,
+                    opened: 0,
+                    more: 0,
                     counts: counts || {},
                     player: null,
                     sort: 'mix',
@@ -297,6 +343,8 @@
                     starAt: 0,
 
                     init() {
+                        this.$watch('active', () => { this.limit = pageSize || 24; this.page(); });
+                        this.page();
                         // Cards rise in as they scroll into view.
                         const cards = this.$el.querySelectorAll('[data-pf-card]');
                         if ('IntersectionObserver' in window) {
@@ -324,7 +372,8 @@
                         // A top performer pops up after a few seconds, then the next one.
                         let off = false;
                         try { off = sessionStorage.getItem('pf-stars-off') === '1'; } catch (e) {}
-                        if (this.stars.length && ! off) {
+                        // Not on phones: there it sat on top of the filters and the grid.
+                        if (this.stars.length && ! off && window.matchMedia?.('(min-width: 768px)').matches) {
                             setTimeout(() => this.nextStar(), 15000);
                             this.starTimer = setInterval(() => { if (! this.player && ! document.hidden) this.nextStar(); }, 14000);
                         }
@@ -339,7 +388,19 @@
                         const cards = Array.from(this.$el.querySelectorAll('[data-pf-card]'));
                         const key = { mix: (c) => +c.dataset.n, views: (c) => -c.dataset.views, new: (c) => -c.dataset.date }[mode];
                         cards.slice().sort((a, b) => key(a) - key(b)).forEach((c, n) => { c.style.order = n; });
+                        this.page();
                     },
+
+                    /** Only the first `limit` cards of this tab, in the order shown; the rest wait for Show more. */
+                    page() {
+                        const cards = Array.from(this.$el.querySelectorAll('[data-pf-card]'))
+                            .filter((c) => this.active === 'all' || c.dataset.cat === this.active)
+                            .sort((a, b) => (+a.style.order || +a.dataset.n) - (+b.style.order || +b.dataset.n));
+                        this.$el.querySelectorAll('[data-pf-card]').forEach((c) => c.classList.remove('pf-over'));
+                        cards.forEach((c, n) => { if (n >= this.limit) c.classList.add('pf-over'); });
+                        this.more = Math.max(0, cards.length - this.limit);
+                    },
+                    showMore() { this.limit += pageSize || 24; this.page(); },
 
                     nextStar() {
                         this.star = null;
@@ -380,24 +441,36 @@
                     },
 
                     open(el) {
-                        this.openSrc(el.dataset.video, el.dataset.kind, el.dataset.title);
+                        this.openSrc(el.dataset.video, el.dataset.kind, el.dataset.title, el.dataset.id, el.dataset.cover);
                     },
 
-                    openSrc(src, kind, title) {
+                    /**
+                     * Our own player always. An uploaded file plays at once; an
+                     * Instagram reel plays from its own file when Instagram hands
+                     * it out, else the visitor gets one clear "Watch on Instagram"
+                     * (Instagram's embed only showed a still and sent them away).
+                     */
+                    async openSrc(src, kind, title, id, cover) {
                         if (! src) return;
-                        let embed = null;
-                        if (kind === 'link') {
-                            // An Instagram reel plays here in Instagram's player; any other link opens where it lives.
-                            const m = src.match(/instagram\.com\/(?:[^/]+\/)?(reel|reels|p|tv)\/([A-Za-z0-9_-]+)/);
-                            if (! m) { window.open(src, '_blank', 'noopener'); return; }
-                            embed = `https://www.instagram.com/${m[1] === 'reels' ? 'reel' : m[1]}/${m[2]}/embed`;
-                        }
                         this.star = null;
-                        this.player = { src, embed, title };
                         document.body.classList.add('overflow-hidden');
+                        if (kind !== 'link') { this.player = { src, title, cover }; return; }
+                        if (! /instagram\.com\//.test(src) || ! id) { window.open(src, '_blank', 'noopener'); document.body.classList.remove('overflow-hidden'); return; }
+                        // A counter, not the object: Alpine hands back a proxy, so p !== this.player.
+                        const ticket = ++this.opened;
+                        this.player = { src: null, ig: null, igUrl: src, title, cover, loading: true };
+                        let url = null;
+                        try {
+                            const r = await fetch(`${base}/${id}/play`, { headers: { Accept: 'application/json' } });
+                            if (r.ok) url = (await r.json()).url;
+                        } catch (e) {}
+                        if (ticket !== this.opened || ! this.player) return; // closed, or another opened, meanwhile
+                        this.player = url ? { src: url, title, cover, igUrl: src } : { ig: src, title, cover };
+                        try { window.dispatchEvent(new CustomEvent('pf-watched', { detail: { id, how: url ? 'here' : 'instagram' } })); } catch (e) {}
                     },
 
                     close() {
+                        this.opened++;
                         this.player = null;
                         document.body.classList.remove('overflow-hidden');
                     },

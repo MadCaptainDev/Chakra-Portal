@@ -39,11 +39,11 @@ class PublicPortfolioController extends Controller
                 && ! $categories->contains('id', $item->portfolio_category_id))
             // Nothing to show yet (an Instagram piece still waiting for its cover).
             ->reject(fn (PortfolioItem $item) => $item->social_media_item_id && ! $item->thumbnailUrl() && ! $item->isUploaded())
-            // A fresh order every visit, so every client's work gets seen;
-            // featured pieces still lead.
-            ->shuffle()
-            ->sortByDesc(fn (PortfolioItem $item) => (int) $item->is_featured)
             ->values();
+
+        // A fresh order every visit, and never a run of one client: shuffled,
+        // then dealt out one client at a time. Featured pieces still lead.
+        $items = self::mixed($items->where('is_featured', true))->concat(self::mixed($items->where('is_featured', false)))->values();
 
         // The best performers, for the "top performer" pop-up.
         $stars = $items->filter(fn (PortfolioItem $i) => ($i->views ?? 0) >= self::STAR_VIEWS)->sortByDesc('views')->take(5)->values();
@@ -62,7 +62,8 @@ class PublicPortfolioController extends Controller
 
         // The hero's wall of reels, and the five biggest for the spotlight.
         $wall = $items->map(fn (PortfolioItem $i) => $cover($i, 360, 640))->filter()->values();
-        $hits = $items->sortByDesc('views')->filter(fn (PortfolioItem $i) => $i->views)->take(5)->values()
+        // The five biggest, two per client at most, so the spotlight is not one brand.
+        $hits = self::capPerClient($items->sortByDesc('views')->filter(fn (PortfolioItem $i) => $i->views), 2)->take(5)->values()
             ->map(fn (PortfolioItem $i) => [
                 'id' => $i->id,
                 'title' => $i->title,
@@ -72,15 +73,18 @@ class PublicPortfolioController extends Controller
                 'cover' => $cover($i, 540, 960),
                 'src' => $i->playbackUrl(),
                 'kind' => $i->isUploaded() ? 'file' : 'link',
+                'pid' => $i->id,
                 'detail' => $i->hasCaseStudy() ? route('portfolio.detail', $i) : null,
                 'stats' => array_filter(['views' => $i->views, 'reach' => $i->reach, 'shares' => $i->shares, 'saves' => $i->saves]),
             ]);
 
         // Latest work, newest first: Instagram pieces from the last few weeks
         // (each one a real post, checked against the planner when it was added).
-        $recent = $items->filter(fn (PortfolioItem $i) => $i->social_media_item_id && $i->published_on?->gte(now()->subDays(self::RECENT_DAYS)))
-            ->sortByDesc(fn (PortfolioItem $i) => [$i->published_on->toDateString(), $i->views ?? 0])
-            ->take(8)->values()
+        // Up to two per client, dealt out a client at a time (each client's
+        // newest first), so one busy account cannot fill the row.
+        $recentPool = $items->filter(fn (PortfolioItem $i) => $i->social_media_item_id && $i->published_on?->gte(now()->subDays(self::RECENT_DAYS)))
+            ->sortByDesc(fn (PortfolioItem $i) => [$i->published_on->toDateString(), $i->views ?? 0]);
+        $recent = self::roundRobin(self::capPerClient($recentPool, 2))->take(8)->values()
             ->map(fn (PortfolioItem $i) => [
                 'title' => $i->title,
                 'client' => $i->clientLabel(),
@@ -123,6 +127,74 @@ class PublicPortfolioController extends Controller
      * The portfolio's numbers as they stand, for the page to poll: each
      * piece's views and reach, refreshed from Instagram on every sync.
      */
+    /**
+     * A reel's own video file, to play in the page's player instead of
+     * Instagram's embed (which only shows a still and sends people to
+     * Instagram). Instagram hands the file out for some reels -- not ones
+     * with licensed music -- and its link expires, so it is fetched on tap
+     * and kept 45 minutes. {url: null} means: open it on Instagram.
+     */
+    public function play(PortfolioItem $portfolioItem): JsonResponse
+    {
+        abort_unless($portfolioItem->is_visible, 404);
+
+        if ($portfolioItem->isUploaded()) {
+            return response()->json(['url' => $portfolioItem->playbackUrl()]);
+        }
+
+        $url = \Illuminate\Support\Facades\Cache::remember('pf-play:'.$portfolioItem->id, now()->addMinutes(45), function () use ($portfolioItem) {
+            $media = $portfolioItem->socialMediaItem()->with('socialAccount')->first();
+            if (! $media?->platform_media_id || ! $media->socialAccount?->access_token) {
+                return '';
+            }
+            try {
+                $r = \Illuminate\Support\Facades\Http::timeout(8)->get('https://graph.instagram.com/v21.0/'.$media->platform_media_id,
+                    ['fields' => 'media_url', 'access_token' => $media->socialAccount->access_token]);
+
+                return (string) ($r->json('media_url') ?? '');
+            } catch (\Throwable) {
+                return '';
+            }
+        });
+
+        return response()->json(['url' => $url ?: null]);
+    }
+
+    /** Shuffled, then one client at a time, so no client runs on. */
+    public static function mixed($items)
+    {
+        return self::roundRobin($items->shuffle());
+    }
+
+    /** Deal a list out one client at a time, keeping each client's own order. */
+    public static function roundRobin($items)
+    {
+        $byClient = $items->groupBy(fn (PortfolioItem $i) => $i->client_id ?: 'n:'.$i->client_name)->map->values()->shuffle()->values();
+        $out = collect();
+        for ($round = 0; $out->count() < $items->count(); $round++) {
+            foreach ($byClient as $pieces) {
+                if (isset($pieces[$round])) {
+                    $out->push($pieces[$round]);
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    /** At most $n per client, in the given order. */
+    public static function capPerClient($items, int $n)
+    {
+        $seen = [];
+
+        return $items->filter(function (PortfolioItem $i) use (&$seen, $n) {
+            $k = $i->client_id ?: 'n:'.$i->client_name;
+            $seen[$k] = ($seen[$k] ?? 0) + 1;
+
+            return $seen[$k] <= $n;
+        })->values();
+    }
+
     public function live(): JsonResponse
     {
         return response()->json([
