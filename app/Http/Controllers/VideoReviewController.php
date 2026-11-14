@@ -136,6 +136,14 @@ class VideoReviewController extends Controller
         ]);
     }
 
+    /** A voice note, to whoever can see the video. Range requests work (Safari needs them). */
+    public function voice(Request $request, ReviewComment $comment): BinaryFileResponse
+    {
+        abort_unless($comment->video?->visibleTo($request->user()) && ($path = $comment->voicePath()) && is_file($path), 404);
+
+        return response()->file($path, ['Content-Type' => 'audio/wav', 'Cache-Control' => 'private, max-age=604800']);
+    }
+
     public function poster(Request $request, ReviewVideo $video): BinaryFileResponse
     {
         abort_unless($video->visibleTo($request->user()) && $video->poster_path && is_file(storage_path('app/private/'.$video->poster_path)), 404);
@@ -282,10 +290,21 @@ class VideoReviewController extends Controller
         $user = $request->user();
         abort_unless($video->visibleTo($user), 404);
         $data = $request->validate([
-            'body' => ['required', 'string', 'max:2000'],
+            'body' => ['required_without:voice', 'nullable', 'string', 'max:2000'],
+            // A voice note: WAV from the page's recorder, 3 minutes at most (~6 MB).
+            'voice' => ['nullable', 'file', 'max:8192'],
+            'voice_seconds' => ['required_with:voice', 'nullable', 'numeric', 'min:0.3', 'max:185'],
+            'voice_peaks' => ['nullable', 'string', 'max:1000'],
             'at_seconds' => ['nullable', 'numeric', 'min:0', 'max:36000'],
             'parent_id' => ['nullable', 'integer'],
         ]);
+        $voice = $request->file('voice');
+        if ($voice && ! $this->isWav($voice->getRealPath())) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['voice' => 'That recording could not be read. Try again.']);
+        }
+        if ($voice) {
+            $data['body'] = '🎤 Voice note ('.ReviewComment::clock((float) $data['voice_seconds']).')';
+        }
 
         $parent = null;
         if (! empty($data['parent_id'])) {
@@ -300,14 +319,29 @@ class VideoReviewController extends Controller
             ->where('body', trim($data['body']))
             ->when($at === null, fn ($q) => $q->whereNull('at_seconds'), fn ($q) => $q->whereBetween('at_seconds', [(float) $at - 0.05, (float) $at + 0.05]))
             ->exists();
-        if (! $twin) {
+        if ($voice || ! $twin) {
+            $voicePath = null;
+            if ($voice) {
+                $voicePath = 'reviews/voice/'.$video->id.'/'.Str::uuid().'.wav';
+                File::ensureDirectoryExists(dirname(storage_path('app/private/'.$voicePath)));
+                File::copy($voice->getRealPath(), storage_path('app/private/'.$voicePath));
+            }
             $comment = ReviewComment::create([
                 'review_video_id' => $video->id,
                 'parent_id' => $parent?->id,
                 'user_id' => $user->id,
                 'at_seconds' => $data['at_seconds'] ?? null,
                 'body' => trim($data['body']),
+                'voice_path' => $voicePath,
+                'voice_seconds' => $voice ? round((float) $data['voice_seconds'], 1) : null,
+                'voice_peaks' => $voice ? $this->peaks($data['voice_peaks'] ?? null) : null,
+                'voice_state' => $voice ? 'pending' : null,
             ]);
+
+            // The words come a few seconds later, after the response: sending stays instant.
+            if ($voice) {
+                defer(fn () => app(\App\Services\Ai\VoiceNoteTranscriber::class)->transcribe($comment->fresh()));
+            }
 
             // Already sent back, and the editor has not uploaded the fix yet:
             // a reviewer's new comment is one more change, not a note nobody acts on.
@@ -407,6 +441,7 @@ class VideoReviewController extends Controller
         $video = $comment->video;
         abort_unless($comment->user_id === $request->user()->id || $video->reviewableBy($request->user()), 403);
         abort_if($comment->correction_todo_id !== null, 422, 'This comment is already a correction on the card.');
+        $comment->replies->each->deleteVoice(); // the rows cascade in the database; their files do not
         $comment->delete(); // replies and likes go with it
 
         return response()->json($this->state($video->fresh(), $request->user()));
@@ -786,7 +821,28 @@ class VideoReviewController extends Controller
             'likes' => $c->likers->count(),
             'liked' => $c->likers->contains('id', $viewer->id),
             'liked_by' => $c->likers->pluck('name')->map(fn ($n) => Str::before($n, ' '))->values()->all(),
+            'voice' => $c->isVoice() ? route('reviews.comment.voice', $c) : null,
+            'voice_seconds' => $c->voice_seconds,
+            'voice_peaks' => $c->voice_peaks ?: [],
+            'voice_state' => $c->voice_state,
+            'voice_english' => $c->voice_english,
         ];
+    }
+
+    /** RIFF....WAVE: what the page's recorder makes. Anything else is refused. */
+    private function isWav(string $path): bool
+    {
+        $head = (string) @file_get_contents($path, false, null, 0, 12);
+
+        return strlen($head) === 12 && str_starts_with($head, 'RIFF') && substr($head, 8, 4) === 'WAVE';
+    }
+
+    /** The waveform the recorder measured: up to 64 bars, 0-100. */
+    private function peaks(?string $json): array
+    {
+        $bars = json_decode((string) $json, true);
+
+        return is_array($bars) ? array_map(fn ($v) => max(0, min(100, (int) $v)), array_slice(array_values(array_filter($bars, 'is_numeric')), 0, 64)) : [];
     }
 
     private function avatar(?string $path): ?string

@@ -452,6 +452,7 @@ Route::middleware('auth')->group(function () {
         Route::get('reviews/{video}/live', 'live')->whereNumber('video')->name('reviews.live');
         Route::get('reviews/{video}/file', 'file')->whereNumber('video')->name('reviews.file');
         Route::get('reviews/{video}/poster', 'poster')->whereNumber('video')->name('reviews.poster');
+        Route::get('reviews/comments/{comment}/voice', 'voice')->name('reviews.comment.voice');
         Route::post('reviews/cards/{todo}/uploads', 'start')->name('reviews.upload.start');
         Route::post('reviews/uploads/{upload}/chunk', 'chunk')->name('reviews.upload.chunk');
         Route::post('reviews/uploads/{upload}/finish', 'finish')->name('reviews.upload.finish');

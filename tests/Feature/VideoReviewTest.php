@@ -671,4 +671,95 @@ class VideoReviewTest extends TestCase
         $this->assertSame('done', $video->fresh()->ai_status);
         $this->assertSame(1, $asked);
     }
+
+    // ——— Voice notes ———
+
+    /** A real WAV, the way the page's recorder writes it: 16 kHz mono, $seconds long. */
+    private function wav(float $seconds = 1.5): \Illuminate\Http\UploadedFile
+    {
+        $samples = (int) (16000 * $seconds);
+        $data = str_repeat(pack('v', 1200), $samples);
+        $bytes = 'RIFF'.pack('V', 36 + strlen($data)).'WAVEfmt '.pack('VvvVVvv', 16, 1, 1, 16000, 32000, 2, 16).'data'.pack('V', strlen($data)).$data;
+        $path = tempnam(sys_get_temp_dir(), 'wav');
+        file_put_contents($path, $bytes);
+
+        return new \Illuminate\Http\UploadedFile($path, 'voice-note.wav', 'audio/wav', null, true);
+    }
+
+    public function test_a_voice_note_is_kept_played_back_and_written_down_by_gemini(): void
+    {
+        AiSetting::current()->forceFill(['gemini_api_key' => 'test-key'])->save();
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+            'candidates' => [['content' => ['parts' => [['text' => json_encode(['tanglish' => 'Inga text konjam perusa podunga', 'english' => 'Make the text bigger here'])]]]]],
+            'usageMetadata' => ['promptTokenCount' => 100, 'candidatesTokenCount' => 20],
+        ])]);
+        $this->uploadAs($this->editor)->assertCreated();
+        $video = ReviewVideo::firstOrFail();
+
+        $this->actingAs($this->admin)->post(route('reviews.comment', $video), [
+            'voice' => $this->wav(), 'voice_seconds' => 1.5, 'voice_peaks' => '[10,50,100,30]', 'at_seconds' => 7.2,
+        ], ['Accept' => 'application/json'])->assertCreated();
+
+        $note = ReviewComment::firstOrFail();
+        $this->assertSame(7.2, $note->at_seconds);
+        $this->assertSame([10, 50, 100, 30], $note->voice_peaks);
+        $this->assertFileExists($note->voicePath());
+        // Deferred work runs inside the request in tests: the words are already there.
+        $this->assertSame('done', $note->voice_state);
+        $this->assertSame('Inga text konjam perusa podunga', $note->body);
+        $this->assertSame('Make the text bigger here', $note->voice_english);
+
+        $this->get(route('reviews.comment.voice', $note))->assertOk()->assertHeader('Content-Type', 'audio/wav');
+        $stranger = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
+        $this->actingAs($stranger)->get(route('reviews.comment.voice', $note))->assertNotFound();
+
+        // Deleting it takes the recording with it.
+        $path = $note->voicePath();
+        $this->actingAs($this->admin)->deleteJson(route('reviews.comment.forget', $note))->assertOk();
+        $this->assertFileDoesNotExist($path);
+    }
+
+    public function test_a_voice_note_sent_back_becomes_a_correction_named_by_its_words(): void
+    {
+        AiSetting::current()->forceFill(['gemini_api_key' => 'test-key'])->save();
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+            'candidates' => [['content' => ['parts' => [['text' => json_encode(['tanglish' => 'Music volume kammi pannunga', 'english' => 'Lower the music'])]]]]],
+        ])]);
+        $this->uploadAs($this->editor)->assertCreated();
+        $video = ReviewVideo::firstOrFail();
+        $this->actingAs($this->admin)->postJson(route('reviews.comment', $video), ['body' => 'Typed one'])->assertCreated();
+        $this->postJson(route('reviews.changes', $video))->assertOk();
+
+        // A voice note after the send back is one more correction, titled by what was said.
+        $this->post(route('reviews.comment', $video), ['voice' => $this->wav(), 'voice_seconds' => 1.5, 'at_seconds' => 3],
+            ['Accept' => 'application/json'])->assertCreated();
+
+        $fix = Todo::findOrFail(ReviewComment::where('body', 'Music volume kammi pannunga')->value('correction_todo_id'));
+        $this->assertSame('0:03 — 🎤 Music volume kammi pannunga', $fix->title);
+        File::deleteDirectory(storage_path('app/private/reviews/voice/'.$video->id));
+    }
+
+    public function test_a_voice_note_must_be_a_real_recording(): void
+    {
+        $this->uploadAs($this->editor)->assertCreated();
+        $video = ReviewVideo::firstOrFail();
+        $fake = \Illuminate\Http\UploadedFile::fake()->createWithContent('voice-note.wav', '<?php echo 1;');
+
+        $this->actingAs($this->admin)->post(route('reviews.comment', $video), ['voice' => $fake, 'voice_seconds' => 2],
+            ['Accept' => 'application/json'])->assertStatus(422)->assertJsonValidationErrors('voice');
+        $this->assertSame(0, ReviewComment::count());
+    }
+
+    public function test_without_a_gemini_key_a_voice_note_is_still_kept_to_listen_to(): void
+    {
+        $this->uploadAs($this->editor)->assertCreated();
+        $video = ReviewVideo::firstOrFail();
+        $this->actingAs($this->admin)->post(route('reviews.comment', $video), ['voice' => $this->wav(), 'voice_seconds' => 1.5],
+            ['Accept' => 'application/json'])->assertCreated();
+
+        $note = ReviewComment::firstOrFail();
+        $this->assertSame('failed', $note->voice_state);
+        $this->assertSame('🎤 Voice note (0:01)', $note->body);
+        File::deleteDirectory(storage_path('app/private/reviews/voice/'.$video->id));
+    }
 }

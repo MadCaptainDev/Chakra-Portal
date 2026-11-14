@@ -239,9 +239,11 @@
                         {{-- Commenting without leaving full screen --}}
                         <form x-show="fs" x-cloak @submit.prevent="send()" class="mx-auto mt-2 flex w-full max-w-3xl items-end gap-2">
                             <span class="mb-3 shrink-0 rounded-full bg-amber-400/15 px-2.5 py-1 font-mono text-xs font-bold text-amber-200" x-text="'📍 ' + clock(at ?? t)"></span>
-                            <textarea x-model="body" rows="1" maxlength="2000" @focus="startComment(false)" @keydown.enter.ctrl.prevent="send()" @keydown.enter.meta.prevent="send()"
+                            @include('reviews._voice-recorder', ['target' => "'main'"])
+                            <textarea x-show="!recording('main')" x-model="body" rows="1" maxlength="2000" @focus="startComment(false)" @keydown.enter.ctrl.prevent="send()" @keydown.enter.meta.prevent="send()"
                                       placeholder="Comment on this moment…" class="min-h-[48px] flex-1 resize-none rounded-2xl border-0 bg-white/10 px-4 py-3 text-[16px] text-white placeholder:text-white/40 focus:ring-2 focus:ring-amber-400/70"></textarea>
-                            <button type="submit" :disabled="!body.trim() || !!busy.send" aria-label="Send comment" class="{{ $btn }} h-12 w-12 shrink-0 rounded-full bg-amber-400 text-brand-900">
+                            @include('reviews._voice-mic', ['target' => "'main'", 'when' => '!body.trim()'])
+                            <button type="submit" x-show="body.trim()" :disabled="!body.trim() || !!busy.send" aria-label="Send comment" class="{{ $btn }} h-12 w-12 shrink-0 rounded-full bg-amber-400 text-brand-900">
                                 <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
                             </button>
                         </form>
@@ -276,13 +278,15 @@
                             </template>
                         </div>
 
-                        <div class="flex items-end gap-2">
+                        @include('reviews._voice-recorder', ['target' => "'main'"])
+                        <div x-show="!recording('main')" class="flex items-end gap-2">
                             <textarea x-ref="comment" x-model="body" rows="1" maxlength="2000"
                                       x-effect="body; $nextTick(() => { $el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 140) + 'px' })"
                                       @focus="startComment(false)" @keydown.enter.ctrl.prevent="send()" @keydown.enter.meta.prevent="send()" @keydown.escape="$el.blur()"
                                       placeholder="Comment on this moment…"
                                       class="max-h-[140px] min-h-[48px] flex-1 resize-none rounded-2xl border-0 bg-[#0b1d29] px-4 py-3 text-[16px] leading-snug text-white placeholder:text-brand-100/35 focus:ring-2 focus:ring-amber-400/70"></textarea>
-                            <button type="submit" :disabled="!body.trim() || !!busy.send" aria-label="Send comment"
+                            @include('reviews._voice-mic', ['target' => "'main'", 'when' => '!body.trim()'])
+                            <button type="submit" x-show="body.trim()" :disabled="!body.trim() || !!busy.send" aria-label="Send comment"
                                     class="{{ $btn }} h-12 w-12 shrink-0 rounded-full bg-amber-400 text-brand-900 shadow-lg hover:bg-amber-300">
                                 <span x-show="busy.send" class="h-4 w-4 animate-spin rounded-full border-2 border-brand-900/30 border-t-brand-900"></span>
                                 <svg x-show="!busy.send" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
@@ -341,7 +345,8 @@
                                             <span x-show="isNew(c)" class="rounded-full bg-brand-400 px-1.5 text-[10px] font-bold text-brand-900">NEW</span>
                                             <span x-show="c.correction" class="rounded-full bg-amber-400/15 px-1.5 text-[10px] font-semibold text-amber-200">sent as a correction</span>
                                         </p>
-                                        <p x-show="editing !== c.id" class="mt-1 whitespace-pre-line break-words text-[15px] leading-relaxed text-white/95" :class="c.resolved ? 'line-through decoration-white/30' : ''">
+                                        @include('reviews._voice-bubble', ['v' => 'c'])
+                                        <p x-show="editing !== c.id && (!c.voice || c.voice_state === 'done' || c.edited)" class="mt-1 whitespace-pre-line break-words text-[15px] leading-relaxed text-white/95" :class="c.resolved ? 'line-through decoration-white/30' : ''">
                                             <span x-text="c.body"></span><span x-show="c.edited" class="ml-1 text-[11px] text-brand-100/35">(edited)</span>
                                         </p>
                                         <form x-show="editing === c.id" x-cloak @submit.prevent="saveEdit(c)" class="mt-1.5">
@@ -378,7 +383,8 @@
                                                             <span class="font-semibold text-white" x-text="r.by"></span>
                                                             <span class="text-brand-100/40" x-text="r.when"></span>
                                                         </p>
-                                                        <p class="mt-0.5 whitespace-pre-line break-words text-[14px] text-white/90" x-text="r.body"></p>
+                                                        @include('reviews._voice-bubble', ['v' => 'r'])
+                                                        <p x-show="!r.voice || r.voice_state === 'done'" class="mt-0.5 whitespace-pre-line break-words text-[14px] text-white/90" x-text="r.body"></p>
                                                         <div class="mt-1 flex items-center gap-1.5">
                                                             <button type="button" @click="like(r)" class="{{ $btn }} h-8 px-2.5 text-[11px] ring-1" :class="r.liked ? 'bg-sky-400/15 text-sky-200 ring-sky-400/40' : 'text-brand-100/60 ring-white/10'">
                                                                 👍 <span x-text="r.likes || ''"></span>
@@ -396,13 +402,15 @@
                                                     class="flex h-10 w-full items-center gap-2 rounded-xl bg-white/[0.04] px-3 text-left text-sm text-brand-100/45 ring-1 ring-white/[0.07] transition hover:bg-white/[0.07] hover:text-brand-100/70">
                                                 ↳ <span x-text="c.replies.length ? 'Reply to ' + c.by.split(' ')[0] + '…' : 'Reply…'"></span>
                                             </button>
-                                            <form x-show="!!replyOpen[c.id]" x-cloak x-transition.opacity @submit.prevent="reply(c)" class="flex items-end gap-2">
-                                                <textarea :id="'reply-' + c.id" x-model="replies[c.id]" rows="1" maxlength="2000"
+                                            <form x-show="!!replyOpen[c.id] || recording(c.id)" x-cloak x-transition.opacity @submit.prevent="reply(c)" class="flex items-end gap-2">
+                                                @include('reviews._voice-recorder', ['target' => 'c.id'])
+                                                <textarea x-show="!recording(c.id)" :id="'reply-' + c.id" x-model="replies[c.id]" rows="1" maxlength="2000"
                                                           x-effect="replies[c.id]; $nextTick(() => { $el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 120) + 'px' })"
                                                           @keydown.enter.ctrl.prevent="reply(c)" @keydown.enter.meta.prevent="reply(c)" @keydown.escape="if (!(replies[c.id] || '').trim()) replyOpen[c.id] = false"
                                                           :placeholder="'Reply to ' + c.by.split(' ')[0] + '…'"
                                                           class="min-h-[44px] flex-1 resize-none rounded-xl border-0 bg-[#0f2230] px-3 py-2.5 text-[15px] text-white placeholder:text-brand-100/35 focus:ring-2 focus:ring-amber-400/70"></textarea>
-                                                <button type="submit" :disabled="!(replies[c.id] || '').trim() || !!busy['r' + c.id]" aria-label="Send reply"
+                                                @include('reviews._voice-mic', ['target' => 'c.id', 'when' => "!(replies[c.id] || '').trim()", 'size' => 'h-11 w-11'])
+                                                <button type="submit" x-show="(replies[c.id] || '').trim()" :disabled="!(replies[c.id] || '').trim() || !!busy['r' + c.id]" aria-label="Send reply"
                                                         class="{{ $btn }} h-11 w-11 shrink-0 rounded-full bg-white text-brand-900">
                                                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
                                                 </button>

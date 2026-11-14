@@ -7,7 +7,59 @@
 const csrf = () => document.querySelector('meta[name=csrf-token]').content;
 const clock = (s) => (s == null ? '' : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`);
 
+// ——— Voice notes ———
+// Recorded as 16 kHz mono WAV: every browser plays it (Safari included) and
+// Gemini hears it, with no codec to agree on. About 2 MB a minute.
+const VOICE_RATE = 16000;
+const VOICE_MAX = 180; // seconds
+
+function wav(samples, rate) {
+    const buf = new ArrayBuffer(44 + samples.length * 2);
+    const v = new DataView(buf);
+    const str = (o, t) => [...t].forEach((ch, i) => v.setUint8(o + i, ch.charCodeAt(0)));
+    str(0, 'RIFF'); v.setUint32(4, 36 + samples.length * 2, true); str(8, 'WAVE');
+    str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    str(36, 'data'); v.setUint32(40, samples.length * 2, true);
+    for (let i = 0; i < samples.length; i++) {
+        const x = Math.max(-1, Math.min(1, samples[i]));
+        v.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7fff, true);
+    }
+    return new Blob([buf], { type: 'audio/wav' });
+}
+
+function downsample(chunks, from, to) {
+    const total = chunks.reduce((n, c) => n + c.length, 0);
+    const all = new Float32Array(total);
+    let o = 0;
+    chunks.forEach((c) => { all.set(c, o); o += c.length; });
+    if (from === to) return all;
+    const ratio = from / to;
+    const out = new Float32Array(Math.floor(total / ratio));
+    for (let i = 0; i < out.length; i++) {
+        // Average the span each output sample covers: a cheap low-pass.
+        const a = Math.floor(i * ratio), b = Math.min(total, Math.floor((i + 1) * ratio));
+        let sum = 0;
+        for (let j = a; j < b; j++) sum += all[j];
+        out[i] = sum / Math.max(1, b - a);
+    }
+    return out;
+}
+
+/** 64 bars of 0-100 from the loudness readings, for the player's waveform. */
+function bars(levels, n = 64) {
+    if (!levels.length) return [];
+    const peak = Math.max(...levels, 0.01);
+    return Array.from({ length: n }, (_, i) => {
+        const slice = levels.slice(Math.floor((i * levels.length) / n), Math.max(Math.floor(((i + 1) * levels.length) / n), Math.floor((i * levels.length) / n) + 1));
+        return Math.round((Math.max(...slice) / peak) * 100);
+    });
+}
+
 export function videoReview(urls, initial) {
+    // The recorder's plumbing stays outside Alpine's reactivity: it changes 10 times a second.
+    let mic = null;
+    let player = null;
     const draftKey = `review-draft-${initial.id}`;
     const seenKey = `review-seen-${initial.id}`;
     const readDraft = () => { try { return localStorage.getItem(draftKey) || ''; } catch { return ''; } };
@@ -52,6 +104,8 @@ export function videoReview(urls, initial) {
         hold: 0,               // hold-to-confirm progress 0..1
         holdTimer: null,
         done: null,            // 'approved' | 'changes' after a verdict, for the animation
+        rec: { target: null, state: 'idle', secs: 0, live: [], url: null, peaks: [] }, // a voice note being made
+        vp: { id: null, t: 0, playing: false },  // the voice note playing
 
         init() {
             const v = this.$refs.video;
@@ -65,7 +119,7 @@ export function videoReview(urls, initial) {
             }
             this.$watch('body', (b) => { try { b ? localStorage.setItem(draftKey, b) : localStorage.removeItem(draftKey); } catch { /* */ } });
             window.addEventListener('beforeunload', (e) => {
-                if (this.body.trim() || Object.values(this.replies).some((r) => (r || '').trim()) || this.editing) { e.preventDefault(); e.returnValue = ''; }
+                if (this.body.trim() || Object.values(this.replies).some((r) => (r || '').trim()) || this.editing || this.rec.state !== 'idle') { e.preventDefault(); e.returnValue = ''; }
             });
             this.deviceCopy();
             setInterval(() => { this.clockNow = Date.now(); }, 1000);
@@ -263,6 +317,123 @@ export function videoReview(urls, initial) {
                 if (this.filter === 'resolved') this.filter = 'open';
             } catch (e) { this.toast('Not sent', e.message, null, true); } finally { this.busy.send = false; }
         },
+        // ——— Voice notes ———
+        recording(target) { return this.rec.target === target && this.rec.state !== 'idle'; },
+        async startVoice(target) {
+            if (this.rec.state !== 'idle') return;
+            if (!navigator.mediaDevices?.getUserMedia || !(window.AudioContext || window.webkitAudioContext)) {
+                this.toast('Voice notes need a newer browser', 'Update Chrome or Safari, or type the comment.', null, true);
+                return;
+            }
+            if (target === 'main') this.startComment(false); else this.$refs.video?.pause();
+            this.stopVoicePlayback();
+            let stream;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+            } catch {
+                this.toast('Microphone blocked', 'Allow the microphone for this site (the lock icon by the address), then tap the mic again.', null, true);
+                return;
+            }
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            const ctx = new Ctx();
+            const src = ctx.createMediaStreamSource(stream);
+            const proc = ctx.createScriptProcessor(4096, 1, 1);
+            mic = { stream, ctx, src, proc, chunks: [], levels: [], samples: 0, blob: null };
+            proc.onaudioprocess = (e) => {
+                if (!mic || this.rec.state !== 'recording') return;
+                const d = e.inputBuffer.getChannelData(0);
+                mic.chunks.push(new Float32Array(d));
+                mic.samples += d.length;
+                let sum = 0;
+                for (let i = 0; i < d.length; i += 4) sum += d[i] * d[i];
+                const level = Math.sqrt(sum / (d.length / 4));
+                mic.levels.push(level);
+                this.rec.live = [...this.rec.live.slice(-27), Math.min(100, Math.round(level * 400))];
+                this.rec.secs = mic.samples / ctx.sampleRate;
+                if (this.rec.secs >= VOICE_MAX) this.stopVoice();
+            };
+            src.connect(proc);
+            proc.connect(ctx.destination);
+            this.rec = { target, state: 'recording', secs: 0, live: [], url: null, peaks: [] };
+        },
+        stopVoice() {
+            if (!mic || this.rec.state !== 'recording') return;
+            const { stream, ctx, src, proc } = mic;
+            try { src.disconnect(); proc.disconnect(); } catch { /* */ }
+            stream.getTracks().forEach((t) => t.stop());
+            const samples = downsample(mic.chunks, ctx.sampleRate, VOICE_RATE);
+            ctx.close?.();
+            if (samples.length < VOICE_RATE * 0.5) { this.cancelVoice(); this.toast('Too short', 'Hold on a little longer, then stop.'); return; }
+            mic.blob = wav(samples, VOICE_RATE);
+            this.rec.secs = samples.length / VOICE_RATE;
+            this.rec.peaks = bars(mic.levels);
+            this.rec.url = URL.createObjectURL(mic.blob);
+            this.rec.state = 'ready';
+        },
+        cancelVoice() {
+            if (mic) {
+                try { mic.src.disconnect(); mic.proc.disconnect(); } catch { /* */ }
+                mic.stream.getTracks().forEach((t) => t.stop());
+                mic.ctx.state !== 'closed' && mic.ctx.close?.();
+            }
+            if (this.rec.url) URL.revokeObjectURL(this.rec.url);
+            this.stopVoicePlayback();
+            mic = null;
+            this.rec = { target: null, state: 'idle', secs: 0, live: [], url: null, peaks: [] };
+        },
+        async sendVoice() {
+            if (this.rec.state === 'recording') this.stopVoice();
+            if (this.rec.state !== 'ready' || !mic?.blob) return;
+            const target = this.rec.target;
+            const form = new FormData();
+            form.append('voice', mic.blob, 'voice-note.wav');
+            form.append('voice_seconds', this.rec.secs.toFixed(1));
+            form.append('voice_peaks', JSON.stringify(this.rec.peaks));
+            if (target === 'main') {
+                const at = this.pin ? (this.at ?? Math.round(this.t * 100) / 100) : null;
+                if (at !== null) form.append('at_seconds', at);
+            } else {
+                form.append('parent_id', target);
+            }
+            this.rec.state = 'sending';
+            try {
+                const r = await fetch(urls.comment, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf() }, body: form });
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(data.message || 'Not sent. Try again.');
+                this.take(data, true);
+                if (target === 'main') { this.at = null; if (this.filter === 'resolved') this.filter = 'open'; } else { this.replyOpen[target] = false; }
+                this.cancelVoice();
+            } catch (e) {
+                this.rec.state = 'ready'; // kept, so it can be sent again
+                this.toast('Voice note not sent', e.message, null, true);
+            }
+        },
+        /** Play one note at a time; the video pauses while it talks. */
+        playVoice(c) {
+            const src = c ? c.voice : this.rec.url;
+            const id = c ? c.id : 'draft';
+            if (!src) return;
+            if (this.vp.id === id && player) {
+                if (player.paused) { player.play(); } else { player.pause(); }
+                return;
+            }
+            this.stopVoicePlayback();
+            this.$refs.video?.pause();
+            player = new Audio(src);
+            this.vp = { id, t: 0, playing: true };
+            player.addEventListener('timeupdate', () => { if (this.vp.id === id) this.vp.t = player.currentTime; });
+            player.addEventListener('play', () => { if (this.vp.id === id) this.vp.playing = true; });
+            player.addEventListener('pause', () => { if (this.vp.id === id) this.vp.playing = false; });
+            player.addEventListener('ended', () => { if (this.vp.id === id) this.vp = { id: null, t: 0, playing: false }; });
+            player.play().catch(() => this.toast('Could not play', 'Tap play again.', null, true));
+        },
+        stopVoicePlayback() {
+            if (player) { player.pause(); player = null; }
+            this.vp = { id: null, t: 0, playing: false };
+        },
+        voiceProgress(id, secs) { return this.vp.id === id && secs ? Math.min(1, this.vp.t / secs) : 0; },
+        voiceBars(peaks) { return peaks && peaks.length ? peaks.filter((_, i) => i % 2 === 0) : Array(32).fill(30); },
+
         openReply(c) {
             this.replyOpen[c.id] = true;
             this.$nextTick(() => document.getElementById(`reply-${c.id}`)?.focus());

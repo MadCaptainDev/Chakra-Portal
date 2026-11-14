@@ -8,9 +8,38 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /** A comment on a cut, pinned to a moment in it (or to the whole cut). */
 class ReviewComment extends Model
 {
-    protected $fillable = ['review_video_id', 'parent_id', 'user_id', 'at_seconds', 'body'];
+    protected $fillable = ['review_video_id', 'parent_id', 'user_id', 'at_seconds', 'body', 'voice_path', 'voice_seconds', 'voice_peaks', 'voice_state'];
 
-    protected $casts = ['at_seconds' => 'float', 'resolved_at' => 'datetime', 'fix_checked_at' => 'datetime'];
+    protected $casts = ['voice_seconds' => 'float', 'voice_peaks' => 'array', 'at_seconds' => 'float', 'resolved_at' => 'datetime', 'fix_checked_at' => 'datetime'];
+
+    /** A voice note's file goes with it. (Replies cascade in the database, so forget() clears theirs first.) */
+    protected static function booted(): void
+    {
+        static::deleting(fn (self $c) => $c->deleteVoice());
+    }
+
+    public function isVoice(): bool
+    {
+        return $this->voice_path !== null;
+    }
+
+    public function voicePath(): ?string
+    {
+        return $this->voice_path ? storage_path('app/private/'.$this->voice_path) : null;
+    }
+
+    public function deleteVoice(): void
+    {
+        if (($p = $this->voicePath()) && is_file($p)) {
+            @unlink($p);
+        }
+    }
+
+    /** The correction this became on the editor's card. */
+    public function correction(): BelongsTo
+    {
+        return $this->belongsTo(Todo::class, 'correction_todo_id');
+    }
 
     public function video(): BelongsTo
     {
