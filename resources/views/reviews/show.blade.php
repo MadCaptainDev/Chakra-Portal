@@ -27,6 +27,7 @@
              'changes' => route('reviews.changes', $video),
              'recheck' => route('reviews.recheck', $video),
              'edit' => route('reviews.comment.edit', ['comment' => '__ID__']),
+             'transcribe' => route('reviews.comment.transcribe', ['comment' => '__ID__']),
              'fix' => route('reviews.comment.fix', ['comment' => '__ID__']),
              'file' => $video->hasFile() ? route('reviews.file', $video) : null,
              'size' => $video->size,

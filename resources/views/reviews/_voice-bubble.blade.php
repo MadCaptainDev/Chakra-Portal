@@ -15,9 +15,12 @@
             <span class="shrink-0 font-mono text-[11px] text-emerald-100/70" x-text="clock(vp.id === {{ $v }}.id ? vp.t : {{ $v }}.voice_seconds)"></span>
         </div>
         <p x-show="{{ $v }}.voice_state === 'pending'" class="mt-1 flex items-center gap-1.5 text-[11px] text-brand-100/45">
-            <span class="h-3 w-3 animate-spin rounded-full border border-white/20 border-t-white/70"></span> Writing down what was said…
+            <span class="h-3 w-3 animate-spin rounded-full border border-white/20 border-t-white/70"></span> Writing down what was said… (Gemini is busy at times; it keeps trying)
         </p>
-        <p x-show="{{ $v }}.voice_state === 'failed'" class="mt-1 text-[11px] text-brand-100/45">Could not write this one down. Listen to it.</p>
+        <p x-show="{{ $v }}.voice_state === 'failed'" class="mt-1 flex items-center gap-2 text-[11px] text-brand-100/45">
+            Could not write this one down.
+            <button type="button" @click="retranscribe({{ $v }})" class="font-semibold text-amber-200 underline underline-offset-2 hover:text-amber-100">Try again</button>
+        </p>
         <p x-show="{{ $v }}.voice_english" class="mt-1 text-[11px] italic text-brand-100/50" x-text="'In English: ' + {{ $v }}.voice_english"></p>
     </div>
 </template>

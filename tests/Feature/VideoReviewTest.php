@@ -811,4 +811,62 @@ class VideoReviewTest extends TestCase
         $this->assertSame(0, \App\Services\ReviewPulse::remind());
         $this->assertNull(ReviewVideo::first()->reminded_at);
     }
+
+    public function test_a_voice_note_waits_out_a_busy_gemini_and_is_written_down_on_a_later_try(): void
+    {
+        AiSetting::current()->forceFill(['gemini_api_key' => 'test-key'])->save();
+        $busy = true;
+        Http::fake(['generativelanguage.googleapis.com/*' => function () use (&$busy) {
+            return $busy
+                ? Http::response(['error' => ['message' => 'This model is currently experiencing high demand.']], 503)
+                : Http::response(['candidates' => [['content' => ['parts' => [['text' => json_encode(['tanglish' => 'Intro konjam short pannunga', 'english' => 'Shorten the intro'])]]]]]]);
+        }]);
+        $this->uploadAs($this->editor)->assertCreated();
+        $video = ReviewVideo::firstOrFail();
+
+        $this->actingAs($this->admin)->post(route('reviews.comment', $video), ['voice' => $this->wav(), 'voice_seconds' => 1.5],
+            ['Accept' => 'application/json'])->assertCreated();
+        $note = ReviewComment::firstOrFail();
+        $this->assertSame('pending', $note->voice_state, 'Busy is not failed.');
+        $this->assertSame(1, $note->voice_attempts);
+
+        // Too soon to ask again.
+        \App\Services\ReviewPulse::retryVoice();
+        $this->assertSame(1, $note->fresh()->voice_attempts);
+
+        $busy = false;
+        $this->travel(4)->minutes();
+        \App\Services\ReviewPulse::retryVoice();
+        $this->assertSame('done', $note->fresh()->voice_state);
+        $this->assertSame('Intro konjam short pannunga', $note->fresh()->body);
+        File::deleteDirectory(storage_path('app/private/reviews/voice/'.$video->id));
+    }
+
+    public function test_a_voice_note_gives_up_after_its_tries_and_try_again_starts_over(): void
+    {
+        AiSetting::current()->forceFill(['gemini_api_key' => 'test-key'])->save();
+        $busy = true;
+        Http::fake(['generativelanguage.googleapis.com/*' => function () use (&$busy) {
+            return $busy
+                ? Http::response(['error' => ['message' => 'busy']], 503)
+                : Http::response(['candidates' => [['content' => ['parts' => [['text' => json_encode(['tanglish' => 'Okay', 'english' => 'Okay'])]]]]]]);
+        }]);
+        $this->uploadAs($this->editor)->assertCreated();
+        $video = ReviewVideo::firstOrFail();
+        $this->actingAs($this->admin)->post(route('reviews.comment', $video), ['voice' => $this->wav(), 'voice_seconds' => 1.5],
+            ['Accept' => 'application/json'])->assertCreated();
+        $note = ReviewComment::firstOrFail();
+
+        for ($i = 0; $i < 6; $i++) {
+            $this->travel(4)->minutes();
+            \App\Services\ReviewPulse::retryVoice();
+        }
+        $this->assertSame('failed', $note->fresh()->voice_state);
+        $this->assertSame(\App\Services\Ai\VoiceNoteTranscriber::MAX_ATTEMPTS, $note->fresh()->voice_attempts);
+
+        $busy = false;
+        $this->postJson(route('reviews.comment.transcribe', $note))->assertOk();
+        $this->assertSame('done', $note->fresh()->voice_state);
+        File::deleteDirectory(storage_path('app/private/reviews/voice/'.$video->id));
+    }
 }

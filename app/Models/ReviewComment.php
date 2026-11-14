@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /** A comment on a cut, pinned to a moment in it (or to the whole cut). */
 class ReviewComment extends Model
 {
-    protected $fillable = ['review_video_id', 'parent_id', 'user_id', 'at_seconds', 'body', 'voice_path', 'voice_seconds', 'voice_peaks', 'voice_state'];
+    protected $fillable = ['review_video_id', 'parent_id', 'user_id', 'at_seconds', 'body', 'voice_path', 'voice_seconds', 'voice_peaks', 'voice_state', 'voice_attempts'];
 
     protected $casts = ['voice_seconds' => 'float', 'voice_peaks' => 'array', 'at_seconds' => 'float', 'resolved_at' => 'datetime', 'fix_checked_at' => 'datetime'];
 

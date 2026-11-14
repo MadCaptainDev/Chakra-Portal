@@ -431,6 +431,9 @@ export function videoReview(urls, initial) {
             if (player) { player.pause(); player = null; }
             this.vp = { id: null, t: 0, playing: false };
         },
+        async retranscribe(c) {
+            try { this.take(await this.call('POST', urls.transcribe.replace('__ID__', c.id))); } catch (e) { this.toast('Not sent', e.message, null, true); }
+        },
         voiceProgress(id, secs) { return this.vp.id === id && secs ? Math.min(1, this.vp.t / secs) : 0; },
         voiceBars(peaks) { return peaks && peaks.length ? peaks.filter((_, i) => i % 2 === 0) : Array(32).fill(30); },
 

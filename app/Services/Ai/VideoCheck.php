@@ -178,7 +178,9 @@ class VideoCheck
                 } elseif ($video->ai_stage === 'watching') {
                     self::put($video, ['ai_lease_until' => now()->addSeconds(self::ASK_SECONDS + 30)]);
                     $file = $video->ai_file;
-                    $reply = GeminiBudget::during('review', fn () => self::ask($key, ['uri' => $file['uri'], 'mime' => $file['mimeType'] ?? ($video->mime ?: 'video/mp4')], self::prompt($video)), $video->uploadedBy);
+                    $reply = GeminiBudget::during('review', fn () => self::ask($key, ['uri' => $file['uri'], 'mime' => $file['mimeType'] ?? ($video->mime ?: 'video/mp4')], self::prompt($video),
+                        // Each model may take minutes: hold the check for this one, so nobody doubles it.
+                        fn () => self::put($video, ['ai_lease_until' => now()->addSeconds(self::ASK_SECONDS + 30)])), $video->uploadedBy);
                     self::stage($video, 'writing', 100);
                     self::finish($video, $reply);
                     self::forget($video, $key);
@@ -364,19 +366,31 @@ class VideoCheck
     }
 
     /** @return array<string, mixed> */
-    private static function ask(string $key, array $file, string $prompt): array
+    private static function ask(string $key, array $file, string $prompt, ?callable $beforeEach = null): array
     {
         $models = (array) config('ai.review.models');
 
         foreach ($models as $i => $model) {
-            $response = Http::withHeaders(['x-goog-api-key' => $key])->timeout(300)
-                ->post(self::API.'/v1beta/models/'.$model.':generateContent', [
+            if ($beforeEach) {
+                $beforeEach();
+            }
+            try {
+                $response = Http::withHeaders(['x-goog-api-key' => $key])->connectTimeout(15)->timeout(self::ASK_SECONDS - 20)
+                    ->post(self::API.'/v1beta/models/'.$model.':generateContent', [
                     'contents' => [['role' => 'user', 'parts' => [
                         ['file_data' => ['mime_type' => $file['mime'], 'file_uri' => $file['uri']]],
                         ['text' => $prompt],
                     ]]],
                     'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0.2],
                 ]);
+            } catch (\Illuminate\Http\Client\ConnectionException $e) {
+                // A model that hangs (overloaded) is as busy as one that says so: try the next.
+                if ($i === count($models) - 1) {
+                    throw new RuntimeException('Gemini timed out on every model (busy). It will try again.');
+                }
+
+                continue;
+            }
             if ($response->successful()) {
                 return $response->json();
             }

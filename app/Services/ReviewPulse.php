@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
+use App\Models\ReviewComment;
 use App\Models\ReviewSetting;
 use App\Models\ReviewVideo;
 use App\Models\User;
 use App\Notifications\VideoReviewUpdate;
 use App\Services\Ai\VideoCheck;
+use App\Services\Ai\VoiceNoteTranscriber;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Notification;
 use Throwable;
@@ -18,6 +20,7 @@ use Throwable;
  *
  *  - carries one waiting AI check on by a slice (before, a check moved only
  *    while somebody had that review open, and 1 in 4 timed out), and
+ *  - asks Gemini again for a voice note it was too busy to write down, and
  *  - reminds the reviewers, once, about a cut that has waited 3 hours
  *    (9 AM to 9 PM only).
  *
@@ -39,6 +42,7 @@ class ReviewPulse
 
         try {
             self::moveChecks();
+            self::retryVoice();
             self::remind();
         } catch (Throwable $e) {
             report($e);
@@ -54,6 +58,20 @@ class ReviewPulse
         if ($video) {
             ignore_user_abort(true);
             VideoCheck::run($video, self::CHECK_SLICE);
+        }
+    }
+
+    /** One voice note Gemini was too busy for, asked again (a few minutes apart). */
+    public static function retryVoice(): void
+    {
+        $note = ReviewComment::query()->where('voice_state', 'pending')
+            ->where('voice_attempts', '>', 0)->where('voice_attempts', '<', VoiceNoteTranscriber::MAX_ATTEMPTS)
+            ->where('updated_at', '<=', now()->subMinutes(VoiceNoteTranscriber::RETRY_MINUTES))
+            ->orderBy('id')->first();
+
+        if ($note) {
+            ignore_user_abort(true);
+            app(VoiceNoteTranscriber::class)->transcribe($note);
         }
     }
 

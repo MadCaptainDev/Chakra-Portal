@@ -136,6 +136,19 @@ class VideoReviewController extends Controller
         ]);
     }
 
+    /** Ask Gemini again to write a voice note down (after it gave up). */
+    public function transcribe(Request $request, ReviewComment $comment): JsonResponse
+    {
+        $video = $comment->video;
+        abort_unless($video?->visibleTo($request->user()) && $comment->isVoice(), 404);
+        abort_if($comment->voice_state === 'done', 422, 'This voice note is already written down.');
+
+        $comment->forceFill(['voice_state' => 'pending', 'voice_attempts' => 0])->save();
+        defer(fn () => app(\App\Services\Ai\VoiceNoteTranscriber::class)->transcribe($comment->fresh()));
+
+        return response()->json($this->state($video->fresh(), $request->user()));
+    }
+
     /** A voice note, to whoever can see the video. Range requests work (Safari needs them). */
     public function voice(Request $request, ReviewComment $comment): BinaryFileResponse
     {
