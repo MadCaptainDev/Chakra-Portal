@@ -643,26 +643,26 @@ class VideoReviewTest extends TestCase
         $this->fakeGemini($asked);
 
         // Someone is on it (lease held): the page and the job leave it alone.
-        $video->forceFill(['ai_status' => 'running', 'ai_stage' => 'watching', 'ai_attempts' => 1, 'ai_started_at' => now()->subMinutes(16),
+        $video->forceFill(['ai_status' => 'running', 'ai_stage' => 'watching', 'ai_attempts' => 1, 'ai_started_at' => now()->subHours(7),
             'ai_file' => ['name' => 'files/abc', 'uri' => 'u', 'state' => 'ACTIVE'], 'ai_lease_until' => now()->addMinute()])->saveQuietly();
         $this->actingAs($this->admin)->getJson(route('reviews.live', $video))->assertOk()->assertJsonPath('ai.status', 'running');
         $this->artisan('reviews:housekeeping')->assertSuccessful();
         $this->assertSame('running', $video->fresh()->ai_status);
         $this->assertSame(0, $asked);
 
-        // Its worker died and the 15 minutes are up: failed, said so, not retried by itself.
+        // Its worker died and the hours are up: failed, said so, not retried by itself.
         $video->forceFill(['ai_lease_until' => now()->subSecond()])->saveQuietly();
         $this->getJson(route('reviews.live', $video))->assertOk();
         $video->refresh();
         $this->assertSame('failed', $video->ai_status);
-        $this->assertStringContainsString('longer than 15 minutes', $video->ai_error);
+        $this->assertStringContainsString('within 6 hours', $video->ai_error);
         $this->assertSame(0, $asked);
         $this->artisan('reviews:housekeeping')->assertSuccessful();
         $this->assertSame('failed', $video->fresh()->ai_status);
         $this->getJson(route('reviews.live', $video))->assertJsonPath('ai.status', 'failed')->assertJsonPath('ai.stage', null);
 
         // The job alone fails one nobody has open either.
-        $video->forceFill(['ai_status' => 'running', 'ai_stage' => 'uploading', 'ai_started_at' => now()->subMinutes(20), 'ai_lease_until' => null])->saveQuietly();
+        $video->forceFill(['ai_status' => 'running', 'ai_stage' => 'uploading', 'ai_started_at' => now()->subHours(7), 'ai_lease_until' => null])->saveQuietly();
         $this->artisan('reviews:housekeeping')->assertSuccessful();
         $this->assertSame('failed', $video->fresh()->ai_status);
 
@@ -761,5 +761,54 @@ class VideoReviewTest extends TestCase
         $this->assertSame('failed', $note->voice_state);
         $this->assertSame('🎤 Voice note (0:01)', $note->body);
         File::deleteDirectory(storage_path('app/private/reviews/voice/'.$video->id));
+    }
+
+    // ——— Keeping it moving (ReviewPulse) ———
+
+    public function test_a_check_left_idle_carries_on_where_it_stopped_instead_of_failing(): void
+    {
+        $this->uploadAs($this->editor)->assertCreated();
+        $video = ReviewVideo::first();
+        $asked = 0;
+        $this->fakeGemini($asked);
+
+        // Uploaded to Gemini 40 minutes ago, then nobody had a page open.
+        $video->forceFill(['ai_status' => 'running', 'ai_stage' => 'watching', 'ai_attempts' => 1, 'ai_started_at' => now()->subMinutes(40),
+            'ai_file' => ['name' => 'files/abc', 'uri' => 'https://g/files/abc', 'state' => 'ACTIVE', 'mimeType' => 'video/mp4'], 'ai_lease_until' => null])->saveQuietly();
+
+        \App\Services\ReviewPulse::moveChecks();
+
+        $this->assertSame('done', $video->fresh()->ai_status, (string) $video->fresh()->ai_error);
+        $this->assertSame(1, $asked);
+    }
+
+    public function test_a_cut_waiting_three_hours_reminds_whoever_has_not_decided_once(): void
+    {
+        Notification::fake();
+        $this->travelTo(today()->setTime(11, 0));
+        $this->uploadAs($this->editor)->assertCreated();
+        $video = ReviewVideo::first();
+        $other = User::factory()->create(['role' => User::ROLE_ADMIN, 'name' => 'Vasan']);
+
+        $this->travel(2)->hours();
+        $this->assertSame(0, \App\Services\ReviewPulse::remind(), 'Not yet.');
+
+        $this->travel(2)->hours();
+        $this->assertSame(1, \App\Services\ReviewPulse::remind());
+        Notification::assertSentTo([$this->admin, $other], VideoReviewUpdate::class, fn ($n) => str_contains($n->title, 'Still waiting for review'));
+        Notification::assertNotSentTo($this->editor, VideoReviewUpdate::class, fn ($n) => str_contains($n->title, 'Still waiting'));
+
+        $this->assertSame(0, \App\Services\ReviewPulse::remind(), 'Once per version.');
+    }
+
+    public function test_no_reminders_at_night(): void
+    {
+        Notification::fake();
+        $this->travelTo(today()->setTime(17, 0));
+        $this->uploadAs($this->editor)->assertCreated();
+        $this->travelTo(today()->setTime(22, 30));
+
+        $this->assertSame(0, \App\Services\ReviewPulse::remind());
+        $this->assertNull(ReviewVideo::first()->reminded_at);
     }
 }

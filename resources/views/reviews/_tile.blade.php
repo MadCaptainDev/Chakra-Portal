@@ -34,6 +34,14 @@
                 <span class="rounded px-1.5 py-0.5 {{ $v->status === 'approved' ? 'bg-emerald-400/15 text-emerald-200' : 'bg-amber-400/15 text-amber-200' }}">{{ $v->statusLabel() }}</span>
             @endif
         </span>
-        <span class="mt-1 block text-[11px] text-brand-100/40">{{ $v->created_at->diffForHumans() }}</span>
+        @if ($v->status === \App\Models\ReviewVideo::PENDING)
+            {{-- How long it has waited on a verdict: amber past the reminder, red past a day. --}}
+            @php $h = $v->created_at->diffInHours(now()); @endphp
+            <span class="mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold {{ $h >= 24 ? 'bg-red-400/15 text-red-200' : ($h >= \App\Services\ReviewPulse::REMIND_AFTER_HOURS ? 'bg-amber-400/15 text-amber-200' : 'text-brand-100/50') }}">
+                ⏳ Waiting {{ $v->created_at->diffForHumans(null, true, true) }}
+            </span>
+        @else
+            <span class="mt-1 block text-[11px] text-brand-100/40">{{ $v->created_at->diffForHumans() }}</span>
+        @endif
     </span>
 </a>

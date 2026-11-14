@@ -26,8 +26,17 @@ class VideoCheck
 
     public const MAX_ATTEMPTS = 4;
 
-    /** A check has this long in all, from the first piece sent to the report. */
-    public const DEADLINE_MINUTES = 15;
+    /**
+     * A check has this long in all, from the first piece sent to the report.
+     *
+     * Hours, not minutes: a check moves only while the portal is in use (see
+     * ReviewPulse -- the every-minute job does not run on this host), so one
+     * started at 7 PM may sit until morning. Sitting is not failing: Gemini
+     * keeps the uploaded copy for 48 hours and the check picks up where it
+     * stopped. (At 15 minutes, 5 of the first 20 checks "took too long"
+     * after their upload had finished, only because nobody had a page open.)
+     */
+    public const DEADLINE_MINUTES = 360;
 
     /** How long one worker holds a check before another may carry it on. */
     private const LEASE_SECONDS = 90;
@@ -102,7 +111,7 @@ class VideoCheck
 
     private static function tooLong(): string
     {
-        return 'It took longer than '.self::DEADLINE_MINUTES.' minutes, so it was stopped. Press Check again to start over.';
+        return 'It could not finish within '.intdiv(self::DEADLINE_MINUTES, 60).' hours, so it was stopped. Press Check again to start over.';
     }
 
     /** The checks before starting, then the claim, so two callers never start the same cut. */

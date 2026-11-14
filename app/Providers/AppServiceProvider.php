@@ -46,6 +46,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Video review keeps moving on ordinary traffic (the every-minute job
+        // does not run here): after any web page has been sent. See ReviewPulse.
+        if (! $this->app->runningInConsole()) {
+            $this->app->terminating(fn () => \App\Services\ReviewPulse::tick());
+        }
+
         // The monthly Gemini spend limit, on every Gemini call made through
         // the HTTP client: refused before sending when the month is used up,
         // and priced from Google's token counts after. See GeminiBudget.
