@@ -16,6 +16,7 @@ import { ventureBoard } from './venture-board.js';
 import { videoReview, reviewUploader } from './video-review.js';
 import { hookIdeas } from './hook-ideas.js';
 import { shootScripts, shootLive } from './shoot-scripts.js';
+import { startSiteTracking, waChat } from './site.js';
 
 window.Alpine = Alpine;
 
@@ -43,6 +44,9 @@ Alpine.data('reviewUploader', reviewUploader);
 Alpine.data('hookIdeas', hookIdeas);
 Alpine.data('shootScripts', shootScripts);
 Alpine.data('shootLive', shootLive);
+Alpine.data('waChat', waChat);
+// The public website counts its own visitors (only where the public layout asks for it).
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startSiteTracking); else startSiteTracking();
 
 // The proposal editor: the document typed into directly -- see
 // resources/js/proposal-editor.js. x-edit is its contenteditable binding.

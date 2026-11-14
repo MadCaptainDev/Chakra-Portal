@@ -130,6 +130,11 @@
     og-type="article"
     :schema="$seo['schema']">
 
+    {{-- The WhatsApp box offers "I loved your … reel" for this piece. --}}
+    @push('styles')
+        <meta name="wa-context" content="{{ $item->title }}" data-client="{{ $item->clientLabel() }}">
+    @endpush
+
     {{-- ------------------------------------------------------------------ --}}
     {{-- Hero: the film, who it was for, and the headline numbers.           --}}
     {{-- ------------------------------------------------------------------ --}}
@@ -344,11 +349,31 @@
                 </div>
 
                 @if ($playbackKind === 'instagram')
-                    <template x-if="playing">
-                        <div class="max-h-[75vh] overflow-y-auto rounded-lg bg-white flex justify-center p-2">
-                            <blockquote class="instagram-media" data-instgrm-permalink="{{ $item->socialMediaItem?->permalink }}"
-                                        data-instgrm-version="14" style="width:100%; max-width:540px; margin:0;"></blockquote>
+                    {{-- Instagram's embed showed a still and sent people away: play the
+                         reel's own file when Instagram hands it out, else one clear button. --}}
+                    <template x-if="playing && loading">
+                        <div class="relative mx-auto aspect-[9/16] max-h-[75vh] overflow-hidden rounded-lg bg-black">
+                            @if ($item->thumbnailUrl())<img src="{{ $item->thumbnailUrl() }}" alt="" class="h-full w-full object-cover opacity-60">@endif
+                            <span class="absolute inset-0 flex items-center justify-center"><span class="h-10 w-10 animate-spin rounded-full border-4 border-white/25 border-t-white"></span></span>
                         </div>
+                    </template>
+                    <template x-if="playing && file">
+                        <div class="relative mx-auto w-fit" x-data="{ hush: false }">
+                            <video controls autoplay playsinline class="mx-auto max-h-[75vh] w-auto max-w-full rounded-lg bg-black" poster="{{ $item->thumbnailUrl() }}" :src="file"
+                                   x-on:error="file = null; outside = true"
+                                   x-init="$nextTick(() => $el.play().catch(() => { $el.muted = true; hush = true; $el.play().catch(() => {}); }))"></video>
+                            <button type="button" x-show="hush" x-cloak @click="$el.previousElementSibling.muted = false; hush = false"
+                                    class="absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-white/95 px-4 py-2 text-sm font-bold text-brand-900 shadow-lg">🔊 Tap for sound</button>
+                        </div>
+                    </template>
+                    <template x-if="playing && outside && ! loading">
+                        <a href="{{ $item->socialMediaItem?->permalink ?? $item->video_url }}" target="_blank" rel="noopener" class="group relative mx-auto block aspect-[9/16] max-h-[75vh] overflow-hidden rounded-lg bg-black">
+                            @if ($item->thumbnailUrl())<img src="{{ $item->thumbnailUrl() }}" alt="" class="h-full w-full object-cover transition group-hover:scale-105">@endif
+                            <span class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/45">
+                                <span class="flex h-16 w-16 items-center justify-center rounded-full bg-white text-brand-900 shadow-xl"><svg class="ml-1 h-7 w-7" viewBox="0 0 20 20" fill="currentColor"><path d="M6.3 2.84A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.27l9.34-5.89a1.5 1.5 0 000-2.54L6.3 2.84z"/></svg></span>
+                                <span class="rounded-full bg-white/95 px-4 py-2 text-sm font-bold text-brand-900">Watch on Instagram ↗</span>
+                            </span>
+                        </a>
                     </template>
                 @else
                     <template x-if="playing">
@@ -800,6 +825,9 @@
             function portfolioPlayer(src, kind) {
                 return {
                     playing: false,
+                    loading: false,
+                    file: null,
+                    outside: false,
 
                     open() {
                         if (! src) return;
@@ -818,8 +846,19 @@
                         document.body.classList.add('overflow-hidden');
 
                         if (kind === 'instagram') {
-                            this.$nextTick(() => this.loadInstagramEmbed());
+                            this.fetchFile();
                         }
+                    },
+
+                    async fetchFile() {
+                        this.loading = true; this.file = null; this.outside = false;
+                        try {
+                            const r = await fetch(@js(route('portfolio.play', $item)), { headers: { Accept: 'application/json' } });
+                            this.file = r.ok ? (await r.json()).url : null;
+                        } catch (e) { this.file = null; }
+                        this.outside = ! this.file;
+                        this.loading = false;
+                        window.dispatchEvent(new CustomEvent('pf-watched', { detail: { id: @js((string) $item->id), title: @js($item->title), how: this.file ? 'here' : 'instagram' } }));
                     },
 
                     close() {

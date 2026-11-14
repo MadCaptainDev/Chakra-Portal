@@ -21,7 +21,8 @@
     $navLinks = array_filter([
         'Services' => $anchor('#services'),
         'Work' => ($hasPortfolio ?? false) ? route('portfolio') : null,
-        'Team' => $anchor('#team'),
+        // Its own page once people are switched on in Website → Team page.
+        'Team' => \App\Models\TeamMember::visible()->exists() ? route('team') : $anchor('#team'),
         'Contact' => $anchor('#contact'),
     ]);
 @endphp
@@ -69,6 +70,15 @@
     @endforeach
 
     @include('partials.favicon')
+
+    @php
+        // The marketing pages count their visitors and offer WhatsApp. Client
+        // links on this same layout (proposals, reports, approvals) do neither.
+        $marketing = in_array(request()->route()?->getName(), ['home', 'portfolio', 'portfolio.detail', 'team', 'privacy', 'terms'], true);
+    @endphp
+    @if ($marketing)
+        <meta name="site-track" content="{{ url('/') }}" @auth data-staff="1" @endauth>
+    @endif
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
@@ -168,6 +178,10 @@
             </div>
         </div>
     </footer>
+
+    @if ($marketing && config('studio.whatsapp'))
+        @include('partials.whatsapp-chat')
+    @endif
 
     @stack('scripts')
 </body>

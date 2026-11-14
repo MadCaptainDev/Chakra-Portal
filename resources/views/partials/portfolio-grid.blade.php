@@ -292,7 +292,7 @@
 
     {{-- Top performer: one of the best reels pops up in the corner. --}}
     <template x-if="star">
-        <div class="pf-pop fixed bottom-4 left-4 right-4 z-40 sm:left-auto sm:right-6 sm:bottom-6 sm:w-[340px]" role="status">
+        <div class="pf-pop fixed bottom-4 left-4 right-4 z-40 sm:right-auto sm:left-6 sm:bottom-6 sm:w-[340px]" role="status">
             <div class="flex items-center gap-3 rounded-2xl border border-amber-300/30 bg-[#102633]/95 p-3 shadow-2xl backdrop-blur">
                 <button type="button" @click="playStar()" class="relative h-[86px] w-[60px] shrink-0 overflow-hidden rounded-lg bg-brand-900" aria-label="Play this reel">
                     <template x-if="star.thumb"><img :src="star.thumb" alt="" class="h-full w-full object-cover"></template>
@@ -466,7 +466,9 @@
                         } catch (e) {}
                         if (ticket !== this.opened || ! this.player) return; // closed, or another opened, meanwhile
                         this.player = url ? { src: url, title, cover, igUrl: src } : { ig: src, title, cover };
-                        try { window.dispatchEvent(new CustomEvent('pf-watched', { detail: { id, how: url ? 'here' : 'instagram' } })); } catch (e) {}
+                        try { window.dispatchEvent(new CustomEvent('pf-watched', { detail: { id, title, how: url ? 'here' : 'instagram' } })); } catch (e) {}
+                        // The WhatsApp button offers "I loved your … reel" for the last one watched.
+                        try { sessionStorage.setItem('chakra-last-reel', JSON.stringify({ title })); } catch (e) {}
                     },
 
                     close() {

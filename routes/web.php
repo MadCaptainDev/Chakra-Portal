@@ -129,6 +129,8 @@ Route::get('/', LandingController::class)->name('home');
 // Public portfolio screen. Kept off the /portfolio-items admin path so the two
 // can never shadow each other.
 Route::get('/portfolio', [PublicPortfolioController::class, 'index'])->name('portfolio');
+Route::get('/t/hit', [\App\Http\Controllers\SiteTrackController::class, 'hit'])->middleware('throttle:120,1')->name('site.hit');
+Route::get('/t/event', [\App\Http\Controllers\SiteTrackController::class, 'event'])->middleware('throttle:240,1')->name('site.event');
 Route::get('/portfolio/live', [PublicPortfolioController::class, 'live'])->middleware('throttle:60,1')->name('portfolio.live');
 Route::get('/portfolio/{portfolioItem}/play', [PublicPortfolioController::class, 'play'])->middleware('throttle:60,1')->name('portfolio.play');
 
@@ -142,6 +144,7 @@ Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
 // Privacy policy. Public and outside every auth group on purpose: Meta, Google
 // and the app stores fetch this URL as an anonymous stranger, and a policy
 // behind a login is a policy they fail the app for.
+Route::get('/team', \App\Http\Controllers\TeamPageController::class)->name('team');
 Route::view('/privacy', 'privacy')->name('privacy');
 
 // Terms of service. Public for the same reason, and asked for by Meta in the
@@ -1111,6 +1114,13 @@ Route::middleware(['auth', 'module:insights,view'])->group(function () {
  * hours side by side, which no single module's permission covers.
  */
 Route::middleware(['auth', 'admin'])->group(function () {
+    // Website: visitor numbers for the public site, and the Team page's people.
+    Route::get('website', [\App\Http\Controllers\WebsiteController::class, 'index'])->name('website.index');
+    Route::post('website/team', [\App\Http\Controllers\WebsiteController::class, 'storeMember'])->name('website.team.store');
+    Route::put('website/team/{member}', [\App\Http\Controllers\WebsiteController::class, 'updateMember'])->name('website.team.update');
+    Route::post('website/team/{member}/toggle', [\App\Http\Controllers\WebsiteController::class, 'toggleMember'])->name('website.team.toggle');
+    Route::post('website/team/{member}/move', [\App\Http\Controllers\WebsiteController::class, 'moveMember'])->name('website.team.move');
+    Route::delete('website/team/{member}', [\App\Http\Controllers\WebsiteController::class, 'destroyMember'])->name('website.team.destroy');
     // Money, on one screen: in, out, overdue, to come in, to pay. Admin only.
     Route::get('money', [\App\Http\Controllers\MoneyOverviewController::class, 'index'])->name('money.index');
     // Sync all Instagram, as a queue (InstagramSyncQueue).
