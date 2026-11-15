@@ -31,7 +31,7 @@ class ConceptGenerator
     public function __construct(
         private readonly string $apiKey,
         private readonly string $provider = "anthropic",
-        private readonly string $geminiModel = "gemini-2.5-flash",
+        private readonly string|array $geminiModel = "gemini-3.8-flash",
     ) {}
 
     /** Claude when its key is set; otherwise Gemini (this module's key, else the portal's). */
@@ -41,7 +41,7 @@ class ConceptGenerator
 
         return $settings->hasAnthropic()
             ? new self((string) $settings->anthropic_api_key)
-            : new self((string) $settings->geminiKey(), "gemini", $settings->geminiModel());
+            : new self((string) $settings->geminiKey(), "gemini", $settings->geminiModels());
     }
 
     /**
@@ -113,15 +113,22 @@ class ConceptGenerator
 
     private function viaGemini(string $prompt): string
     {
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$this->geminiModel}:generateContent?key={$this->apiKey}";
+        // A model Google has retired answers 404: move on to the next one.
+        foreach ((array) $this->geminiModel as $model) {
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$this->apiKey}";
 
-        try {
-            $response = \App\Services\Ai\GeminiBudget::during("competitor", fn () => Http::asJson()->timeout(90)->post($url, [
-                "contents" => [["role" => "user", "parts" => [["text" => $prompt]]]],
-                "generationConfig" => ["temperature" => 0.9, "maxOutputTokens" => 8192],
-            ]));
-        } catch (\App\Services\Ai\GeminiBudgetExceeded) {
-            throw new CompetitorAnalysisException("This month's Gemini limit is used up. Raise it on the AI settings page.", provider: "gemini");
+            try {
+                $response = \App\Services\Ai\GeminiBudget::during("competitor", fn () => Http::asJson()->timeout(90)->post($url, [
+                    "contents" => [["role" => "user", "parts" => [["text" => $prompt]]]],
+                    "generationConfig" => ["temperature" => 0.9, "maxOutputTokens" => 8192],
+                ]));
+            } catch (\App\Services\Ai\GeminiBudgetExceeded) {
+                throw new CompetitorAnalysisException("This month's Gemini limit is used up. Raise it on the AI settings page.", provider: "gemini");
+            }
+
+            if ($response->status() !== 404) {
+                break;
+            }
         }
 
         if ($response->failed()) {

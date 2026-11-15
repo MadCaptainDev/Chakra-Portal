@@ -378,4 +378,35 @@ class CompetitorAnalysisTest extends TestCase
         $this->assertSame('Concept 1: Myth vs fact', $analysis->concepts()->first()->concept_text);
         Http::assertNotSent(fn ($r) => str_contains($r->url(), 'anthropic'));
     }
+public function test_a_retired_gemini_model_falls_through_to_a_current_one(): void
+    {
+        CompetitorSetting::current()->update(['gemini_api_key' => 'gemini-key', 'gemini_model' => 'gemini-2.5-flash']);
+        $reel = CompetitorReel::create(['competitor_account_id' => $this->account()->id, 'platform_post_id' => 'p1',
+            'video_url' => 'https://cdn.example.com/vid1.mp4', 'play_count' => 500, 'scraped_at' => now()]);
+        Http::fake([
+            'generativelanguage.googleapis.com/upload/*' => Http::response(['file' => ['name' => 'files/abc', 'uri' => 'https://generativelanguage.googleapis.com/v1beta/files/abc', 'mimeType' => 'video/mp4']]),
+            'generativelanguage.googleapis.com/v1beta/files/*' => Http::response(['state' => 'ACTIVE']),
+            'generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash*' => Http::response(['error' => ['code' => 404, 'message' => 'no longer available']], 404),
+            'generativelanguage.googleapis.com/v1beta/models/*' => Http::response(['candidates' => [['content' => ['parts' => [['text' => '# Breakdown ok']]]]]]),
+            'cdn.example.com/*' => Http::response('bytes', 200, ['Content-Type' => 'video/mp4']),
+        ]);
+
+        $analysis = \App\Services\Competitors\ReelAnalysis::run($reel);
+
+        $this->assertSame('# Breakdown ok', $analysis->breakdown);
+        $this->assertSame(\App\Services\Ai\ReelTranscriber::GEMINI_MODELS[0], $analysis->gemini_model);
+    }
+
+    public function test_reels_with_a_stale_video_link_are_not_offered_for_analysis(): void
+    {
+        CompetitorSetting::current()->update(['gemini_api_key' => 'gemini-key']);
+        $account = $this->account();
+        CompetitorReel::create(['competitor_account_id' => $account->id, 'platform_post_id' => 'old',
+            'video_url' => 'https://cdn.example.com/old.mp4', 'play_count' => 9000, 'scraped_at' => now()->subDays(30)]);
+        Http::fake();
+
+        $this->actingAs($this->admin())->post(route('competitors.analyze', $account))
+            ->assertSessionHas('status', fn ($s) => str_contains($s, 'Scrape now'));
+        Http::assertNothingSent();
+    }
 }

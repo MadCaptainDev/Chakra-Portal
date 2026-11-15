@@ -47,6 +47,7 @@ class AnalyzeCompetitorReels extends Command
 
         $reels = CompetitorReel::query()
             ->notAnalyzed()
+            ->withFreshVideo()
             ->with('account')
             ->when($this->option('account'), fn ($q, $id) => $q->where('competitor_account_id', $id))
             ->highestViewsFirst()
@@ -54,7 +55,7 @@ class AnalyzeCompetitorReels extends Command
             ->get();
 
         if ($reels->isEmpty()) {
-            $this->info('Nothing to analyze — every tracked reel already has a breakdown.');
+            $this->info('Nothing to analyze — every reel with a fresh video link has a breakdown. Scrape again for older reels.');
 
             return self::SUCCESS;
         }

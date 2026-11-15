@@ -133,7 +133,7 @@
                                     <span class="ml-auto inline-flex min-h-[44px] items-center gap-1.5 text-[11px] text-amber-200">
                                         <span class="h-3 w-3 animate-spin rounded-full border-2 border-amber-200/30 border-t-amber-200"></span> Analysing…
                                     </span>
-                                @elseif ($settings->hasGemini() && $reel->video_url)
+                                @elseif ($settings->hasGemini() && $reel->hasFreshVideo())
                                     <form method="POST" action="{{ route('competitor-reels.analyze', $reel) }}" class="ml-auto">
                                         @csrf
                                         <button type="submit" class="min-h-[44px] text-xs font-semibold text-brand-300 hover:text-brand-200">Analyse with Gemini</button>

@@ -100,7 +100,7 @@ class ReelAnalysis
 
             return CompetitorReelAnalysis::updateOrCreate(
                 ['competitor_reel_id' => $reel->id],
-                ['breakdown' => $breakdown, 'gemini_model' => CompetitorSetting::current()->geminiModel(), 'analyzed_at' => now()],
+                ['breakdown' => $breakdown, 'gemini_model' => $analyzer->model, 'analyzed_at' => now()],
             );
         } catch (\App\Services\Ai\GeminiBudgetExceeded $e) {
             self::remember($reel, 'This month\'s Gemini limit is used up. Raise it on the AI settings page, or wait for next month.');

@@ -27,16 +27,22 @@ class GeminiVideoAnalyzer
 
     private const POLL_INTERVAL_SECONDS = 3;
 
+    /** The model that answered last; the first of $models until one is retired. */
+    public string $model;
+
+    /** @param  string|array<int, string>  $models  tried in order; a retired one (404) moves on to the next */
     public function __construct(
         private readonly string $apiKey,
-        private readonly string $model,
-    ) {}
+        private readonly string|array $models,
+    ) {
+        $this->model = ((array) $models)[0];
+    }
 
     public static function make(): self
     {
         $settings = \App\Models\CompetitorSetting::current();
 
-        return new self((string) $settings->geminiKey(), $settings->geminiModel());
+        return new self((string) $settings->geminiKey(), $settings->geminiModels());
     }
 
     /**
@@ -122,6 +128,8 @@ class GeminiVideoAnalyzer
      */
     public function analyzeVideo(string $fileUri, string $mimeType, string $prompt, int $maxRetries = 3): string
     {
+        $models = array_values((array) $this->models);
+        $this->model = $models[0];
         $url = self::generateUrl($this->model).'?key='.$this->apiKey;
 
         for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
@@ -140,6 +148,15 @@ class GeminiVideoAnalyzer
                 $hashPosition = strpos($text, '#');
 
                 return $hashPosition !== false ? substr($text, $hashPosition) : $text;
+            }
+
+            // Google retired this model: try the next one straight away, without spending a retry.
+            if ($response->status() === 404 && ($next = $models[array_search($this->model, $models, true) + 1] ?? null)) {
+                $this->model = $next;
+                $url = self::generateUrl($this->model).'?key='.$this->apiKey;
+                $attempt--;
+
+                continue;
             }
 
             if ($attempt < $maxRetries - 1) {

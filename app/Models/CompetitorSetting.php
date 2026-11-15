@@ -71,7 +71,22 @@ class CompetitorSetting extends Model
 
     public function geminiModel(): string
     {
-        return $this->gemini_model ?: 'gemini-2.5-flash';
+        return $this->geminiModels()[0];
+    }
+
+    /**
+     * The model set here first, then the portal's current ones
+     * (ReelTranscriber::GEMINI_MODELS), so a model Google retires falls
+     * through to one that still answers.
+     *
+     * @return array<int, string>
+     */
+    public function geminiModels(): array
+    {
+        return array_values(array_unique(array_filter([
+            $this->gemini_model,
+            ...\App\Services\Ai\ReelTranscriber::GEMINI_MODELS,
+        ])));
     }
 
     /** Ideas need a writer: Claude when its key is set, otherwise Gemini. */

@@ -48,6 +48,23 @@ class CompetitorReel extends Model
         return $query->whereDoesntHave('analysis');
     }
 
+    /**
+     * Instagram's video links are signed and die within days, so only a reel
+     * seen by a recent scrape can be downloaded for Gemini. Old reels that
+     * fall out of the scrape window keep a dead link.
+     */
+    public const FRESH_DAYS = 2;
+
+    public function scopeWithFreshVideo(Builder $query): Builder
+    {
+        return $query->whereNotNull('video_url')->where('scraped_at', '>=', now()->subDays(self::FRESH_DAYS));
+    }
+
+    public function hasFreshVideo(): bool
+    {
+        return $this->video_url !== null && $this->scraped_at?->gte(now()->subDays(self::FRESH_DAYS));
+    }
+
     public function scopeHighestViewsFirst(Builder $query): Builder
     {
         return $query->orderByDesc('play_count');

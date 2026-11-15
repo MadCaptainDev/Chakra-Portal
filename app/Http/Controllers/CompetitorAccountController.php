@@ -136,10 +136,10 @@ class CompetitorAccountController extends Controller
             return back()->with('status', 'Add a Gemini key on the AI settings page first.');
         }
 
-        $reels = $competitor->reels()->notAnalyzed()->whereNotNull('video_url')->highestViewsFirst()->limit(5)->get()
+        $reels = $competitor->reels()->notAnalyzed()->withFreshVideo()->highestViewsFirst()->limit(5)->get()
             ->filter(fn (CompetitorReel $r) => ReelAnalysis::claim($r))->values();
         if ($reels->isEmpty()) {
-            return back()->with('status', 'Nothing left to analyse.');
+            return back()->with('status', 'Nothing to analyse with a fresh video link. Press Scrape now first.');
         }
 
         defer(fn () => $this->analyzeNow($reels->all()));
