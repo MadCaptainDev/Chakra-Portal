@@ -304,4 +304,78 @@ class CompetitorAnalysisTest extends TestCase
         $this->assertNull(CompetitorReelAnalysis::where('competitor_reel_id', $bad->id)->first());
         $this->assertNotNull(CompetitorReelAnalysis::where('competitor_reel_id', $good->id)->first());
     }
+
+    // -- From the page: Analyse buttons, the portal's Gemini key, Gemini concepts --
+
+    private function admin(): \App\Models\User
+    {
+        return \App\Models\User::factory()->create(['role' => \App\Models\User::ROLE_ADMIN]);
+    }
+
+    public function test_the_page_analyses_a_reel_with_the_portals_gemini_key(): void
+    {
+        \App\Models\AiSetting::current()->forceFill(['gemini_api_key' => 'portal-key'])->save();
+        $this->assertTrue(CompetitorSetting::current()->hasGemini());
+        $reel = CompetitorReel::create([
+            'competitor_account_id' => $this->account()->id, 'platform_post_id' => 'p1',
+            'video_url' => 'https://cdn.example.com/vid1.mp4', 'play_count' => 500, 'scraped_at' => now(),
+        ]);
+        $this->geminiFakes();
+
+        // Deferred work runs inside the request in tests.
+        $this->actingAs($this->admin())->post(route('competitor-reels.analyze', $reel))->assertRedirect();
+
+        $this->assertStringStartsWith('# Breakdown', $reel->fresh()->analysis->breakdown);
+        $this->assertFalse(\App\Services\Competitors\ReelAnalysis::analysing($reel));
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'key=portal-key'));
+    }
+
+    public function test_analyse_top_takes_the_best_five_unanalysed(): void
+    {
+        CompetitorSetting::current()->update(['gemini_api_key' => 'gemini-key']);
+        $account = $this->account();
+        foreach (range(1, 7) as $i) {
+            CompetitorReel::create(['competitor_account_id' => $account->id, 'platform_post_id' => "p$i",
+                'video_url' => "https://cdn.example.com/v$i.mp4", 'play_count' => $i * 100, 'scraped_at' => now()]);
+        }
+        $this->geminiFakes();
+
+        $this->actingAs($this->admin())->post(route('competitors.analyze', $account))->assertRedirect();
+
+        $this->assertSame(5, CompetitorReelAnalysis::count());
+        $this->assertSame(0, CompetitorReel::query()->where('play_count', '>=', 300)->notAnalyzed()->count());
+    }
+
+    public function test_an_expired_video_link_is_shown_on_the_card(): void
+    {
+        CompetitorSetting::current()->update(['gemini_api_key' => 'gemini-key']);
+        $reel = CompetitorReel::create(['competitor_account_id' => $this->account()->id, 'platform_post_id' => 'p1',
+            'video_url' => 'https://cdn.example.com/old.mp4', 'play_count' => 500, 'scraped_at' => now()]);
+        Http::fake(['cdn.example.com/*' => Http::response('', 403)]);
+
+        $this->actingAs($this->admin())->post(route('competitor-reels.analyze', $reel))->assertRedirect();
+
+        $this->assertNull($reel->fresh()->analysis);
+        $this->assertStringContainsString('Scrape now', (string) \App\Services\Competitors\ReelAnalysis::lastError($reel));
+        $this->withoutVite();
+        $this->actingAs($this->admin())->get(route('competitors.show', $reel->competitor_account_id))
+            ->assertOk()->assertSee('Last try failed');
+    }
+
+    public function test_concepts_are_written_by_gemini_without_a_claude_key(): void
+    {
+        CompetitorSetting::current()->update(['gemini_api_key' => 'gemini-key']);
+        $reel = CompetitorReel::create(['competitor_account_id' => $this->account()->id, 'platform_post_id' => 'p1', 'play_count' => 5, 'scraped_at' => now()]);
+        $analysis = CompetitorReelAnalysis::create(['competitor_reel_id' => $reel->id, 'breakdown' => '# Breakdown x', 'gemini_model' => 'gemini-2.5-flash', 'analyzed_at' => now()]);
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+            'candidates' => [['content' => ['parts' => [['text' => 'Concept 1: Myth vs fact']]]]],
+        ])]);
+
+        $this->actingAs($this->admin())->post(route('competitor-reel-analyses.generate-concepts', $analysis), [
+            'brand_prompt' => 'For a pet clinic in Chennai',
+        ])->assertSessionHas('status', 'Concepts generated.');
+
+        $this->assertSame('Concept 1: Myth vs fact', $analysis->concepts()->first()->concept_text);
+        Http::assertNotSent(fn ($r) => str_contains($r->url(), 'anthropic'));
+    }
 }

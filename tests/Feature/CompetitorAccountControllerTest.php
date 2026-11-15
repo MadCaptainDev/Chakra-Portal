@@ -166,7 +166,7 @@ class CompetitorAccountControllerTest extends TestCase
         $this->assertSame(0, CompetitorReel::count());
     }
 
-    public function test_generating_concepts_without_an_anthropic_key_is_refused(): void
+    public function test_generating_concepts_without_any_ai_key_is_refused(): void
     {
         $analysis = $this->analyzedReel();
 
@@ -175,7 +175,7 @@ class CompetitorAccountControllerTest extends TestCase
             ['brand_prompt' => 'Adapt for a jewellery brand.'],
         );
 
-        $response->assertSessionHas('status', fn ($status) => str_contains($status, 'Anthropic API key'));
+        $response->assertSessionHas('status', fn ($status) => str_contains($status, 'Gemini key'));
         $this->assertSame(0, GeneratedConcept::count());
     }
 

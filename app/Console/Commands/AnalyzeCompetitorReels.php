@@ -2,14 +2,11 @@
 
 namespace App\Console\Commands;
 
-use App\Models\CompetitorAccount;
 use App\Models\CompetitorReel;
-use App\Models\CompetitorReelAnalysis;
 use App\Models\CompetitorSetting;
 use App\Services\Competitors\CompetitorAnalysisException;
-use App\Services\Competitors\GeminiVideoAnalyzer;
+use App\Services\Competitors\ReelAnalysis;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Http;
 use Throwable;
 
 /**
@@ -38,29 +35,12 @@ class AnalyzeCompetitorReels extends Command
 
     protected $description = 'Have Gemini break down the top-performing un-analyzed competitor reels';
 
-    /**
-     * The reference tool leaves this prompt to whoever is running it; kept
-     * here as a sensible default rather than hardcoded upstream, since a
-     * studio adapting this for their own market will want their own eye.
-     * The "#"-headed shape matters -- GeminiVideoAnalyzer::analyzeVideo()
-     * strips everything before the first "#" in the response, the same
-     * behaviour the reference tool's own analyzeVideo() has.
-     */
-    private const DEFAULT_ANALYSIS_PROMPT = <<<'PROMPT'
-        Watch this Instagram Reel and break it down shot by shot. For each shot,
-        note the timestamp, what is shown, the camera framing/movement, any
-        on-screen text, and what makes it work. Then summarise, under a "#
-        Breakdown" heading, the hook (first 1-2 seconds), the pacing, the
-        emotional arc, and the single biggest reason this video likely performed
-        well. Be specific and concrete, not generic.
-        PROMPT;
-
     public function handle(): int
     {
         $settings = CompetitorSetting::current();
 
         if (! $settings->hasGemini()) {
-            $this->error('No Gemini API key set — configure it under Setup → Competitor Analysis first.');
+            $this->error('No Gemini API key set — add one on the AI settings page first.');
 
             return self::FAILURE;
         }
@@ -79,7 +59,6 @@ class AnalyzeCompetitorReels extends Command
             return self::SUCCESS;
         }
 
-        $analyzer = GeminiVideoAnalyzer::make();
         $failures = 0;
 
         foreach ($reels as $reel) {
@@ -92,24 +71,16 @@ class AnalyzeCompetitorReels extends Command
                 continue;
             }
 
+            if (! ReelAnalysis::claim($reel)) {
+                $this->comment('  Skipped — the page is analysing it right now.');
+
+                continue;
+            }
+
             try {
-                $video = Http::timeout(60)->get($reel->video_url);
+                $analysis = ReelAnalysis::run($reel);
 
-                if ($video->failed()) {
-                    throw new CompetitorAnalysisException(
-                        "Could not download the video file (HTTP {$video->status()}).", provider: 'download',
-                    );
-                }
-
-                $uploaded = $analyzer->uploadVideo($video->body(), $video->header('Content-Type') ?: 'video/mp4');
-                $breakdown = $analyzer->analyzeVideo($uploaded['uri'], $uploaded['mimeType'], self::DEFAULT_ANALYSIS_PROMPT);
-
-                CompetitorReelAnalysis::updateOrCreate(
-                    ['competitor_reel_id' => $reel->id],
-                    ['breakdown' => $breakdown, 'gemini_model' => $settings->gemini_model, 'analyzed_at' => now()],
-                );
-
-                $this->info('  OK — breakdown stored ('.strlen($breakdown).' chars).');
+                $this->info('  OK — breakdown stored ('.strlen($analysis->breakdown).' chars).');
             } catch (CompetitorAnalysisException $e) {
                 $failures++;
                 $this->error('  FAILED — '.$e->getMessage());
@@ -120,6 +91,8 @@ class AnalyzeCompetitorReels extends Command
                 $failures++;
                 report($e);
                 $this->error('  FAILED — unexpected error, logged.');
+            } finally {
+                ReelAnalysis::release($reel);
             }
         }
 

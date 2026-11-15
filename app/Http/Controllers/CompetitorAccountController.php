@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Models\CompetitorAccount;
+use App\Models\CompetitorReel;
+use App\Services\Competitors\ReelAnalysis;
+use Illuminate\Support\Str;
 use App\Models\CompetitorReelAnalysis;
 use App\Models\CompetitorSetting;
 use App\Models\GeneratedConcept;
@@ -109,15 +112,67 @@ class CompetitorAccountController extends Controller
     }
 
     /**
-     * One Claude completion call -- fast enough to trigger synchronously,
-     * unlike the Gemini analysis step this depends on.
+     * Gemini watches one reel. It takes a minute or two, so it runs after the
+     * response (defer) and the page shows "Analysing…" until it lands.
      */
+    public function analyze(CompetitorReel $reel): RedirectResponse
+    {
+        if (! CompetitorSetting::current()->hasGemini()) {
+            return back()->with('status', 'Add a Gemini key on the AI settings page first.');
+        }
+        if (! ReelAnalysis::claim($reel)) {
+            return back()->with('status', 'Already analysing that reel — it takes a minute or two.');
+        }
+
+        defer(fn () => $this->analyzeNow([$reel]));
+
+        return back()->with('status', 'Gemini is watching the reel. Its breakdown appears here in a minute or two.');
+    }
+
+    /** The account's top un-analysed reels, best first, up to five per click. */
+    public function analyzeTop(CompetitorAccount $competitor): RedirectResponse
+    {
+        if (! CompetitorSetting::current()->hasGemini()) {
+            return back()->with('status', 'Add a Gemini key on the AI settings page first.');
+        }
+
+        $reels = $competitor->reels()->notAnalyzed()->whereNotNull('video_url')->highestViewsFirst()->limit(5)->get()
+            ->filter(fn (CompetitorReel $r) => ReelAnalysis::claim($r))->values();
+        if ($reels->isEmpty()) {
+            return back()->with('status', 'Nothing left to analyse.');
+        }
+
+        defer(fn () => $this->analyzeNow($reels->all()));
+
+        return back()->with('status', 'Gemini is watching the top '.$reels->count().' '.Str::plural('reel', $reels->count()).'. Breakdowns appear one by one over the next few minutes.');
+    }
+
+    /** @param  array<int, CompetitorReel>  $reels  each already claimed */
+    private function analyzeNow(array $reels): void
+    {
+        @set_time_limit(0);
+        @ignore_user_abort(true);
+
+        foreach ($reels as $reel) {
+            try {
+                ReelAnalysis::run($reel);
+            } catch (CompetitorAnalysisException) {
+                // Kept on the card by ReelAnalysis::lastError().
+            } catch (Throwable $e) {
+                report($e);
+            } finally {
+                ReelAnalysis::release($reel);
+            }
+        }
+    }
+
+    /** One completion call (Claude if its key is set, else Gemini) -- quick enough to wait for. */
     public function generateConcepts(Request $request, CompetitorReelAnalysis $analysis): RedirectResponse
     {
         $settings = CompetitorSetting::current();
 
-        if (! $settings->hasAnthropic()) {
-            return back()->with('status', 'Add an Anthropic API key under Setup → Competitor Analysis first.');
+        if (! $settings->canWriteConcepts()) {
+            return back()->with('status', 'Add a Gemini key on the AI settings page first.');
         }
 
         $validated = $request->validate([

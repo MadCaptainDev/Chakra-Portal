@@ -1056,6 +1056,10 @@ Route::middleware(['auth', 'module:competitors,view'])->group(function () {
         ->middleware('module:competitors,create')->name('competitors.scrape');
     Route::delete('competitors/{competitor}', [CompetitorAccountController::class, 'destroy'])
         ->middleware('module:competitors,delete')->name('competitors.destroy');
+    Route::post('competitor-reels/{reel}/analyze', [CompetitorAccountController::class, 'analyze'])
+        ->middleware('module:competitors,create')->name('competitor-reels.analyze');
+    Route::post('competitors/{competitor}/analyze', [CompetitorAccountController::class, 'analyzeTop'])
+        ->middleware('module:competitors,create')->name('competitors.analyze');
     Route::post('competitor-reel-analyses/{analysis}/concepts', [CompetitorAccountController::class, 'generateConcepts'])
         ->middleware('module:competitors,create')->name('competitor-reel-analyses.generate-concepts');
 });

@@ -60,7 +60,24 @@ class CompetitorSetting extends Model
 
     public function hasGemini(): bool
     {
-        return filled($this->gemini_api_key);
+        return filled($this->geminiKey());
+    }
+
+    /** This module's own Gemini key, else the portal's (AI settings). */
+    public function geminiKey(): ?string
+    {
+        return $this->gemini_api_key ?: (AiSetting::current()->gemini_api_key ?: null);
+    }
+
+    public function geminiModel(): string
+    {
+        return $this->gemini_model ?: 'gemini-2.5-flash';
+    }
+
+    /** Ideas need a writer: Claude when its key is set, otherwise Gemini. */
+    public function canWriteConcepts(): bool
+    {
+        return $this->hasAnthropic() || $this->hasGemini();
     }
 
     public function hasAnthropic(): bool

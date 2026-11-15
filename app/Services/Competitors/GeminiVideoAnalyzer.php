@@ -36,7 +36,7 @@ class GeminiVideoAnalyzer
     {
         $settings = \App\Models\CompetitorSetting::current();
 
-        return new self((string) $settings->gemini_api_key, $settings->gemini_model);
+        return new self((string) $settings->geminiKey(), $settings->geminiModel());
     }
 
     /**

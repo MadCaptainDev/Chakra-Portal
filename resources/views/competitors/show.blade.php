@@ -1,5 +1,6 @@
 @php
     $unanalyzedCount = $reels->filter(fn ($reel) => ! $reel->isAnalyzed())->count();
+    $analysingCount = $reels->filter(fn ($reel) => ! $reel->analysis && \App\Services\Competitors\ReelAnalysis::analysing($reel))->count();
 @endphp
 
 <x-app-layout :title="$competitor->handle()">
@@ -23,20 +24,32 @@
         @unless ($settings->hasGemini())
             <div class="rounded-xl bg-amber-400/10 ring-1 ring-amber-400/30 p-4">
                 <p class="text-sm text-amber-200">
-                    No Gemini key set, so reels can't be analyzed yet. Add one under
+                    No Gemini key set, so reels can't be analyzed yet. Add one on the AI settings page or under
                     <a href="{{ route('competitor-settings.edit') }}" class="font-semibold underline">Setup → Competitor Analysis</a>.
                 </p>
             </div>
         @else
             @if ($unanalyzedCount > 0)
-                <div class="rounded-xl bg-white/5 ring-1 ring-brand-200 p-4">
+                <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white/5 ring-1 ring-brand-200 p-4">
                     <p class="text-sm text-brand-200">
-                        {{ $unanalyzedCount }} {{ Str::plural('reel', $unanalyzedCount) }} not analyzed yet. Run this over SSH:
+                        {{ $unanalyzedCount }} {{ Str::plural('reel', $unanalyzedCount) }} not analysed yet. Gemini watches each one and explains why it got views.
                     </p>
-                    <code class="block mt-1.5 text-xs bg-brand-900/60 ring-1 ring-white/10 rounded px-2 py-1 text-brand-100/80">php artisan competitors:analyze --account={{ $competitor->id }}</code>
+                    @can('competitors.create')
+                        <form method="POST" action="{{ route('competitors.analyze', $competitor) }}">
+                            @csrf
+                            <x-btn type="submit" size="sm">Analyse top {{ min(5, $unanalyzedCount) }}</x-btn>
+                        </form>
+                    @endcan
                 </div>
             @endif
         @endunless
+
+        {{-- While Gemini works, look again every 20 seconds. --}}
+        @if ($analysingCount > 0)
+            <div x-data x-init="setTimeout(() => location.reload(), 20000)" class="rounded-xl bg-amber-400/10 ring-1 ring-amber-400/30 p-3 text-sm text-amber-200">
+                Gemini is analysing {{ $analysingCount }} {{ Str::plural('reel', $analysingCount) }}… this page refreshes itself.
+            </div>
+        @endif
 
         @if ($reels->isEmpty())
             <x-empty-state message="Nothing scraped yet.">
@@ -116,10 +129,22 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                                         </svg>
                                     </button>
+                                @elseif (\App\Services\Competitors\ReelAnalysis::analysing($reel))
+                                    <span class="ml-auto inline-flex min-h-[44px] items-center gap-1.5 text-[11px] text-amber-200">
+                                        <span class="h-3 w-3 animate-spin rounded-full border-2 border-amber-200/30 border-t-amber-200"></span> Analysing…
+                                    </span>
+                                @elseif ($settings->hasGemini() && $reel->video_url)
+                                    <form method="POST" action="{{ route('competitor-reels.analyze', $reel) }}" class="ml-auto">
+                                        @csrf
+                                        <button type="submit" class="min-h-[44px] text-xs font-semibold text-brand-300 hover:text-brand-200">Analyse with Gemini</button>
+                                    </form>
                                 @else
                                     <span class="ml-auto text-[11px] text-brand-100/50">Not analyzed yet</span>
                                 @endif
                             </div>
+                            @if (! $reel->analysis && ($error = \App\Services\Competitors\ReelAnalysis::lastError($reel)))
+                                <p class="text-[11px] text-rose-300">Last try failed: {{ $error }}</p>
+                            @endif
 
                             @if ($reel->analysis)
                                 <div x-show="caseStudy" x-cloak class="pt-3 border-t border-white/10 space-y-3">
