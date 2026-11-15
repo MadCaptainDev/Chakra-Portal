@@ -347,6 +347,8 @@ class EditorOutputTest extends TestCase
         $user = User::factory()->create(['name' => 'Sanjai']);
         $this->entry($user);
         $this->item('Sanjai');
+        // The screen shows the last few months; the sample work is from May 2026.
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-05-20 12:00'));
 
         $this->actingAs($admin)->get(route('editors.index'))
             ->assertOk()
