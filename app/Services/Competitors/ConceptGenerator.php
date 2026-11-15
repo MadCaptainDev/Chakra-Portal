@@ -115,10 +115,10 @@ class ConceptGenerator
     {
         // A model Google has retired answers 404: move on to the next one.
         foreach ((array) $this->geminiModel as $model) {
-            $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$this->apiKey}";
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent";
 
             try {
-                $response = \App\Services\Ai\GeminiBudget::during("competitor", fn () => Http::asJson()->timeout(90)->post($url, [
+                $response = \App\Services\Ai\GeminiBudget::during("competitor", fn () => Http::withHeaders(["x-goog-api-key" => $this->apiKey])->asJson()->connectTimeout(15)->timeout(180)->post($url, [
                     "contents" => [["role" => "user", "parts" => [["text" => $prompt]]]],
                     "generationConfig" => ["temperature" => 0.9, "maxOutputTokens" => 8192],
                 ]));
@@ -140,7 +140,7 @@ class ConceptGenerator
             );
         }
 
-        $text = collect((array) $response->json("candidates.0.content.parts", []))->pluck("text")->filter()->implode("");
+        $text = collect((array) $response->json("candidates.0.content.parts", []))->reject(fn ($p) => ! empty($p["thought"]))->pluck("text")->filter()->implode("");
         if (trim($text) === "") {
             throw new CompetitorAnalysisException("Gemini returned no concepts. Try again.", provider: "gemini");
         }

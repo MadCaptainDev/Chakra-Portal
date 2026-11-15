@@ -27,6 +27,9 @@ class GeminiVideoAnalyzer
 
     private const POLL_INTERVAL_SECONDS = 3;
 
+    /** One answer about a whole reel can take minutes on a thinking model. */
+    private const ASK_SECONDS = 270;
+
     /** The model that answered last; the first of $models until one is retired. */
     public string $model;
 
@@ -53,13 +56,14 @@ class GeminiVideoAnalyzer
     public function uploadVideo(string $videoBytes, string $mimeType): array
     {
         $response = Http::withHeaders([
+            'x-goog-api-key' => $this->apiKey,
             'X-Goog-Upload-Command' => 'start, upload, finalize',
             'X-Goog-Upload-Header-Content-Length' => (string) strlen($videoBytes),
             'X-Goog-Upload-Header-Content-Type' => $mimeType,
         ])
             ->withBody($videoBytes, $mimeType)
             ->timeout(120)
-            ->post(self::UPLOAD_URL.'?key='.$this->apiKey);
+            ->post(self::UPLOAD_URL);
 
         if ($response->failed()) {
             $this->throwFrom($response, 'upload');
@@ -92,7 +96,7 @@ class GeminiVideoAnalyzer
         $deadline = now()->addSeconds(self::MAX_WAIT_SECONDS);
 
         while (now()->lessThan($deadline)) {
-            $response = Http::timeout(15)->get(self::FILES_BASE.$fileName.'?key='.$this->apiKey);
+            $response = Http::withHeaders(['x-goog-api-key' => $this->apiKey])->timeout(15)->get(self::FILES_BASE.$fileName);
 
             if ($response->successful()) {
                 $state = $response->json('state');
@@ -130,21 +134,39 @@ class GeminiVideoAnalyzer
     {
         $models = array_values((array) $this->models);
         $this->model = $models[0];
-        $url = self::generateUrl($this->model).'?key='.$this->apiKey;
+        $url = self::generateUrl($this->model);
 
         for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
-            $response = \App\Services\Ai\GeminiBudget::during('competitor', fn () => Http::timeout(90)->asJson()->post($url, [
-                'contents' => [[
-                    'role' => 'user',
-                    'parts' => [
-                        ['fileData' => ['fileUri' => $fileUri, 'mimeType' => $mimeType]],
-                        ['text' => $prompt],
-                    ],
-                ]],
-            ]));
+            try {
+                $response = \App\Services\Ai\GeminiBudget::during('competitor', fn () => Http::withHeaders(['x-goog-api-key' => $this->apiKey])
+                    ->connectTimeout(15)->timeout(self::ASK_SECONDS)->asJson()->post($url, [
+                        'contents' => [[
+                            'role' => 'user',
+                            'parts' => [
+                                ['fileData' => ['fileUri' => $fileUri, 'mimeType' => $mimeType]],
+                                ['text' => $prompt],
+                            ],
+                        ]],
+                    ]));
+            } catch (\Illuminate\Http\Client\ConnectionException) {
+                // Hung (overloaded): the next model, or one more try on the last.
+                if ($next = $models[array_search($this->model, $models, true) + 1] ?? null) {
+                    $this->model = $next;
+                    $url = self::generateUrl($this->model);
+
+                    continue;
+                }
+                if ($attempt < $maxRetries - 1) {
+                    continue;
+                }
+
+                throw new CompetitorAnalysisException('Gemini took too long on every model (it is busy). Try again in a few minutes.', provider: 'gemini');
+            }
 
             if ($response->successful()) {
-                $text = $response->json('candidates.0.content.parts.0.text') ?? '';
+                // Thinking models answer in several parts; join the visible ones.
+                $text = collect((array) $response->json('candidates.0.content.parts', []))
+                    ->reject(fn ($p) => ! empty($p['thought']))->pluck('text')->filter()->implode('');
                 $hashPosition = strpos($text, '#');
 
                 return $hashPosition !== false ? substr($text, $hashPosition) : $text;
@@ -153,7 +175,7 @@ class GeminiVideoAnalyzer
             // Google retired this model: try the next one straight away, without spending a retry.
             if ($response->status() === 404 && ($next = $models[array_search($this->model, $models, true) + 1] ?? null)) {
                 $this->model = $next;
-                $url = self::generateUrl($this->model).'?key='.$this->apiKey;
+                $url = self::generateUrl($this->model);
                 $attempt--;
 
                 continue;

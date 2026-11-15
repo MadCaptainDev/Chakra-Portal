@@ -327,7 +327,7 @@ class CompetitorAnalysisTest extends TestCase
 
         $this->assertStringStartsWith('# Breakdown', $reel->fresh()->analysis->breakdown);
         $this->assertFalse(\App\Services\Competitors\ReelAnalysis::analysing($reel));
-        Http::assertSent(fn ($r) => str_contains($r->url(), 'key=portal-key'));
+        Http::assertSent(fn ($r) => $r->hasHeader('x-goog-api-key', 'portal-key') && ! str_contains($r->url(), 'key='));
     }
 
     public function test_analyse_top_takes_the_best_five_unanalysed(): void
