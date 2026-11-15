@@ -84,6 +84,40 @@ class VideoReviewTest extends TestCase
         $this->get(route('reviews.file', $video))->assertNotFound();
     }
 
+    public function test_the_planner_app_sends_a_cut_for_review_with_its_token_and_the_editor_hears_the_verdict(): void
+    {
+        Notification::fake();
+        // A widget-only editor (no Chakra Planner permission) can still send their own videos.
+        $this->editor->forceFill(['password' => bcrypt('secret-pass')])->save();
+        $token = $this->postJson(route('api.planner.login'), ['email' => $this->editor->email, 'password' => 'secret-pass', 'device_name' => 'Edit PC'])->assertCreated()->json('token');
+        $auth = ['HTTP_AUTHORIZATION' => 'Bearer '.$token, 'HTTP_ACCEPT' => 'application/json'];
+        $bytes = str_repeat('p', 3000);
+
+        $id = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson(route('api.planner.editing.review.start', $this->card), ['name' => 'cut.mp4', 'size' => strlen($bytes), 'type' => 'video/mp4'])
+            ->assertOk()->json('upload');
+        $this->call('POST', route('api.planner.editing.review.chunk', ['upload' => $id, 'offset' => 0]), [], [], [], $auth + ['CONTENT_TYPE' => 'application/octet-stream'], substr($bytes, 0, 1000))->assertOk()->assertJsonPath('received', 1000);
+        // A piece past what arrived is refused with how much did, so the app resumes.
+        $this->call('POST', route('api.planner.editing.review.chunk', ['upload' => $id, 'offset' => 2000]), [], [], [], $auth + ['CONTENT_TYPE' => 'application/octet-stream'], 'zz')->assertStatus(409)->assertJsonPath('received', 1000);
+        $this->call('POST', route('api.planner.editing.review.chunk', ['upload' => $id, 'offset' => 1000]), [], [], [], $auth + ['CONTENT_TYPE' => 'application/octet-stream'], substr($bytes, 1000))->assertOk();
+        $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson(route('api.planner.editing.review.finish', ['upload' => $id]), ['duration' => 12])
+            ->assertCreated()->assertJsonPath('video.version', 1)->assertJsonPath('video.status', ReviewVideo::PENDING);
+
+        $this->assertSame(Todo::STATUS_COMPLETED, $this->card->fresh()->status);
+        Notification::assertSentTo($this->admin, VideoReviewUpdate::class);
+
+        // The board the app reads shows the cut waiting.
+        $this->withHeaders(['Authorization' => 'Bearer '.$token])->getJson(route('api.planner.editing.board'))
+            ->assertOk()->assertJsonPath('cards.0.review.version', 1);
+
+        // Someone else's card is not theirs to upload to; no token, no way in.
+        $other = new Todo;
+        $other->forceFill(['user_id' => $this->admin->id, 'title' => 'Not yours', 'status' => Todo::STATUS_STARTED, 'starts_on' => today(), 'due_on' => today()])->save();
+        $this->withHeaders(['Authorization' => 'Bearer '.$token])->postJson(route('api.planner.editing.review.start', $other), ['name' => 'cut.mp4', 'size' => 10, 'type' => 'video/mp4'])->assertForbidden();
+        $this->withHeaders(['Authorization' => ''])->postJson(route('api.planner.editing.review.start', $this->card), ['name' => 'cut.mp4', 'size' => 10, 'type' => 'video/mp4'])->assertUnauthorized();
+    }
+
     public function test_a_file_bigger_than_it_said_or_not_a_video_is_refused(): void
     {
         $this->actingAs($this->editor)->postJson(route('reviews.upload.start', $this->card), ['name' => 'notes.pdf', 'size' => 10, 'type' => 'application/pdf'])->assertStatus(422);
