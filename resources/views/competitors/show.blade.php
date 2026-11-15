@@ -150,7 +150,7 @@
                                 <div x-show="caseStudy" x-cloak class="pt-3 border-t border-white/10 space-y-3">
                                     <div>
                                         <p class="text-[11px] font-semibold uppercase tracking-wider text-brand-100/60">Gemini's breakdown</p>
-                                        <p class="mt-2 text-sm text-brand-100/80 whitespace-pre-line">{{ $reel->analysis->breakdown }}</p>
+                                        <div class="ai-md mt-2">{!! \App\Support\AiMarkdown::html($reel->analysis->breakdown) !!}</div>
                                     </div>
 
                                     <div>
@@ -182,7 +182,7 @@
                                                         <p class="text-[11px] font-semibold uppercase tracking-wider text-brand-100/60">
                                                             {{ $concept->client?->name ?? 'General' }} &middot; {{ $concept->generated_at->diffForHumans() }}
                                                         </p>
-                                                        <p class="mt-1.5 text-sm text-brand-100/80 whitespace-pre-line">{{ $concept->concept_text }}</p>
+                                                        <div class="ai-md mt-1.5">{!! \App\Support\AiMarkdown::html($concept->concept_text) !!}</div>
                                                     </div>
                                                 @endforeach
                                             </div>

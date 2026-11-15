@@ -424,3 +424,17 @@ html, body {
 .vb-video.vb-in { animation: vbVideoIn .3s ease-out both; }
 @keyframes vbVideoIn { to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .vb-card, .vb-video.vb-in { animation: none; } .vb-video { opacity: 1; transform: none; } }
+
+/* Gemini's competitor-reel breakdowns, rendered from Markdown (competitors/show). */
+.ai-md { font-size: .875rem; line-height: 1.55; color: rgb(255 255 255 / .8); }
+.ai-md h1, .ai-md h2, .ai-md h3, .ai-md h4 { margin: 1rem 0 .35rem; font-weight: 700; color: #fff; font-size: .9rem; }
+.ai-md h1:first-child, .ai-md h2:first-child, .ai-md h3:first-child, .ai-md h4:first-child { margin-top: 0; }
+.ai-md p { margin: .4rem 0; }
+.ai-md ul, .ai-md ol { margin: .35rem 0; padding-left: 1.1rem; }
+.ai-md ul { list-style: disc; } .ai-md ol { list-style: decimal; }
+.ai-md li { margin: .15rem 0; }
+.ai-md strong { color: #fff; }
+.ai-md em { color: rgb(253 230 138); font-style: normal; }
+.ai-md table { display: block; overflow-x: auto; margin: .6rem 0; border-collapse: collapse; font-size: .75rem; }
+.ai-md th, .ai-md td { border: 1px solid rgb(255 255 255 / .1); padding: .35rem .5rem; vertical-align: top; text-align: left; }
+.ai-md th { background: rgb(255 255 255 / .06); color: #fff; }
