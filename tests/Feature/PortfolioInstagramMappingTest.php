@@ -689,7 +689,8 @@ class PortfolioInstagramMappingTest extends TestCase
 
     // -- Public display ----------------------------------------------------------
 
-    public function test_the_public_case_study_page_renders_the_instagram_embed_blockquote_for_a_mapped_item(): void
+    /** Since "Portfolio: plays in our own player" (6fcf9ee) a mapped piece plays in our player, with a link to the post, not Instagram's embed. */
+    public function test_the_public_case_study_page_plays_a_mapped_item_in_our_player_and_links_the_post(): void
     {
         $account = $this->connectedAccount();
         $media = $this->media($account);
@@ -701,9 +702,9 @@ class PortfolioInstagramMappingTest extends TestCase
 
         $this->get(route('portfolio.detail', $item))
             ->assertOk()
-            ->assertSee('instagram-media', false)
-            ->assertSee('data-instgrm-permalink="'.$media->permalink.'"', false)
-            ->assertSee('View on Instagram');
+            ->assertDontSee('instagram-media', false)
+            ->assertSee('href="'.$media->permalink.'"', false)
+            ->assertSee('Watch on Instagram');
     }
 
     public function test_the_public_case_study_page_plays_the_uploaded_video_unchanged_for_a_non_mapped_item(): void

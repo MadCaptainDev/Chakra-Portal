@@ -161,6 +161,33 @@ next event).
 Errors: `404` = not your video for that action; `422` with `message` = not
 allowed in its current state (show the message as-is).
 
+### Send a cut for review (added 2026-11-15)
+
+The same chunked upload as the portal's review page (VideoReviewController).
+The editor (or their manager / an admin) uploads to their card; when it lands
+the card goes to review (unless other corrections are still open), and the
+reviewers are told.
+
+1. `POST /editing/{id}/review` `{ "name": "cut.mp4", "size": 123456789, "type": "video/mp4" }`
+   → `200 { "upload": "<uuid>", "chunk": 8388608 }`. MP4, MOV, WebM or M4V, ≤ 1.5 GB.
+2. `POST /editing/review/{upload}/chunk?offset=N` with the raw bytes
+   (`Content-Type: application/octet-stream`, at most `chunk` bytes)
+   → `200 { "received": N }`. Sending a piece again is harmless; a piece past
+   what arrived is `409 { "received": N }`: carry on from `N`.
+3. `POST /editing/review/{upload}/finish` `{ "duration"?, "width"?, "height"?, "poster"?: "data:image/jpeg;base64,…", "note"? }`
+   → `201 { "video": {…review summary}, "url": "<portal review page>" }`.
+   `409` = not all bytes arrived yet.
+
+Each card in `GET /editing` carries `review` (the latest cut's summary, or
+`null`): `version`, `status` (`pending` | `changes` | `approved`),
+`status_label`, `open_comments`, `approvals`, `approvals_needed`, `url`.
+
+**Hearing the verdict.** Approve, send back, comments and replies are recorded
+in the notification inbox (type `video_review_update`). The Planner token
+works on the mobile inbox, `GET /api/mobile/notifications?after=<latest id>`
+(see docs/chakra-mobile/API.md), which the app polls to show a desktop
+notification to the editor.
+
 ## Faces and logos (added 2026-10-22, all optional)
 
 Image URLs are plain **public** `https://chakragroups.in/uploads/...` files (a

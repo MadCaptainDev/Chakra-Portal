@@ -39,6 +39,13 @@ Route::prefix('api/planner')->name('api.planner.')->group(function () {
         Route::post('editing', [\App\Http\Controllers\My\EditingController::class, 'store'])->name('editing.store');
         Route::post('editing/{todo}/act', [\App\Http\Controllers\My\EditingController::class, 'act'])->middleware(\Illuminate\Routing\Middleware\SubstituteBindings::class)->whereNumber('todo')->name('editing.act');
 
+        // Send a cut for review from the app: the portal's own chunked upload
+        // (VideoReviewController decides who may upload to which card). Named
+        // editing.* so a widget-only account can send its own videos too.
+        Route::post('editing/{todo}/review', [\App\Http\Controllers\VideoReviewController::class, 'start'])->middleware(\Illuminate\Routing\Middleware\SubstituteBindings::class)->whereNumber('todo')->name('editing.review.start');
+        Route::post('editing/review/{upload}/chunk', [\App\Http\Controllers\VideoReviewController::class, 'chunk'])->name('editing.review.chunk');
+        Route::post('editing/review/{upload}/finish', [\App\Http\Controllers\VideoReviewController::class, 'finish'])->name('editing.review.finish');
+
         // The editing floor for admins and managers (the controller checks; see PlannerEditorUpdatesController).
         Route::get('editor-updates', [\App\Http\Controllers\Api\Planner\PlannerEditorUpdatesController::class, 'show'])->name('editor-updates');
 
