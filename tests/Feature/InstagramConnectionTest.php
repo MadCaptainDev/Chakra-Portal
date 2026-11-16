@@ -317,6 +317,54 @@ class InstagramConnectionTest extends TestCase
         $this->assertTrue(SocialAccount::sole()->isConnected());
     }
 
+    public function test_a_reconnect_signed_in_as_a_different_account_is_refused(): void
+    {
+        $staff = $this->staff();
+        $client = $this->client();
+        $this->fakeInstagram();
+
+        $state = $this->beginConnect($staff, $client);
+        $this->actingAs($staff)->get(route('instagram.callback', ['code' => self::CODE, 'state' => $state]));
+
+        // The client's real account, killed by Meta (token kept, status
+        // revoked) -- and the browser now comes back as some other account,
+        // the studio's own typically.
+        SocialAccount::sole()->forceFill([
+            'platform_user_id' => '17841499999999999',
+            'username' => 'realclient',
+            'status' => SocialAccount::STATUS_REVOKED,
+        ])->save();
+
+        $state = $this->beginConnect($staff, $client);
+        $this->actingAs($staff)
+            ->get(route('instagram.callback', ['code' => self::CODE, 'state' => $state]))
+            ->assertSessionHas('status', fn (string $status) => str_contains($status, 'signed in to Instagram as @djthangamaligai')
+                && str_contains($status, '@realclient'));
+
+        $account = SocialAccount::sole();
+        $this->assertSame('17841499999999999', $account->platform_user_id);
+        $this->assertSame(SocialAccount::STATUS_REVOKED, $account->status);
+    }
+
+    public function test_after_disconnect_a_different_account_may_be_connected(): void
+    {
+        $staff = $this->staff();
+        $client = $this->client();
+        $this->fakeInstagram();
+
+        $state = $this->beginConnect($staff, $client);
+        $this->actingAs($staff)->get(route('instagram.callback', ['code' => self::CODE, 'state' => $state]));
+        SocialAccount::sole()->forceFill(['platform_user_id' => '17841499999999999'])->save();
+
+        $this->actingAs($staff)->delete(route('instagram.disconnect', $client));
+
+        $state = $this->beginConnect($staff, $client);
+        $this->actingAs($staff)->get(route('instagram.callback', ['code' => self::CODE, 'state' => $state]));
+
+        $this->assertTrue(SocialAccount::sole()->isConnected());
+        $this->assertSame('17841400000000001', SocialAccount::sole()->platform_user_id);
+    }
+
     public function test_connecting_needs_manage_not_merely_view(): void
     {
         $client = $this->client();

@@ -44,6 +44,7 @@ class InstagramConnector
         }
 
         $this->refuseIfHeldByAnotherClient($client, $platformUserId);
+        $this->refuseIfReconnectIsAnotherAccount($client, $platformUserId, $account['username'] ?? null);
 
         return DB::transaction(function () use ($client, $account, $exchange, $platformUserId, $by) {
             /*
@@ -131,5 +132,35 @@ class InstagramConnector
                 $existing->client?->name ?? 'another client'
             ));
         }
+    }
+
+    /**
+     * A reconnect must come back as the same Instagram account.
+     *
+     * Instagram no longer forces a fresh login (see InstagramOAuth), so a
+     * browser already signed in to some other account -- the studio's own,
+     * usually -- would otherwise be offered and accepted silently. Only for a
+     * live or expired connection: after Disconnect (status revoked, token
+     * gone) the client may genuinely be switching to a new account.
+     */
+    private function refuseIfReconnectIsAnotherAccount(Client $client, string $platformUserId, ?string $username): void
+    {
+        $current = $client->socialAccounts()
+            ->forPlatform(SocialAccount::PLATFORM_INSTAGRAM)
+            ->first();
+
+        if (! $current
+            || blank($current->access_token)
+            || blank($current->platform_user_id)
+            || (string) $current->platform_user_id === $platformUserId) {
+            return;
+        }
+
+        throw new InstagramException(sprintf(
+            'This browser is signed in to Instagram as %s, but this client is %s. Log out of %s on Instagram (or use the client\'s phone) and try again. To switch the client to a new account, Disconnect first.',
+            $username ? '@'.$username : 'a different account',
+            $current->handle(),
+            $username ? '@'.$username : 'that account',
+        ));
     }
 }

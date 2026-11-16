@@ -275,14 +275,15 @@ class InstagramWebhookTest extends TestCase
             ->assertSee('could not find', escape: false);
     }
 
-    public function test_the_authorize_url_forces_a_fresh_login(): void
+    public function test_the_authorize_url_does_not_force_a_fresh_login(): void
     {
         $this->configured();
 
         $url = \App\Services\Instagram\InstagramOAuth::make()->authorizationUrl('state-value');
 
-        // Without this, a staff member already signed in to the studio's own
-        // Instagram would silently connect that account to the client.
-        $this->assertStringContainsString('force_reauth=true', $url);
+        // A client already signed in to their own Instagram goes straight to
+        // the consent screen. The wrong-account risk is guarded in
+        // InstagramConnector instead (see InstagramConnectionTest).
+        $this->assertStringNotContainsString('force_reauth', $url);
     }
 }

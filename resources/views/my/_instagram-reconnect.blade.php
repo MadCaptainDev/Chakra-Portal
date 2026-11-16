@@ -30,11 +30,16 @@
                             @endif
                         </p>
                     </div>
-                    <a href="{{ route('clients.show', $account->client) }}#social"
-                       class="inline-flex min-h-[40px] shrink-0 items-center rounded-lg bg-amber-400 px-3.5 text-xs font-bold text-brand-900 hover:bg-amber-300">Reconnect</a>
+                    {{-- Straight to Instagram's consent screen, not via the
+                         client page: one tap, same flow as its Reconnect. --}}
+                    <form method="POST" action="{{ route('instagram.connect', $account->client) }}" class="shrink-0">
+                        @csrf
+                        <button type="submit"
+                                class="inline-flex min-h-[40px] items-center rounded-lg bg-amber-400 px-3.5 text-xs font-bold text-brand-900 hover:bg-amber-300">Reconnect</button>
+                    </form>
                 </li>
             @endforeach
         </ul>
-        <p class="mt-2.5 text-[11px] text-brand-100/50">Open the client with them (or share your screen), tap Connect (or Reconnect) on the Social tab, and let them log in to their own account.</p>
+        <p class="mt-2.5 text-[11px] text-brand-100/50">Best on the client's own phone or browser, where they are already signed in to their Instagram. If this browser is signed in to a different account, the portal refuses it and says which.</p>
     </section>
 @endif
