@@ -114,8 +114,9 @@ class CompetitorScraper
         return $id !== null ? (string) $id : null;
     }
 
+    /** Instagram hides some counts; Apify sends those as -1. Unknown, not negative. */
     private function toInt(mixed $value): ?int
     {
-        return $value === null ? null : (int) $value;
+        return $value === null || (int) $value < 0 ? null : (int) $value;
     }
 }
