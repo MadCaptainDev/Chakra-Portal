@@ -44,7 +44,14 @@
             <div class="space-y-3 border-t border-white/[0.06] px-5 py-4 sm:px-6" x-init="when[{{ $t->id }}] = @js($default)" @if ($i >= 3) x-show="all" x-cloak @endif>
                 <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
-                        <p class="text-[15px] font-semibold text-white">{{ $t->title }}</p>
+                        <p class="text-[15px] font-semibold text-white">
+                            {{ $t->title }}
+                            @if ($t->latestReview)
+                                <a href="{{ route('reviews.show', $t->latestReview) }}" class="ml-1 inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 align-middle text-[11px] font-semibold text-brand-100 hover:bg-white/20">
+                                    {{ $t->latestReview->isImages() ? '🖼 Post' : '🎬 Video' }} v{{ $t->latestReview->version }} · Open review →
+                                </a>
+                            @endif
+                        </p>
                         <p class="mt-0.5 text-xs text-brand-100/65">
                             {{ $t->user?->name }} · {{ $t->venture }}
                             · {{ $pub ? 'planner '.($pub->isToday() ? 'today' : $pub->format('D j M')) : 'no planner date' }}
@@ -100,7 +107,12 @@
                  x-init="kind[{{ $t->id }}] = @js(in_array($t->kind, $kinds, true) ? $t->kind : 'reel'); when[{{ $t->id }}] = @js($t->publish_at?->format('Y-m-d\TH:i'))">
                 <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
-                        <p class="text-sm font-semibold text-white">{{ $t->title }}</p>
+                        <p class="text-sm font-semibold text-white">
+                            {{ $t->latestReview?->isImages() || $t->kind === 'post' ? '🖼' : '🎬' }} {{ $t->title }}
+                            @if ($t->latestReview && ! $t->latestReview->deleted_file_at)
+                                <a href="{{ route('reviews.show', $t->latestReview) }}" class="ml-1 text-[11px] font-semibold text-brand-300 hover:text-white">{{ $t->latestReview->isImages() ? 'Pictures' : 'Video' }} →</a>
+                            @endif
+                        </p>
                         <p class="text-xs text-brand-100/60">{{ $t->user?->name }} · {{ $t->venture }}</p>
                     </div>
                     <span class="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $late ? 'bg-red-500/20 text-red-200' : 'bg-violet-400/15 text-violet-200' }}">

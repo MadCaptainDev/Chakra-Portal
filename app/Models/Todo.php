@@ -167,6 +167,12 @@ class Todo extends Model
     }
 
     /** Corrections to this video, oldest first. */
+    /** The newest review upload (video or picture post) for this card. */
+    public function latestReview(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(ReviewVideo::class)->latestOfMany('version');
+    }
+
     public function corrections(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id')->orderBy('id');

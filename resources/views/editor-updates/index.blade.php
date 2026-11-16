@@ -65,6 +65,14 @@
 
         @include('editor-updates._tabs')
 
+        @if (session('status'))
+            <p class="rounded-xl bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200 ring-1 ring-emerald-400/30">{{ session('status') }}</p>
+        @endif
+
+        {{-- First what to act on: upload a post, then the review and ready queues. --}}
+        @include('editor-updates._post-upload')
+        @include('editor-updates._queue')
+
         {{-- Read top-down: what needs you, each editor now, the day's flow (live,
              today), the queues to act on, the timeline; detail last. --}}
         <div class="space-y-7" x-data="editorTimeline(@js($timeline), @js(route('editor-updates.live', ['date' => $day->toDateString()])), @js(route('editor-updates.editor', ['user' => '__ID__', 'date' => $day->toDateString()])))">
@@ -72,7 +80,7 @@
 
             {{-- ═══ The detail, one tab at a time ═══ --}}
             <nav class="flex gap-1 overflow-x-auto rounded-2xl bg-white/[0.04] p-1 ring-1 ring-white/[0.07]" role="tablist">
-                @foreach (['queues' => ['📋', 'To review & post'], 'timeline' => ['🕒', 'Timeline'], 'moves' => ['🎬', 'Video by video'], 'recent' => ['⚡', 'Just now']] as $key => [$icon, $label])
+                @foreach (['timeline' => ['🕒', 'Timeline'], 'moves' => ['🎬', 'Video by video'], 'recent' => ['⚡', 'Just now']] as $key => [$icon, $label])
                     <button type="button" role="tab" @click="tab = @js($key)" :aria-selected="tab === @js($key)"
                             @if ($key === 'recent') x-show="data.board" @endif
                             class="flex h-10 shrink-0 items-center gap-1.5 rounded-xl px-4 text-sm font-semibold transition"
@@ -80,7 +88,6 @@
                 @endforeach
             </nav>
 
-            <div x-show="tab === 'queues'">@include('editor-updates._queue')</div>
             <div x-show="tab === 'timeline'" x-cloak>@include('editor-updates._timeline')</div>
 
             {{-- Just now: the latest moves, newest first --}}

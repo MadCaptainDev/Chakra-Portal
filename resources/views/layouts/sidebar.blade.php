@@ -174,6 +174,13 @@
                 Calendar
             </x-sidebar-link>
 
+            {{-- Editors post and upload picture posts from Editor Updates (their own work). --}}
+            @if ($user && $user->role === \App\Models\User::ROLE_EMPLOYEE && ! $user->managesAnyone())
+                <x-sidebar-link icon="film-cut" :href="route('editor-updates')" :active="request()->routeIs('editor-updates', 'editor-updates.editor')">
+                    Editor Updates
+                </x-sidebar-link>
+            @endif
+
             {{-- Only appears once somebody actually reports to this person.
                  Managing is not a role here, it is a fact about the org chart. --}}
             @if ($user?->managesAnyone())

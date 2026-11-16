@@ -448,6 +448,7 @@ Route::middleware('auth')->group(function () {
     Route::get('editor-updates', [EditorUpdatesController::class, 'index'])->name('editor-updates');
     Route::get('editor-updates/live', [EditorUpdatesController::class, 'live'])->name('editor-updates.live');
     Route::get('editor-updates/editor/{user}', [EditorUpdatesController::class, 'editor'])->name('editor-updates.editor');
+    Route::post('editor-updates/posts', [EditorUpdatesController::class, 'post'])->name('editor-updates.post');
 
     // Video review: upload a cut, comment on moments, approve or send back. See VideoReviewController.
     Route::controller(\App\Http\Controllers\VideoReviewController::class)->group(function () {
@@ -458,6 +459,8 @@ Route::middleware('auth')->group(function () {
         Route::get('reviews/{video}/poster', 'poster')->whereNumber('video')->name('reviews.poster');
         Route::get('reviews/comments/{comment}/voice', 'voice')->name('reviews.comment.voice');
         Route::post('reviews/comments/{comment}/transcribe', 'transcribe')->name('reviews.comment.transcribe');
+        Route::get('reviews/{video}/slides/{n}', 'slide')->whereNumber('video')->whereNumber('n')->name('reviews.slide');
+        Route::post('reviews/cards/{todo}/pictures', 'pictures')->name('reviews.pictures');
         Route::post('reviews/cards/{todo}/uploads', 'start')->name('reviews.upload.start');
         Route::post('reviews/uploads/{upload}/chunk', 'chunk')->name('reviews.upload.chunk');
         Route::post('reviews/uploads/{upload}/finish', 'finish')->name('reviews.upload.finish');

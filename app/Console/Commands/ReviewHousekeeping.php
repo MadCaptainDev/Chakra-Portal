@@ -67,7 +67,7 @@ class ReviewHousekeeping extends Command
             });
 
         foreach ($old as $v) {
-            foreach (array_filter([$v->path, $v->poster_path]) as $p) {
+            foreach ($v->storedPaths() as $p) {
                 File::delete(storage_path('app/private/'.$p));
             }
             $v->forceFill(['deleted_file_at' => now()])->save();

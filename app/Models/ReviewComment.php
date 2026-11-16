@@ -70,7 +70,12 @@ class ReviewComment extends Model
     /** "0:12", or null for a comment on the whole cut. */
     public function stamp(): ?string
     {
-        return $this->at_seconds === null ? null : self::clock($this->at_seconds);
+        if ($this->at_seconds === null) {
+            return null;
+        }
+
+        // On a picture post the moment is a slide.
+        return $this->video ? $this->video->momentLabel((float) $this->at_seconds) : self::clock($this->at_seconds);
     }
 
     public static function clock(float $seconds): string

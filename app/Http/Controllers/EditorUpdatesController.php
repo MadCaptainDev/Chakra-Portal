@@ -25,11 +25,15 @@ class EditorUpdatesController extends Controller
     /** @var list<int>|null Whose videos this request may see; null is everyone (an admin). */
     private ?array $only = null;
 
-    /** An admin sees everyone; a manager their reports and themselves; nobody else gets in. */
+    /**
+     * An admin sees everyone; a manager their reports and themselves; an
+     * editor their own work (they post and upload picture posts here too).
+     * Clients never get in.
+     */
     private function scope(Request $request): void
     {
         $user = $request->user();
-        abort_unless($user->isAdmin() || $user->managesAnyone(), 403);
+        abort_if($user->role === User::ROLE_CLIENT, 403);
         $this->only = $user->isAdmin() ? null : $user->reports()->pluck('users.id')->push($user->id)->all();
     }
 
@@ -43,6 +47,7 @@ class EditorUpdatesController extends Controller
             'day' => $day,
             'review' => $this->queue(false),
             'ready' => $this->queue(true),
+            'cards' => $this->uploadable($request->user()),
             'people' => $people,
             'timeline' => $this->timeline($day, $people, $todos),
             'totals' => $this->totals($people),
@@ -145,8 +150,55 @@ class EditorUpdatesController extends Controller
                 fn ($q) => $q->whereNotNull('ready_at')->orderBy('publish_at'),
                 fn ($q) => $q->whereNull('ready_at')->whereDate('closed_on', '>=', today()->subDays(14))->orderBy('closed_on')->orderBy('updated_at'))
             ->when($this->only !== null, fn ($q) => $q->whereIn('user_id', $this->only))
-            ->with(['user', 'contentItem', 'corrections', 'updates'])
+            ->with(['user', 'contentItem', 'corrections', 'updates', 'latestReview'])
             ->get();
+    }
+
+    /**
+     * Cards a picture post can be uploaded to: your own open ones, and (for
+     * an admin or manager) the open ones of the people you see here.
+     *
+     * @return Collection<int, Todo>
+     */
+    private function uploadable(User $user): Collection
+    {
+        return Todo::query()->whereNull('parent_id')
+            ->whereIn('status', [Todo::STATUS_WAITING, Todo::STATUS_STARTED, Todo::STATUS_BLOCKED, Todo::STATUS_COMPLETED])
+            ->whereNull('posted_at')
+            ->where(fn ($q) => $q->where('user_id', $user->id)->when($this->only === null || count($this->only) > 1,
+                fn ($w) => $w->orWhereIn('user_id', $this->only ?? User::query()->where('role', '!=', User::ROLE_CLIENT)->pluck('id')->all())))
+            ->with('user:id,name')
+            ->orderByRaw('user_id = ? desc', [$user->id])->latest('updated_at')->limit(150)
+            ->get(['id', 'title', 'user_id', 'kind', 'venture', 'status']);
+    }
+
+    /**
+     * A picture post from this page: onto a card picked from the list, or a
+     * new card ("Post: …") on your own board. The upload and the review are
+     * the review page's own (VideoReviewController::pictures).
+     */
+    public function post(Request $request): \Symfony\Component\HttpFoundation\Response
+    {
+        $this->scope($request);
+        $user = $request->user();
+        $data = $request->validate([
+            'todo_id' => ['nullable', 'integer', 'exists:todos,id'],
+            'title' => ['required_without:todo_id', 'nullable', 'string', 'max:255'],
+        ], ['title.required_without' => 'Pick the card, or give the new post a name.']);
+
+        if (! empty($data['todo_id'])) {
+            $card = Todo::query()->findOrFail($data['todo_id']);
+        } else {
+            $title = trim($data['title']);
+            $card = Todo::create([
+                'user_id' => $user->id, 'assigned_by_id' => $user->id, 'title' => $title, 'kind' => 'post',
+                'venture' => \App\Support\ClientGuess::forTitle($title),
+                'starts_on' => today()->toDateString(), 'due_on' => today()->toDateString(),
+            ]);
+            \App\Models\TodoUpdate::record($card, $user, \App\Models\TodoUpdate::CREATED, ['to_status' => $card->status, 'from_on' => $card->starts_on, 'to_on' => $card->due_on]);
+        }
+
+        return app(\App\Http\Controllers\VideoReviewController::class)->pictures($request, $card);
     }
 
     /** @return array<string, int> */

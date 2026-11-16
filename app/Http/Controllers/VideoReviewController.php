@@ -161,7 +161,16 @@ class VideoReviewController extends Controller
     {
         abort_unless($video->visibleTo($request->user()) && $video->poster_path && is_file(storage_path('app/private/'.$video->poster_path)), 404);
 
-        return response()->file(storage_path('app/private/'.$video->poster_path), ['Content-Type' => 'image/jpeg', 'Cache-Control' => 'private, max-age=604800']);
+        return response()->file(storage_path('app/private/'.$video->poster_path), ['Content-Type' => File::mimeType(storage_path('app/private/'.$video->poster_path)) ?: 'image/jpeg', 'Cache-Control' => 'private, max-age=604800']);
+    }
+
+    /** One slide of a picture post. */
+    public function slide(Request $request, ReviewVideo $video, int $n): BinaryFileResponse
+    {
+        $path = $video->slides[$n]['path'] ?? null;
+        abort_unless($video->visibleTo($request->user()) && $path && $video->deleted_file_at === null && is_file(storage_path('app/private/'.$path)), 404);
+
+        return response()->file(storage_path('app/private/'.$path), ['Content-Type' => File::mimeType(storage_path('app/private/'.$path)) ?: 'image/jpeg', 'Cache-Control' => 'private, max-age=604800']);
     }
 
     // ——— Uploading a version ———
@@ -296,6 +305,76 @@ class VideoReviewController extends Controller
         return response()->json(['video' => $video->summary(), 'url' => route('reviews.show', $video)], 201);
     }
 
+    /**
+     * An Instagram picture post for review: one picture or a carousel (up to
+     * 10, in order), in a single ordinary upload -- pictures are small. Same
+     * versions, corrections and sign-off as a video; no AI check.
+     */
+    public function pictures(Request $request, Todo $todo): JsonResponse|\Illuminate\Http\RedirectResponse
+    {
+        $user = $request->user();
+        $this->authoriseUpload($todo, $user);
+        $data = $request->validate([
+            'pictures' => ['required', 'array', 'min:1', 'max:10'],
+            'pictures.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:25600'],
+            'note' => ['nullable', 'string', 'max:1000'],
+        ], ['pictures.*.mimes' => 'Pictures must be JPG, PNG or WebP.', 'pictures.max' => 'An Instagram carousel takes 10 pictures at most.']);
+
+        $video = DB::transaction(function () use ($todo, $user, $data) {
+            $version = (int) ReviewVideo::query()->where('todo_id', $todo->id)->lockForUpdate()->max('version') + 1;
+            $dir = 'reviews/'.$todo->id;
+            File::ensureDirectoryExists(storage_path('app/private/'.$dir));
+
+            $slides = [];
+            $size = 0;
+            foreach ($data['pictures'] as $i => $file) {
+                $ext = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: 'jpg');
+                $name = 'v'.$version.'-s'.($i + 1).'-'.Str::random(8).'.'.$ext;
+                [$w, $h] = @getimagesize($file->getRealPath()) ?: [null, null];
+                $size += $file->getSize();
+                $file->move(storage_path('app/private/'.$dir), $name);
+                $slides[] = ['path' => $dir.'/'.$name, 'w' => $w, 'h' => $h];
+            }
+
+            $video = new ReviewVideo;
+            $video->forceFill([
+                'todo_id' => $todo->id,
+                'version' => $version,
+                'uploaded_by_id' => $user->id,
+                'original_name' => Str::limit($data['pictures'][0]->getClientOriginalName(), 250, ''),
+                'path' => $slides[0]['path'],
+                'poster_path' => $slides[0]['path'],
+                'slides' => $slides,
+                'mime' => File::mimeType(storage_path('app/private/'.$slides[0]['path'])) ?: 'image/jpeg',
+                'size' => $size,
+                'width' => $slides[0]['w'],
+                'height' => $slides[0]['h'],
+                'status' => ReviewVideo::PENDING,
+                'ai_status' => 'none',
+            ])->save();
+
+            if ($todo->kind === null || $todo->kind === 'reel') {
+                $todo->forceFill(['kind' => 'post'])->save();
+            }
+            if (filled($data['note'] ?? null)) {
+                ReviewComment::create(['review_video_id' => $video->id, 'user_id' => $user->id, 'body' => 'Editor: '.trim($data['note'])]);
+            }
+            $this->sendForReview($todo, $video, $user);
+
+            return $video;
+        });
+
+        $count = count($video->slides);
+        $this->tell($this->reviewersOf($todo), $video, 'Post '.($video->version > 1 ? 'v'.$video->version.' ' : '').'to review: '.$todo->title,
+            $user->name.' uploaded '.($count > 1 ? "a {$count}-picture carousel" : 'a picture post').($todo->venture ? ' for '.$todo->venture : '').'.');
+
+        if (! $request->expectsJson()) {
+            return redirect()->route('reviews.show', $video)->with('status', 'Sent for review.');
+        }
+
+        return response()->json(['video' => $video->summary(), 'url' => route('reviews.show', $video)], 201);
+    }
+
     // ——— Commenting ———
 
     public function comment(Request $request, ReviewVideo $video): JsonResponse
@@ -367,7 +446,7 @@ class VideoReviewController extends Controller
             $to = $to->filter()->reject(fn (User $u) => $u->id === $user->id);
             if ($to->isNotEmpty()) {
                 $this->tell($to, $video, ($parent ? 'Reply from ' : 'Comment from ').$user->name.' · '.$video->todo?->title,
-                    Str::limit(($parent || empty($data['at_seconds']) ? '' : ReviewComment::clock((float) $data['at_seconds']).' — ').trim($data['body']), 180));
+                    Str::limit(($parent || empty($data['at_seconds']) ? '' : $video->momentLabel((float) $data['at_seconds']).' — ').trim($data['body']), 180));
             }
         }
 
@@ -709,7 +788,11 @@ class VideoReviewController extends Controller
             'previous_changes' => $this->previousChanges($video),
             // Only the first version gets the AI check; later ones are checked
             // against previous_changes.
-            'ai_applies' => $video->version === 1,
+            'ai_applies' => $video->version === 1 && ! $video->isImages(),
+            'media' => $video->isImages() ? 'images' : 'video',
+            'slides' => $video->isImages() && $video->deleted_file_at === null
+                ? collect($video->slides)->keys()->map(fn ($i) => ['url' => route('reviews.slide', [$video, $i]), 'w' => $video->slides[$i]['w'] ?? null, 'h' => $video->slides[$i]['h'] ?? null])->all()
+                : [],
             'adopted' => $video->allComments()->whereNull('parent_id')->get(['body', 'at_seconds'])
                 ->map(fn ($c) => $c->body.'|'.($c->at_seconds === null ? '' : number_format((float) $c->at_seconds, 1, '.', '')))->values()->all(),
             'i_approved' => $video->approvals()->where('user_id', $viewer->id)->exists(),

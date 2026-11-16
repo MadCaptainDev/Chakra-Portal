@@ -25,7 +25,7 @@ export function editorTimeline(initial, url, editorUrl = '') {
         received: Date.now(), // when data.now was true, to move the now line between reads
         loading: false,
         failed: false,
-        tab: initial.is_today ? 'queues' : 'moves', // the detail below the board
+        tab: initial.is_today ? 'timeline' : 'moves', // the detail below the board
 
         init() {
             this.data.lanes.forEach((l) => l.marks.forEach((m) => this.seen.add(m.id)));

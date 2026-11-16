@@ -35,6 +35,7 @@ class ReviewVideo extends Model
 
     protected $casts = [
         'ai_report' => 'array',
+        'slides' => 'array',
         'duration' => 'float',
         'ai_attempts' => 'integer',
         'ai_progress' => 'integer',
@@ -114,6 +115,28 @@ class ReviewVideo extends Model
         return $this->path && $this->deleted_file_at === null && is_file($this->filePath());
     }
 
+    /** An Instagram picture post (one image or a carousel), not a video. */
+    public function isImages(): bool
+    {
+        return ! empty($this->slides);
+    }
+
+    /** Every file this review keeps, for the clean-up. */
+    public function storedPaths(): array
+    {
+        return array_values(array_unique(array_filter([$this->path, $this->poster_path, ...array_column($this->slides ?? [], 'path')])));
+    }
+
+    /** Where a comment sits: "0:12" on a video, "Slide 2" on a picture post (at = the slide's index). */
+    public function momentLabel(?float $at): ?string
+    {
+        if ($at === null) {
+            return null;
+        }
+
+        return $this->isImages() ? 'Slide '.((int) round($at) + 1) : ReviewComment::clock($at);
+    }
+
     /** May this person see it? The card's editor, and anyone who manages them. */
     public function visibleTo(User $user): bool
     {
@@ -150,6 +173,7 @@ class ReviewVideo extends Model
     {
         return [
             'id' => $this->id,
+            'media' => $this->isImages() ? 'images' : 'video',
             'version' => $this->version,
             'status' => $this->status,
             'status_label' => $this->statusLabel(),

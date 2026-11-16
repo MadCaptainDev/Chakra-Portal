@@ -111,7 +111,30 @@
                    Works on every phone (iPhones have no full-screen for a page element, so it is drawn). --}}
               <div x-ref="theatre" :class="fs ? 'fixed inset-0 z-[100] flex flex-col justify-center gap-2 overflow-y-auto bg-black px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-[max(.75rem,env(safe-area-inset-top))] sm:px-8' : ''">
                 <div x-ref="stage" class="group relative overflow-hidden rounded-2xl bg-black shadow-2xl ring-1 ring-white/10" :class="fs ? 'rounded-none ring-0 shadow-none' : ''">
-                    @if ($video->hasFile())
+                    @if ($video->isImages() && $video->hasFile())
+                        {{-- A picture post: one slide at a time; t is the slide --}}
+                        <div class="relative select-none">
+                            <template x-for="(sl, i) in s.slides" :key="'s' + i">
+                                <img x-show="Math.round(t) === i" :src="sl.url" alt="" draggable="false" @contextmenu.prevent
+                                     class="mx-auto block h-auto max-h-[38vh] w-auto max-w-full sm:max-h-[60vh] lg:max-h-[70vh]"
+                                     :class="fs ? '!max-h-[calc(100dvh-190px)]' : ((at !== null || body.trim()) ? 'max-lg:max-h-[26vh]' : '')">
+                            </template>
+                            <template x-if="s.slides.length > 1">
+                                <div>
+                                    <button type="button" @click.stop="skip(-1)" x-show="Math.round(t) > 0" class="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-2xl text-white hover:bg-black/75" aria-label="Previous slide">‹</button>
+                                    <button type="button" @click.stop="skip(1)" x-show="Math.round(t) < s.slides.length - 1" class="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-2xl text-white hover:bg-black/75" aria-label="Next slide">›</button>
+                                    <span class="absolute left-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-bold text-white" x-text="(Math.round(t) + 1) + ' / ' + s.slides.length"></span>
+                                </div>
+                            </template>
+                            <button type="button" @click.stop="full()" class="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white shadow-lg hover:bg-black/75" :aria-label="fs ? 'Leave full screen' : 'Full screen'">
+                                <svg x-show="!fs" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+                                <svg x-show="fs" x-cloak class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
+                            </button>
+                            <button type="button" @click.stop="startComment()" class="absolute bottom-3 right-3 flex h-12 items-center gap-1.5 rounded-full bg-amber-400 px-4 text-sm font-bold text-brand-900 shadow-xl transition hover:scale-105 active:scale-95">
+                                💬 <span class="hidden sm:inline">Comment on</span> <span x-text="clock(t)"></span>
+                            </button>
+                        </div>
+                    @elseif ($video->hasFile())
                         <video x-ref="video" src="{{ route('reviews.file', $video) }}" @if ($video->poster_path) poster="{{ route('reviews.poster', $video) }}" @endif
                                preload="metadata" playsinline controlsList="nodownload" disablePictureInPicture
                                class="mx-auto block select-none bg-black {{ $vertical ? 'h-auto w-auto max-w-full max-h-[38vh] sm:max-h-[60vh] lg:max-h-[70vh]' : 'w-full max-h-[38vh] sm:max-h-[60vh] lg:max-h-[70vh]' }}"
@@ -168,12 +191,24 @@
                         </template>
                     @else
                         <div class="flex aspect-video items-center justify-center p-6 text-center text-sm text-brand-100/50">
-                            This review copy was deleted after the video went out.
+                            This review copy was deleted after the {{ $video->isImages() ? 'post' : 'video' }} went out.
                         </div>
                     @endif
                 </div>
 
-                @if ($video->hasFile())
+                @if ($video->isImages() && $video->hasFile() && count($video->slides) > 1)
+                    {{-- Every slide, with how many open comments sit on it --}}
+                    <div class="mt-2 flex gap-2 overflow-x-auto pb-1 sm:mt-3">
+                        <template x-for="(sl, i) in s.slides" :key="'th' + i">
+                            <button type="button" @click="seek(i)" class="relative h-16 w-14 shrink-0 overflow-hidden rounded-lg ring-2 transition" :class="Math.round(t) === i ? 'ring-amber-400' : 'ring-white/10 opacity-70 hover:opacity-100'" :aria-label="'Slide ' + (i + 1)">
+                                <img :src="sl.url" alt="" class="h-full w-full object-cover" loading="lazy">
+                                <span x-show="s.comments.filter((c) => c.at != null && !c.resolved && Math.round(c.at) === i).length" class="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-brand-900" x-text="s.comments.filter((c) => c.at != null && !c.resolved && Math.round(c.at) === i).length"></span>
+                            </button>
+                        </template>
+                    </div>
+                @endif
+
+                @if ($video->hasFile() && ! $video->isImages())
                     {{-- ——— Timeline: drag to scrub; pins for comments, diamonds for AI flags, dots for others watching ——— --}}
                     <div class="mt-2 select-none sm:mt-3">
                         <div x-ref="track" class="relative h-11 cursor-pointer touch-none sm:h-12"

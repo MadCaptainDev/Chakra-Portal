@@ -68,7 +68,8 @@ export function videoReview(urls, initial) {
     return {
         s: initial,
         t: 0,
-        duration: initial.duration || 0,
+        // A picture post's "moments" are its slides: t is the slide index.
+        duration: (initial.slides || []).length ? initial.slides.length - 1 : (initial.duration || 0),
         buffered: 0,
         playing: false,
         muted: false,
@@ -187,13 +188,15 @@ export function videoReview(urls, initial) {
             this.flash = { icon, k: Date.now() };
             setTimeout(() => { if (this.flash && Date.now() - this.flash.k >= 550) this.flash = null; }, 600);
         },
+        get pics() { return (this.s.slides || []).length > 0; },
         seek(sec) {
+            if (this.pics) { this.t = Math.max(0, Math.min(this.s.slides.length - 1, Math.round(sec))); return; }
             const v = this.$refs.video;
             const to = Math.max(0, Math.min(sec, this.duration || sec));
             if (v) v.currentTime = to;
             this.t = to;
         },
-        skip(by) { this.seek(this.t + by); },
+        skip(by) { this.seek(this.t + (this.pics ? Math.sign(by) : by)); },
         jump(sec) { if (sec == null) return; this.seek(sec); this.$refs.video?.pause(); },
         /** Tap the picture: play or pause. Double tap a side: 5 seconds back or on. */
         tapVideo(e) {
@@ -262,7 +265,7 @@ export function videoReview(urls, initial) {
             if (this._wasPlaying) this.$refs.video?.play();
         },
         pos(sec) { return this.duration ? `${Math.max(0, Math.min(100, (sec / this.duration) * 100))}%` : '0%'; },
-        clock,
+        clock(s) { return this.pics ? (s == null ? '' : `Slide ${Math.round(s) + 1}`) : clock(s); },
 
         // ——— Keys (never while typing) ———
         key(e) {

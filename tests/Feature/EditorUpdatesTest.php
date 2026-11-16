@@ -123,7 +123,9 @@ class EditorUpdatesTest extends TestCase
             ->assertSee('On hold')
             ->assertSee('Waiting for footage');
 
-        $this->actingAs($this->sanjai)->get(route('editor-updates.editor', $this->sanjai))->assertForbidden();
+        // An editor opens their own day (they post from Editor Updates), never someone else's.
+        $this->actingAs($this->sanjai)->get(route('editor-updates.editor', $this->sanjai))->assertOk();
+        $this->actingAs($this->sanjai)->get(route('editor-updates.editor', $this->admin))->assertForbidden();
     }
 
     public function test_a_new_day_with_videos_on_the_board_but_no_moves_yet_opens(): void
@@ -138,9 +140,9 @@ class EditorUpdatesTest extends TestCase
             ->assertSee('Janet - 10 Foods');
     }
 
-    public function test_it_is_admin_only_and_the_old_eod_link_redirects(): void
+    public function test_editors_see_their_own_work_and_the_old_eod_link_redirects(): void
     {
-        $this->actingAs($this->sanjai)->get(route('editor-updates'))->assertForbidden();
+        $this->actingAs($this->sanjai)->get(route('editor-updates'))->assertOk()->assertDontSee(route('editors.index'));
         $this->actingAs($this->admin)->get('/daily-checks')->assertRedirect('/editor-updates');
         $this->actingAs($this->admin)->get(route('editor-updates'))->assertOk()->assertSee('Nothing on anyone')->assertSee(route('editors.index'));
         $this->get('/editors')->assertRedirect('/editor-updates/output');
