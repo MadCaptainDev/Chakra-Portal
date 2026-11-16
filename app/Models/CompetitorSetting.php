@@ -66,7 +66,8 @@ class CompetitorSetting extends Model
     /** This module's own Gemini key, else the portal's (AI settings). */
     public function geminiKey(): ?string
     {
-        return $this->gemini_api_key ?: (AiSetting::current()->gemini_api_key ?: null);
+        // The reel review's key first (one key, one monthly cap), then this module's own.
+        return AiSetting::current()->gemini_api_key ?: ($this->gemini_api_key ?: null);
     }
 
     public function geminiModel(): string
@@ -75,17 +76,18 @@ class CompetitorSetting extends Model
     }
 
     /**
-     * The model set here first, then the portal's current ones
-     * (ReelTranscriber::GEMINI_MODELS), so a model Google retires falls
-     * through to one that still answers.
+     * The reel review's models (config ai.review.models) first, as the user
+     * asked, then the transcriber's, then the one set in Competitor setup;
+     * a model Google retires falls through to the next.
      *
      * @return array<int, string>
      */
     public function geminiModels(): array
     {
         return array_values(array_unique(array_filter([
-            $this->gemini_model,
+            ...(array) config('ai.review.models'),
             ...\App\Services\Ai\ReelTranscriber::GEMINI_MODELS,
+            $this->gemini_model,
         ])));
     }
 

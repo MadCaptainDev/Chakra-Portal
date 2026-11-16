@@ -2,11 +2,12 @@
     <x-slot name="header">
         <x-page-header title="Competitors" eyebrow="Studio"
                        subtitle="Track a competitor's public Instagram account, scrape their reels, and see which ones outperform their own average.">
-            @can('competitors.manage')
-                <x-slot name="actions">
+            <x-slot name="actions">
+                <x-btn :href="route('competitors.brain')">🧠 Brain</x-btn>
+                @can('competitors.manage')
                     <x-btn :href="route('competitor-settings.edit')" variant="secondary" icon="cog">Settings</x-btn>
-                </x-slot>
-            @endcan
+                @endcan
+            </x-slot>
         </x-page-header>
     </x-slot>
 

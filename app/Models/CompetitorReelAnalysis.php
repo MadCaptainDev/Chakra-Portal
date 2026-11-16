@@ -17,10 +17,25 @@ class CompetitorReelAnalysis extends Model
         'breakdown',
         'gemini_model',
         'analyzed_at',
+        'language',
+        'transcript',
+        'hook',
+        'format',
+        'topic',
+        'like_moments',
+        'share_moments',
+        'comment_read',
+        'summary',
+        'learned_at',
     ];
 
     protected $casts = [
         'analyzed_at' => 'datetime',
+        'learned_at' => 'datetime',
+        'transcript' => 'array',
+        'like_moments' => 'array',
+        'share_moments' => 'array',
+        'comment_read' => 'array',
     ];
 
     public function reel(): BelongsTo

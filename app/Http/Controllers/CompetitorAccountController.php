@@ -103,6 +103,8 @@ class CompetitorAccountController extends Controller
 
     public function show(CompetitorAccount $competitor): View
     {
+        \App\Services\Competitors\BrainQueue::nudge();
+
         return view('competitors.show', [
             'competitor' => $competitor->load('client'),
             'reels' => $competitor->reels()->with(['account', 'analysis.concepts.client'])->highestViewsFirst()->get(),
@@ -181,7 +183,15 @@ class CompetitorAccountController extends Controller
         ]);
 
         try {
-            $conceptText = ConceptGenerator::make()->generateConcepts($analysis->breakdown, $validated['brand_prompt']);
+            $brain = \App\Models\CompetitorBrainNote::query()->active()->for($analysis->reel?->competitor_account_id)
+                ->orderByDesc('strength')->limit(25)->get()
+                ->map(fn ($n) => "- [{$n->category}] {$n->insight} (backed by {$n->strength})")->implode("\n");
+            $script = collect($analysis->transcript ?? [])->map(fn ($l) => "{$l['at']} {$l['said']}".($l['english'] && $l['english'] !== $l['said'] ? " ({$l['english']})" : ''))->implode("\n");
+            $conceptText = ConceptGenerator::make()->generateConcepts(
+                $analysis->breakdown.($script !== '' ? "\n\n# Script\n".$script : ''),
+                $validated['brand_prompt'],
+                $brain ?: '(nothing learned yet)',
+            );
         } catch (CompetitorAnalysisException $e) {
             return back()->withInput()->with('status', 'Could not generate concepts: '.$e->getMessage());
         } catch (Throwable $e) {

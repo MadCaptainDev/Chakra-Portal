@@ -23,6 +23,11 @@ class CompetitorReel extends Model
         'comment_count',
         'posted_at',
         'scraped_at',
+        'short_code',
+        'duration_seconds',
+        'hashtags',
+        'music',
+        'comments',
     ];
 
     protected $casts = [
@@ -31,6 +36,10 @@ class CompetitorReel extends Model
         'comment_count' => 'integer',
         'posted_at' => 'datetime',
         'scraped_at' => 'datetime',
+        'hashtags' => 'array',
+        'music' => 'array',
+        'comments' => 'array',
+        'duration_seconds' => 'float',
     ];
 
     public function account(): BelongsTo
@@ -63,6 +72,34 @@ class CompetitorReel extends Model
     public function hasFreshVideo(): bool
     {
         return $this->video_url !== null && $this->scraped_at?->gte(now()->subDays(self::FRESH_DAYS));
+    }
+
+    /** A fresh video whose script has not been taken yet (no analysis, or one from before scripts). */
+    public function scopeNeedsScript(Builder $query): Builder
+    {
+        return $query->withFreshVideo()->where(fn ($q) => $q->whereDoesntHave('analysis')
+            ->orWhereHas('analysis', fn ($a) => $a->whereNull('transcript')));
+    }
+
+    /** Likes per 100 views. */
+    public function likeRate(): ?float
+    {
+        return $this->play_count ? round($this->like_count / $this->play_count * 100, 2) : null;
+    }
+
+    /** Comments per 1,000 views. */
+    public function commentRate(): ?float
+    {
+        return $this->play_count ? round($this->comment_count / $this->play_count * 1000, 2) : null;
+    }
+
+    /**
+     * Latest comments that tag someone -- a person sending the reel to a
+     * friend, the nearest thing to a share count Instagram lets anyone see.
+     */
+    public function friendTags(): int
+    {
+        return collect($this->comments ?? [])->filter(fn ($c) => preg_match('/@[A-Za-z0-9._]{2,}/', (string) ($c['text'] ?? '')))->count();
     }
 
     public function scopeHighestViewsFirst(Builder $query): Builder

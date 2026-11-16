@@ -1,5 +1,6 @@
 @php
     $unanalyzedCount = $reels->filter(fn ($reel) => ! $reel->isAnalyzed())->count();
+    $brainPending = \App\Services\Competitors\BrainQueue::pendingCount($competitor);
     $analysingCount = $reels->filter(fn ($reel) => ! $reel->analysis && \App\Services\Competitors\ReelAnalysis::analysing($reel))->count();
 @endphp
 
@@ -15,6 +16,13 @@
                     @csrf
                     <x-btn type="submit" variant="secondary" icon="refresh">Scrape now</x-btn>
                 </form>
+                @can('competitors.create')
+                    <form method="POST" action="{{ route('competitors.learn', $competitor) }}">
+                        @csrf
+                        <x-btn type="submit">🧠 Learn from all reels</x-btn>
+                    </form>
+                @endcan
+                <x-btn :href="route('competitors.brain', ['account' => $competitor->id])" variant="secondary">Brain</x-btn>
                 <x-btn :href="route('competitors.index')" variant="secondary">All competitors</x-btn>
             </x-slot>
         </x-page-header>
@@ -44,8 +52,15 @@
             @endif
         @endunless
 
+        @if ($brainPending > 0 && $competitor->learning_requested_at)
+            <div x-data x-init="setTimeout(() => location.reload(), 20000)" class="rounded-xl bg-violet-400/10 ring-1 ring-violet-400/30 p-3 text-sm text-violet-200">
+                🧠 The brain is learning — {{ $brainPending }} {{ Str::plural('step', $brainPending) }} left (about a minute or two each). Keep this page open; it refreshes itself and carries on.
+                <a href="{{ route('competitors.brain', ['account' => $competitor->id]) }}" class="ml-1 font-semibold underline">Watch the log</a>
+            </div>
+        @endif
+
         {{-- While Gemini works, look again every 20 seconds. --}}
-        @if ($analysingCount > 0)
+        @if ($analysingCount > 0 && ! ($brainPending > 0 && $competitor->learning_requested_at))
             <div x-data x-init="setTimeout(() => location.reload(), 20000)" class="rounded-xl bg-amber-400/10 ring-1 ring-amber-400/30 p-3 text-sm text-amber-200">
                 Gemini is analysing {{ $analysingCount }} {{ Str::plural('reel', $analysingCount) }}… this page refreshes itself.
             </div>
@@ -148,6 +163,7 @@
 
                             @if ($reel->analysis)
                                 <div x-show="caseStudy" x-cloak class="pt-3 border-t border-white/10 space-y-3">
+                                    @include('competitors._reel-read', ['reel' => $reel, 'analysis' => $reel->analysis])
                                     <div>
                                         <p class="text-[11px] font-semibold uppercase tracking-wider text-brand-100/60">Gemini's breakdown</p>
                                         <div class="ai-md mt-2">{!! \App\Support\AiMarkdown::html($reel->analysis->breakdown) !!}</div>

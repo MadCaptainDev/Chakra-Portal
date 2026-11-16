@@ -132,6 +132,20 @@ class GeminiVideoAnalyzer
      */
     public function analyzeVideo(string $fileUri, string $mimeType, string $prompt, int $maxRetries = 3): string
     {
+        $text = $this->ask($fileUri, $mimeType, $prompt, [], $maxRetries);
+        $hashPosition = strpos($text, '#');
+
+        return $hashPosition !== false ? substr($text, $hashPosition) : $text;
+    }
+
+    /**
+     * Ask about the uploaded video and get Gemini's visible text back, raw.
+     * Pass ['responseMimeType' => 'application/json'] for a JSON answer.
+     *
+     * @param  array<string, mixed>  $generationConfig
+     */
+    public function ask(string $fileUri, string $mimeType, string $prompt, array $generationConfig = [], int $maxRetries = 3): string
+    {
         $models = array_values((array) $this->models);
         $this->model = $models[0];
         $url = self::generateUrl($this->model);
@@ -147,7 +161,7 @@ class GeminiVideoAnalyzer
                                 ['text' => $prompt],
                             ],
                         ]],
-                    ]));
+                    ] + ($generationConfig ? ['generationConfig' => $generationConfig] : [])));
             } catch (\Illuminate\Http\Client\ConnectionException) {
                 // Hung (overloaded): the next model, or one more try on the last.
                 if ($next = $models[array_search($this->model, $models, true) + 1] ?? null) {
@@ -167,9 +181,8 @@ class GeminiVideoAnalyzer
                 // Thinking models answer in several parts; join the visible ones.
                 $text = collect((array) $response->json('candidates.0.content.parts', []))
                     ->reject(fn ($p) => ! empty($p['thought']))->pluck('text')->filter()->implode('');
-                $hashPosition = strpos($text, '#');
 
-                return $hashPosition !== false ? substr($text, $hashPosition) : $text;
+                return $text;
             }
 
             // Google retired this model: try the next one straight away, without spending a retry.

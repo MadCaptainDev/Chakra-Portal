@@ -44,7 +44,14 @@ class CompetitorScraper
 
         $newReels = 0;
 
-        foreach ($reels as $item) {
+        // Every video from the last 30 days (the average's own sample) plus
+        // the newest reels -- the brain wants all their scripts, not a top 12.
+        $videos = collect($recentPosts)->concat($reels)
+            ->filter(fn ($i) => filled($i['videoUrl'] ?? null))
+            ->unique(fn ($i) => $this->postId($i))
+            ->values()->all();
+
+        foreach ($videos as $item) {
             $postId = $this->postId($item);
 
             if ($postId === null || blank($item['videoUrl'] ?? null)) {
@@ -62,6 +69,17 @@ class CompetitorScraper
                     'comment_count' => $this->toInt($item['commentsCount'] ?? null),
                     'posted_at' => isset($item['timestamp']) ? Carbon::parse($item['timestamp']) : null,
                     'scraped_at' => now(),
+                    'short_code' => $item['shortCode'] ?? null,
+                    'duration_seconds' => isset($item['videoDuration']) ? round((float) $item['videoDuration'], 1) : null,
+                    'hashtags' => array_values((array) ($item['hashtags'] ?? [])) ?: null,
+                    'music' => isset($item['musicInfo']) ? array_filter([
+                        'song' => $item['musicInfo']['song_name'] ?? null,
+                        'artist' => $item['musicInfo']['artist_name'] ?? null,
+                        'original' => $item['musicInfo']['uses_original_audio'] ?? null,
+                    ], fn ($v) => $v !== null) : null,
+                    'comments' => collect((array) ($item['latestComments'] ?? []))
+                        ->map(fn ($c) => ['text' => \Illuminate\Support\Str::limit((string) ($c['text'] ?? ''), 300), 'likes' => (int) ($c['likesCount'] ?? 0)])
+                        ->filter(fn ($c) => $c['text'] !== '')->take(30)->values()->all() ?: null,
                 ]
             );
 
@@ -70,7 +88,7 @@ class CompetitorScraper
             }
         }
 
-        return ['reels' => count($reels), 'newReels' => $newReels];
+        return ['reels' => count($videos), 'newReels' => $newReels];
     }
 
     /**

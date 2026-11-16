@@ -222,6 +222,23 @@ class CompetitorAnalysisTest extends TestCase
 
     // -- competitors:analyze (CLI) ----------------------------------------
 
+    /** What Gemini answers about one reel (ReelAnalysis::prompt's JSON). */
+    private static function readJson(string $breakdown = '## Hook'): string
+    {
+        return json_encode([
+            'language' => 'Tamil',
+            'transcript' => [['at' => '0:00', 'said' => 'வணக்கம்', 'english' => 'Hello', 'on_screen' => 'Dusky girls!'], ['at' => '0:04', 'said' => 'Shade one', 'english' => 'Shade one', 'on_screen' => '']],
+            'hook' => 'Callout to dusky girls with a film meme',
+            'format' => '3-item listicle',
+            'topic' => 'lip shades',
+            'like_moments' => [['at' => '0:04', 'what' => 'swatch', 'why' => 'satisfying']],
+            'share_moments' => [['at' => '0:10', 'what' => 'price reveal', 'why' => 'send to a friend who needs it']],
+            'comment_read' => ['themes' => ['asking for shade names'], 'quoted_lines' => ['Dusky girls'], 'questions' => ['Where to buy?']],
+            'summary' => 'A listicle for dusky skin.',
+            'breakdown' => $breakdown,
+        ]);
+    }
+
     private function geminiFakes(): void
     {
         Http::fake([
@@ -230,7 +247,7 @@ class CompetitorAnalysisTest extends TestCase
             ], 200),
             'generativelanguage.googleapis.com/v1beta/files/*' => Http::response(['state' => 'ACTIVE'], 200),
             'generativelanguage.googleapis.com/v1beta/models/*' => Http::response([
-                'candidates' => [['content' => ['parts' => [['text' => "some preamble\n# Breakdown\nThe hook lands in the first second."]]]]],
+                'candidates' => [['content' => ['parts' => [['text' => self::readJson("# Breakdown\nThe hook lands in the first second.")]]]]],
             ], 200),
             'cdn.example.com/*' => Http::response('fake video bytes', 200, ['Content-Type' => 'video/mp4']),
         ]);
@@ -295,7 +312,7 @@ class CompetitorAnalysisTest extends TestCase
             ], 200),
             'generativelanguage.googleapis.com/v1beta/files/*' => Http::response(['state' => 'ACTIVE'], 200),
             'generativelanguage.googleapis.com/v1beta/models/*' => Http::response([
-                'candidates' => [['content' => ['parts' => [['text' => '# Breakdown']]]]],
+                'candidates' => [['content' => ['parts' => [['text' => self::readJson('# Breakdown')]]]]],
             ], 200),
         ]);
 
@@ -387,14 +404,14 @@ public function test_a_retired_gemini_model_falls_through_to_a_current_one(): vo
             'generativelanguage.googleapis.com/upload/*' => Http::response(['file' => ['name' => 'files/abc', 'uri' => 'https://generativelanguage.googleapis.com/v1beta/files/abc', 'mimeType' => 'video/mp4']]),
             'generativelanguage.googleapis.com/v1beta/files/*' => Http::response(['state' => 'ACTIVE']),
             'generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash*' => Http::response(['error' => ['code' => 404, 'message' => 'no longer available']], 404),
-            'generativelanguage.googleapis.com/v1beta/models/*' => Http::response(['candidates' => [['content' => ['parts' => [['text' => '# Breakdown ok']]]]]]),
+            'generativelanguage.googleapis.com/v1beta/models/*' => Http::response(['candidates' => [['content' => ['parts' => [['text' => self::readJson('# Breakdown ok')]]]]]]),
             'cdn.example.com/*' => Http::response('bytes', 200, ['Content-Type' => 'video/mp4']),
         ]);
 
         $analysis = \App\Services\Competitors\ReelAnalysis::run($reel);
 
         $this->assertSame('# Breakdown ok', $analysis->breakdown);
-        $this->assertSame(\App\Services\Ai\ReelTranscriber::GEMINI_MODELS[0], $analysis->gemini_model);
+        $this->assertSame(config('ai.review.models')[0], $analysis->gemini_model);
     }
 
     public function test_reels_with_a_stale_video_link_are_not_offered_for_analysis(): void

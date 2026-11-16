@@ -50,7 +50,7 @@ class ConceptGenerator
      * prompt template is the reference tool's own, verbatim -- it is the
      * one thing in that project actually worth keeping unchanged.
      */
-    public function generateConcepts(string $videoAnalysis, string $brandPrompt): string
+    public function generateConcepts(string $videoAnalysis, string $brandPrompt, string $brainNotes = ''): string
     {
         $prompt = <<<PROMPT
         # ROLE
@@ -62,6 +62,11 @@ class ConceptGenerator
         # REFERENCE VIDEO DESCRIPTION
         ------
         {$videoAnalysis}
+        ------
+
+        # WHAT OUR RESEARCH HAS LEARNED FROM COMPETITORS (strongest first; use it)
+        ------
+        {$brainNotes}
         ------
 
         # MY INSTRUCTIONS FOR NEW CONCEPTS

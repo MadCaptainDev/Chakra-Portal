@@ -1051,11 +1051,18 @@ Route::middleware(['auth', 'module:competitors,view'])->group(function () {
     Route::get('competitors', [CompetitorAccountController::class, 'index'])->name('competitors.index');
     Route::post('competitors', [CompetitorAccountController::class, 'store'])
         ->middleware('module:competitors,create')->name('competitors.store');
-    Route::get('competitors/{competitor}', [CompetitorAccountController::class, 'show'])->name('competitors.show');
+    Route::get('competitors/{competitor}', [CompetitorAccountController::class, 'show'])->whereNumber('competitor')->name('competitors.show');
     Route::post('competitors/{competitor}/scrape', [CompetitorAccountController::class, 'scrape'])
         ->middleware('module:competitors,create')->name('competitors.scrape');
     Route::delete('competitors/{competitor}', [CompetitorAccountController::class, 'destroy'])
         ->middleware('module:competitors,delete')->name('competitors.destroy');
+    // The competitor brain: what it has learned, its log, ask it. See CompetitorBrainController.
+    Route::get('competitors/brain', [\App\Http\Controllers\CompetitorBrainController::class, 'show'])->name('competitors.brain');
+    Route::post('competitors/brain/ask', [\App\Http\Controllers\CompetitorBrainController::class, 'ask'])->name('competitors.brain.ask');
+    Route::post('competitors/brain/notes/{note}/retire', [\App\Http\Controllers\CompetitorBrainController::class, 'retire'])
+        ->middleware('module:competitors,create')->name('competitors.brain.retire');
+    Route::post('competitors/{competitor}/learn', [\App\Http\Controllers\CompetitorBrainController::class, 'learn'])
+        ->middleware('module:competitors,create')->name('competitors.learn');
     Route::post('competitor-reels/{reel}/analyze', [CompetitorAccountController::class, 'analyze'])
         ->middleware('module:competitors,create')->name('competitor-reels.analyze');
     Route::post('competitors/{competitor}/analyze', [CompetitorAccountController::class, 'analyzeTop'])
