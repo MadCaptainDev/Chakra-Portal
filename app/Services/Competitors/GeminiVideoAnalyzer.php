@@ -185,8 +185,9 @@ class GeminiVideoAnalyzer
                 return $text;
             }
 
-            // Google retired this model: try the next one straight away, without spending a retry.
-            if ($response->status() === 404 && ($next = $models[array_search($this->model, $models, true) + 1] ?? null)) {
+            // Retired (404), or this model's quota or capacity is used up (429/503):
+            // try the next model straight away, without spending a retry.
+            if (in_array($response->status(), [404, 429, 503], true) && ($next = $models[array_search($this->model, $models, true) + 1] ?? null)) {
                 $this->model = $next;
                 $url = self::generateUrl($this->model);
                 $attempt--;

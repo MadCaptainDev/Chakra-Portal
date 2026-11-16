@@ -77,8 +77,9 @@ class CompetitorSetting extends Model
 
     /**
      * The reel review's models (config ai.review.models) first, as the user
-     * asked, then the transcriber's, then the one set in Competitor setup;
-     * a model Google retires falls through to the next.
+     * asked, then the transcriber's; a model Google retires or rate-limits
+     * falls through to the next. (The model once set in Competitor setup was
+     * retired by Google and is no longer used.)
      *
      * @return array<int, string>
      */
@@ -87,7 +88,6 @@ class CompetitorSetting extends Model
         return array_values(array_unique(array_filter([
             ...(array) config('ai.review.models'),
             ...\App\Services\Ai\ReelTranscriber::GEMINI_MODELS,
-            $this->gemini_model,
         ])));
     }
 

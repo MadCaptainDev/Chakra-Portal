@@ -197,4 +197,34 @@ class CompetitorBrainTest extends TestCase
     {
         $this->actingAs(User::factory()->create(['role' => User::ROLE_EMPLOYEE]))->get(route('competitors.brain'))->assertForbidden();
     }
+public function test_a_rate_limit_pauses_the_brain_and_keeps_the_reel_queued(): void
+    {
+        AiSetting::current()->forceFill(['gemini_api_key' => 'k'])->save();
+        $account = $this->account();
+        $account->forceFill(['learning_requested_at' => now()])->save();
+        $reel = $this->reel($account);
+        Http::fake(function (Request $request) {
+            $url = $request->url();
+            if (str_contains($url, 'cdn.example.com')) {
+                return Http::response('bytes', 200, ['Content-Type' => 'video/mp4']);
+            }
+            if (str_contains($url, '/upload/')) {
+                return Http::response(['file' => ['name' => 'files/a', 'uri' => 'https://generativelanguage.googleapis.com/v1beta/files/a', 'mimeType' => 'video/mp4']]);
+            }
+            if (str_contains($url, '/files/')) {
+                return Http::response(['state' => 'ACTIVE']);
+            }
+
+            return Http::response(['error' => ['message' => 'Resource exhausted']], 429); // every model
+        });
+
+        $this->assertSame('paused (rate limit)', BrainQueue::step());
+
+        $this->assertSame(1, BrainQueue::pendingCount()); // still queued, link untouched
+        $this->assertTrue($reel->fresh()->hasFreshVideo());
+        $this->assertTrue(BrainQueue::paused());
+        $this->assertSame('paused', CompetitorBrainLog::latest('id')->value('event'));
+        // Every model was tried before giving up.
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), (string) last(CompetitorSetting::current()->geminiModels())));
+    }
 }

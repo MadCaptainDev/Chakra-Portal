@@ -7,6 +7,7 @@ use App\Models\CompetitorBrainLog;
 use App\Models\CompetitorReel;
 use App\Models\CompetitorReelAnalysis;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -27,6 +28,11 @@ class BrainQueue
     private const LEASE = 'competitor-brain-lease';
 
     private const LEASE_MINUTES = 8;
+
+    /** After a rate limit, page views leave Gemini alone for a while. */
+    private const PAUSE = 'competitor-brain-paused';
+
+    private const PAUSE_MINUTES = 10;
 
     /** Reels still to script, for accounts that asked to learn. */
     public static function pendingScripts(?CompetitorAccount $account = null)
@@ -58,7 +64,7 @@ class BrainQueue
     /** From a page view: run the next step after the response, if nothing is running. */
     public static function nudge(): void
     {
-        if (self::pendingCount() === 0 || ! Cache::add(self::LEASE, now()->toIso8601String(), now()->addMinutes(self::LEASE_MINUTES))) {
+        if (self::paused() || self::pendingCount() === 0 || ! Cache::add(self::LEASE, now()->toIso8601String(), now()->addMinutes(self::LEASE_MINUTES))) {
             return;
         }
 
@@ -94,6 +100,15 @@ class BrainQueue
         try {
             $analysis = ReelAnalysis::run($reel);
         } catch (Throwable $e) {
+            // Google's per-minute/day limit, or the monthly cap: not this reel's fault.
+            // Leave it queued and stop for now; the next run picks it up.
+            if (self::isLimit($e)) {
+                CompetitorBrainLog::write('paused', 'Paused: '.Str::limit($e->getMessage(), 200).' The reel stays in the queue.',
+                    ['competitor_account_id' => $reel->competitor_account_id, 'competitor_reel_id' => $reel->id]);
+                Cache::put(self::PAUSE, true, now()->addMinutes(self::PAUSE_MINUTES));
+
+                return 'paused (rate limit)';
+            }
             CompetitorBrainLog::write('failed', 'Could not take the script of @'.$reel->account?->username.'\'s reel: '.$e->getMessage(),
                 ['competitor_account_id' => $reel->competitor_account_id, 'competitor_reel_id' => $reel->id]);
             // Out of the queue until the next scrape gives it a fresh link.
@@ -110,6 +125,18 @@ class BrainQueue
         return 'scripted @'.$reel->account?->username.' ('.number_format((int) $reel->play_count).' views); '.self::learn($analysis);
     }
 
+    /** A rate limit or spending cap: wait, don't drop. */
+    public static function isLimit(Throwable $e): bool
+    {
+        return ($e instanceof CompetitorAnalysisException && in_array($e->status, [429, 503], true))
+            || preg_match('/\b429\b|rate limit|quota|limit is used up|high demand|overloaded/i', $e->getMessage()) === 1;
+    }
+
+    public static function paused(): bool
+    {
+        return Cache::has(self::PAUSE);
+    }
+
     private static function learn(CompetitorReelAnalysis $analysis): string
     {
         try {
@@ -117,6 +144,11 @@ class BrainQueue
 
             return "learned {$done['learned']}, confirmed {$done['confirmed']}, contradicted {$done['contradicted']}";
         } catch (Throwable $e) {
+            if (self::isLimit($e)) {
+                Cache::put(self::PAUSE, true, now()->addMinutes(self::PAUSE_MINUTES));
+
+                return 'paused (rate limit)';
+            }
             CompetitorBrainLog::write('failed', 'Could not learn from a script: '.$e->getMessage(), ['competitor_reel_id' => $analysis->competitor_reel_id]);
             // Do not block the queue on one bad answer: mark it learned-with-nothing.
             $analysis->forceFill(['learned_at' => now()])->save();

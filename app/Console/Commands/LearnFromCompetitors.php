@@ -34,6 +34,11 @@ class LearnFromCompetitors extends Command
                 return self::SUCCESS;
             }
             $this->line('→ '.$did);
+            if (str_starts_with($did, 'paused')) {
+                $this->warn('Gemini rate limit — stopping here; run again in a few minutes.');
+
+                return self::SUCCESS;
+            }
         }
 
         return self::SUCCESS;
