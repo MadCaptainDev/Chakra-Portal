@@ -11,6 +11,7 @@ import { serviceExplorer, hoursPipeline } from './home-studio.js';
 import { loginMascot } from './login-mascot.js';
 import { editingDay } from './editing-day.js';
 import { editorTimeline } from './editor-timeline.js';
+import { kitGrid } from './kit-grid.js';
 import { plannerWeb } from './planner-web.js';
 import { ventureBoard } from './venture-board.js';
 import { videoReview, reviewUploader } from './video-review.js';
@@ -70,6 +71,8 @@ Alpine.data('hoursPipeline', hoursPipeline);
 
 // The sign-in page's mascot -- see resources/js/login-mascot.js.
 Alpine.data('loginMascot', loginMascot);
+
+Alpine.data('kitGrid', kitGrid);
 
 Alpine.start();
 

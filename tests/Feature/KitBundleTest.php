@@ -91,10 +91,24 @@ class KitBundleTest extends TestCase
         $crew = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
         ShootCrew::create(['shoot_id' => $shoot->id, 'user_id' => $crew->id, 'role' => 'Camera']);
 
-        $this->actingAs($crew)->get(route('my.shoots.run', $shoot))->assertSee('+ Power zoom lens');
+        // The photo grid lists it with what it brings.
+        $this->actingAs($crew)->get(route('my.shoots.run', $shoot))->assertSee('kitGrid', false)->assertSee('Power zoom lens');
         $this->actingAs($crew)->post(route('my.shoots.kit.add', $shoot), ['items' => [$camera->id]])->assertRedirect();
 
         $this->assertEqualsCanonicalizing([$camera->id, $lens->id], $shoot->kits()->pluck('equipment_item_id')->all());
+    }
+
+    public function test_the_crew_pick_how_many_from_the_photo_grid(): void
+    {
+        $stand = $this->item('Large light stand');
+        $stand->forceFill(['quantity' => 5])->save();
+        $shoot = $this->shoot();
+        $crew = User::factory()->create(['role' => User::ROLE_EMPLOYEE]);
+        ShootCrew::create(['shoot_id' => $shoot->id, 'user_id' => $crew->id, 'role' => 'Lights']);
+
+        $this->actingAs($crew)->post(route('my.shoots.kit.add', $shoot), ['items' => [$stand->id], 'qty' => [$stand->id => 3]])->assertRedirect();
+
+        $this->assertSame(3, $shoot->kits()->where('equipment_item_id', $stand->id)->value('quantity'));
     }
 
     public function test_the_register_saves_a_photo_and_what_goes_with_an_item(): void

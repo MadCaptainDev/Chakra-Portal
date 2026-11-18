@@ -95,7 +95,7 @@ class ShootRunController extends Controller
             'kit' => $shoot->kits->sortBy(fn (ShootKit $l) => $l->item?->name)->values(),
             // What can still be added to the list, for the crew's own picker.
             'equipment' => $shoot->hasWrapped() || $shoot->isCancelled() ? collect() : EquipmentItem::query()->active()->ordered()
-                ->whereNotIn('id', $shoot->kits->pluck('equipment_item_id'))->with('bundle:id,name')->get(),
+                ->whereNotIn('id', $shoot->kits->pluck('equipment_item_id'))->with(['bundle:id,name', 'category'])->get(),
             'usualKit' => $shoot->hasWrapped() || $shoot->isCancelled() ? collect() : KitSuggestion::forShoot($shoot),
             'myCrew' => $shoot->crew->firstWhere('user_id', $user->id),
             'nextShoot' => $shoot->hasWrapped() ? ShootRun::nextFor($shoot, $user) : null,
@@ -293,12 +293,15 @@ class ShootRunController extends Controller
         $data = $request->validate([
             'items' => ['required', 'array', 'min:1'],
             'items.*' => ['integer', Rule::exists('equipment_items', 'id')->where('is_active', true)],
+            'qty' => ['nullable', 'array'],
+            'qty.*' => ['integer', 'min:1', 'max:99'],
         ]);
 
-        // Lines already on the list keep their quantity; each new item brings its bundle.
+        // How many of each the photo grid asked for (1 when not given);
+        // lines already on the list keep theirs. Each new item brings its bundle.
         $have = $shoot->kits()->pluck('quantity', 'equipment_item_id');
         KitBundle::addTo($shoot, collect($data['items'])->unique()
-            ->mapWithKeys(fn ($id) => [(int) $id => (int) ($have[$id] ?? 1)])->all());
+            ->mapWithKeys(fn ($id) => [(int) $id => (int) ($have[$id] ?? ($data['qty'][$id] ?? 1))])->all());
 
         return back();
     }

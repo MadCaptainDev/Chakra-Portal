@@ -85,37 +85,23 @@
     @endif
 
     @if ($equipment->isNotEmpty())
-        <details class="mt-3" x-data="{ q: '' }" @if ($kit->isEmpty()) open @endif>
+        @php
+            $crewGrid = $equipment->map(fn ($item) => [
+                'id' => $item->id, 'name' => $item->name, 'identifier' => $item->identifier,
+                'category' => $item->categoryLabel(), 'order' => $item->category?->sort_order ?? 99,
+                'total' => $item->quantity, 'free' => $item->quantity,
+                'available' => $item->isAvailable(), 'statusLabel' => $item->isAvailable() ? null : $item->statusLabel(),
+                'accessoryIds' => $item->bundle->pluck('id')->values(), 'brings' => $item->bundle->pluck('name')->implode(', '),
+                'image' => $item->thumbUrl(),
+            ])->values();
+        @endphp
+        <details class="mt-3" @if ($kit->isEmpty()) open @endif>
             <summary class="cursor-pointer list-none rounded-xl bg-white/5 px-3 py-2.5 text-sm font-medium text-white/80 ring-1 ring-white/10">
                 + Add kit
             </summary>
-            <form method="POST" action="{{ route('my.shoots.kit.add', $shoot) }}" class="mt-2">
-                @csrf
-                <input type="search" x-model="q" placeholder="Search kit"
-                       class="w-full rounded-xl border-0 bg-white/10 px-3 py-2.5 text-sm text-white placeholder-white/30 focus:ring-2 focus:ring-white/40">
-                <ul class="mt-2 max-h-64 space-y-1 overflow-y-auto">
-                    @foreach ($equipment as $item)
-                        <li x-show="!q || @js(Str::lower($item->name)).includes(q.toLowerCase())">
-                            <label class="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-white/5">
-                                <input type="checkbox" name="items[]" value="{{ $item->id }}" class="h-5 w-5 rounded border-white/30 bg-transparent text-emerald-400 focus:ring-emerald-400">
-                                @include('my.shoots._kit-thumb', ['item' => $item, 'small' => true])
-                                <span class="min-w-0 flex-1">
-                                    <span class="block truncate text-sm">{{ $item->name }}</span>
-                                    @if ($item->bundle->isNotEmpty())
-                                        <span class="block truncate text-[11px] text-violet-200/70">+ {{ $item->bundle->pluck('name')->implode(', ') }}</span>
-                                    @endif
-                                </span>
-                                @if (! $item->isAvailable())
-                                    <span class="shrink-0 text-xs text-amber-300">{{ $item->statusLabel() }}</span>
-                                @endif
-                            </label>
-                        </li>
-                    @endforeach
-                </ul>
-                <button type="submit" class="mt-2 w-full rounded-xl bg-white/15 px-4 py-2.5 text-sm font-semibold text-white active:scale-[0.98] transition">
-                    Add to this shoot
-                </button>
-            </form>
+            <div class="mt-2 flex h-[70vh] flex-col">
+                @include('shoots._kit-grid', ['gridItems' => $crewGrid, 'action' => route('my.shoots.kit.add', $shoot), 'style' => 'ids'])
+            </div>
         </details>
     @endif
 </section>
