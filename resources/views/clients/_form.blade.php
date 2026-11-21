@@ -108,6 +108,38 @@
     </div>
 </div>
 
+{{-- Card offload: where Chakra Planner copies this client's footage off a
+     camera card. See App\Support\FootageFolder. --}}
+<fieldset class="mb-6 rounded-xl border border-white/10 p-4">
+    <legend class="px-1 text-sm font-semibold text-white">Footage folders</legend>
+    <p class="mb-3 text-xs text-brand-100/60">
+        Chakra Planner copies each video's clips to <span class="font-mono">drive root / pending folder / prefix - video name</span>.
+    </p>
+    <div class="mb-3">
+        <x-input-label for="drive_root" value="Drive root" />
+        <x-text-input id="drive_root" name="drive_root" type="text" class="mt-1 block w-full font-mono text-sm"
+                      value="{{ old('drive_root', $client->drive_root ?? '') }}" placeholder="/Volumes/Chakra/Clients/Squad" />
+        <x-input-error :messages="$errors->get('drive_root')" class="mt-2" />
+    </div>
+    <div class="mb-3">
+        <x-input-label for="folder_prefix" value="Folder prefix" />
+        <x-text-input id="folder_prefix" name="folder_prefix" type="text" class="mt-1 block w-full"
+                      value="{{ old('folder_prefix', $client->folder_prefix ?? '') }}" placeholder="{{ $client->name ?? 'e.g. SVA Tier 2' }}" />
+        <p class="mt-1 text-xs text-brand-100/60">Blank uses the client's name.</p>
+        <x-input-error :messages="$errors->get('folder_prefix')" class="mt-2" />
+    </div>
+    <div>
+        <x-input-label for="pending_path_template" value="Pending folder" />
+        <x-text-input id="pending_path_template" name="pending_path_template" type="text" class="mt-1 block w-full font-mono text-sm"
+                      value="{{ old('pending_path_template', $client->pending_path_template ?? '') }}" placeholder="{{ \App\Support\FootageFolder::DEFAULT_TEMPLATE }}" />
+        <p class="mt-1 text-xs text-brand-100/60">
+            Blank uses <span class="font-mono">{{ \App\Support\FootageFolder::DEFAULT_TEMPLATE }}</span>. Placeholders, from the shoot date:
+            <span class="font-mono">{month_short}</span> Nov, <span class="font-mono">{MONTH_SHORT}</span> NOV, <span class="font-mono">{month}</span> November, <span class="font-mono">{year}</span> 2026, <span class="font-mono">{mm}</span> 11.
+        </p>
+        <x-input-error :messages="$errors->get('pending_path_template')" class="mt-2" />
+    </div>
+</fieldset>
+
 <div class="mb-6">
     <label class="inline-flex items-start gap-2.5 text-sm text-brand-100/80">
         <input type="hidden" name="is_active" value="0">

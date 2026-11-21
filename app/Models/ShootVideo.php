@@ -31,6 +31,8 @@ class ShootVideo extends Model
         'seconds' => 'integer',
         // Set only by ShootRun::fileFootage(): this clip is on the drive.
         'footage_copied_at' => 'datetime',
+        // "Start take" on the runner (ShootRun::startTake()); null when nobody pressed it.
+        'started_at' => 'datetime',
     ];
 
     /** "2 of 3 sections · 4m 10s", or null when it was not shot from a script's sections. */

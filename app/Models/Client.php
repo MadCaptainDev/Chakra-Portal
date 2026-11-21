@@ -121,6 +121,9 @@ class Client extends Model
         'is_active',
         'forecast_alert_depletion_date',
         'forecast_alert_sent_at',
+        'drive_root',
+        'folder_prefix',
+        'pending_path_template',
     ];
 
     protected $casts = [

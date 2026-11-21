@@ -41,6 +41,9 @@ class ShootEvent extends Model
 
     public const CANCELLED = 'cancelled';
 
+    /** Chakra Planner copied a video's clips off the camera card (meta: clips, bytes, folder, checksum). */
+    public const FOOTAGE_COPIED = 'footage_copied';
+
     /** The admins were told something is late (meta: kind). */
     public const LATE_ALERT = 'late_alert';
 
@@ -62,6 +65,7 @@ class ShootEvent extends Model
         self::BACK_AT_OFFICE => 'Back at office',
         self::KIT_RETURNED => 'Kit returned',
         self::FOOTAGE_FILED => 'Footage on drive',
+        self::FOOTAGE_COPIED => 'Clips copied from card',
         self::CANCELLED => 'Cancelled',
         self::LATE_ALERT => 'Late alert sent',
     ];
@@ -81,6 +85,7 @@ class ShootEvent extends Model
         self::BACK_AT_OFFICE => 'text-emerald-300',
         self::KIT_RETURNED => 'text-violet-300',
         self::FOOTAGE_FILED => 'text-emerald-300',
+        self::FOOTAGE_COPIED => 'text-emerald-300',
         self::CANCELLED => 'text-red-300',
         self::LATE_ALERT => 'text-amber-300',
     ];

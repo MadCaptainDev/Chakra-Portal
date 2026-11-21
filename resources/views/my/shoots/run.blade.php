@@ -411,6 +411,33 @@
                         </template>
                     @endif
 
+                    {{-- Start take: stamps when the camera started rolling on this video,
+                         so Chakra Planner can match the card's clips to it exactly. --}}
+                    <form method="POST" action="{{ route('my.shoots.take', $shoot) }}" class="mb-4">
+                        @csrf
+                        @if ($shoot->take_started_at)
+                            <div class="flex items-center gap-3 rounded-2xl bg-red-500/15 px-4 py-3 ring-1 ring-red-400/30"
+                                 x-data="{ since: {{ $shoot->take_started_at->getTimestamp() }}, now: Math.floor(Date.now() / 1000) }"
+                                 x-init="setInterval(() => now = Math.floor(Date.now() / 1000), 1000)">
+                                <span class="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-red-400"></span>
+                                <span class="min-w-0 flex-1 text-sm">
+                                    <span class="font-semibold text-red-200">Take rolling</span>
+                                    <span class="text-white/50">since {{ $shoot->take_started_at->format('g:i A') }} ·</span>
+                                    <span class="tabular-nums text-white/70" x-text="Math.floor(Math.max(0, now - since) / 60) + 'm ' + String(Math.max(0, now - since) % 60).padStart(2, '0') + 's'"></span>
+                                </span>
+                                <button type="submit" class="shrink-0 text-xs text-white/50 underline underline-offset-4">Restart</button>
+                            </div>
+                            <p class="mt-1.5 text-xs text-white/40">Saving the video below ends this take.</p>
+                        @else
+                            <button type="submit"
+                                    class="flex w-full items-center justify-center gap-2 rounded-2xl bg-red-500/90 px-6 py-3.5 text-base font-semibold text-white active:scale-[0.98] transition">
+                                <span class="h-3 w-3 rounded-full bg-white"></span> Start take
+                            </button>
+                            <p class="mt-1.5 text-center text-xs text-white/40">Tap as the camera starts rolling. It helps sort the card later.</p>
+                        @endif
+                        <x-input-error :messages="$errors->get('take')" class="mt-1.5" />
+                    </form>
+
                     <form method="POST" action="{{ route('my.shoots.videos.store', $shoot) }}" x-ref="form"
                           enctype="multipart/form-data" class="space-y-5 scroll-mt-4" @submit="submitted($event)">
                         @csrf
