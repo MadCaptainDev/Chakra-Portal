@@ -54,7 +54,7 @@ class CreateQuotation extends Tool
     public function schema(): array
     {
         return $this->object([
-            'client' => ['type' => 'string', 'description' => 'Client id or portal name. Leave out when it is for someone not in the portal.'],
+            'client' => ['type' => 'string', 'description' => 'Client id or portal name -- or simply the name of anyone not in the portal (a new lead): no match is fine, the quotation is made out to that name.'],
             'recipient_name' => ['type' => 'string', 'description' => 'Who it is for, when not a client (person or business). Use instead of client.'],
             'recipient_phone' => ['type' => 'string', 'description' => 'Optional. Their WhatsApp number, when not a client.'],
             'recipient_address' => ['type' => 'string', 'description' => 'Optional. Their address, when not a client.'],
@@ -86,8 +86,23 @@ class CreateQuotation extends Tool
     public function handle(array $arguments, User $user): array
     {
         // A client, or anyone: a name (and a number) typed in.
-        $client = filled($arguments['client'] ?? null) ? ClientResolver::resolve($arguments['client']) : null;
         $recipient = trim((string) ($arguments['recipient_name'] ?? ''));
+        $client = null;
+        $notAClient = false;
+        if (filled($arguments['client'] ?? null)) {
+            try {
+                $client = ClientResolver::resolve($arguments['client']);
+            } catch (ToolException $e) {
+                // A name that is no client (a new lead, a resort that called): a quotation
+                // can go to anyone, so take it as who it is for rather than refusing.
+                // Several matching clients, or an unknown id, still need asking.
+                if (! str_starts_with($e->getMessage(), 'No client matches') || $recipient !== '') {
+                    throw $e;
+                }
+                $recipient = trim((string) $arguments['client']);
+                $notAClient = true;
+            }
+        }
         $recipientPhone = trim((string) ($arguments['recipient_phone'] ?? ''));
         if (! $client && $recipient === '') {
             throw new ToolException('Say who it is for: a client, or recipient_name for someone not in the portal.');
@@ -156,6 +171,7 @@ class CreateQuotation extends Tool
             'number' => $quotation->quotation_number,
             'for' => $quotation->recipientName(),
             'is_client' => $client !== null,
+            'note' => $notAClient ? 'Not a client in the portal, so this quotation is made out to that name. Ask for their WhatsApp number (recipient_phone) to send it; if they accept and it becomes an invoice, they are added as a client.' : null,
             'lines' => $quotation->items->map(fn ($l) => [
                 'description' => $l->description,
                 'quantity' => (float) $l->quantity,

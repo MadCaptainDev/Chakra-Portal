@@ -143,6 +143,20 @@ class McpStudioToolsTest extends TestCase
 
     // ——— Quotations ———
 
+    public function test_create_quotation_with_a_name_that_is_not_a_client_makes_it_out_to_that_name(): void
+    {
+        Client::create(['name' => 'Thillai Pets Clinic']);
+        $data = $this->data($this->tokenFor($this->admin()), 'create_quotation', [
+            'client' => 'White House Resort, Kothagiri',
+            'items' => [['description' => 'Video planning', 'quantity' => 1, 'unit_price' => 5500]],
+        ]);
+
+        $this->assertSame('White House Resort, Kothagiri', $data['for']);
+        $this->assertFalse($data['is_client']);
+        $this->assertNotNull($data['note']);
+        $this->assertNull(Quotation::findOrFail($data['quotation_id'])->client_id);
+    }
+
     public function test_create_quotation_for_someone_not_in_the_portal(): void
     {
         $token = $this->tokenFor($this->admin());

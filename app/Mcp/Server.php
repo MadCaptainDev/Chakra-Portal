@@ -86,6 +86,7 @@ class Server
         .'9) Invoices: get_invoice before update_invoice (items replace every line); duplicate_invoice to bill '
         .'"same as last month"; rates only from the person or a past invoice. Recurring schedules: '
         .'list_recurring_invoices before changing one. None of these send anything to the client. '
+        .'Quotations can go to anyone, not only clients: for a new lead pass recipient_name (and recipient_phone) to create_quotation, no find_client needed. '
         .'10) There are no tools to record a payment FROM a client, approve or delete invoices, read '
         .'client passwords or delete clients -- send the person to the portal for those.';
 
