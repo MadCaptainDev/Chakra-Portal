@@ -6,13 +6,15 @@ use App\Models\Script;
 use App\Models\Shoot;
 use App\Models\ShootCrew;
 use App\Models\ShootEvent;
-use App\Models\ShootKit;
 use App\Models\ShootVideo;
 use App\Models\User;
+use App\Models\Video;
+use App\Services\LiveActivities\CrewTrip;
 use App\Services\Notion\NotionShootStatus;
+use App\Support\PublicUpload;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use App\Support\PublicUpload;
 use RuntimeException;
 
 use function Illuminate\Support\defer;
@@ -260,7 +262,7 @@ class ShootRun
                 return $twin;
             }
 
-            return ShootVideo::create([
+            $video = ShootVideo::create([
                 'shoot_id' => $shoot->id,
                 'script_id' => $scriptId,
                 'recorded_by_id' => $crewMember->id,
@@ -271,6 +273,17 @@ class ShootRun
                 'seconds' => $sectionLog ? array_sum(array_column($sectionLog, 'seconds')) : null,
                 'position' => $position + 1,
             ]);
+
+            // "Start take" was pressed: this video is that take. The rolling
+            // take is used up, so the next one starts clean.
+            $rolling = Shoot::query()->lockForUpdate()->whereKey($shoot->id)->value('take_started_at');
+            if ($rolling !== null) {
+                $video->forceFill(['started_at' => $rolling])->save();
+                Shoot::query()->whereKey($shoot->id)->update(['take_started_at' => null]);
+                $shoot->take_started_at = null;
+            }
+
+            return $video;
         });
 
         // The twin kept its own still; this one's upload is not needed.
@@ -288,6 +301,24 @@ class ShootRun
         }
 
         return $video;
+    }
+
+    /**
+     * "Start take": the camera is rolling on the next video. Stamped on the
+     * shoot until that video is filed, then moved onto it as started_at, so
+     * Chakra Planner can match a card's clips to the take exactly instead of
+     * guessing from the gap before the crew logged it. Pressing it again
+     * restarts the take (a false start).
+     *
+     * @throws RuntimeException
+     */
+    public static function startTake(Shoot $shoot): void
+    {
+        if (! $shoot->isInProgress()) {
+            throw new RuntimeException($shoot->hasWrapped() ? 'This shoot has already been wrapped.' : 'Start the shoot first.');
+        }
+
+        $shoot->forceFill(['take_started_at' => now()])->save();
     }
 
     /**
@@ -313,7 +344,7 @@ class ShootRun
         ShootEvent::record($shoot, $crewMember, ShootEvent::WRAPPED, $count.' '.str('video')->plural($count));
 
         // End the shoot's Live Activities on everyone's iPhone.
-        defer(fn () => rescue(fn () => \App\Services\LiveActivities\CrewTrip::ended($shoot), null, false));
+        defer(fn () => rescue(fn () => CrewTrip::ended($shoot), null, false));
 
         NotionShootStatus::push($shoot, NotionShootStatus::AFTER_WRAP);
     }
@@ -403,7 +434,7 @@ class ShootRun
 
         ShootEvent::record($shoot, $by, ShootEvent::CANCELLED, $reason ?: null);
 
-        defer(fn () => rescue(fn () => \App\Services\LiveActivities\CrewTrip::ended($shoot), null, false));
+        defer(fn () => rescue(fn () => CrewTrip::ended($shoot), null, false));
 
         NotionShootStatus::push($shoot, NotionShootStatus::CANCELLED);
     }
@@ -600,7 +631,7 @@ class ShootRun
             throw new RuntimeException('That video is not from this shoot.');
         }
 
-        \App\Models\Video::query()->where('shoot_video_id', $clip->id)->update(['shoot_video_id' => null]);
+        Video::query()->where('shoot_video_id', $clip->id)->update(['shoot_video_id' => null]);
 
         if ($contentItemId === null) {
             return;
@@ -609,7 +640,7 @@ class ShootRun
         $reel = $shoot->notionShoot?->contentItems()->whereKey($contentItemId)->first()
             ?? throw new RuntimeException('That reel is not planned for this shoot.');
 
-        \App\Models\Video::query()->updateOrCreate(
+        Video::query()->updateOrCreate(
             ['content_item_id' => $reel->id],
             ['shoot_video_id' => $clip->id, 'shoot_id' => $shoot->id],
         );
@@ -627,7 +658,7 @@ class ShootRun
      * not always listed as crew, and they are still the person holding it
      * open.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<Shoot>
+     * @return Builder<Shoot>
      */
     public static function runningFor(User $crewMember, bool $lock = false)
     {

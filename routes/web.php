@@ -420,6 +420,7 @@ Route::middleware('auth')->group(function () {
     Route::post('my/shoots/{shoot}/reached', [ShootRunController::class, 'reached'])->name('my.shoots.reached');
     Route::post('my/shoots/{shoot}/start', [ShootRunController::class, 'start'])->name('my.shoots.start');
     Route::post('my/shoots/{shoot}/focus', [ShootRunController::class, 'focus'])->name('my.shoots.focus');
+    Route::post('my/shoots/{shoot}/take', [ShootRunController::class, 'startTake'])->name('my.shoots.take');
     Route::post('my/shoots/{shoot}/videos', [ShootRunController::class, 'storeVideo'])->name('my.shoots.videos.store');
     Route::patch('my/shoots/{shoot}/videos/{video}', [ShootRunController::class, 'renameVideo'])->name('my.shoots.videos.rename');
     Route::get('my/shoots/{shoot}/live', [ShootRunController::class, 'live'])->name('my.shoots.live');

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Planner\PlannerAppController;
 use App\Http\Controllers\Api\Planner\PlannerAuthController;
 use App\Http\Controllers\Api\Planner\PlannerItemController;
+use App\Http\Controllers\Api\Planner\PlannerOffloadController;
 use App\Http\Controllers\Api\Planner\PlannerReleaseController;
 use App\Http\Middleware\AuthenticatePlannerToken;
 use Illuminate\Support\Facades\Route;
@@ -48,6 +49,13 @@ Route::prefix('api/planner')->name('api.planner.')->group(function () {
 
         // The editing floor for admins and managers (the controller checks; see PlannerEditorUpdatesController).
         Route::get('editor-updates', [\App\Http\Controllers\Api\Planner\PlannerEditorUpdatesController::class, 'show'])->name('editor-updates');
+
+        // Card offload (PlannerOffloadController): shoots and their logged
+        // takes, clips reported copied, and each camera's clock offset.
+        // Named offload.* so crew without the planners can offload too.
+        Route::get('shoots', [PlannerOffloadController::class, 'shoots'])->name('offload.shoots');
+        Route::post('shoot-videos/{shootVideo}/footage-copied', [PlannerOffloadController::class, 'footageCopied'])->middleware(\Illuminate\Routing\Middleware\SubstituteBindings::class)->whereNumber('shootVideo')->name('offload.footage-copied');
+        Route::post('cameras/{serial}', [PlannerOffloadController::class, 'camera'])->where('serial', '[A-Za-z0-9._-]{1,64}')->name('offload.camera');
 
         Route::get('items', [PlannerItemController::class, 'index'])->name('items.index');
         Route::get('items/{item}', [PlannerItemController::class, 'show'])->whereNumber('item')->name('items.show');

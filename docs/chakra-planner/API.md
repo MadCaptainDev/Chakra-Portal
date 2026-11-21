@@ -240,6 +240,121 @@ Top level: `as_of`, `server_time` (ISO 8601), `scope` (`"every editor"` |
 **Live:** every editing move publishes `editing.updated` on the `planner`
 Ably channel, data `{user_id, card_id, type}`: refetch on it (when live
 updates are on), otherwise poll every 15 s.
+## Card offload (added 2026-11-21)
+
+The Mac app reads a camera card, matches each clip to the take the crew logged,
+copies the clips to `<drive_root>/<pending_path>/<folder_prefix> - <take name>/`
+and reports back. All three routes are open to **every staff token**, widget-only
+accounts included: whoever holds the card is often crew. Client tokens get 403.
+
+### `GET /shoots?from=YYYY-MM-DD&to=YYYY-MM-DD&status=completed`
+
+- `from`, `to`: dates (studio time), inclusive. Default: the last two days to
+  today. At most 62 days (`422 range_too_long`). A shoot is in range when its
+  booked `starts_at` or its real `started_at` falls in it.
+- `status`: optional, comma-separated (`planned`, `confirmed`, `completed`,
+  `cancelled`). Without it every shoot except cancelled ones is returned.
+
+```json
+{
+  "data": [{
+    "id": 12,
+    "title": "Squad reels",
+    "status": "completed",
+    "date": "2026-11-20",
+    "starts_at": "2026-11-20T18:30:00+05:30",
+    "started_at": "2026-11-20T18:59:00+05:30",
+    "wrapped_at": "2026-11-20T22:27:00+05:30",
+    "footage_filed_at": null,
+    "partner_shoot_ids": [11],
+    "client": {
+      "id": 3,
+      "name": "Squad Architects",
+      "client_label": "Squad Architects",
+      "drive_root": "/Volumes/Chakra/Clients/Squad",
+      "folder_prefix": "Squad",
+      "pending_path_template": "{month_short} - {year}/pending",
+      "pending_path": "Nov - 2026/pending"
+    },
+    "takes": [
+      { "id": "sv:881", "name": "Office tour", "logged_at": "2026-11-20T19:14:02+05:30",
+        "started_at": "2026-11-20T19:09:40+05:30", "source": "shoot_video",
+        "shoot_video_id": 881, "script_id": null, "footage_copied_at": null },
+      { "id": "ev:5120", "name": "Lobby", "logged_at": "2026-11-20T19:31:10+05:30",
+        "started_at": null, "source": "shoot_event",
+        "shoot_video_id": null, "script_id": null, "footage_copied_at": null },
+      { "id": "script:402", "name": "Hook 3", "logged_at": "2026-11-20T19:48:55+05:30",
+        "started_at": null, "source": "script",
+        "shoot_video_id": null, "script_id": 402, "footage_copied_at": null }
+    ]
+  }],
+  "cameras": [{ "serial": "5012345", "name": "FX3 A", "clock_offset_seconds": 0 }],
+  "server_time": "2026-11-21T10:02:11+05:30"
+}
+```
+
+- Shoots are ordered by when they ran. `started_at` / `wrapped_at` are null
+  until the crew press Start / Finish; split a card's clips by these windows.
+  `partner_shoot_ids`: shoots run together with this one (same place and time,
+  another brand), whose windows overlap.
+- `client` is null for a shoot with no client. `drive_root` is null until
+  someone sets it on the client (Clients → Edit → Footage folders): ask where
+  to copy. `folder_prefix` falls back to the client's name and
+  `pending_path_template` to `{month_short} - {year}/pending`, so both are
+  always strings. `pending_path` is the template already filled from the
+  shoot's date. Placeholders: `{month_short}` Nov, `{MONTH_SHORT}` NOV,
+  `{month}` November, `{year}` 2026, `{mm}` 11.
+- `takes`, ordered by `logged_at`, merged and de-duplicated from:
+  - `shoot_video`: a video filed on the runner. The only kind with a
+    `shoot_video_id`, so the only kind `footage-copied` accepts.
+  - `shoot_event`: a "Video shot" line on the shoot's timeline whose video row
+    no longer exists.
+  - `script`: a script of this client (or linked to this shoot) marked shot
+    between the start and 30 minutes after the wrap, with no video filed for
+    it anywhere. Scripts marked with a date only (no time) are left out.
+- `logged_at` is when the take went on record: usually 2–3 minutes after the
+  camera stopped. `started_at` is when the crew pressed **Start take** on the
+  runner, when they did; with it, a clip belongs to the take whose
+  `started_at`..`logged_at` it falls in.
+- `cameras`: every known body. `clock_offset_seconds` is added to the camera's
+  own clock (from the clip XML) to get real time.
+
+### `POST /shoot-videos/{shoot_video_id}/footage-copied`
+
+```json
+{
+  "clip_count": 14,
+  "bytes": 53687091200,
+  "folder": "/Volumes/Chakra/Clients/Squad/Nov - 2026/pending/Squad - Office tour",
+  "checksum": { "algo": "xxh3-64", "digest": "9f2c…", "files": 14 },
+  "camera_serials": ["5012345"],
+  "copied_at": "2026-11-21T10:05:00+05:30"
+}
+```
+
+`clip_count`, `bytes`, `folder` required; the rest optional (`checksum.algo` and
+`checksum.digest` required when `checksum` is sent). Sets the video's
+`footage_copied_at` (the first time only; a future `copied_at` is clamped to
+now) and adds a "Clips copied from card" line (`footage_copied`) to the shoot's
+timeline with everything sent as its meta. Calling it again is safe: the
+timestamp stays, another line is logged with `again: true`.
+
+```json
+{ "shoot_video_id": 881, "shoot_id": 12, "footage_copied_at": "2026-11-21T10:05:00+05:30",
+  "already_copied": false, "shoot_all_copied": false }
+```
+
+`shoot_all_copied`: every video filed on that shoot now has its footage copied.
+404 for an unknown id. This does not file the shoot's footage (the crew's
+"Footage on drive" step on the runner, which also names the drive).
+
+### `POST /cameras/{serial}`
+
+`{ "name": "FX3 B", "clock_offset_seconds": -19200 }`, both optional. Creates
+the camera (201) or updates it (200); a field left out is kept. Serial:
+letters, digits, `.`, `_`, `-`, up to 64. Offset within ±1 year. Answers
+`{ "data": { "serial": "...", "name": "...", "clock_offset_seconds": -19200 } }`.
+
 ## Items
 
 A planner item is one row from one of the four Notion content planners:

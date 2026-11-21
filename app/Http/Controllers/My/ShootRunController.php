@@ -3,11 +3,12 @@
 namespace App\Http\Controllers\My;
 
 use App\Http\Controllers\Controller;
-use App\Models\Script;
 use App\Models\EquipmentItem;
+use App\Models\Script;
 use App\Models\Shoot;
 use App\Models\ShootKit;
 use App\Models\ShootVideo;
+use App\Models\Video;
 use App\Services\KitCustody;
 use App\Services\ShootRun;
 use App\Support\CrewShootRecord;
@@ -103,7 +104,7 @@ class ShootRunController extends Controller
             // The reels Notion plans for this shoot, to match each filed clip to.
             'reels' => $shoot->hasWrapped() ? ($shoot->notionShoot?->contentItems()->orderBy('title')->get(['id', 'title', 'status']) ?? collect()) : collect(),
             'clipReel' => $shoot->hasWrapped()
-                ? \App\Models\Video::query()->whereIn('shoot_video_id', $shoot->videos->pluck('id'))->pluck('content_item_id', 'shoot_video_id')
+                ? Video::query()->whereIn('shoot_video_id', $shoot->videos->pluck('id'))->pluck('content_item_id', 'shoot_video_id')
                 : collect(),
             'scripts' => $this->scripts($shoot),
             'liveVersion' => $this->liveVersion($shoot),
@@ -260,6 +261,20 @@ class ShootRunController extends Controller
         }
 
         return back()->with('status', 'saved');
+    }
+
+    /** "Start take" -- see ShootRun::startTake(). */
+    public function startTake(Request $request, Shoot $shoot): RedirectResponse
+    {
+        $this->authoriseCrew($shoot);
+
+        try {
+            ShootRun::startTake($shoot);
+        } catch (RuntimeException $e) {
+            throw ValidationException::withMessages(['take' => $e->getMessage()]);
+        }
+
+        return back();
     }
 
     /**
