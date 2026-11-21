@@ -1105,6 +1105,8 @@ Route::middleware(['auth', 'module:announcements,view'])->group(function () {
  */
 Route::middleware(['auth', 'module:timesheets,view'])->group(function () {
     Route::get('timesheets', [TimesheetAdminController::class, 'index'])->name('timesheets.index');
+    // The Work Report: day / week / month of hours, videos, cancellations and shoots.
+    Route::get('work-report', [\App\Http\Controllers\WorkReportController::class, 'index'])->name('work-report');
     Route::get('timesheets/{employee}', [TimesheetAdminController::class, 'show'])->name('timesheets.show');
     Route::post('timesheets/{employee}/points', [TimesheetAdminController::class, 'award'])
         ->middleware('module:timesheets,manage')->name('timesheets.award');

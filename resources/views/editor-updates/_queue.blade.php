@@ -75,6 +75,9 @@
                     <button type="button" :disabled="busy === {{ $t->id }} || {{ $openFixes }} > 0"
                             @click="send(@js(route('my.editing.act', $t)), { action: 'deliver' }, {{ $t->id }})"
                             class="{{ $btn }} bg-[#1a3a4b] text-teal-200 hover:bg-white/15">Delivered</button>
+                    <button type="button" :disabled="busy === {{ $t->id }}"
+                            @click="(r => r && r.trim() && send(@js(route('my.editing.act', $t)), { action: 'remove', note: r.trim() }, {{ $t->id }}))(prompt('Cancel this video? Why? (e.g. client dropped it)'))"
+                            class="{{ $btn }} text-red-300/80 hover:bg-red-500/10">Cancel video</button>
                 </div>
                 <form x-show="fixFor === {{ $t->id }}" x-cloak class="flex gap-2"
                       @submit.prevent="fixText.trim() && send(@js(route('my.editing.correct', $t)), { title: fixText.trim() }, {{ $t->id }})">
@@ -137,6 +140,9 @@
                     <button type="button" :disabled="busy === {{ $t->id }}"
                             @click="send(@js(route('my.editing.act', $t)), { action: 'ready', publish_at: when[{{ $t->id }}] }, {{ $t->id }})"
                             class="{{ $btn }} bg-white/10 text-white hover:bg-white/15">New time</button>
+                    <button type="button" :disabled="busy === {{ $t->id }}"
+                            @click="(r => r && r.trim() && send(@js(route('my.editing.act', $t)), { action: 'remove', note: r.trim() }, {{ $t->id }}))(prompt('Cancel this video? Why? (e.g. client dropped it)'))"
+                            class="{{ $btn }} text-red-300/80 hover:bg-red-500/10">Cancel video</button>
                     @endif
                 </div>
             </div>

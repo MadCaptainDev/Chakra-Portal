@@ -161,8 +161,15 @@ class EditingController extends Controller
             if ($todo->parent_id || $todo->posted_at) {
                 return response()->json(['message' => 'A video that has gone out cannot be removed.'], 422);
             }
+            // Already edited (in review, or ready to post) and then called off --
+            // the client dropped it, the offer ended: that is a cancellation, and
+            // the reason is what the Work Report shows. Before editing, a plain remove.
+            $edited = $todo->status === Todo::STATUS_COMPLETED || $todo->ready_at !== null;
+            if ($edited && blank($data['note'] ?? null)) {
+                return response()->json(['message' => 'Say why this edited video is cancelled.'], 422);
+            }
             if ($todo->status !== Todo::STATUS_CANCELLED) {
-                $todo->moveTo(Todo::STATUS_CANCELLED, $user, $data['note'] ?? 'Removed from the board');
+                $todo->moveTo(Todo::STATUS_CANCELLED, $user, $edited ? 'Cancelled after editing: '.trim($data['note']) : ($data['note'] ?? 'Removed from the board'));
                 $todo->corrections()->open()->get()->each(fn (Todo $fix) => $fix->moveTo(Todo::STATUS_CANCELLED, $user, 'Video removed'));
                 $todo->forceFill(['ready_at' => null, 'publish_at' => null, 'publish_reminded_at' => null, 'scheduled_at' => null, 'scheduled_by_id' => null])->save();
             }

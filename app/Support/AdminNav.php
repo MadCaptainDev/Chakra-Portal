@@ -75,6 +75,7 @@ class AdminNav
             'Team & setup' => [
                 self::link('users', 'Users', 'user', 'users.index', ['users.*']),
                 self::module($user, 'timesheets'),
+                self::gated($user, 'timesheets.view', self::link('work-report', 'Work Report', 'trending-up', 'work-report', ['work-report'])),
                 self::module($user, 'saas-products', ['saas-products.*', 'developer.saas-api'], null, [
                     self::gated($user, 'saas-products.manage', self::link('saas-api', 'SaaS API', 'globe', 'developer.saas-api', ['developer.saas-api'])),
                 ]),

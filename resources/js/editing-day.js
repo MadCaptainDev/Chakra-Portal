@@ -308,9 +308,15 @@ export function editingDay({ cards, planner, hints, kinds, editors = [], me = nu
             });
         },
         remove(card) {
-            if (!window.confirm(`Remove "${card.title}" from your board?`)) return;
+            // Edited already (in review or ready): a cancellation, with the reason.
+            const edited = card.status === 'completed' || card.ready;
+            let note;
+            if (edited) {
+                note = window.prompt(`Cancel "${card.title}"? Why is it cancelled? (e.g. client dropped it)`);
+                if (!note || !note.trim()) return;
+            } else if (!window.confirm(`Remove "${card.title}" from your board?`)) return;
             this.run(`${card.id}remove`, async () => {
-                await post(urls.act.replace('__ID__', card.id), { action: 'remove' });
+                await post(urls.act.replace('__ID__', card.id), { action: 'remove', ...(note ? { note: note.trim() } : {}) });
                 this.cards = this.cards.filter((c) => c.id !== card.id);
                 this.say('Removed.');
             });
