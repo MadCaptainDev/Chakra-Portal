@@ -42,6 +42,9 @@ class Quotation extends Model
     protected $fillable = [
         'quotation_number',
         'client_id',
+        'recipient_name',
+        'recipient_phone',
+        'recipient_address',
         'is_app_studio',
         'quotation_date',
         'valid_until',
@@ -74,6 +77,27 @@ class Quotation extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
+    }
+
+    /** Who it is for: the client, or the person typed in when it is not a client yet. */
+    public function recipientName(): string
+    {
+        return $this->client?->name ?? (string) $this->recipient_name;
+    }
+
+    public function recipientPhone(): ?string
+    {
+        return $this->client?->phone ?: ($this->recipient_phone ?: null);
+    }
+
+    public function recipientAddress(): ?string
+    {
+        return $this->client?->address ?: ($this->recipient_address ?: null);
+    }
+
+    public function isForClient(): bool
+    {
+        return $this->client_id !== null;
     }
 
     public function createdBy(): BelongsTo
@@ -253,6 +277,12 @@ class Quotation extends Model
 
         return DB::transaction(function () use ($userId) {
             $settings = CompanySetting::current();
+
+            // Sent to someone who is not a client yet: accepting makes them one.
+            if ($this->client_id === null) {
+                $client = Client::create(['name' => $this->recipient_name ?: 'New client', 'phone' => $this->recipient_phone, 'address' => $this->recipient_address]);
+                $this->forceFill(['client_id' => $client->id])->save();
+            }
 
             $invoice = Invoice::create([
                 'invoice_number' => Invoice::nextInvoiceNumber($settings->invoice_prefix),

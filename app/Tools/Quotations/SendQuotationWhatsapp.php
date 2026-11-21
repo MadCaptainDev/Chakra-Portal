@@ -18,7 +18,7 @@ class SendQuotationWhatsapp extends Tool
 
     public function title(): string
     {
-        return 'Send a quotation to the client on WhatsApp';
+        return 'Send a quotation on WhatsApp';
     }
 
     public function group(): string
@@ -28,10 +28,10 @@ class SendQuotationWhatsapp extends Tool
 
     public function description(): string
     {
-        return 'Send a quotation\'s PDF link to a client on WhatsApp from the studio number, using the '
+        return 'Send a quotation\'s PDF link to any WhatsApp number (a client, or anyone it was made for) from the studio number, using the '
             .'approved quotation_ready template (number, client name and total in the message). '
             .'THIS MESSAGES A REAL CLIENT. Only call it when the person has explicitly asked to send this '
-            .'quotation, after they have checked its lines and total. Phone defaults to the client\'s on file.';
+            .'quotation, after they have checked its lines and total. Phone defaults to the client\'s on file, or the number typed on the quotation.';
     }
 
     public function permission(): ?string
@@ -58,7 +58,7 @@ class SendQuotationWhatsapp extends Tool
     {
         return $this->object([
             'quotation_id' => ['type' => 'integer', 'description' => 'From create_quotation or list_quotations.'],
-            'phone' => ['type' => 'string', 'description' => 'Optional. Only if the person gave a different number than the client\'s on file.'],
+            'phone' => ['type' => 'string', 'description' => 'Optional. Any number; defaults to the one on the quotation (or the client\'s).'],
         ], ['quotation_id']);
     }
 
@@ -67,11 +67,11 @@ class SendQuotationWhatsapp extends Tool
         $quotation = Quotation::with('client')->find((int) ($arguments['quotation_id'] ?? 0))
             ?? throw new ToolException('There is no quotation with that id. Use list_quotations.');
 
-        $phone = trim((string) ($arguments['phone'] ?? '')) ?: (string) $quotation->client?->phone;
+        $phone = trim((string) ($arguments['phone'] ?? '')) ?: (string) $quotation->recipientPhone();
 
         if (! preg_match('/^[0-9+\-\s()]{10,20}$/', $phone)) {
             throw new ToolException($phone === ''
-                ? 'The client has no phone number on file — ask the person for one.'
+                ? 'There is no number on this quotation — ask the person for one.'
                 : '"'.$phone.'" does not look like a phone number.');
         }
 
@@ -81,7 +81,7 @@ class SendQuotationWhatsapp extends Tool
                 phone: $phone,
                 template: Quotation::WHATSAPP_TEMPLATE,
                 bodyParameters: [
-                    $quotation->client->name,
+                    $quotation->recipientName(),
                     $quotation->quotation_number ?? '',
                     number_format((float) $quotation->total, 2),
                 ],

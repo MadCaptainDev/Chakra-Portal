@@ -316,12 +316,12 @@
 
     <div class="quotation-to">
         <div class="label">Quoted to :</div>
-        <div class="client-name">{{ $quotation->client->name }}</div>
-        @if ($quotation->client->address)
-            <div class="client-address">{{ $quotation->client->address }}</div>
+        <div class="client-name">{{ $quotation->recipientName() }}</div>
+        @if ($quotation->recipientAddress())
+            <div class="client-address">{{ $quotation->recipientAddress() }}</div>
         @endif
-        @if ($quotation->client->phone)
-            <div class="client-phone">{{ $quotation->client->phone }}</div>
+        @if ($quotation->recipientPhone())
+            <div class="client-phone">{{ $quotation->recipientPhone() }}</div>
         @endif
     </div>
 

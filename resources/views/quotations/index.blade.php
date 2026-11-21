@@ -95,7 +95,7 @@
                         </div>
                         <div class="mt-1 flex items-center justify-between text-sm text-brand-100/60">
                             <span>
-                                {{ $quotation->client->name }}
+                                {{ $quotation->recipientName() }}
                                 @if ($quotation->is_app_studio)
                                     <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-indigo-400/15 text-indigo-200">
                                         App Studio
@@ -132,7 +132,7 @@
                             <tr class="hover:bg-white/[0.09]">
                                 <td class="px-6 py-4 text-sm font-medium text-white">{{ $quotation->quotation_number ?? 'Pending' }}</td>
                                 <td class="px-6 py-4 text-sm text-brand-100/60">
-                                    {{ $quotation->client->name }}
+                                    {{ $quotation->recipientName() }}
                                     @if ($quotation->is_app_studio)
                                         <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-indigo-400/15 text-indigo-200">
                                             App Studio

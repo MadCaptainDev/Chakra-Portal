@@ -34,7 +34,8 @@ class QuotationController extends Controller
             ->when($search, function ($query, $search) {
                 $query->where(function ($inner) use ($search) {
                     $inner->where('quotation_number', 'like', "%{$search}%")
-                        ->orWhereHas('client', fn ($q) => $q->where('name', 'like', "%{$search}%"));
+                        ->orWhereHas('client', fn ($q) => $q->where('name', 'like', "%{$search}%"))
+                        ->orWhere('recipient_name', 'like', "%{$search}%");
                 });
             })
             ->when($status === 'expired', function ($query) {
@@ -87,6 +88,9 @@ class QuotationController extends Controller
     {
         $quotation = app(QuotationCreator::class)->create([
             'client_id' => $request->validated('client_id'),
+            'recipient_name' => $request->validated('recipient_name'),
+            'recipient_phone' => $request->validated('recipient_phone'),
+            'recipient_address' => $request->validated('recipient_address'),
             'is_app_studio' => $request->boolean('is_app_studio'),
             'quotation_date' => $request->validated('quotation_date'),
             'valid_until' => $request->validated('valid_until'),
@@ -121,6 +125,10 @@ class QuotationController extends Controller
         DB::transaction(function () use ($request, $quotation) {
             $quotation->update([
                 'client_id' => $request->validated('client_id'),
+                // Someone else's details are kept only when there is no client.
+                'recipient_name' => $request->validated('client_id') ? null : $request->validated('recipient_name'),
+                'recipient_phone' => $request->validated('client_id') ? null : $request->validated('recipient_phone'),
+                'recipient_address' => $request->validated('client_id') ? null : $request->validated('recipient_address'),
                 'is_app_studio' => $request->boolean('is_app_studio'),
                 'quotation_date' => $request->validated('quotation_date'),
                 'valid_until' => $request->validated('valid_until'),
@@ -210,7 +218,7 @@ class QuotationController extends Controller
                 phone: $validated['phone'],
                 template: Quotation::WHATSAPP_TEMPLATE,
                 bodyParameters: [
-                    $quotation->client->name,
+                    $quotation->recipientName(),
                     $quotation->quotation_number ?? '',
                     number_format((float) $quotation->total, 2),
                 ],

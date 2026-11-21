@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 class QuotationCreator
 {
     /**
-     * @param  array{client_id: int, is_app_studio?: bool, quotation_date: string, valid_until?: ?string,
+     * @param  array{client_id?: ?int, recipient_name?: ?string, recipient_phone?: ?string, recipient_address?: ?string, is_app_studio?: bool, quotation_date: string, valid_until?: ?string,
      *               intro_text?: ?string, notes?: ?string, discount_label?: ?string, discount_amount?: mixed,
      *               items: list<array{description: string, quantity: mixed, unit_price: mixed}>}  $data
      */
@@ -25,7 +25,10 @@ class QuotationCreator
 
             $quotation = Quotation::create([
                 'quotation_number' => Quotation::nextQuotationNumber($settings->quotation_prefix),
-                'client_id' => $data['client_id'],
+                'client_id' => $data['client_id'] ?? null,
+                'recipient_name' => isset($data['client_id']) ? null : ($data['recipient_name'] ?? null),
+                'recipient_phone' => isset($data['client_id']) ? null : ($data['recipient_phone'] ?? null),
+                'recipient_address' => isset($data['client_id']) ? null : ($data['recipient_address'] ?? null),
                 'is_app_studio' => (bool) ($data['is_app_studio'] ?? false),
                 'quotation_date' => $data['quotation_date'],
                 'valid_until' => $data['valid_until'] ?? null,

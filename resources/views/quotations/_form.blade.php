@@ -17,17 +17,41 @@
         discountAmount: {{ Illuminate\Support\Js::from((float) old('discount_amount', $quotation->discount_amount ?? 0)) }},
     })"
 >
-    <div class="mb-6">
-        <x-input-label for="client_id" value="Client" />
-        <x-select id="client_id" name="client_id" class="mt-1 w-full" required>
-            <option value="">Select a client...</option>
-            @foreach ($clients as $client)
-                <option value="{{ $client->id }}" @selected(old('client_id', $quotation->client_id ?? null) == $client->id)>
-                    {{ $client->name }}
-                </option>
-            @endforeach
-        </x-select>
-        <x-input-error :messages="$errors->get('client_id')" class="mt-2" />
+    {{-- Who it is for: a client in the portal, or anyone (a name and a WhatsApp number). --}}
+    <div class="mb-6" x-data="{ to: @js(old('recipient_name', $quotation->recipient_name ?? null) && ! old('client_id', $quotation->client_id ?? null) ? 'other' : 'client') }">
+        <div class="mb-2 flex gap-2 text-sm">
+            <button type="button" @click="to = 'client'" class="h-9 rounded-full px-4 font-semibold ring-1" :class="to === 'client' ? 'bg-white text-brand-900 ring-white' : 'text-brand-100/70 ring-white/15'">A client</button>
+            <button type="button" @click="to = 'other'" class="h-9 rounded-full px-4 font-semibold ring-1" :class="to === 'other' ? 'bg-white text-brand-900 ring-white' : 'text-brand-100/70 ring-white/15'">Someone else</button>
+        </div>
+        <div x-show="to === 'client'">
+            <x-input-label for="client_id" value="Client" />
+            <x-select id="client_id" name="client_id" class="mt-1 w-full" x-bind:disabled="to !== 'client'" x-bind:required="to === 'client'">
+                <option value="">Select a client...</option>
+                @foreach ($clients as $client)
+                    <option value="{{ $client->id }}" @selected(old('client_id', $quotation->client_id ?? null) == $client->id)>
+                        {{ $client->name }}
+                    </option>
+                @endforeach
+            </x-select>
+            <x-input-error :messages="$errors->get('client_id')" class="mt-2" />
+        </div>
+        <div x-show="to === 'other'" x-cloak class="grid gap-3 sm:grid-cols-2">
+            <div>
+                <x-input-label for="recipient_name" value="Name (person or business)" />
+                <x-text-input id="recipient_name" name="recipient_name" class="mt-1 w-full" :value="old('recipient_name', $quotation->recipient_name ?? '')" x-bind:disabled="to !== 'other'" x-bind:required="to === 'other'" maxlength="255" />
+                <x-input-error :messages="$errors->get('recipient_name')" class="mt-2" />
+            </div>
+            <div>
+                <x-input-label for="recipient_phone" value="WhatsApp number" />
+                <x-text-input id="recipient_phone" name="recipient_phone" type="tel" class="mt-1 w-full" :value="old('recipient_phone', $quotation->recipient_phone ?? '')" x-bind:disabled="to !== 'other'" placeholder="98765 43210" maxlength="20" />
+                <x-input-error :messages="$errors->get('recipient_phone')" class="mt-2" />
+            </div>
+            <div class="sm:col-span-2">
+                <x-input-label for="recipient_address" value="Address (optional)" />
+                <x-text-input id="recipient_address" name="recipient_address" class="mt-1 w-full" :value="old('recipient_address', $quotation->recipient_address ?? '')" x-bind:disabled="to !== 'other'" maxlength="255" />
+            </div>
+            <p class="sm:col-span-2 text-xs text-brand-100/50">Not in the portal yet. If they accept and it becomes an invoice, they are added as a client.</p>
+        </div>
     </div>
 
     @php $studioChecked = old('is_app_studio', $quotation->is_app_studio ?? false) ? 'true' : 'false'; @endphp

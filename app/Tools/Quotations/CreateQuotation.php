@@ -27,7 +27,8 @@ class CreateQuotation extends Tool
 
     public function description(): string
     {
-        return 'Create a DRAFT quotation for a client from line items (description, quantity, unit price '
+        return 'Create a DRAFT quotation for a client -- or for anyone who is not a client yet: give '
+            .'recipient_name (and recipient_phone for WhatsApp) instead of client -- from line items (description, quantity, unit price '
             .'in rupees). The portal numbers it, works out every line total and the grand total, and '
             .'returns them -- read them back to the person. It is not sent to anyone; use '
             .'send_quotation_whatsapp for that, only when asked. '
@@ -53,7 +54,10 @@ class CreateQuotation extends Tool
     public function schema(): array
     {
         return $this->object([
-            'client' => ['type' => 'string', 'description' => 'Client id or portal name.'],
+            'client' => ['type' => 'string', 'description' => 'Client id or portal name. Leave out when it is for someone not in the portal.'],
+            'recipient_name' => ['type' => 'string', 'description' => 'Who it is for, when not a client (person or business). Use instead of client.'],
+            'recipient_phone' => ['type' => 'string', 'description' => 'Optional. Their WhatsApp number, when not a client.'],
+            'recipient_address' => ['type' => 'string', 'description' => 'Optional. Their address, when not a client.'],
             'items' => [
                 'type' => 'array',
                 'minItems' => 1,
@@ -76,12 +80,21 @@ class CreateQuotation extends Tool
             'discount_label' => ['type' => 'string', 'description' => 'Optional; required if discount_amount is given.'],
             'discount_amount' => ['type' => 'number', 'description' => 'Optional. Rupees off the subtotal.'],
             'app_studio' => ['type' => 'boolean', 'description' => 'Optional. true if this is Chakra App Studio (software) work rather than Chakra Productions.'],
-        ], ['client', 'items']);
+        ], ['items']);
     }
 
     public function handle(array $arguments, User $user): array
     {
-        $client = ClientResolver::resolve($arguments['client'] ?? null);
+        // A client, or anyone: a name (and a number) typed in.
+        $client = filled($arguments['client'] ?? null) ? ClientResolver::resolve($arguments['client']) : null;
+        $recipient = trim((string) ($arguments['recipient_name'] ?? ''));
+        $recipientPhone = trim((string) ($arguments['recipient_phone'] ?? ''));
+        if (! $client && $recipient === '') {
+            throw new ToolException('Say who it is for: a client, or recipient_name for someone not in the portal.');
+        }
+        if (! $client && $recipientPhone !== '' && ! preg_match('/^[0-9+\-\s()]{10,20}$/', $recipientPhone)) {
+            throw new ToolException('"'.$recipientPhone.'" does not look like a phone number.');
+        }
 
         $items = $arguments['items'] ?? [];
         if (! is_array($items) || $items === []) {
@@ -122,7 +135,10 @@ class CreateQuotation extends Tool
         }
 
         $quotation = app(QuotationCreator::class)->create([
-            'client_id' => $client->id,
+            'client_id' => $client?->id,
+            'recipient_name' => $client ? null : $recipient,
+            'recipient_phone' => $client ? null : ($recipientPhone ?: null),
+            'recipient_address' => $client ? null : (trim((string) ($arguments['recipient_address'] ?? '')) ?: null),
             'is_app_studio' => ($arguments['app_studio'] ?? false) === true,
             'quotation_date' => $date,
             'valid_until' => $validUntil,
@@ -138,7 +154,8 @@ class CreateQuotation extends Tool
             'status' => 'draft (not sent)',
             'quotation_id' => $quotation->id,
             'number' => $quotation->quotation_number,
-            'client' => $client->name,
+            'for' => $quotation->recipientName(),
+            'is_client' => $client !== null,
             'lines' => $quotation->items->map(fn ($l) => [
                 'description' => $l->description,
                 'quantity' => (float) $l->quantity,

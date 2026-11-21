@@ -26,7 +26,7 @@ class ListQuotations extends Tool
 
     public function description(): string
     {
-        return 'Recent quotations with number, client, total, status (draft / accepted / rejected / '
+        return 'Recent quotations with number, who it is for (a client or someone not in the portal), total, status (draft / accepted / rejected / '
             .'expired), validity and whether it was sent on WhatsApp. Optionally for one client. '
             .'USE WHEN asked "what quotes are open", "did we quote Riya", or to find a quotation id '
             .'before sending it. Read-only.';
@@ -62,7 +62,8 @@ class ListQuotations extends Tool
             'quotations' => $query->limit(30)->get()->map(fn (Quotation $q) => [
                 'quotation_id' => $q->id,
                 'number' => $q->quotation_number,
-                'client' => $q->client?->name,
+                'for' => $q->recipientName(),
+                'is_client' => $q->isForClient(),
                 'date' => $q->quotation_date?->toDateString(),
                 'valid_until' => $q->valid_until?->toDateString(),
                 'total' => (float) $q->total,

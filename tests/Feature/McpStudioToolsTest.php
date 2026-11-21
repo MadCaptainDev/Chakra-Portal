@@ -143,6 +143,24 @@ class McpStudioToolsTest extends TestCase
 
     // ——— Quotations ———
 
+    public function test_create_quotation_for_someone_not_in_the_portal(): void
+    {
+        $token = $this->tokenFor($this->admin());
+
+        $data = $this->data($token, 'create_quotation', [
+            'recipient_name' => 'Ganesh Bakery', 'recipient_phone' => '9876543210',
+            'items' => [['description' => 'Reels', 'quantity' => 2, 'unit_price' => 4000]],
+        ]);
+
+        $this->assertSame('Ganesh Bakery', $data['for']);
+        $this->assertFalse($data['is_client']);
+        $this->assertNull(Quotation::findOrFail($data['quotation_id'])->client_id);
+        $this->assertSame('Ganesh Bakery', collect($this->data($token, 'list_quotations')['quotations'])->first()['for']);
+
+        $neither = $this->callTool($token, 'create_quotation', ['items' => [['description' => 'X', 'quantity' => 1, 'unit_price' => 1]]]);
+        $this->assertTrue($neither['isError'] ?? false);
+    }
+
     public function test_create_quotation_makes_a_numbered_draft_with_the_totals_worked_out(): void
     {
         $client = Client::create(['name' => 'Thillai Pets Clinic']);
@@ -157,7 +175,7 @@ class McpStudioToolsTest extends TestCase
             'discount_amount' => 1000,
         ]);
 
-        $this->assertSame('Thillai Pets Clinic', $data['client']);
+        $this->assertSame('Thillai Pets Clinic', $data['for']);
         $this->assertEquals(28000, $data['subtotal']);
         $this->assertEquals(27000, $data['total']);
 
