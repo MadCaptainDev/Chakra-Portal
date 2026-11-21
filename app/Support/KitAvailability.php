@@ -40,7 +40,8 @@ class KitAvailability
         return DB::table('shoot_kit')
             ->join('shoots', 'shoots.id', '=', 'shoot_kit.shoot_id')
             ->whereNull('shoot_kit.returned_at')
-            ->where('shoot_kit.shoot_id', '!=', $shoot->id)
+            // Its own rows, and those of shoots happening together with it (one kit for both).
+            ->whereNotIn('shoot_kit.shoot_id', $shoot->togetherGroup()->pluck('id')->filter()->values()->all() ?: [0])
             // A cancelled shoot is not holding anything.
             ->where('shoots.status', '!=', Shoot::STATUS_CANCELLED)
             ->where(fn ($query) => self::overlaps($query, $start, $end))
@@ -86,7 +87,7 @@ class KitAvailability
         [$start, $end] = self::window($shoot);
 
         return Shoot::query()
-            ->whereKeyNot($shoot->id)
+            ->whereNotIn('id', $shoot->togetherGroup()->pluck('id')->filter()->values()->all() ?: [0])
             ->where('status', '!=', Shoot::STATUS_CANCELLED)
             ->whereHas('kits', fn ($query) => $query
                 ->where('equipment_item_id', $equipmentItemId)

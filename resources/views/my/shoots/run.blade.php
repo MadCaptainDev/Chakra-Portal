@@ -8,6 +8,14 @@
     $cancelled = $shoot->isCancelled();
     // The shoot may leave: the rule is off, an admin waived it, or it is all ticked.
     $kitReady = ! config('shoots.require_kit', true) || $shoot->hasKitWaived() || $shoot->isPacked();
+    // Shooting together (SVA Mart + SVA Silks): one kit list covers the group.
+    $together = $shoot->partners()->isNotEmpty() ? $shoot->togetherGroup() : collect();
+    if ($together->isNotEmpty() && ! $kitReady) {
+        $groupKits = $together->flatMap(fn ($s) => $s->kits()->get());
+        $kitReady = $groupKits->isNotEmpty() && $groupKits->whereNull('checked_out_at')->isEmpty();
+    }
+    $focusedId = $together->isNotEmpty() ? $shoot->focusedId() : null;
+    $split = $together->isNotEmpty() ? $shoot->focusMinutes() : [];
 @endphp
 
 <x-editor-layout :title="$shoot->title">
@@ -40,6 +48,39 @@
         @endif
     </header>
 
+    @if ($together->isNotEmpty())
+        {{-- Shooting together: a tab per brand, and the switch. --}}
+        <nav class="flex shrink-0 gap-2 overflow-x-auto border-b border-white/10 px-4 py-2.5" aria-label="Shooting together">
+            @foreach ($together as $s)
+                @php
+                    $mins = $split[$s->id] ?? 0;
+                    $label = $s->clientLabel() ?? $s->title;
+                @endphp
+                <a href="{{ route('my.shoots.run', $s) }}"
+                   class="flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm ring-1 transition {{ $s->id === $shoot->id ? 'bg-white text-brand-900 ring-white' : 'text-white/75 ring-white/15 hover:bg-white/10' }}">
+                    @if ($focusedId === $s->id && $s->isInProgress())
+                        <span class="h-2 w-2 animate-pulse rounded-full bg-red-500" title="Shooting now"></span>
+                    @elseif ($s->hasWrapped())
+                        <span class="text-emerald-500">✓</span>
+                    @endif
+                    <span class="font-semibold">{{ \Illuminate\Support\Str::limit($label, 22) }}</span>
+                    @if ($mins > 0)<span class="text-xs opacity-60">{{ $mins >= 60 ? intdiv($mins, 60).'h '.($mins % 60).'m' : $mins.'m' }}</span>@endif
+                </a>
+            @endforeach
+        </nav>
+        @if (! $shoot->hasWrapped() && ! $shoot->isCancelled() && $shoot->hasReached() && ($focusedId !== $shoot->id || ! $shoot->isInProgress()))
+            <form method="POST" action="{{ route('my.shoots.focus', $shoot) }}" class="shrink-0 px-4 pt-3">
+                @csrf
+                <button class="w-full rounded-xl bg-pink-500 px-4 py-3 text-sm font-bold text-white active:scale-[0.98] transition">
+                    🎬 Now shooting {{ $shoot->clientLabel() ?? $shoot->title }}
+                </button>
+                <p class="mt-1 text-center text-[11px] text-white/45">Tap when you move across — the other one keeps running, and the hours split by brand.</p>
+            </form>
+        @endif
+        @if (! $shoot->kits()->exists() && ($kitShoot = $together->first(fn ($s) => $s->kits()->exists())))
+            <p class="shrink-0 px-4 pt-2 text-xs text-white/50">🧰 The kit is on {{ $kitShoot->clientLabel() ?? $kitShoot->title }}'s list — one list for both.</p>
+        @endif
+    @endif
     @if (session('error'))
         <div class="mx-4 mt-3 rounded-lg bg-red-500/15 px-3 py-2 text-sm text-red-200 shrink-0">
             {{ session('error') }}

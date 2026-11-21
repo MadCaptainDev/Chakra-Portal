@@ -419,6 +419,7 @@ Route::middleware('auth')->group(function () {
     Route::post('my/shoots/{shoot}/on-the-way', [ShootRunController::class, 'depart'])->name('my.shoots.depart');
     Route::post('my/shoots/{shoot}/reached', [ShootRunController::class, 'reached'])->name('my.shoots.reached');
     Route::post('my/shoots/{shoot}/start', [ShootRunController::class, 'start'])->name('my.shoots.start');
+    Route::post('my/shoots/{shoot}/focus', [ShootRunController::class, 'focus'])->name('my.shoots.focus');
     Route::post('my/shoots/{shoot}/videos', [ShootRunController::class, 'storeVideo'])->name('my.shoots.videos.store');
     Route::patch('my/shoots/{shoot}/videos/{video}', [ShootRunController::class, 'renameVideo'])->name('my.shoots.videos.rename');
     Route::get('my/shoots/{shoot}/live', [ShootRunController::class, 'live'])->name('my.shoots.live');
@@ -753,6 +754,8 @@ Route::middleware(['auth', 'module:shoots,view'])->scopeBindings()->group(functi
         Route::delete('shoots/{shoot}/kit/{kit}', [ShootKitController::class, 'destroy'])->name('shoots.kit.destroy');
         Route::post('shoots/{shoot}/cancel', [ShootController::class, 'cancel'])->name('shoots.cancel');
         Route::post('shoots/{shoot}/kit-waive', [ShootController::class, 'waiveKit'])->name('shoots.kit.waive');
+        Route::post('shoots/{shoot}/together', [ShootController::class, 'together'])->name('shoots.together');
+        Route::delete('shoots/{shoot}/together', [ShootController::class, 'untogether'])->name('shoots.untogether');
     });
 
     /*

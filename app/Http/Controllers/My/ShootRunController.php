@@ -212,6 +212,20 @@ class ShootRunController extends Controller
         return back();
     }
 
+    /** Shooting together: "Now shooting" this brand. */
+    public function focus(Request $request, Shoot $shoot): RedirectResponse
+    {
+        $this->authoriseCrew($shoot);
+
+        try {
+            ShootRun::focus($shoot, $request->user());
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('my.shoots.run', $shoot);
+    }
+
     public function storeVideo(Request $request, Shoot $shoot): RedirectResponse
     {
         $this->authoriseCrew($shoot);

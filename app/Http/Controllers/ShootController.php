@@ -236,4 +236,41 @@ class ShootController extends Controller
 
         return back()->with('status', 'This shoot can leave without the kit check.');
     }
+
+    /**
+     * Shooting together: same place, same time, another brand (SVA Mart and
+     * SVA Silks). They share one trip, one kit list, and the crew can run
+     * both at once, switching with "Now shooting". See Shoot::partners().
+     */
+    public function together(Request $request, Shoot $shoot): RedirectResponse
+    {
+        $data = $request->validate(['partner_id' => ['required', 'integer', 'exists:shoots,id', 'different:'.$shoot->id]]);
+        $partner = Shoot::query()->findOrFail($data['partner_id']);
+
+        if ($partner->isCancelled() || $shoot->isCancelled()) {
+            return back()->with('error', 'A cancelled shoot cannot be linked.');
+        }
+        if (! $partner->starts_at?->isSameDay($shoot->starts_at)) {
+            return back()->with('error', 'Only shoots on the same day can happen together.');
+        }
+
+        $key = $shoot->together_key ?? $partner->together_key ?? (string) \Illuminate\Support\Str::uuid();
+        // Joining two groups: everyone in either takes the one key.
+        Shoot::query()->whereIn('together_key', array_filter([$shoot->together_key, $partner->together_key]))->update(['together_key' => $key]);
+        Shoot::query()->whereKey([$shoot->id, $partner->id])->update(['together_key' => $key]);
+
+        return back()->with('status', 'Linked: '.$shoot->title.' and '.$partner->title.' happen together — one trip, one kit list, both run at once.');
+    }
+
+    public function untogether(Shoot $shoot): RedirectResponse
+    {
+        $key = $shoot->together_key;
+        $shoot->forceFill(['together_key' => null])->save();
+        // A group of one is no group.
+        if ($key && Shoot::query()->where('together_key', $key)->count() === 1) {
+            Shoot::query()->where('together_key', $key)->update(['together_key' => null]);
+        }
+
+        return back()->with('status', 'No longer linked.');
+    }
 }

@@ -155,6 +155,8 @@
             @endcan
         </x-card>
 
+        @include('shoots._together')
+
         {{-- ——— Videos shot: how many, and their names, ready to copy into Notion ——— --}}
         @php $shotVideos = $shoot->videos()->orderBy('position')->orderBy('id')->get(['id', 'name', 'position']); @endphp
         <x-card class="p-4 sm:p-5" x-data="{ copied: false }">

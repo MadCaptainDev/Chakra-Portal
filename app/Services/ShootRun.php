@@ -58,6 +58,14 @@ class ShootRun
         ])->save();
 
         ShootEvent::record($shoot, $crewMember, ShootEvent::DEPARTED);
+
+        // Shooting together: one trip for every brand.
+        foreach ($shoot->partners() as $p) {
+            if (! $p->hasDeparted() && ! $p->hasReached() && ! $p->hasWrapped()) {
+                $p->forceFill(['departed_at' => now(), 'departed_by_id' => $crewMember->id])->save();
+                ShootEvent::record($p, $crewMember, ShootEvent::DEPARTED, 'Together with '.$shoot->title);
+            }
+        }
     }
 
     /**
@@ -87,6 +95,14 @@ class ShootRun
         ])->save();
 
         ShootEvent::record($shoot, $crewMember, ShootEvent::REACHED);
+
+        // Shooting together: everyone is there at once. One announcement.
+        foreach ($shoot->partners() as $p) {
+            if (! $p->hasReached() && ! $p->hasWrapped()) {
+                $p->forceFill(['reached_at' => now(), 'reached_by_id' => $crewMember->id])->save();
+                ShootEvent::record($p, $crewMember, ShootEvent::REACHED, 'Together with '.$shoot->title);
+            }
+        }
 
         self::announceReached($shoot, $crewMember);
     }
@@ -133,9 +149,13 @@ class ShootRun
         $firstArrival = ! $shoot->hasReached();
 
         DB::transaction(function () use ($shoot, $crewMember) {
-            $running = self::runningFor($crewMember, lock: true)->first();
+            // A shoot of the same group may be running: they happen together.
+            $running = self::runningFor($crewMember, lock: true)
+                ->when($shoot->together_key, fn ($q) => $q->where(fn ($w) => $w->whereNull('together_key')->orWhere('together_key', '!=', $shoot->together_key)))
+                ->first();
 
-            if ($running !== null && $running->isNot($shoot)) {
+            $together = $shoot->together_key !== null && $running?->together_key === $shoot->together_key;
+            if ($running !== null && $running->isNot($shoot) && ! $together) {
                 throw new RuntimeException(
                     'You are still on "'.$running->title.'". Finish that before starting this one.'
                 );
@@ -161,6 +181,29 @@ class ShootRun
         // Nobody tapped Reached -- starting is the arrival, so say so once.
         if ($firstArrival) {
             self::announceReached($shoot, $crewMember);
+        }
+    }
+
+    /**
+     * Shooting together: the crew have moved on to this brand. Starts it if
+     * it has not started (the other keeps running), and logs the switch, so
+     * the hours split by brand (Shoot::focusMinutes).
+     */
+    public static function focus(Shoot $shoot, User $crewMember): void
+    {
+        if (! $shoot->together_key) {
+            throw new RuntimeException('This shoot is not linked to another one.');
+        }
+        if ($shoot->hasWrapped()) {
+            throw new RuntimeException('This shoot has already been wrapped.');
+        }
+        if (! $shoot->isInProgress()) {
+            self::start($shoot, $crewMember);
+
+            return; // the start is the switch
+        }
+        if ($shoot->focusedId() !== $shoot->id) {
+            ShootEvent::record($shoot, $crewMember, ShootEvent::FOCUS);
         }
     }
 
@@ -291,13 +334,14 @@ class ShootRun
             return;
         }
 
-        $shoot->load('kits');
+        // Shooting together: one kit list covers every brand of the group.
+        $kits = $shoot->togetherGroup()->flatMap(fn (Shoot $s) => $s->kits()->get());
 
-        if ($shoot->kits->isEmpty()) {
+        if ($kits->isEmpty()) {
             throw new KitNotReady('This shoot has no kit listed. Add the kit you are taking before you leave.');
         }
 
-        $left = $shoot->kits->whereNull('checked_out_at')->count();
+        $left = $kits->whereNull('checked_out_at')->count();
 
         if ($left > 0) {
             throw new KitNotReady(
@@ -372,6 +416,7 @@ class ShootRun
     {
         return Shoot::query()
             ->whereKeyNot($after->id)
+            ->when($after->together_key, fn ($q) => $q->where(fn ($w) => $w->whereNull('together_key')->orWhere('together_key', '!=', $after->together_key)))
             ->whereNotIn('status', [Shoot::STATUS_CANCELLED, Shoot::STATUS_COMPLETED])
             ->whereNull('finished_at')
             ->whereBetween('starts_at', [now()->startOfDay(), now()->endOfDay()])

@@ -224,6 +224,74 @@ class Shoot extends Model
     }
 
     /** The crew have set off; may or may not be there yet. */
+    /**
+     * Shoots happening together with this one -- same place, same time,
+     * another brand -- not counting itself or any that were called off.
+     *
+     * @return \Illuminate\Support\Collection<int, Shoot>
+     */
+    public function partners(): \Illuminate\Support\Collection
+    {
+        if (! $this->together_key) {
+            return collect();
+        }
+
+        return static::query()->where('together_key', $this->together_key)->whereKeyNot($this->id)
+            ->where('status', '!=', self::STATUS_CANCELLED)->with('client')->orderBy('starts_at')->orderBy('id')->get();
+    }
+
+    /** This shoot and its partners, in a stable order. */
+    public function togetherGroup(): \Illuminate\Support\Collection
+    {
+        return $this->partners()->push($this)->sortBy(fn (Shoot $s) => [$s->starts_at?->timestamp, $s->id])->values();
+    }
+
+    /**
+     * Minutes spent on each shoot of the group, from the "Now shooting"
+     * switches: from each switch to the next, between the first start and
+     * the last wrap (or now). Starting a shoot counts as switching to it.
+     *
+     * @return array<int, int> shoot id => minutes
+     */
+    public function focusMinutes(): array
+    {
+        $group = $this->togetherGroup();
+        $ids = $group->pluck('id')->all();
+        $start = $group->pluck('started_at')->filter()->min();
+        if (! $start) {
+            return [];
+        }
+        $end = $group->every(fn (Shoot $s) => $s->finished_at) ? $group->pluck('finished_at')->max() : now();
+
+        $marks = ShootEvent::query()->whereIn('shoot_id', $ids)->whereIn('type', [ShootEvent::FOCUS, ShootEvent::STARTED])
+            ->orderBy('created_at')->orderBy('id')->get(['shoot_id', 'type', 'created_at']);
+        $minutes = array_fill_keys($ids, 0);
+        $current = null;
+        $since = $start;
+        foreach ($marks as $m) {
+            // Starting a brand is moving on to it, like a switch.
+            if ($current !== null) {
+                $minutes[$current] += (int) round($since->diffInSeconds($m->created_at, true) / 60);
+            }
+            $current = $m->shoot_id;
+            $since = $m->created_at;
+        }
+        if ($current !== null && $since->lt($end)) {
+            $minutes[$current] += (int) round($since->diffInSeconds($end, true) / 60);
+        }
+
+        return $minutes;
+    }
+
+    /** Which shoot of the group the crew is on right now (the last switch). */
+    public function focusedId(): ?int
+    {
+        $ids = $this->togetherGroup()->pluck('id')->all();
+
+        return ShootEvent::query()->whereIn('shoot_id', $ids)->whereIn('type', [ShootEvent::FOCUS, ShootEvent::STARTED])
+            ->latest('created_at')->latest('id')->value('shoot_id');
+    }
+
     public function hasDeparted(): bool
     {
         return $this->departed_at !== null;

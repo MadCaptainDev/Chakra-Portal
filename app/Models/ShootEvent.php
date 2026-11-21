@@ -44,8 +44,12 @@ class ShootEvent extends Model
     /** The admins were told something is late (meta: kind). */
     public const LATE_ALERT = 'late_alert';
 
+    /** Shooting together: the crew moved to this brand (meta: from_shoot_id). */
+    public const FOCUS = 'focus';
+
     /** @var array<string, string> */
     public const LABELS = [
+        self::FOCUS => 'Now shooting',
         self::KIT_PICKED => 'Kit picked up',
         self::KIT_WAIVED => 'Left without kit check',
         self::DEPARTED => 'On the way',
@@ -64,6 +68,7 @@ class ShootEvent extends Model
 
     /** Tailwind text colours for the timeline dot and label. */
     public const TONES = [
+        self::FOCUS => 'text-pink-300',
         self::KIT_PICKED => 'text-violet-300',
         self::KIT_WAIVED => 'text-amber-300',
         self::DEPARTED => 'text-sky-300',
