@@ -149,7 +149,7 @@ class ShootTogetherTest extends TestCase
 
         $this->actingAs($this->admin)->get(route('shoots.show', $mart))->assertOk()->assertSee('Shooting together')->assertSee('SVA Silks');
         ShootRun::reached($mart, $this->crew);
-        $this->actingAs($this->crew)->get(route('my.shoots.run', $silks))->assertOk()->assertSee('Now shooting')->assertSee('one list for both');
+        $this->actingAs($this->crew)->get(route('my.shoots.run', $silks))->assertOk()->assertSee('Now shooting')->assertSee('one list for both')->assertSee('SVA Mart')->assertSee('Switch to SVA Mart');
 
         $this->actingAs($this->admin)->delete(route('shoots.untogether', $silks))->assertSessionHas('status');
         $this->assertNull($mart->fresh()->together_key); // a group of one is no group

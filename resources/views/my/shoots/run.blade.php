@@ -54,7 +54,7 @@
             @foreach ($together as $s)
                 @php
                     $mins = $split[$s->id] ?? 0;
-                    $label = $s->clientLabel() ?? $s->title;
+                    $label = $s->shortTitle(); // "SVA Tier 2", not the client
                 @endphp
                 <a href="{{ route('my.shoots.run', $s) }}"
                    class="flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm ring-1 transition {{ $s->id === $shoot->id ? 'bg-white text-brand-900 ring-white' : 'text-white/75 ring-white/15 hover:bg-white/10' }}">
@@ -63,22 +63,39 @@
                     @elseif ($s->hasWrapped())
                         <span class="text-emerald-500">✓</span>
                     @endif
-                    <span class="font-semibold">{{ \Illuminate\Support\Str::limit($label, 22) }}</span>
+                    <span class="font-semibold">{{ \Illuminate\Support\Str::limit($label, 26) }}</span>
                     @if ($mins > 0)<span class="text-xs opacity-60">{{ $mins >= 60 ? intdiv($mins, 60).'h '.($mins % 60).'m' : $mins.'m' }}</span>@endif
                 </a>
             @endforeach
         </nav>
+        @php
+            $groupReached = $together->contains(fn ($s) => $s->hasReached());
+            $switchTo = $groupReached ? $together->filter(fn ($s) => $s->id !== $shoot->id && $s->id !== $focusedId && ! $s->hasWrapped() && ! $s->isCancelled()) : collect();
+        @endphp
+        @if ($switchTo->isNotEmpty())
+            {{-- One tap from here: move the crew to another shoot of the group. --}}
+            <div class="flex shrink-0 flex-wrap gap-2 px-4 pt-3">
+                @foreach ($switchTo as $s)
+                    <form method="POST" action="{{ route('my.shoots.focus', $s) }}" class="flex-1">
+                        @csrf
+                        <button class="w-full rounded-xl bg-white/10 px-3 py-2.5 text-sm font-semibold text-white ring-1 ring-pink-400/40 active:scale-[0.98] transition">
+                            ↔ Switch to {{ $s->shortTitle() }}
+                        </button>
+                    </form>
+                @endforeach
+            </div>
+        @endif
         @if (! $shoot->hasWrapped() && ! $shoot->isCancelled() && ($shoot->hasReached() || $together->contains(fn ($s) => $s->hasReached())) && ($focusedId !== $shoot->id || ! $shoot->isInProgress()))
             <form method="POST" action="{{ route('my.shoots.focus', $shoot) }}" class="shrink-0 px-4 pt-3">
                 @csrf
                 <button class="w-full rounded-xl bg-pink-500 px-4 py-3 text-sm font-bold text-white active:scale-[0.98] transition">
-                    🎬 Now shooting {{ $shoot->clientLabel() ?? $shoot->title }}
+                    🎬 Now shooting {{ $shoot->shortTitle() }}
                 </button>
                 <p class="mt-1 text-center text-[11px] text-white/45">Tap when you move across — the other one keeps running, and the hours split by brand.</p>
             </form>
         @endif
         @if (! $shoot->kits()->exists() && ($kitShoot = $together->first(fn ($s) => $s->kits()->exists())))
-            <p class="shrink-0 px-4 pt-2 text-xs text-white/50">🧰 The kit is on {{ $kitShoot->clientLabel() ?? $kitShoot->title }}'s list — one list for both.</p>
+            <p class="shrink-0 px-4 pt-2 text-xs text-white/50">🧰 The kit is on {{ $kitShoot->title }}'s list — one list for both.</p>
         @endif
     @endif
     @if (session('error'))

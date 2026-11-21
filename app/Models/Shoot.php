@@ -240,6 +240,12 @@ class Shoot extends Model
             ->where('status', '!=', self::STATUS_CANCELLED)->with('client')->orderBy('starts_at')->orderBy('id')->get();
     }
 
+    /** "SVA Tier 2" for "SVA Tier 2 shoot": what tells shoots of one client apart. */
+    public function shortTitle(): string
+    {
+        return preg_replace('/\s+shoot$/i', '', (string) $this->title) ?: (string) $this->title;
+    }
+
     /** This shoot and its partners, in a stable order. */
     public function togetherGroup(): \Illuminate\Support\Collection
     {
