@@ -68,7 +68,7 @@
                 </a>
             @endforeach
         </nav>
-        @if (! $shoot->hasWrapped() && ! $shoot->isCancelled() && $shoot->hasReached() && ($focusedId !== $shoot->id || ! $shoot->isInProgress()))
+        @if (! $shoot->hasWrapped() && ! $shoot->isCancelled() && ($shoot->hasReached() || $together->contains(fn ($s) => $s->hasReached())) && ($focusedId !== $shoot->id || ! $shoot->isInProgress()))
             <form method="POST" action="{{ route('my.shoots.focus', $shoot) }}" class="shrink-0 px-4 pt-3">
                 @csrf
                 <button class="w-full rounded-xl bg-pink-500 px-4 py-3 text-sm font-bold text-white active:scale-[0.98] transition">

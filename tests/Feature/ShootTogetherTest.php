@@ -154,4 +154,19 @@ class ShootTogetherTest extends TestCase
         $this->actingAs($this->admin)->delete(route('shoots.untogether', $silks))->assertSessionHas('status');
         $this->assertNull($mart->fresh()->together_key); // a group of one is no group
     }
+public function test_linking_after_the_trip_started_puts_the_other_shoot_on_location_too(): void
+    {
+        $mart = $this->shoot('SVA Mart');
+        $tier2 = $this->shoot('SVA Tier 2');
+        $mart->kits()->create(['equipment_item_id' => EquipmentItem::create(['name' => 'Sony FX30', 'quantity' => 1, 'is_active' => true, 'status' => EquipmentItem::STATUS_AVAILABLE])->id, 'quantity' => 1]);
+        KitCustody::pickUpAll($mart->fresh(), $this->crew);
+        ShootRun::start($mart->fresh(), $this->crew); // reached + rolling, before any link
+
+        $this->actingAs($this->admin)->post(route('shoots.together', $mart), ['partner_id' => $tier2->id]);
+
+        $this->assertTrue($tier2->fresh()->hasReached());
+        ShootRun::focus($tier2->fresh(), $this->crew);
+        $this->assertTrue($tier2->fresh()->isInProgress());
+        $this->assertTrue($mart->fresh()->isInProgress());
+    }
 }

@@ -259,6 +259,26 @@ class ShootController extends Controller
         Shoot::query()->whereIn('together_key', array_filter([$shoot->together_key, $partner->together_key]))->update(['together_key' => $key]);
         Shoot::query()->whereKey([$shoot->id, $partner->id])->update(['together_key' => $key]);
 
+        // Linked after the crew set off: the trip is shared, so the others are
+        // on the way / there too -- or their Start would still wait for it.
+        $group = Shoot::query()->where('together_key', $key)->get();
+        $lead = $group->filter(fn (Shoot $s) => $s->reached_at)->sortBy('reached_at')->first()
+            ?? $group->filter(fn (Shoot $s) => $s->departed_at)->sortBy('departed_at')->first();
+        if ($lead) {
+            foreach ($group as $s) {
+                if ($s->hasWrapped() || $s->isCancelled()) {
+                    continue;
+                }
+                if (! $s->departed_at && $lead->departed_at) {
+                    $s->forceFill(['departed_at' => $lead->departed_at, 'departed_by_id' => $lead->departed_by_id])->save();
+                    \App\Models\ShootEvent::record($s, $request->user(), \App\Models\ShootEvent::DEPARTED, 'Together with '.$lead->title);
+                }
+                if (! $s->reached_at && $lead->reached_at) {
+                    $s->forceFill(['reached_at' => now(), 'reached_by_id' => $lead->reached_by_id])->save();
+                    \App\Models\ShootEvent::record($s, $request->user(), \App\Models\ShootEvent::REACHED, 'Together with '.$lead->title);
+                }
+            }
+        }
         return back()->with('status', 'Linked: '.$shoot->title.' and '.$partner->title.' happen together — one trip, one kit list, both run at once.');
     }
 
