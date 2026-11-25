@@ -145,6 +145,8 @@ class VideoReadyTest extends TestCase
         $this->assertSame('Janet - 10 Foods', $open['title']);
         $this->assertSame(60, (int) (($open['to'] - $open['from']) / 60000));
 
-        $this->actingAs($this->editor)->getJson(route('editor-updates.live'))->assertForbidden();
+        // An editor gets in too (EditorUpdatesController::scope()), seeing only their own lane.
+        $mine = $this->actingAs($this->editor)->getJson(route('editor-updates.live'))->assertOk()->json('lanes');
+        $this->assertSame(['Sanjai'], array_column($mine, 'name'));
     }
 }

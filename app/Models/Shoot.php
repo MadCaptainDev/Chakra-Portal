@@ -76,6 +76,7 @@ class Shoot extends Model
         'overrun_alert_at' => 'datetime',
         'footage_alert_at' => 'datetime',
         'kit_alert_at' => 'datetime',
+        'take_started_at' => 'datetime',
     ];
 
     /**

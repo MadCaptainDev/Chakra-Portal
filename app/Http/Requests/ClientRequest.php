@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Client;
 use App\Models\TaxonomyTerm;
+use App\Support\FootageFolder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -56,6 +57,16 @@ class ClientRequest extends FormRequest
             'client_type' => ['sometimes', Rule::in(array_keys(Client::CLIENT_TYPES))],
             'service_note' => ['nullable', 'string', 'max:255'],
             'is_active' => ['sometimes', 'boolean'],
+
+            // Where Chakra Planner files this client's footage off a card.
+            // pending_path_template: see App\Support\FootageFolder.
+            'drive_root' => ['nullable', 'string', 'max:500'],
+            'folder_prefix' => ['nullable', 'string', 'max:120', 'not_regex:/[\/:]/'],
+            'pending_path_template' => ['nullable', 'string', 'max:255', function (string $attribute, mixed $value, \Closure $fail) {
+                if (is_string($value) && $unknown = FootageFolder::unknownPlaceholders($value)) {
+                    $fail('Unknown placeholder '.implode(', ', $unknown).'. Use '.implode(', ', FootageFolder::PLACEHOLDERS).'.');
+                }
+            }],
         ];
     }
 
