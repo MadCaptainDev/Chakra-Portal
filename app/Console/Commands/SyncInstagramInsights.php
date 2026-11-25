@@ -32,6 +32,7 @@ class SyncInstagramInsights extends Command
 {
     protected $signature = 'instagram:sync
         {--client= : Sync only the account belonging to this client id}
+        {--account= : Sync only this social account id (the page-visit catch-up does one at a time)}
         {--days=30 : How many days of account-level history to pull}
         {--force : Sync even an account still inside its throttle window}';
 
@@ -44,6 +45,7 @@ class SyncInstagramInsights extends Command
             ->connected()
             ->with('client')
             ->when($this->option('client'), fn ($q, $id) => $q->where('client_id', $id))
+            ->when($this->option('account'), fn ($q, $id) => $q->whereKey($id))
             ->get();
 
         if ($accounts->isEmpty()) {
@@ -127,6 +129,7 @@ class SyncInstagramInsights extends Command
 
         // Fresh view counts are in: announce any reel that crossed a milestone.
         try {
+            \App\Support\PortfolioSuggestions::forget(); // new numbers, maybe a new best reel
             $posted = app(ViewMilestones::class)->run();
             if ($posted > 0) {
                 $this->info("Posted {$posted} views milestone announcement(s).");

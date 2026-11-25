@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use Illuminate\Support\Facades\Cache;
 use App\Models\PortfolioItem;
 use App\Models\SocialMediaItem;
 use Illuminate\Support\Collection;
@@ -39,7 +40,19 @@ class PortfolioSuggestions
      */
     public static function best(): ?array
     {
-        return self::top(1)->first();
+        // top() reads every synced post and its stats (~half a second); the
+        // dashboard needs one pick, so it is kept for half an hour and dropped
+        // when the portfolio or the Instagram numbers change (forget()).
+        $id = Cache::remember(self::CACHE_KEY, now()->addMinutes(30), fn () => self::top(1)->first()['media']->id ?? 0);
+
+        return $id ? self::top(1, $id)->first() : null;
+    }
+
+    public const CACHE_KEY = 'portfolio-suggestion-best';
+
+    public static function forget(): void
+    {
+        Cache::forget(self::CACHE_KEY);
     }
 
     /**
@@ -48,7 +61,7 @@ class PortfolioSuggestions
      *
      * @return Collection<int, array{media: SocialMediaItem, clientId: int, clientName: ?string, metric: string, value: int, bar: int}>
      */
-    public static function top(int $limit = self::DEFAULT_LIMIT): Collection
+    public static function top(int $limit = self::DEFAULT_LIMIT, ?int $onlyId = null): Collection
     {
         $bar = self::bar();
 
@@ -58,6 +71,7 @@ class PortfolioSuggestions
         // -fetched collection rather than one query per candidate.
         return SocialMediaItem::query()
             ->whereNotIn('id', $linkedIds)
+            ->when($onlyId, fn ($q) => $q->whereKey($onlyId))
             ->whereHas('socialAccount', fn ($query) => $query->connected()->whereNotNull('client_id'))
             ->with(['insights', 'socialAccount.client'])
             ->get()

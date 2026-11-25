@@ -1566,7 +1566,7 @@ Route::middleware(['auth', 'module:whatsapp-crm,view'])->prefix('whatsapp-crm')-
  * last sync, so the catch-up needs to run before the dashboard reads it,
  * not after.
  */
-Route::middleware(['auth', 'admin', 'recurring.catchup', 'instagram.catchup', 'recognitions.catchup', 'scheduled-flows.catchup'])->group(function () {
+Route::middleware(['auth', 'admin', 'recurring.catchup', 'recognitions.catchup', 'scheduled-flows.catchup'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // "My ventures" on the dashboard -- see VentureBoardController.

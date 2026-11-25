@@ -112,6 +112,13 @@ return [
     |
     */
 
+    /*
+     * The rate limiter's counters, kept in files rather than the database
+     * cache: every request bumps one row, and concurrent requests on the
+     * same row were deadlocking (~900 errors a week in Nov 2026).
+     */
+    'limiter' => env('CACHE_LIMITER', 'file'),
+
     'prefix' => env('CACHE_PREFIX', Str::slug((string) env('APP_NAME', 'laravel')).'-cache-'),
 
 ];

@@ -53,7 +53,7 @@ class VideoReviewController extends Controller
 
         $latest = ReviewVideo::query()
             ->whereIn('id', ReviewVideo::query()->selectRaw('MAX(id)')->groupBy('todo_id'))
-            ->with(['todo.user:id,name,avatar_path', 'todo.contentItem:id,venture', 'uploadedBy:id,name'])
+            ->with(['todo.user:id,name,avatar_path', 'todo.contentItem:id,venture', 'uploadedBy:id,name', 'approvals.user:id,name,avatar_path', 'approvals.byUser:id,name'])
             ->withCount(['comments as open_comments' => fn ($q) => $q->whereNull('resolved_at')])
             ->latest('id')->limit(200)->get()
             ->filter(fn (ReviewVideo $v) => $v->todo && $v->reviewableBy($user));
@@ -63,7 +63,7 @@ class VideoReviewController extends Controller
         $month = rescue(fn () => \Illuminate\Support\Carbon::createFromFormat('Y-m', (string) $request->query('month', now()->format('Y-m')))->startOfMonth(), now()->startOfMonth(), false);
         $monthVideos = ReviewVideo::query()
             ->whereBetween('created_at', [$month, $month->copy()->endOfMonth()])
-            ->with(['todo.user:id,name,avatar_path', 'todo.contentItem:id,venture', 'uploadedBy:id,name'])
+            ->with(['todo.user:id,name,avatar_path', 'todo.contentItem:id,venture', 'uploadedBy:id,name', 'approvals.user:id,name,avatar_path', 'approvals.byUser:id,name'])
             ->withCount(['comments as open_comments' => fn ($q) => $q->whereNull('resolved_at')])
             ->orderBy('created_at')->get()
             ->filter(fn (ReviewVideo $v) => $v->todo && $v->reviewableBy($user))

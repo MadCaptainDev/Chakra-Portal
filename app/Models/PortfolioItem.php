@@ -555,4 +555,11 @@ class PortfolioItem extends Model
 
         return false;
     }
+
+    /** A new or changed portfolio piece changes which reel the dashboard suggests. */
+    protected static function booted(): void
+    {
+        static::saved(fn () => \App\Support\PortfolioSuggestions::forget());
+        static::deleted(fn () => \App\Support\PortfolioSuggestions::forget());
+    }
 }

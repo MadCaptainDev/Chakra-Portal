@@ -14,7 +14,8 @@ class ReviewSetting extends Model
 
     public static function current(): self
     {
-        return self::query()->first() ?? self::query()->create(['approver_ids' => [], 'require_for_ready' => true]);
+        // Read once per request: the review list asks for it once per video.
+        return once(fn () => self::query()->first() ?? self::query()->create(['approver_ids' => [], 'require_for_ready' => true]));
     }
 
     /** @return Collection<int, User> the required approvers, in their order, who still have an account */

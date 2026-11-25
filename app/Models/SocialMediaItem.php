@@ -193,4 +193,10 @@ class SocialMediaItem extends Model
 
         return $ms !== null ? round($ms / 1000, 1) : null;
     }
+
+    /** A new or changed reel may be the dashboard's best unused one now. */
+    protected static function booted(): void
+    {
+        static::saved(fn () => \App\Support\PortfolioSuggestions::forget());
+    }
 }

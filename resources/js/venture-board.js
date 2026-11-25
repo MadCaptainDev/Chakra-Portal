@@ -21,7 +21,45 @@ export function ventureBoard(urls, initial) {
         saving: false,
         notice: '',
         canNotify: 'Notification' in window ? Notification.permission : 'unsupported',
+        // 'attention': ventures behind their monthly target first; 'mine': the chosen order.
+        sortMode: (() => { try { return localStorage.getItem('vb-sort') || 'attention'; } catch { return 'attention'; } })(),
 
+        setSort(mode) {
+            this.sortMode = mode;
+            try { localStorage.setItem('vb-sort', mode); } catch { /* */ }
+        },
+        /** How far through the month we are (0..1): where the target should be by now. */
+        monthDone() {
+            const d = new Date();
+            const days = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+            return d.getDate() / days;
+        },
+        /** Videos it should have out by today to be on course for its target. */
+        paceNow(row) { return row.target ? Math.ceil(row.target * this.monthDone()) : 0; },
+        behindBy(row) { return row.target ? Math.max(0, this.paceNow(row) - row.out_month) : 0; },
+        shortBy(row) { return row.target ? Math.max(0, row.target - row.out_month) : 0; },
+        /** behind (short of where it should be by now) · short (not reached, on course) · met · none */
+        targetState(row) {
+            if (!row.target) return 'none';
+            if (row.out_month >= row.target) return 'met';
+            return this.behindBy(row) > 0 ? 'behind' : 'short';
+        },
+        get behindCount() { return this.board.rows.filter((r) => this.targetState(r) === 'behind').length; },
+        get notMetCount() { return this.board.rows.filter((r) => ['behind', 'short'].includes(this.targetState(r))).length; },
+        /** The cards in the order to show: furthest behind target first, then the rest. */
+        get sortedRows() {
+            if (this.sortMode === 'mine') return this.board.rows;
+            const rank = { behind: 0, short: 1, none: 2, met: 3 };
+            const health = { empty: 0, low: 1, ok: 2 };
+            return this.board.rows
+                .map((row, i) => ({ row, i }))
+                .sort((a, b) => (rank[this.targetState(a.row)] - rank[this.targetState(b.row)])
+                    || (this.behindBy(b.row) - this.behindBy(a.row))
+                    || (this.shortBy(b.row) - this.shortBy(a.row))
+                    || ((health[a.row.health] ?? 2) - (health[b.row.health] ?? 2))
+                    || (a.i - b.i))
+                .map((x) => x.row);
+        },
         init() {
             setInterval(() => { if (!document.hidden) this.load(true); }, 60_000);
             setInterval(() => { this.stamp = Date.now(); }, 30_000);

@@ -34,6 +34,16 @@
                 </span>
             </p>
         </div>
+        <div class="flex items-center gap-2">
+            <span x-show="behindCount" x-cloak class="vb-pulse inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-red-500/15 px-3 text-sm font-bold text-red-200 ring-1 ring-red-400/40"
+                  :title="notMetCount + ' not at their monthly target yet'">
+                🎯 <span x-text="behindCount"></span> behind target
+            </span>
+            <div class="inline-flex rounded-xl bg-white/[0.06] p-1 ring-1 ring-white/10 text-xs font-semibold" role="group" aria-label="Order">
+                <button type="button" @click="setSort('attention')" class="h-8 rounded-lg px-3 transition" :class="sortMode === 'attention' ? 'bg-white text-brand-900' : 'text-brand-100/70 hover:text-white'">Behind first</button>
+                <button type="button" @click="setSort('mine')" class="h-8 rounded-lg px-3 transition" :class="sortMode === 'mine' ? 'bg-white text-brand-900' : 'text-brand-100/70 hover:text-white'">My order</button>
+            </div>
+        </div>
         <button type="button" @click="refresh()" :disabled="refreshing"
                 class="inline-flex min-h-[40px] items-center gap-2 rounded-xl bg-brand-400 px-4 text-sm font-bold text-brand-900 transition hover:bg-brand-300 disabled:opacity-60">
             <span class="inline-flex" :class="refreshing ? 'animate-spin' : ''"><x-icon name="refresh" class="h-4 w-4" /></span>
@@ -79,10 +89,24 @@
 
     {{-- One card per venture. A video counts once, however many planners it is in (reel + YouTube). --}}
     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 transition-opacity" :class="busy ? 'opacity-60' : ''">
-        <template x-for="(row, n) in board.rows" :key="row.venture">
-            <article class="vb-card group flex flex-col rounded-2xl border bg-[#15303f] p-4 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/20"
+        <template x-for="(row, n) in sortedRows" :key="row.venture">
+            <article class="vb-card group relative flex flex-col rounded-2xl border bg-[#15303f] p-4 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/20"
                      :style="`animation-delay:${n * 60}ms`"
-                     :class="{ ok: 'border-white/[0.06] hover:border-brand-400/40', low: 'border-amber-400/35', empty: 'border-red-400/40' }[row.health]">
+                     :class="[
+                         { ok: 'border-white/[0.06] hover:border-brand-400/40', low: 'border-amber-400/35', empty: 'border-red-400/40' }[row.health],
+                         targetState(row) === 'behind' ? 'vb-behind !border-red-400/60 bg-gradient-to-br from-red-500/[0.10] to-[#15303f]' : '',
+                         targetState(row) === 'short' ? '!border-amber-400/40' : '',
+                     ]">
+                {{-- Where it stands against the month's target --}}
+                <div x-show="targetState(row) !== 'none'" class="-mt-1 mb-2 flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-wider">
+                    <span x-show="targetState(row) === 'behind'" class="inline-flex items-center gap-1.5 rounded-full bg-red-500/20 px-2 py-0.5 text-red-200">
+                        <span class="vb-dot h-1.5 w-1.5 rounded-full bg-red-400"></span>
+                        Behind target · <span x-text="behindBy(row)"></span> short of pace
+                    </span>
+                    <span x-show="targetState(row) === 'short'" class="rounded-full bg-amber-400/15 px-2 py-0.5 text-amber-200">On course · <span x-text="shortBy(row)"></span> to go</span>
+                    <span x-show="targetState(row) === 'met'" class="vb-met rounded-full bg-emerald-400/15 px-2 py-0.5 text-emerald-200">✓ Target reached</span>
+                    <span class="tabular-nums text-brand-100/50"><span x-text="row.out_month"></span>/<span x-text="row.target"></span></span>
+                </div>
                 <div class="flex items-center gap-3">
                     <template x-if="row.logo_url"><img :src="row.logo_url" alt="" class="h-11 w-11 shrink-0 rounded-xl bg-white object-contain p-0.5"></template>
                     <template x-if="!row.logo_url"><span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 text-sm font-bold text-white/70" x-text="initials(row.venture)"></span></template>
@@ -128,8 +152,12 @@
                             </span>
                         </template>
                     </span>
-                    <div x-show="row.target" class="h-1 w-full overflow-hidden rounded-full bg-white/10">
-                        <div class="h-full rounded-full bg-emerald-400 transition-all duration-700 ease-out" :style="`width:${Math.min(100, row.target ? row.out_month / row.target * 100 : 0)}%`"></div>
+                    <div x-show="row.target" class="relative h-1.5 w-full overflow-hidden rounded-full bg-white/10" :title="'By today it should be ' + paceNow(row) + ' of ' + row.target">
+                        <div class="vb-fill h-full rounded-full transition-all duration-1000 ease-out"
+                             :class="{ behind: 'bg-red-400', short: 'bg-amber-300', met: 'bg-emerald-400', none: 'bg-emerald-400' }[targetState(row)]"
+                             :style="`width:${Math.min(100, row.target ? row.out_month / row.target * 100 : 0)}%`"></div>
+                        {{-- Where it should be by today --}}
+                        <span x-show="targetState(row) !== 'met'" class="absolute inset-y-0 w-0.5 bg-white/80" :style="`left:${Math.min(100, monthDone() * 100)}%`"></span>
                     </div>
                 </div>
 
