@@ -228,4 +228,27 @@ class VideoTimelineTest extends TestCase
         $this->actingAs($crew)->post(route('my.shoots.videos.match', [$shoot, $clip]), ['content_item_id' => ''])->assertSessionMissing('error');
         $this->assertNull(Video::where('content_item_id', $mine->id)->value('shoot_video_id'));
     }
+public function test_the_page_shows_where_the_video_stands_its_review_cuts_and_its_youtube_short(): void
+    {
+        $admin = \App\Models\User::factory()->create(['role' => \App\Models\User::ROLE_ADMIN]);
+        $editor = \App\Models\User::factory()->create(['role' => \App\Models\User::ROLE_EMPLOYEE, 'name' => 'Gokul']);
+        $card = new \App\Models\Todo;
+        $card->forceFill(['user_id' => $editor->id, 'title' => 'Janet - Diwali', 'venture' => 'Janet', 'status' => \App\Models\Todo::STATUS_COMPLETED,
+            'kind' => 'reel', 'ready_at' => now()->subDays(2), 'posted_at' => now()->subDays(2), 'starts_on' => today(), 'due_on' => today()])->save();
+        $cut = new \App\Models\ReviewVideo;
+        $cut->forceFill(['todo_id' => $card->id, 'version' => 1, 'uploaded_by_id' => $editor->id, 'original_name' => 'diwali.mp4', 'path' => 'x.mp4',
+            'mime' => 'video/mp4', 'size' => 1, 'status' => \App\Models\ReviewVideo::APPROVED, 'reviewed_by_id' => $admin->id, 'reviewed_at' => now()->subDays(2), 'ai_status' => 'none'])->save();
+
+        $this->withoutVite();
+        $this->actingAs($admin)->get(route('videos.card', $card))->assertOk()
+            ->assertSee('Gokul')->assertSee('Went out')
+            ->assertSee('Cut v1 sent for review')->assertSee('v1 approved')->assertSee('Review v1')
+            ->assertSee('YouTube Short:')->assertSee('missing');
+
+        $card->forceFill(['youtube_posted_at' => now(), 'youtube_posted_by_id' => $editor->id])->save();
+        $this->actingAs($editor)->get(route('videos.card', $card))->assertOk()->assertSee('Short posted on YouTube')->assertDontSee('missing');
+
+        // Reachable from My Editing and the review page.
+        $this->actingAs($admin)->get(route('reviews.show', $cut))->assertOk()->assertSee(route('videos.card', $card), false);
+    }
 }

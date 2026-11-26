@@ -200,7 +200,7 @@
                 @forelse ($v['cancelled'] as $c)
                     <li class="py-2.5 text-sm">
                         <div class="flex flex-wrap items-baseline justify-between gap-2">
-                            <span class="font-semibold text-white">{{ $c['todo']->title }}</span>
+                            <a href="{{ route('videos.card', $c['todo']) }}" class="font-semibold text-white hover:underline">{{ $c['todo']->title }}</a>
                             <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold {{ $c['edited'] ? 'bg-red-500/15 text-red-200' : 'bg-white/10 text-brand-100/60' }}">{{ $c['edited'] ? 'after editing' : $c['stage'] }}</span>
                         </div>
                         <p class="mt-0.5 text-xs text-brand-100/60">{{ $c['todo']->user?->name }} · {{ $c['todo']->venture }} · {{ $c['at']->format('D j M, g:i A') }}@if ($c['by']) · by {{ $c['by'] }}@endif</p>
@@ -219,7 +219,7 @@
                 <ul class="divide-y divide-white/5">
                     @forelse ($v['posted']->concat($v['delivered'])->sortBy('posted_at') as $p)
                         <li class="flex justify-between gap-3 py-2 text-sm">
-                            <span class="min-w-0 truncate text-white">{{ $p->title }}</span>
+                            <a href="{{ route('videos.card', $p) }}" class="min-w-0 truncate text-white hover:underline">{{ $p->title }}</a>
                             <span class="shrink-0 text-xs text-brand-100/60">{{ \App\Models\Todo::KINDS[$p->kind] ?? 'Reel' }} · {{ $p->user?->name }} · {{ $p->posted_at->format($r->period === 'day' ? 'g:i A' : 'D j M') }}</span>
                         </li>
                     @empty

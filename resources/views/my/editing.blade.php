@@ -186,7 +186,7 @@
                         <template x-for="card in lane('{{ $lane }}')" :key="card.id">
                             <article class="rounded-xl bg-brand-900/80 p-3.5 ring-1 ring-white/10 sm:p-3">
                                 <div class="flex items-start justify-between gap-2">
-                                    <p class="font-semibold leading-snug text-white" x-text="card.title"></p>
+                                    <a :href="@js(url('/videos/card')) + '/' + card.id" class="block font-semibold leading-snug text-white hover:underline" x-text="card.title" title="Open the video page"></a>
                                     <p x-show="card.pending" x-cloak class="mt-0.5 text-[11px] font-semibold text-amber-300">⏳ Cancel waiting for an admin</p>
                                     <span class="-mr-1 -mt-1 flex shrink-0">
                                     {{-- Hand it to someone else. --}}

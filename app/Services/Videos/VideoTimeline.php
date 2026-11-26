@@ -104,7 +104,7 @@ class VideoTimeline
         }
 
         $cards = Todo::query()->whereIn('id', $todos->pluck('id'))->orWhereIn('parent_id', $todos->pluck('id'))
-            ->with(['updates.user:id,name', 'user:id,name'])->get();
+            ->with(['updates.user:id,name', 'user:id,name', 'youtubePostedBy:id,name'])->get();
 
         foreach ($cards as $t) {
             foreach ($t->updates as $u) {
@@ -119,11 +119,73 @@ class VideoTimeline
             $add($video->mediaItem->posted_at, 'post', 'Live on Instagram', null, null, $video->mediaItem->permalink);
         }
 
+        // Each cut sent for review, and what was decided on it.
+        $reviews = \App\Models\ReviewVideo::query()->whereIn('todo_id', $todos->pluck('id'))->with(['uploadedBy:id,name', 'reviewedBy:id,name'])->orderBy('version')->get();
+        foreach ($reviews as $rv) {
+            $what = $rv->isImages() ? 'Pictures' : 'Cut';
+            $add($rv->created_at, 'edit', $what.' v'.$rv->version.' sent for review', $rv->original_name, $rv->uploadedBy?->name, route('reviews.show', $rv));
+            if ($rv->reviewed_at && in_array($rv->status, [\App\Models\ReviewVideo::APPROVED, \App\Models\ReviewVideo::CHANGES], true)) {
+                $add($rv->reviewed_at, 'edit', $rv->status === \App\Models\ReviewVideo::APPROVED ? 'v'.$rv->version.' approved' : 'Changes asked on v'.$rv->version,
+                    $rv->review_note, $rv->reviewedBy?->name, route('reviews.show', $rv));
+            }
+        }
+
+        // The YouTube Short: the same reel, a duty marked by whoever posted it.
+        foreach ($cards->whereNull('parent_id')->whereNotNull('youtube_posted_at') as $t) {
+            $add($t->youtube_posted_at, 'post', 'Short posted on YouTube', null, $t->youtubePostedBy?->name);
+        }
+
+        // Cancel / move requests and how they were decided.
+        \App\Models\VideoRequest::query()
+            ->where(fn ($q) => $q->whereIn('todo_id', $todos->pluck('id'))->when($item, fn ($w) => $w->orWhere('content_item_id', $item->id)))
+            ->with(['user:id,name', 'decidedBy:id,name'])->get()
+            ->each(function (\App\Models\VideoRequest $q) use ($add) {
+                $add($q->created_at, 'plan', 'Asked: '.$q->summary(), null, $q->user?->name);
+                if ($q->decided_at) {
+                    $add($q->decided_at, 'plan', ucfirst($q->status).': '.$q->summary(), $q->decision_note, $q->decidedBy?->name);
+                }
+            });
+
         return [
             'item' => $item,
             'todo' => $card ?? $todos->first(),
             'video' => $video,
             'events' => $events->sortBy(fn (array $e) => $e['at']->getTimestamp())->values(),
+            'glance' => self::glance($item, $video, $card ?? $todos->first(), $reviews),
+        ];
+    }
+
+    /**
+     * Where the video stands now, for the top of the page.
+     *
+     * @return array<string, mixed>
+     */
+    private static function glance(?ContentItem $item, ?Video $video, ?Todo $card, Collection $reviews): array
+    {
+        $media = $video?->mediaItem?->loadMissing('insights');
+        $latest = $reviews->last();
+        $shortDue = $card && ! $card->parent_id && $card->posted_at && $card->kind !== Todo::KIND_DELIVERED
+            && in_array($card->kind, [null, 'reel'], true);
+
+        return [
+            'status' => $item?->status ?? ($card ? (Todo::STATUSES[$card->status] ?? $card->status) : null),
+            'editor' => $card?->user?->name ?? $item?->editor,
+            'publish' => $item?->published_date,
+            'posted' => $card?->posted_at,
+            'posted_as' => $card?->kind ? (Todo::KINDS[$card->kind] ?? $card->kind) : null,
+            'instagram' => $media ? [
+                'url' => $media->permalink,
+                'views' => $media->metricValue('views') ?? $media->metricValue('reach'),
+                'likes' => $media->metricValue('likes'),
+                'comments' => $media->metricValue('comments'),
+                'shares' => $media->metricValue('shares'),
+                'saves' => $media->metricValue('saved') ?? $media->metricValue('saves'),
+            ] : null,
+            'short' => ! $shortDue ? null : ($card->youtube_posted_at
+                ? ['state' => 'posted', 'at' => $card->youtube_posted_at, 'by' => $card->youtubePostedBy?->name]
+                : ['state' => $card->posted_at->lte(now()->subHours(\App\Support\YoutubeShorts::GRACE_HOURS)) ? 'missing' : 'due']),
+            'review' => $latest ? ['url' => route('reviews.show', $latest), 'version' => $latest->version, 'status' => $latest->statusLabel()] : null,
+            'pending' => $card ? \App\Models\VideoRequest::query()->where('todo_id', $card->id)->where('status', 'pending')->first()?->summary() : null,
         ];
     }
 

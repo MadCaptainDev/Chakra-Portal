@@ -56,6 +56,60 @@
             </div>
         </x-card>
 
+        {{-- Where it stands now --}}
+        @php $g = $glance ?? []; @endphp
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            @foreach ([
+                ['Status', $g['status'] ?? '—', 'text-white'],
+                ['Editor', $g['editor'] ?? '—', 'text-white'],
+                ['Publish date', isset($g['publish']) && $g['publish'] ? $g['publish']->format('D j M') : '—', 'text-white'],
+                ['Went out', isset($g['posted']) && $g['posted'] ? $g['posted']->format('D j M, g:i A').($g['posted_as'] ? ' · '.$g['posted_as'] : '') : 'Not yet', isset($g['posted']) && $g['posted'] ? 'text-emerald-300' : 'text-brand-100/50'],
+            ] as [$label, $value, $tone])
+                <div class="rounded-xl bg-white/[0.05] px-3 py-2.5 ring-1 ring-white/10">
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-brand-100/45">{{ $label }}</p>
+                    <p class="mt-0.5 truncate text-sm font-semibold {{ $tone }}" title="{{ $value }}">{{ $value }}</p>
+                </div>
+            @endforeach
+        </div>
+
+        <div class="flex flex-wrap gap-2 text-sm">
+            @if (! empty($g['review']))
+                <a href="{{ $g['review']['url'] }}" class="inline-flex items-center gap-1.5 rounded-xl bg-violet-400/15 px-3 py-2 font-semibold text-violet-200 hover:bg-violet-400/25">
+                    🎬 Review v{{ $g['review']['version'] }} · {{ $g['review']['status'] }}
+                </a>
+            @endif
+            @if (! empty($g['short']))
+                @php $s = $g['short']; @endphp
+                <span class="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 font-semibold {{ ['posted' => 'bg-red-500/15 text-red-200', 'due' => 'bg-white/10 text-brand-100/80', 'missing' => 'bg-red-500/25 text-red-100 ring-1 ring-red-400/50'][$s['state']] }}">
+                    ▶ YouTube Short:
+                    @if ($s['state'] === 'posted') posted {{ $s['at']->format('j M, g:i A') }}{{ $s['by'] ? ' by '.$s['by'] : '' }}
+                    @elseif ($s['state'] === 'missing') missing
+                    @else to post today @endif
+                </span>
+            @endif
+            @if (! empty($g['pending']))
+                <span class="inline-flex items-center gap-1.5 rounded-xl bg-amber-400/15 px-3 py-2 font-semibold text-amber-200">⏳ Waiting for admin: {{ $g['pending'] }}</span>
+            @endif
+        </div>
+
+        @if (! empty($g['instagram']))
+            @php $ig = $g['instagram']; @endphp
+            <x-card class="p-4 sm:p-5">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <p class="text-sm font-semibold text-white">On Instagram</p>
+                    @if ($ig['url'])<a href="{{ $ig['url'] }}" target="_blank" rel="noopener" class="text-xs text-sky-300 underline underline-offset-4">Open the post</a>@endif
+                </div>
+                <div class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
+                    @foreach (['views' => 'Views', 'likes' => 'Likes', 'comments' => 'Comments', 'shares' => 'Shares', 'saves' => 'Saves'] as $k => $label)
+                        <div class="rounded-lg bg-white/[0.04] px-3 py-2 text-center">
+                            <p class="text-lg font-bold tabular-nums text-white">{{ $ig[$k] !== null ? number_format($ig[$k]) : '—' }}</p>
+                            <p class="text-[10px] uppercase tracking-wider text-brand-100/50">{{ $label }}</p>
+                        </div>
+                    @endforeach
+                </div>
+            </x-card>
+        @endif
+
         @if ($events->isNotEmpty())
             <x-card class="p-4 sm:p-5">
                 <ol>

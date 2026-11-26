@@ -176,7 +176,7 @@
                                 :class="isOpen(row.venture) ? 'vb-in' : ''" :style="`animation-delay:${i * 35}ms`">
                                 <span class="mt-1 h-2 w-2 shrink-0 rounded-full" :style="`background:${stageColor(v.stage)}`" :title="stageLabel(v.stage)"></span>
                                 <div class="min-w-0 flex-1">
-                                    <p class="truncate text-[13px] text-white/90" :class="v.out ? 'text-white/70' : ''" x-text="v.title" :title="v.title"></p>
+                                    <a :href="@js(url('/videos/item')) + '/' + v.id" class="block truncate text-[13px] text-white/90 hover:text-white hover:underline" :class="v.out ? 'text-white/70' : ''" x-text="v.title" :title="'Open the video page: ' + v.title"></a>
                                     <p class="mt-0.5 flex flex-wrap items-center gap-1 text-[10.5px]">
                                         <span class="text-brand-100/50" x-text="(v.out ? 'Out ' : '') + (v.date ? day(v.date) : 'No date') + (v.out ? '' : ' · ' + stageLabel(v.stage))"></span>
                                         <span x-show="v.scheduled" class="rounded bg-violet-400/15 px-1 py-px font-semibold text-violet-200">◷ Scheduled</span>

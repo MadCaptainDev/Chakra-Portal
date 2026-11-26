@@ -43,7 +43,7 @@
                     {{ $card->contentItem?->venture ?? $card->venture ?? 'Video' }} · {{ $card->user?->name }} · v{{ $video->version }}
                     · {{ $video->created_at->format('j M, g:i A') }}
                 </p>
-                <h1 class="truncate text-xl font-extrabold tracking-tight text-white sm:text-2xl">{{ $card->title }}</h1>
+                <h1 class="truncate text-xl font-extrabold tracking-tight text-white sm:text-2xl"><a href="{{ route('videos.card', $card) }}" class="hover:underline" title="The whole story of this video">{{ $card->title }}</a></h1>
             </div>
 
             {{-- Who else is here --}}

@@ -27,7 +27,7 @@
                 @php $late = $t->posted_at->lte(now()->subHours($grace)); @endphp
                 <li class="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5">
                     <div class="min-w-0 flex-1">
-                        <p class="truncate text-sm font-semibold text-white">{{ $t->title }}</p>
+                        <a href="{{ route('videos.card', $t) }}" class="block truncate text-sm font-semibold text-white hover:underline">{{ $t->title }}</a>
                         <p class="text-xs {{ $late ? 'text-red-300' : 'text-brand-100/55' }}">
                             @if ($showEditor) {{ $t->user?->name }} · @endif{{ $t->venture }} · on Instagram {{ $t->posted_at->diffForHumans() }}{{ $late ? ' — late' : '' }}
                         </p>
