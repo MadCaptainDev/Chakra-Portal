@@ -91,9 +91,9 @@ class WorkloadController extends Controller
                 return $date !== null && $date->lt($overdueCutoff);
             });
 
-            // Counts are videos: a reel and its YouTube copy are one (the load
-            // below still weighs each platform's upload).
-            $videos = fn (Collection $rows) => \App\Support\ContentPieces::videos($rows)->count();
+            // Counts are videos, and the YouTube Short is the same reel without the
+            // copyrighted music -- never counted (the load below still weighs uploads).
+            $videos = fn (Collection $rows) => \App\Support\ContentPieces::videos($rows->where('source', '!=', ContentItem::SOURCE_YOUTUBE))->count();
             $delivered = $videos($mine->where('status', 'Published'));
 
             $weightedLoad = $active->sum(fn (ContentItem $item) => self::WEIGHTS[$item->source] ?? 1);

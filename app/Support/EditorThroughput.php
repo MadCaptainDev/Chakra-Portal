@@ -107,7 +107,7 @@ class EditorThroughput
         // Editing the reel and putting the same cut on YouTube is one video
         // edited, not two. The per-planner totals below still count each row.
         $rows = $items;
-        $items = ContentPieces::videos($items)->map(fn ($parts) => $parts->first())->values();
+        $items = ContentPieces::videos($items->where('source', '!=', ContentItem::SOURCE_YOUTUBE))->map(fn ($parts) => $parts->first())->values();
 
         $hours = TimesheetEntry::with('user')
             ->where('task_type', TimesheetEntry::TASK_EDITING)

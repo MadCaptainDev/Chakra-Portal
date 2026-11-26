@@ -119,6 +119,7 @@ class Todo extends Model
         'closed_on' => 'date',
         'reviewed_at' => 'datetime',
         'posted_at' => 'datetime',
+        'youtube_posted_at' => 'datetime',
         'ready_at' => 'datetime',
         'publish_at' => 'datetime',
         'scheduled_at' => 'datetime',
@@ -167,6 +168,12 @@ class Todo extends Model
     }
 
     /** Corrections to this video, oldest first. */
+    /** Who marked the reel's YouTube Short posted. */
+    public function youtubePostedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'youtube_posted_by_id');
+    }
+
     /** The newest review upload (video or picture post) for this card. */
     public function latestReview(): \Illuminate\Database\Eloquent\Relations\HasOne
     {

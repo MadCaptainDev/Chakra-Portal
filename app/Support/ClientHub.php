@@ -37,9 +37,10 @@ class ClientHub
             'target' => $a->targetFor(ContentItem::SOURCE_REEL),
         ]);
 
-        // One line per video: a reel and its YouTube copy are one piece of work.
+        // One line per video. The YouTube Short is the same reel, so it is never listed.
         $inWorksVideos = ContentPieces::videos($client->contentItems()
             ->whereIn('status', ContentDashboard::STATUS_GROUPS['in_progress'])
+            ->where('source', '!=', \App\Models\ContentItem::SOURCE_YOUTUBE)
             ->orderByRaw('published_date is null')->orderBy('published_date')
             ->get(['id', 'title', 'venture', 'status', 'source', 'published_date', 'editor']));
         $inWorks = $inWorksVideos->map(function ($parts) {

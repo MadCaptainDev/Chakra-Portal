@@ -213,7 +213,6 @@ export function ventureBoard(urls, initial) {
         open: {},
         platforms: [
             { key: 'reel', icon: 'Reel', chip: 'bg-pink-400/15 text-pink-200' },
-            { key: 'youtube', icon: 'YouTube', chip: 'bg-red-400/15 text-red-200' },
             { key: 'post', icon: 'Post', chip: 'bg-sky-400/15 text-sky-200' },
             { key: 'story', icon: 'Story', chip: 'bg-amber-400/15 text-amber-200' },
         ],

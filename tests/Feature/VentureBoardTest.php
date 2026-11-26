@@ -63,7 +63,8 @@ class VentureBoardTest extends TestCase
 
         $this->assertSame(['idea' => 0, 'to_shoot' => 1, 'to_edit' => 2, 'editing' => 2, 'ready' => 1, 'scheduled' => 1, 'other' => 0], $janet['stages']);
         $this->assertSame(6, $janet['in_hand']);
-        $this->assertSame(2, $janet['out_month']);
+        $this->assertSame(1, $janet['out_month']); // reels only: the delivered post is a side count
+        $this->assertSame(['reel' => 1, 'post' => 1], $janet['out_by_type']);
         $this->assertSame(1, $janet['overdue']);
         $this->assertSame('2026-11-28', $janet['planned_until']);
         $this->assertSame('ok', $janet['health']);
@@ -190,8 +191,8 @@ class VentureBoardTest extends TestCase
 
         Notification::assertSentToTimes($this->admin, VentureUpdate::class, 1);
         Notification::assertSentTo($this->admin, fn (VentureUpdate $n) => $n->title === 'Your ventures today'
-            && str_contains($n->body, '7 videos in hand across 2 ventures, 2 out this month.')
-            && str_contains($n->body, 'Janet: 6 in hand (1 ready, 1 scheduled), 1 to shoot, 2 out this month, 1 past their date')
+            && str_contains($n->body, '7 videos in hand across 2 ventures, 1 out this month.')
+            && str_contains($n->body, 'Janet: 6 in hand (1 ready, 1 scheduled), 1 to shoot, 1 out this month, 1 past their date')
             && str_contains($n->body, '⚠ Riya: 1 in hand'));
     }
 
@@ -220,38 +221,38 @@ class VentureBoardTest extends TestCase
         $this->assertSame('Janet', $rows[0]['venture']);
     }
 
-    public function test_a_reel_and_its_youtube_copy_are_one_video_even_under_another_spelling(): void
+    public function test_only_instagram_reels_count_and_the_youtube_short_is_a_tick(): void
     {
         $account = \App\Models\ContentAccount::create(['name' => 'Janet', 'client_id' => \App\Models\Client::factory()->create()->id]);
         foreach (['Janet', 'janet Hospital'] as $v) {
             \App\Models\ContentAccountVenture::create(['content_account_id' => $account->id, 'venture' => $v]);
         }
-        // In hand: the reel and its YouTube copy, a day apart.
+        // In hand: one reel. Its YouTube Short is the same video: never counted.
         $this->item('Janet', 'To Be Edited', '2026-11-14', 'reel', 'Janet - BP in Pregnancy');
         $this->item('janet Hospital', 'To Be Edited', '2026-11-15', 'youtube', 'JANET - BP in pregnancy');
-        // Out on both.
-        $this->item('Janet', 'Published', '2026-11-04', 'reel', 'Janet - Six Golden Days');
+        // Out: two DIFFERENT reels that share a title count twice; a YouTube-only row never.
+        $golden = $this->item('Janet', 'Published', '2026-11-04', 'reel', 'Janet - Six Golden Days');
+        $this->item('Janet', 'Published', '2026-11-18', 'reel', 'Janet - Six Golden Days');
         $this->item('janet Hospital', 'Published', '2026-11-04', 'youtube', 'Janet - Six Golden Days');
-        // Out as a reel and scheduled, never put on YouTube: flagged.
-        $this->item('Janet', 'Published', '2026-11-06', 'reel', 'Janet - Crackers and Pregnancy');
-        $this->item('Janet', 'Scheduled', '2026-11-20', 'reel', 'Janet - Secret Maths');
-        // Only delivered to the client: no YouTube expected.
-        $this->item('Janet', 'Delivered', '2026-11-07', 'reel', 'Janet - Doctor Intro');
+        $this->item('janet Hospital', 'Published', '2026-11-09', 'youtube', 'Janet - Only on YouTube');
 
-        $janet = VentureBoard::build(['Janet', 'janet Hospital'], now())['rows'];
-        $this->assertCount(1, $janet, 'One client, one row.');
-        $janet = $janet[0];
-        $this->assertSame(2, $janet['in_hand']);
-        $this->assertSame(3, $janet['out_month']);
-        $this->assertSame(['reel' => 3, 'youtube' => 1], $janet['out_by_type']);
-        $this->assertSame(2, $janet['missing_youtube']);
+        // The Short of the first golden reel was marked posted on YouTube.
+        $card = new \App\Models\Todo;
+        $card->forceFill(['user_id' => $this->admin->id, 'title' => 'Six Golden Days', 'content_item_id' => $golden->id, 'status' => 'completed',
+            'starts_on' => today(), 'due_on' => today(), 'posted_at' => now(), 'youtube_posted_at' => now(), 'youtube_posted_by_id' => $this->admin->id])->save();
 
-        $bp = collect($janet['videos'])->firstWhere('title', 'BP in Pregnancy');
-        $this->assertSame(['Reel', 'YouTube'], array_column($bp['platforms'], 'label'));
-        $this->assertFalse($bp['out']);
-        $golden = collect($janet['videos'])->firstWhere('title', 'Six Golden Days');
-        $this->assertTrue($golden['out']);
-        $this->assertFalse($golden['missing_youtube']);
+        $rows = VentureBoard::build(['Janet', 'janet Hospital'], now())['rows'];
+        $this->assertCount(1, $rows, 'One client, one row.');
+        $janet = $rows[0];
+        $this->assertSame(1, $janet['in_hand']);
+        $this->assertSame(2, $janet['out_month']);
+        $this->assertSame(['reel' => 2], $janet['out_by_type']);
+        $this->assertArrayNotHasKey('missing_youtube', $janet);
+
+        $out = collect($janet['videos'])->where('title', 'Six Golden Days')->values();
+        $this->assertCount(2, $out);
+        $this->assertSame($this->admin->name, $out->firstWhere('id', $golden->id)['youtube']['by']);
+        $this->assertNull($out->first(fn ($v) => $v['id'] !== $golden->id)['youtube']);
 
         // The picker lists the client once.
         $this->assertSame(['Janet'], VentureBoard::all()->pluck('name')->all());
