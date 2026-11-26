@@ -37,6 +37,10 @@ class PublishReminders extends Command
                 continue;
             }
             TodoUpdate::record($video->fresh(), $video->scheduledBy, TodoUpdate::POSTED, ['note' => (Todo::KINDS[$video->kind] ?? 'Reel').' (scheduled)']);
+            // Notion's planner too: Published, on the day it went out.
+            if ($video->contentItem && $video->scheduledBy) {
+                \App\Support\PlannerStatusPush::now($video->contentItem, 'Published', $video->scheduledBy, $video->publish_at->isToday());
+            }
             $this->line("Scheduled post went out: {$video->title}");
         }
 

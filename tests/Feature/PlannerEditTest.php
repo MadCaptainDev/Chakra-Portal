@@ -60,6 +60,7 @@ class PlannerEditTest extends TestCase
                 'Videos' => ['type' => 'title', 'title' => (object) []],
                 'Status' => ['type' => 'select', 'select' => ['options' => [
                     ['name' => 'Idea', 'color' => 'brown'], ['name' => 'To Be Edited', 'color' => 'orange'], ['name' => 'Edit in Progress', 'color' => 'yellow'],
+                    ['name' => 'Video Ready', 'color' => 'pink'], ['name' => 'Published', 'color' => 'green'], ['name' => 'Delivered', 'color' => 'blue'],
                 ]]],
                 'Venture' => ['type' => 'select', 'select' => ['options' => [['name' => 'SVA Silks', 'color' => 'pink'], ['name' => 'Janet', 'color' => 'blue']]]],
                 'Editor ' => ['type' => 'multi_select', 'multi_select' => ['options' => [['name' => 'Sanjai', 'color' => 'blue'], ['name' => 'Gokul', 'color' => 'yellow']]]],
@@ -255,5 +256,22 @@ class PlannerEditTest extends TestCase
     {
         $this->actingAs($this->user)->postJson(route('planner.data.refresh'), ['background' => true])
             ->assertStatus(202)->assertJsonPath('message', 'Refreshing from Notion…');
+    }
+public function test_posting_on_the_editing_board_marks_the_planner_published_today_in_notion(): void
+    {
+        $reel = $this->reel();
+        $card = new \App\Models\Todo;
+        $card->forceFill(['user_id' => $this->user->id, 'title' => 'SVA - Frock', 'content_item_id' => $reel->id, 'status' => \App\Models\Todo::STATUS_COMPLETED,
+            'ready_at' => now(), 'publish_at' => now(), 'starts_on' => today(), 'due_on' => today()])->save();
+
+        $this->actingAs($this->user)->postJson(route('my.editing.act', $card), ['action' => 'post', 'kind' => 'reel'])->assertOk();
+
+        $this->assertSame('Published', $this->props['Status']['select']['name']);
+        $this->assertSame(today()->toDateString(), $this->props['Published Date']['date']['start']);
+        $this->assertSame('Published', $reel->fresh()->status);
+
+        // Undoing the post puts it back to Video Ready.
+        $this->actingAs($this->user)->postJson(route('my.editing.act', $card), ['action' => 'unpost'])->assertOk();
+        $this->assertSame('Video Ready', $this->props['Status']['select']['name']);
     }
 }

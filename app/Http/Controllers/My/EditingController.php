@@ -272,6 +272,7 @@ class EditingController extends Controller
                     'scheduled_by_id' => null,
                 ])->save();
                 TodoUpdate::record($todo, $user, TodoUpdate::READY, ['note' => ($wasReady ? 'New time: ' : 'Publish ').$at->format('D j M, g:i A')]);
+                \App\Support\PlannerStatusPush::after($todo, 'Video Ready', $user);
                 break;
             case 'post':
                 if ($todo->corrections()->open()->exists()) {
@@ -288,6 +289,8 @@ class EditingController extends Controller
                     'posted_by_id' => $user->id,
                 ])->save();
                 TodoUpdate::record($todo, $user, TodoUpdate::POSTED, ['note' => trim((Todo::KINDS[$todo->kind] ?? 'Posted').' '.($todo->post_url ?? ''))]);
+                // Notion's planner too: Published, dated today -- no second entry there.
+                \App\Support\PlannerStatusPush::after($todo, 'Published', $user, true);
                 // If the post is already synced from Instagram, keep its picture now;
                 // otherwise the nightly sync picks it up (VideoThumbnail::backfill).
                 \Illuminate\Support\defer(fn () => rescue(function () use ($todo) {
@@ -317,11 +320,13 @@ class EditingController extends Controller
                     'posted_by_id' => $user->id,
                 ])->save();
                 TodoUpdate::record($todo, $user, TodoUpdate::DELIVERED, ['note' => $todo->post_url]);
+                \App\Support\PlannerStatusPush::after($todo, 'Delivered', $user, true);
                 break;
             case 'unpost':
                 $wasDelivered = $todo->kind === Todo::KIND_DELIVERED;
                 $todo->forceFill(['posted_at' => null, 'post_url' => null, 'posted_by_id' => null, 'publish_reminded_at' => null, 'scheduled_at' => null, 'scheduled_by_id' => null] + ($wasDelivered ? ['kind' => null] : []))->save();
                 TodoUpdate::record($todo, $user, TodoUpdate::UNPOSTED, ['note' => $wasDelivered ? 'Delivery undone' : null]);
+                \App\Support\PlannerStatusPush::after($todo, 'Video Ready', $user);
                 break;
             case 'hold':
                 // Stuck on something outside the editor's hands. Stops the
