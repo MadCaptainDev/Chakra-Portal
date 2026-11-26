@@ -169,11 +169,17 @@ class EditingController extends Controller
             if ($edited && blank($data['note'] ?? null)) {
                 return response()->json(['message' => 'Say why this edited video is cancelled.'], 422);
             }
-            if ($todo->status !== Todo::STATUS_CANCELLED) {
-                $todo->moveTo(Todo::STATUS_CANCELLED, $user, $edited ? 'Cancelled after editing: '.trim($data['note']) : ($data['note'] ?? 'Removed from the board'));
-                $todo->corrections()->open()->get()->each(fn (Todo $fix) => $fix->moveTo(Todo::STATUS_CANCELLED, $user, 'Video removed'));
-                $todo->forceFill(['ready_at' => null, 'publish_at' => null, 'publish_reminded_at' => null, 'scheduled_at' => null, 'scheduled_by_id' => null])->save();
+            $note = $edited ? 'Cancelled after editing: '.trim($data['note']) : ($data['note'] ?? 'Removed from the board');
+
+            // Cancelling is an admin's decision: an editor's becomes a request
+            // (except a card added by mistake today and never started).
+            if (\App\Support\VideoRequests::needsApproval($user) && ! \App\Support\VideoRequests::freeToRemove($todo)) {
+                \App\Support\VideoRequests::ask($user, 'cancel', $todo->title, ['note' => $note], $todo);
+
+                return response()->json(['pending' => true, 'message' => 'Sent to an admin to approve. It stays on your board until then.'], 202);
             }
+
+            \App\Support\VideoRequests::cancel($todo, $user, $note);
 
             return response()->json(['removed' => $todo->id]);
         }
@@ -530,6 +536,8 @@ class EditingController extends Controller
             'publishes' => $publish ? ($publish->isToday() ? 'Today' : ($publish->isTomorrow() ? 'Tomorrow' : $publish->format('D j M'))) : null,
             'posted_at' => $t->posted_at?->format('g:i A'),
             'ready' => $t->ready_at !== null,
+            // An editor's cancel waiting for an admin (App\Support\VideoRequests).
+            'pending' => \App\Models\VideoRequest::query()->where('todo_id', $t->id)->where('status', 'pending')->value('kind'),
             'publish_at' => $t->publish_at?->format('Y-m-d\TH:i'),
             'publish_label' => $t->publish_at ? ($t->publish_at->isToday() ? 'Today ' : ($t->publish_at->isTomorrow() ? 'Tomorrow ' : $t->publish_at->format('D j M '))).$t->publish_at->format('g:i A') : null,
             'publish_ms' => $t->publish_at?->getTimestampMs(),

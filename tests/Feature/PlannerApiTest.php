@@ -226,7 +226,7 @@ class PlannerApiTest extends TestCase
 
     public function test_moving_a_date_writes_notion_first_then_the_portal_and_records_who(): void
     {
-        $this->grant($this->editor, 'view', 'edit');
+        $this->grant($this->editor, 'view', 'edit', 'manage'); // moving a date: manage (or admin) moves directly
         $reel = $this->reel();
         $from = $reel->published_date->toDateString();
         $to = today()->addDays(5)->toDateString();
@@ -250,7 +250,7 @@ class PlannerApiTest extends TestCase
 
     public function test_a_time_of_day_in_notion_is_kept_when_the_day_moves(): void
     {
-        $this->grant($this->editor, 'view', 'edit');
+        $this->grant($this->editor, 'view', 'edit', 'manage'); // moving a date: manage (or admin) moves directly
         $reel = $this->reel(['published_date' => '2026-12-14']);
         $this->fakeNotion('2026-12-14T18:00:00.000+05:30');
 
@@ -263,7 +263,7 @@ class PlannerApiTest extends TestCase
 
     public function test_a_stale_date_is_a_conflict_not_an_overwrite(): void
     {
-        $this->grant($this->editor, 'view', 'edit');
+        $this->grant($this->editor, 'view', 'edit', 'manage'); // moving a date: manage (or admin) moves directly
         $reel = $this->reel();
         $token = $this->token($this->editor);
         $current = $reel->published_date->toDateString();
@@ -285,7 +285,7 @@ class PlannerApiTest extends TestCase
 
     public function test_if_notion_refuses_nothing_changes(): void
     {
-        $this->grant($this->editor, 'view', 'edit');
+        $this->grant($this->editor, 'view', 'edit', 'manage'); // moving a date: manage (or admin) moves directly
         $reel = $this->reel();
         $from = $reel->published_date->toDateString();
         $this->fakeNotion($from, fn () => Http::response(['message' => 'Published Date is not a property that exists.'], 400));
@@ -331,7 +331,7 @@ class PlannerApiTest extends TestCase
 
     public function test_a_moved_date_is_published_to_everyone_after_the_response(): void
     {
-        $this->grant($this->editor, 'view', 'edit');
+        $this->grant($this->editor, 'view', 'edit', 'manage'); // moving a date: manage (or admin) moves directly
         // The item exists before live updates are on, so its creation is not an event here.
         $reel = $this->reel();
         PlannerSetting::current()->forceFill(['ably_key' => 'appid.keyid:sekret'])->save();
@@ -535,7 +535,14 @@ class PlannerApiTest extends TestCase
         // View only: the date stays put.
         $this->patchJson(route('planner.data.move', $reel->id), ['published_date' => $to, 'from' => $from])->assertForbidden();
 
+        // Edit, but not Manage: moving a video is an admin's call -- it becomes a request.
         $this->grant($this->editor, 'edit');
+        $this->actingAs($this->editor->fresh())->patchJson(route('planner.data.move', $reel->id), ['published_date' => $to, 'from' => $from])
+            ->assertForbidden()->assertJsonPath('code', 'needs_approval');
+        $this->assertSame(['from' => $from, 'to' => $to], \App\Models\VideoRequest::sole()->payload);
+        $this->assertSame($from, $reel->fresh()->published_date->toDateString());
+
+        $this->grant($this->editor, 'manage');
         $this->fakeNotion($from);
         $this->actingAs($this->editor->fresh())->patchJson(route('planner.data.move', $reel->id), ['published_date' => $to, 'from' => $from])
             ->assertOk()->assertJsonPath('item.published_date', $to);

@@ -91,7 +91,7 @@ class WorkReportTest extends TestCase
 
     public function test_a_video_not_yet_edited_is_still_removed_without_a_reason(): void
     {
-        $card = $this->card('Added by mistake');
+        $card = $this->card('Added by mistake', Todo::STATUS_WAITING); // added today, never started: free to remove
         $this->actingAs($this->editor)->postJson(route('my.editing.act', $card), ['action' => 'remove'])->assertOk();
         $this->assertSame(Todo::STATUS_CANCELLED, $card->fresh()->status);
         $this->assertFalse(WorkReport::for('day', null)->videos()['cancelled']->first()['edited']);

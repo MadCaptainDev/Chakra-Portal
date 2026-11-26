@@ -451,6 +451,9 @@ Route::middleware('auth')->group(function () {
     Route::get('editor-updates/live', [EditorUpdatesController::class, 'live'])->name('editor-updates.live');
     Route::get('editor-updates/editor/{user}', [EditorUpdatesController::class, 'editor'])->name('editor-updates.editor');
     Route::post('editor-updates/posts', [EditorUpdatesController::class, 'post'])->name('editor-updates.post');
+    // An editor's cancel / planner move, approved or refused by an admin (App\Support\VideoRequests).
+    Route::post('video-requests/{videoRequest}/approve', [\App\Http\Controllers\VideoRequestController::class, 'approve'])->name('video-requests.approve');
+    Route::post('video-requests/{videoRequest}/refuse', [\App\Http\Controllers\VideoRequestController::class, 'refuse'])->name('video-requests.refuse');
 
     // Video review: upload a cut, comment on moments, approve or send back. See VideoReviewController.
     Route::controller(\App\Http\Controllers\VideoReviewController::class)->group(function () {

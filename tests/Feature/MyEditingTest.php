@@ -140,7 +140,12 @@ class MyEditingTest extends TestCase
         $this->postJson(route('my.editing.act', $id), ['action' => 'start']);
         $this->postJson(route('my.editing.correct', $id), ['title' => 'Logo']);
 
-        $this->postJson(route('my.editing.act', $id), ['action' => 'remove'])->assertOk()->assertJsonPath('removed', $id);
+        // Started, so cancelling it is an admin's call: a request first.
+        $this->postJson(route('my.editing.act', $id), ['action' => 'remove'])->assertStatus(202)->assertJsonPath('pending', true);
+        $this->assertSame(Todo::STATUS_STARTED, Todo::find($id)->status);
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $this->actingAs($admin)->post(route('video-requests.approve', \App\Models\VideoRequest::sole()));
+        $this->actingAs($this->sanjai);
         $this->assertSame(Todo::STATUS_CANCELLED, Todo::find($id)->status);
         $this->assertSame(Todo::STATUS_CANCELLED, Todo::where('parent_id', $id)->sole()->status, 'its open correction goes too');
 

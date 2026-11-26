@@ -106,6 +106,23 @@ class PlannerItemController extends Controller
             'expected' => ['sometimes', 'array'],
         ]);
 
+        // Moving a video's date, or taking it off the plan (Cancelled / Hold),
+        // is an admin's decision: anyone else's becomes a request.
+        if (\App\Support\VideoRequests::needsApproval($request->user())) {
+            $current = $found->published_date?->toDateString();
+            $toDate = $request->exists('published_date') ? ($data['published_date'] ?? null) : $current;
+            if ($toDate !== $current) {
+                \App\Support\VideoRequests::ask($request->user(), 'move', (string) $found->title, ['from' => $current, 'to' => $toDate], null, $found);
+
+                return response()->json(['message' => 'Moving a video needs an admin. Your request was sent; the date changes when it is approved.', 'code' => 'needs_approval'], 403);
+            }
+            if (in_array($data['status'] ?? null, \App\Support\VideoRequests::STOP_STATUSES, true) && $data['status'] !== $found->status) {
+                \App\Support\VideoRequests::ask($request->user(), 'status', (string) $found->title, ['status' => $data['status'], 'from' => $found->status], null, $found);
+
+                return response()->json(['message' => 'Cancelling or holding a video needs an admin. Your request was sent.', 'code' => 'needs_approval'], 403);
+            }
+        }
+
         try {
             if ($dateOnly) {
                 $fresh = $move->move($found, $data['published_date'], $data['from'] ?? null, $request->exists('from'), $request->user());

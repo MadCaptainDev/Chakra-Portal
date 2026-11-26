@@ -187,6 +187,7 @@
                             <article class="rounded-xl bg-brand-900/80 p-3.5 ring-1 ring-white/10 sm:p-3">
                                 <div class="flex items-start justify-between gap-2">
                                     <p class="font-semibold leading-snug text-white" x-text="card.title"></p>
+                                    <p x-show="card.pending" x-cloak class="mt-0.5 text-[11px] font-semibold text-amber-300">⏳ Cancel waiting for an admin</p>
                                     <span class="-mr-1 -mt-1 flex shrink-0">
                                     {{-- Hand it to someone else. --}}
                                     <button type="button" x-show="!card.posted_at && editors.length > 1" @click="handing = handing === card.id ? null : card.id; handTo = ''"

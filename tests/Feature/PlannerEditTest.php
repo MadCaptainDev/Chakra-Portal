@@ -35,7 +35,9 @@ class PlannerEditTest extends TestCase
         PlannerSchema::forget();
         $this->withoutVite();
         $this->user = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'name' => 'Keerthi']);
-        foreach (['view', 'edit'] as $ability) {
+        // Manage too: these tests are about the edits themselves; who may move or
+        // cancel without an admin is VideoRequestsTest's subject.
+        foreach (['view', 'edit', 'manage'] as $ability) {
             UserPermission::create(['user_id' => $this->user->id, 'module' => 'planner', 'ability' => $ability]);
         }
 
@@ -210,7 +212,7 @@ class PlannerEditTest extends TestCase
     public function test_view_only_cannot_edit_or_create(): void
     {
         $reel = $this->reel();
-        UserPermission::query()->where('ability', 'edit')->delete();
+        UserPermission::query()->whereIn('ability', ['edit', 'manage'])->delete();
 
         $this->actingAs($this->user->fresh())->patchJson(route('planner.data.move', $reel->id), ['status' => 'Idea'])->assertForbidden();
         $this->postJson(route('planner.data.store'), ['source' => 'reel', 'title' => 'New'])->assertForbidden();
