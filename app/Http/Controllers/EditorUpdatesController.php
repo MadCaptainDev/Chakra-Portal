@@ -48,6 +48,7 @@ class EditorUpdatesController extends Controller
             'review' => $this->queue(false),
             'ready' => $this->queue(true),
             'cards' => $this->uploadable($request->user()),
+            'shortsDue' => \App\Support\YoutubeShorts::due()->when($this->only !== null, fn ($c) => $c->whereIn('user_id', $this->only))->values(),
             'people' => $people,
             'timeline' => $this->timeline($day, $people, $todos),
             'totals' => $this->totals($people),

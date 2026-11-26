@@ -32,6 +32,7 @@
 
 <x-app-layout title="My Editing">
     <div class="mx-auto max-w-6xl space-y-4 pb-10" x-data="editingDay(@js($state))">
+        @include('my._youtube-due', ['shortsDue' => $shortsDue, 'showEditor' => false])
         @include('my._team-ready')
         @include('my._team-review')
 

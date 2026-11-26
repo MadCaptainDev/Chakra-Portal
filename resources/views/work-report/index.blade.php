@@ -171,6 +171,28 @@
             </x-card>
         </div>
 
+        {{-- The YouTube Short duty --}}
+        @php $shorts = $r->shorts(); @endphp
+        <x-card padding="md">
+            <x-section-heading title="YouTube Shorts" subtitle="Every reel posted on Instagram goes up on YouTube too (same video, no copyrighted music). On time = within a day." />
+            @if ($shorts->isEmpty())
+                <p class="text-sm text-brand-100/50">No reels posted in this period.</p>
+            @else
+                <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    @foreach ($shorts as $s)
+                        <div class="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 {{ $s['missing'] ? 'bg-red-500/10 ring-1 ring-red-400/30' : 'bg-white/[0.04]' }}">
+                            <span class="font-semibold text-white">{{ $s['user']->name }}</span>
+                            <span class="text-xs tabular-nums">
+                                <span class="text-emerald-300">✓ {{ $s['on_time'] }}</span>
+                                @if ($s['late']) · <span class="text-amber-300">late {{ $s['late'] }}</span>@endif
+                                @if ($s['missing']) · <span class="font-bold text-red-300">missing {{ $s['missing'] }}</span>@endif
+                            </span>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        </x-card>
+
         {{-- Cancelled videos, with why --}}
         <x-card padding="md">
             <x-section-heading title="Cancelled videos" subtitle="Called off, and how far they had got — after editing is time spent for nothing" />

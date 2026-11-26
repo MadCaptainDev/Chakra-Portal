@@ -70,7 +70,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // The daily Instagram sync rides on any page visit from the morning, one
         // account per visit, after the response (cron does not fire here).
-        $middleware->web(append: [\App\Http\Middleware\EnsureInstagramSyncedDaily::class]);
+        $middleware->web(append: [\App\Http\Middleware\EnsureInstagramSyncedDaily::class, \App\Http\Middleware\SendShortsSummaryDaily::class]);
 
         $middleware->alias([
             'recurring.catchup' => \App\Http\Middleware\EnsureRecurringInvoicesGenerated::class,

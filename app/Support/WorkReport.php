@@ -237,6 +237,22 @@ class WorkReport
         });
     }
 
+    /**
+     * The YouTube Short duty per person: reels they posted on Instagram in
+     * the range, and whether the Short went up on time, late, or not at all.
+     *
+     * @return Collection<int, array{user: User, on_time: int, late: int, missing: int}>
+     */
+    public function shorts(): Collection
+    {
+        $rec = \App\Support\YoutubeShorts::record($this->from, $this->to);
+        $names = User::query()->whereIn('id', $rec->keys())->get(['id', 'name'])->keyBy('id');
+
+        return $rec->map(fn ($r, $id) => $r + ['user' => $names[$id] ?? null])
+            ->filter(fn ($r) => $r['user'])
+            ->sortByDesc(fn ($r) => [$r['missing'], $r['late']])->values();
+    }
+
     /** Shoots that started in the range, with how long they ran and how many videos. */
     public function shoots(): Collection
     {

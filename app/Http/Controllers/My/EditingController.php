@@ -42,6 +42,7 @@ class EditingController extends Controller
 
         return view('my.editing', [
             'teamReady' => $this->teamReady($user),
+            'shortsDue' => \App\Support\YoutubeShorts::due($user),
             'teamReview' => $this->teamReview($user),
             'editors' => $this->editors($user),
             'cards' => $this->cards($user),
@@ -143,7 +144,7 @@ class EditingController extends Controller
             default => $this->authorise($todo, $user),
         };
         $data = $request->validate([
-            'action' => ['required', 'in:start,done,reopen,ready,schedule,unschedule,post,deliver,unpost,kind,hold,next,today,remove,reassign'],
+            'action' => ['required', 'in:start,done,reopen,ready,schedule,unschedule,post,deliver,unpost,kind,hold,next,today,remove,reassign,youtube,unyoutube'],
             'user_id' => ['required_if:action,reassign', 'nullable', 'integer'],
             'kind' => ['nullable', 'in:'.implode(',', array_keys(Todo::KINDS))],
             'post_url' => ['nullable', 'url', 'max:500'],
@@ -175,6 +176,30 @@ class EditingController extends Controller
             }
 
             return response()->json(['removed' => $todo->id]);
+        }
+
+        // The reel's YouTube Short (same video, no copyrighted music): a duty,
+        // marked by whoever posts it. Undo: the same person within an hour, or an admin.
+        if ($data['action'] === 'youtube') {
+            if ($todo->parent_id || ! $todo->posted_at || $todo->kind === Todo::KIND_DELIVERED) {
+                return response()->json(['message' => 'Only a reel posted on Instagram has a YouTube Short to post.'], 422);
+            }
+            if (! $todo->youtube_posted_at) {
+                $todo->forceFill(['youtube_posted_at' => now(), 'youtube_posted_by_id' => $user->id])->save();
+                TodoUpdate::record($todo, $user, TodoUpdate::POSTED, ['note' => 'YouTube Short posted']);
+            }
+
+            return response()->json(['youtube' => ['at' => $todo->youtube_posted_at->toIso8601String(), 'by' => $user->name]]);
+        }
+        if ($data['action'] === 'unyoutube') {
+            $mine = $todo->youtube_posted_by_id === $user->id && $todo->youtube_posted_at?->gt(now()->subHour());
+            if (! $mine && ! $user->isAdmin()) {
+                return response()->json(['message' => 'Only an admin can undo this now.'], 403);
+            }
+            $todo->forceFill(['youtube_posted_at' => null, 'youtube_posted_by_id' => null])->save();
+            TodoUpdate::record($todo, $user, TodoUpdate::UNPOSTED, ['note' => 'YouTube Short mark undone']);
+
+            return response()->json(['youtube' => null]);
         }
 
         if ($data['action'] === 'reassign') {
@@ -366,7 +391,7 @@ class EditingController extends Controller
      * video posted or delivered (or undo that), and say what kind of post it
      * was. Scheduling is the editor's: they set it up and say when it goes live. Starting, holding, finishing and removing stay the editor's.
      */
-    private const ANYONE = ['post', 'deliver', 'unpost', 'kind'];
+    private const ANYONE = ['post', 'deliver', 'unpost', 'kind', 'youtube', 'unyoutube'];
 
     private function authorise(Todo $todo, User $user): void
     {

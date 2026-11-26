@@ -70,6 +70,7 @@
         @endif
 
         {{-- First what to act on: upload a post, then the review and ready queues. --}}
+        @include('my._youtube-due', ['shortsDue' => $shortsDue, 'showEditor' => true])
         @include('editor-updates._post-upload')
         @include('editor-updates._queue')
 
