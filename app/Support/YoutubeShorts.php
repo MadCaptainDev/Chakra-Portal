@@ -19,6 +19,12 @@ class YoutubeShorts
 {
     public const GRACE_HOURS = 24;
 
+    /**
+     * The mark exists from this day. Reels posted before it could not be
+     * marked, so they are never counted as missing.
+     */
+    public const SINCE = '2026-11-26';
+
     /** How far back the list looks: older ones are history, not a to-do. */
     public const LOOKBACK_DAYS = 30;
 
@@ -29,7 +35,7 @@ class YoutubeShorts
             ->whereNotNull('posted_at')->whereNull('youtube_posted_at')
             ->where(fn ($q) => $q->whereNull('kind')->orWhere('kind', '!=', Todo::KIND_DELIVERED))
             ->where(fn ($q) => $q->whereNull('kind')->orWhereIn('kind', ['reel']))
-            ->where('posted_at', '>=', now()->subDays(self::LOOKBACK_DAYS))
+            ->where('posted_at', '>=', max(now()->subDays(self::LOOKBACK_DAYS), \Illuminate\Support\Carbon::parse(self::SINCE)))
             ->when(! $includeGrace, fn ($q) => $q->where('posted_at', '<=', now()->subHours(self::GRACE_HOURS)))
             ->when($for, fn ($q) => $q->where('user_id', $for->id))
             ->with('user:id,name')->orderBy('posted_at')->get();
@@ -68,7 +74,7 @@ class YoutubeShorts
     {
         return Todo::query()->whereNull('parent_id')->whereNotNull('posted_at')
             ->where(fn ($q) => $q->whereNull('kind')->orWhere('kind', 'reel'))
-            ->whereBetween('posted_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])
+            ->whereBetween('posted_at', [max($from->copy()->startOfDay(), \Illuminate\Support\Carbon::parse(self::SINCE)), $to->copy()->endOfDay()])
             ->get(['id', 'user_id', 'posted_at', 'youtube_posted_at'])
             ->groupBy('user_id')
             ->map(fn ($g) => [

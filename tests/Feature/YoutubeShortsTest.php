@@ -29,7 +29,7 @@ class YoutubeShortsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Carbon::setTestNow('2026-11-26 11:00');
+        Carbon::setTestNow('2026-12-02 11:00');
         $this->withoutVite();
         $this->admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
         $this->gokul = User::factory()->create(['role' => User::ROLE_EMPLOYEE, 'name' => 'Gokul']);
@@ -52,11 +52,11 @@ class YoutubeShortsTest extends TestCase
 
     public function test_missed_shorts_are_listed_per_editor_and_summarised_to_admins(): void
     {
-        foreach (['2026-11-22 18:00', '2026-11-23 18:00', '2026-11-24 18:00', '2026-11-25 09:00'] as $i => $at) {
+        foreach (['2026-11-28 18:00', '2026-11-29 18:00', '2026-11-30 18:00', '2026-12-01 09:00'] as $i => $at) {
             $this->posted('Reel '.$i, $at);
         }
-        $this->posted('Just posted', '2026-11-26 09:00');            // inside the day's grace
-        $this->posted('Only delivered', '2026-11-20 10:00', 'delivered'); // no YouTube duty
+        $this->posted('Just posted', '2026-12-02 09:00');            // inside the day's grace
+        $this->posted('Only delivered', '2026-11-28 10:00', 'delivered'); // no YouTube duty
 
         $this->assertSame(['Gokul' => 4], YoutubeShorts::missingByEditor()->map->count()->all());
         $this->assertCount(5, YoutubeShorts::due($this->gokul)); // his own list includes the fresh one
@@ -70,8 +70,8 @@ class YoutubeShortsTest extends TestCase
 
     public function test_marking_posted_on_youtube_records_who_and_only_an_admin_undoes_it_later(): void
     {
-        $reel = $this->posted('Janet - Diwali', '2026-11-24 18:00');
-        $delivered = $this->posted('Client copy', '2026-11-24 18:00', 'delivered');
+        $reel = $this->posted('Janet - Diwali', '2026-11-30 18:00');
+        $delivered = $this->posted('Client copy', '2026-11-30 18:00', 'delivered');
 
         $this->actingAs($this->gokul)->postJson(route('my.editing.act', $delivered), ['action' => 'youtube'])->assertStatus(422);
         $this->actingAs($this->gokul)->postJson(route('my.editing.act', $reel), ['action' => 'youtube'])->assertOk()->assertJsonPath('youtube.by', 'Gokul');
@@ -86,15 +86,21 @@ class YoutubeShortsTest extends TestCase
 
     public function test_the_lists_and_the_work_report_show_it(): void
     {
-        $late = $this->posted('Late one', '2026-11-23 08:00'); // this week (Mon 23 – Sun 29)
-        $late->forceFill(['youtube_posted_at' => Carbon::parse('2026-11-24 10:00'), 'youtube_posted_by_id' => $this->gokul->id])->save();
-        $this->posted('Missing one', '2026-11-24 18:00');
+        $late = $this->posted('Late one', '2026-11-30 08:00'); // this week (Mon 30 – Sun 6)
+        $late->forceFill(['youtube_posted_at' => Carbon::parse('2026-12-01 10:00'), 'youtube_posted_by_id' => $this->gokul->id])->save();
+        $this->posted('Missing one', '2026-11-30 18:00');
 
         $this->actingAs($this->gokul)->get(route('my.editing'))->assertOk()->assertSee('YouTube Shorts to post')->assertSee('Missing one');
         $this->actingAs($this->admin)->get(route('editor-updates'))->assertOk()->assertSee('YouTube Shorts to post')->assertSee('Gokul');
 
-        $row = WorkReport::for('week', '2026-11-26')->shorts()->first();
+        $row = WorkReport::for('week', '2026-12-02')->shorts()->first();
         $this->assertSame(['on_time' => 0, 'late' => 1, 'missing' => 1], array_intersect_key($row, array_flip(['on_time', 'late', 'missing'])));
         $this->actingAs($this->admin)->get(route('work-report', ['period' => 'week']))->assertOk()->assertSee('YouTube Shorts')->assertSee('missing 1');
+    }
+public function test_reels_posted_before_the_mark_existed_are_never_missing(): void
+    {
+        $this->posted('Old reel', '2026-11-20 18:00');
+        $this->assertCount(0, YoutubeShorts::due());
+        $this->assertNull(YoutubeShorts::summary());
     }
 }
